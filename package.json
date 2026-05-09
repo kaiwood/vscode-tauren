@@ -62,6 +62,7 @@
   },
   "scripts": {
     "compile": "tsc -p ./",
+    "test": "npm run compile -- --pretty false && node --test test/*.test.js",
     "watch": "tsc -watch -p ./"
   },
   "devDependencies": {

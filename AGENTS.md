@@ -18,7 +18,11 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 
 - `package.json` defines a VS Code extension with an Activity Bar view container named `Pi`.
 - The extension is TypeScript, CommonJS, and compiles `src` to `out`.
-- `src/extension.ts` owns the sidebar webview, in-memory transcript state, UI message handling, and mapping Pi RPC events to UI state.
+- `src/extension.ts` is only the activation entrypoint and command/view registration.
+- `src/piChatViewProvider.ts` owns VS Code webview/provider integration, focus handling, notifications, workspace `cwd` lookup, and Pi client lifecycle.
+- `src/chatSession.ts` owns pure in-memory transcript/session state and has no VS Code or Pi process dependencies.
+- `src/chatWebview.ts` owns the sidebar webview HTML, CSS, browser script, nonce generation, and webview message types.
+- `src/piEventMapper.ts` owns pure Pi RPC event-to-UI action mapping helpers.
 - `src/piRpcClient.ts` owns the `pi --mode rpc` subprocess, strict JSONL parsing, request/response tracking, stderr collection, and process cleanup.
 - There is no bundler. Keep the implementation compatible with the current direct `tsc` build.
 
@@ -58,6 +62,7 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 ## Development Workflow
 
 - Run `npm run compile` after TypeScript changes.
+- Run `npm test` after changes to `src/chatSession.ts` or `src/piEventMapper.ts`.
 - Use `git diff --check` before finishing edits.
 - For UI behavior changes, manually verify in the VS Code Extension Host when practical.
 - Keep changes small and scoped to the requested iteration.
