@@ -30,6 +30,11 @@
     ],
     "keybindings": [
       {
+        "command": "piui.focus",
+        "key": "ctrl+[BracketLeft]",
+        "mac": "cmd+[BracketLeft]"
+      },
+      {
         "command": "piui.newSession",
         "key": "ctrl+n",
         "mac": "cmd+n",

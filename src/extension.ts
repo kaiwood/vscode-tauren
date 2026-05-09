@@ -82,7 +82,7 @@ class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposabl
       await vscode.commands.executeCommand(`${viewType}.focus`);
     }
 
-    this.postInputFocus();
+    this.postInputFocusSoon();
   }
 
   public async newSession(): Promise<void> {
@@ -94,7 +94,7 @@ class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposabl
     if (message.type === 'ready') {
       this.webviewReady = true;
       this.postState();
-      this.postInputFocus();
+      this.postInputFocusSoon();
       return;
     }
 
@@ -325,6 +325,10 @@ class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposabl
 
     this.pendingInputFocus = false;
     void this.webviewView.webview.postMessage({ type: 'focusInput' });
+  }
+
+  private postInputFocusSoon(): void {
+    setTimeout(() => this.postInputFocus(), 0);
   }
 
   private getHtml(): string {
@@ -736,7 +740,9 @@ class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposabl
     }
 
     function focusPromptInput() {
-      textarea.focus({ preventScroll: true });
+      requestAnimationFrame(() => {
+        textarea.focus({ preventScroll: true });
+      });
     }
 
     vscode.postMessage({ type: 'ready' });
