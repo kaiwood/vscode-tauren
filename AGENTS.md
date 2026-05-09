@@ -34,6 +34,7 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - Do not add `@earendil-works/pi-coding-agent` SDK as a runtime dependency unless there is a clear reason to move away from the already configured CLI.
 - Spawn Pi lazily on first submitted prompt, not when the sidebar opens.
 - Use the first VS Code workspace folder as the Pi process `cwd`.
+- Treat the Pi agent as the source of truth for current model/settings; after a new session or restart, re-read state from the agent instead of preserving or guessing local settings.
 - Keep default Pi tool and session behavior unless the user explicitly asks for safer or ephemeral behavior.
 - Stop the child process when the extension provider is disposed.
 

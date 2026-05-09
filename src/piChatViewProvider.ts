@@ -15,13 +15,29 @@ import {
   type ActivityRemoveAction,
   type ActivityUpdateAction
 } from './piEventMapper';
-import { PiRpcClient, type PiModel, type PiSessionState, type PiSessionStats, type RpcEvent } from './piRpcClient';
+import { PiRpcClient, type PiModel, type PiRpcClientOptions, type PiSessionState, type PiSessionStats, type RpcEvent } from './piRpcClient';
 
 export const chatViewType = 'piui.chatView';
 
+export type PiRpcClientLike = Pick<
+  PiRpcClient,
+  | 'onEvent'
+  | 'onError'
+  | 'prompt'
+  | 'getState'
+  | 'getSessionStats'
+  | 'getAvailableModels'
+  | 'setModel'
+  | 'setThinkingLevel'
+  | 'cancelExtensionUiRequest'
+  | 'dispose'
+>;
+
+type PiRpcClientFactory = (options: PiRpcClientOptions) => PiRpcClientLike;
+
 export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   private webviewView: vscode.WebviewView | undefined;
-  private client: PiRpcClient | undefined;
+  private client: PiRpcClientLike | undefined;
   private pendingInputFocus = false;
   private webviewReady = false;
   private assistantStreamId = 0;
@@ -39,7 +55,10 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   private readonly disposables: vscode.Disposable[] = [];
   private readonly clientDisposables: vscode.Disposable[] = [];
 
-  public constructor(private readonly extensionUri: vscode.Uri) {
+  public constructor(
+    private readonly extensionUri: vscode.Uri,
+    private readonly createClient: PiRpcClientFactory = (options) => new PiRpcClient(options)
+  ) {
     this.fullRpcAgentCommunication = getFullRpcAgentCommunicationSetting();
     this.disposables.push(
       vscode.workspace.onDidChangeConfiguration((event) => {
@@ -210,6 +229,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     this.session.startNewSession();
     this.disposeClient();
     this.postState();
+    void this.refreshSessionMeta();
   }
 
   private async refreshSessionMeta(): Promise<void> {
@@ -269,13 +289,13 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     this.client = undefined;
   }
 
-  private getClient(): PiRpcClient {
+  private getClient(): PiRpcClientLike {
     if (this.client) {
       return this.client;
     }
 
     const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    const client = new PiRpcClient({ cwd });
+    const client = this.createClient({ cwd });
     const sessionGeneration = this.session.generation;
     this.client = client;
     this.clientDisposables.push(
