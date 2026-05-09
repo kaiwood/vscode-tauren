@@ -17,6 +17,16 @@ type RpcResponse = RpcEvent & {
   id?: string;
   success?: boolean;
   error?: string;
+  data?: unknown;
+};
+
+export type PiSessionState = {
+  model?: {
+    provider?: string;
+    id?: string;
+    reasoning?: boolean;
+  } | null;
+  thinkingLevel?: string;
 };
 
 type PendingRequest = {
@@ -60,6 +70,11 @@ export class PiRpcClient {
 
   public async prompt(message: string): Promise<void> {
     await this.send({ type: 'prompt', message });
+  }
+
+  public async getState(): Promise<PiSessionState> {
+    const response = await this.send({ type: 'get_state' });
+    return isRecord(response.data) ? response.data : {};
   }
 
   public async cancelExtensionUiRequest(id: string): Promise<void> {

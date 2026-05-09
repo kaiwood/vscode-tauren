@@ -11,7 +11,7 @@ import {
   mapExtensionUiRequest,
   mapMessageUpdate
 } from './piEventMapper';
-import { PiRpcClient, type RpcEvent } from './piRpcClient';
+import { PiRpcClient, type PiSessionState, type RpcEvent } from './piRpcClient';
 
 export const chatViewType = 'piui.chatView';
 
@@ -20,6 +20,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   private client: PiRpcClient | undefined;
   private pendingInputFocus = false;
   private webviewReady = false;
+  private modelLabel = '';
   private readonly session = new ChatSession();
   private readonly disposables: vscode.Disposable[] = [];
   private readonly clientDisposables: vscode.Disposable[] = [];
@@ -80,6 +81,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       this.webviewReady = true;
       this.postState();
       this.postInputFocusSoon();
+      void this.refreshModelLabel();
       return;
     }
 
@@ -118,6 +120,29 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     this.session.startNewSession();
     this.disposeClient();
     this.postState();
+  }
+
+  private async refreshModelLabel(): Promise<void> {
+    const sessionGeneration = this.session.generation;
+
+    try {
+      const state = await this.getClient().getState();
+
+      if (sessionGeneration !== this.session.generation) {
+        return;
+      }
+
+      const label = formatModelLabel(state);
+
+      if (label !== this.modelLabel) {
+        this.modelLabel = label;
+        this.postState();
+      }
+    } catch (error) {
+      if (sessionGeneration === this.session.generation) {
+        this.handleClientError(getErrorMessage(error));
+      }
+    }
   }
 
   private disposeClient(): void {
@@ -246,7 +271,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
   private postState(): void {
     void this.webviewView?.webview.postMessage(
-      createWebviewStateMessage(this.session.snapshot())
+      createWebviewStateMessage(this.session.snapshot(), this.modelLabel)
     );
   }
 
@@ -262,6 +287,29 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   private postInputFocusSoon(): void {
     setTimeout(() => this.postInputFocus(), 0);
   }
+}
+
+function formatModelLabel(state: PiSessionState): string {
+  const model = state.model;
+  const modelId = typeof model?.id === 'string' ? model.id : '';
+
+  if (!modelId) {
+    return '';
+  }
+
+  if (model?.reasoning && state.thinkingLevel) {
+    return `${modelId} ${formatThinkingLevel(state.thinkingLevel)}`;
+  }
+
+  return modelId;
+}
+
+function formatThinkingLevel(level: string): string {
+  if (level === 'off') {
+    return 'Thinking off';
+  }
+
+  return level.slice(0, 1).toUpperCase() + level.slice(1);
 }
 
 function getErrorMessage(error: unknown): string {

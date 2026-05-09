@@ -7,13 +7,15 @@ export type WebviewMessage = {
 
 export type WebviewStateMessage = ChatState & {
   type: 'state';
+  modelLabel: string;
 };
 
-export function createWebviewStateMessage(state: ChatState): WebviewStateMessage {
+export function createWebviewStateMessage(state: ChatState, modelLabel = ''): WebviewStateMessage {
   return {
     type: 'state',
     messages: state.messages,
-    busy: state.busy
+    busy: state.busy,
+    modelLabel
   };
 }
 
@@ -184,10 +186,6 @@ export function createWebviewHtml(): string {
       white-space: nowrap;
     }
 
-    .composer__model-version {
-      color: var(--vscode-input-foreground);
-    }
-
     .composer__submit {
       justify-self: end;
       width: 34px;
@@ -221,7 +219,7 @@ export function createWebviewHtml(): string {
           <path d="M9.5 3.5V15.5M3.5 9.5H15.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
         </svg>
       </button>
-      <div class="composer__model" aria-hidden="true"><span class="composer__model-version">5.5</span>&nbsp;Medium</div>
+      <div class="composer__model" aria-hidden="true"></div>
       <button class="composer__button composer__submit" type="submit" aria-label="Send message" title="Send message" disabled>
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none">
           <path d="M9 14.25V3.75M4.75 8L9 3.75L13.25 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -236,12 +234,13 @@ export function createWebviewHtml(): string {
     const form = document.querySelector('.composer');
     const textarea = document.querySelector('textarea');
     const newSessionButton = document.querySelector('.composer__add');
+    const modelElement = document.querySelector('.composer__model');
     const submitButton = document.querySelector('.composer__submit');
     const messagesBottomThreshold = 4;
     const maxTextareaHeight = 180;
     const minTextareaHeight = 22;
     const isMac = navigator.platform.toUpperCase().includes('MAC');
-    let state = { messages: [], busy: false };
+    let state = { messages: [], busy: false, modelLabel: '' };
 
     window.addEventListener('message', (event) => {
       if (event.data?.type === 'focusInput') {
@@ -255,7 +254,8 @@ export function createWebviewHtml(): string {
 
       state = {
         messages: Array.isArray(event.data.messages) ? event.data.messages : [],
-        busy: Boolean(event.data.busy)
+        busy: Boolean(event.data.busy),
+        modelLabel: typeof event.data.modelLabel === 'string' ? event.data.modelLabel : ''
       };
       render();
     });
@@ -319,6 +319,7 @@ export function createWebviewHtml(): string {
         messagesElement.append(status);
       }
 
+      syncModelLabel();
       syncComposer();
       if (shouldStickToBottom) {
         scrollMessagesToBottom();
@@ -355,6 +356,11 @@ export function createWebviewHtml(): string {
 
     function syncSubmit() {
       submitButton.disabled = state.busy || textarea.value.trim().length === 0;
+    }
+
+    function syncModelLabel() {
+      modelElement.textContent = state.modelLabel;
+      modelElement.title = state.modelLabel;
     }
 
     function isMessagesAtBottom() {
