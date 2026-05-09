@@ -3,7 +3,7 @@ import { createWebviewHtml, createWebviewStateMessage } from '../../chatWebview'
 import type { ChatState } from '../../chatSession';
 
 suite('Chat webview helpers', () => {
-  test('createWebviewStateMessage adds message type and model label', () => {
+  test('createWebviewStateMessage adds message type, model label, and context usage', () => {
     const state: ChatState = {
       messages: [
         { role: 'user', text: 'hello' },
@@ -12,11 +12,14 @@ suite('Chat webview helpers', () => {
       busy: true
     };
 
-    assert.deepStrictEqual(createWebviewStateMessage(state, 'gpt-test High'), {
+    assert.deepStrictEqual(createWebviewStateMessage(state, 'gpt-test High', '30%', '60,000 / 200,000 context tokens', 'low'), {
       type: 'state',
       messages: state.messages,
       busy: true,
-      modelLabel: 'gpt-test High'
+      modelLabel: 'gpt-test High',
+      contextUsageLabel: '30%',
+      contextUsageTitle: '60,000 / 200,000 context tokens',
+      contextUsageLevel: 'low'
     });
   });
 
@@ -27,7 +30,10 @@ suite('Chat webview helpers', () => {
         type: 'state',
         messages: [],
         busy: false,
-        modelLabel: ''
+        modelLabel: '',
+        contextUsageLabel: '',
+        contextUsageTitle: '',
+        contextUsageLevel: ''
       }
     );
   });
@@ -56,6 +62,9 @@ suite('Chat webview helpers', () => {
     assert.ok(!html.includes('Full RPC Agent communication'));
     assert.ok(!html.includes('setFullRpcAgentCommunication'));
     assert.ok(html.includes('class="composer__button composer__add"'));
+    assert.ok(html.includes('class="composer__context"'));
+    assert.ok(html.includes('class="composer__context-tooltip"'));
+    assert.ok(html.includes('class="composer__model"'));
     assert.ok(html.includes('class="composer__button composer__submit"'));
     assert.ok(html.includes("vscode.postMessage({ type: 'ready' });"));
   });

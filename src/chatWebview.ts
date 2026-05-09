@@ -8,17 +8,26 @@ export type WebviewMessage = {
 export type WebviewStateMessage = ChatState & {
   type: 'state';
   modelLabel: string;
+  contextUsageLabel: string;
+  contextUsageTitle: string;
+  contextUsageLevel: string;
 };
 
 export function createWebviewStateMessage(
   state: ChatState,
-  modelLabel = ''
+  modelLabel = '',
+  contextUsageLabel = '',
+  contextUsageTitle = '',
+  contextUsageLevel = ''
 ): WebviewStateMessage {
   return {
     type: 'state',
     messages: state.messages,
     busy: state.busy,
-    modelLabel
+    modelLabel,
+    contextUsageLabel,
+    contextUsageTitle,
+    contextUsageLevel
   };
 }
 
@@ -361,7 +370,7 @@ export function createWebviewHtml(scriptUris: WebviewScriptUris): string {
       max-height: calc(100vh - 16px);
       margin: 0 8px 8px;
       padding: 14px 9px 8px;
-      overflow: hidden;
+      overflow: visible;
       background: #303030;
       border: 1px solid var(--vscode-input-border, transparent);
       border-radius: 21px;
@@ -418,16 +427,68 @@ export function createWebviewHtml(scriptUris: WebviewScriptUris): string {
       display: block;
     }
 
-    .composer__model {
+    .composer__info {
       justify-self: end;
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
       padding: 0 2px 8px 0;
       min-width: 0;
-      overflow: hidden;
+      overflow: visible;
       color: var(--vscode-descriptionForeground);
       font-size: 14px;
       line-height: 1;
-      text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .composer__context {
+      position: relative;
+      flex: 0 0 auto;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .composer__context--low {
+      color: var(--vscode-testing-iconPassed, #73c991);
+    }
+
+    .composer__context--medium {
+      color: var(--vscode-testing-iconQueued, #cca700);
+    }
+
+    .composer__context--high {
+      color: var(--vscode-testing-iconFailed, #f14c4c);
+    }
+
+    .composer__context-tooltip {
+      position: absolute;
+      right: 0;
+      bottom: calc(100% + 8px);
+      z-index: 1;
+      display: none;
+      width: max-content;
+      max-width: min(260px, 70vw);
+      padding: 7px 9px;
+      color: var(--vscode-editorHoverWidget-foreground);
+      background: var(--vscode-editorHoverWidget-background);
+      border: 1px solid var(--vscode-editorHoverWidget-border, var(--vscode-input-border, transparent));
+      border-radius: 4px;
+      box-shadow: 0 2px 8px color-mix(in srgb, #000 35%, transparent);
+      font-size: 12px;
+      font-weight: 400;
+      line-height: 1.35;
+      white-space: pre-line;
+    }
+
+    .composer__context:hover .composer__context-tooltip,
+    .composer__context:focus-within .composer__context-tooltip {
+      display: block;
+    }
+
+    .composer__model {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .composer__submit {
@@ -463,7 +524,10 @@ export function createWebviewHtml(scriptUris: WebviewScriptUris): string {
           <path d="M9.5 3.5V15.5M3.5 9.5H15.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
         </svg>
       </button>
-      <div class="composer__model" aria-hidden="true"></div>
+      <div class="composer__info" aria-hidden="true">
+        <span class="composer__context"><span class="composer__context-value"></span><span class="composer__context-tooltip"></span></span>
+        <span class="composer__model"></span>
+      </div>
       <button class="composer__button composer__submit" type="submit" aria-label="Send message" title="Send message" disabled>
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none">
           <path d="M9 14.25V3.75M4.75 8L9 3.75L13.25 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -481,13 +545,16 @@ export function createWebviewHtml(scriptUris: WebviewScriptUris): string {
     const form = document.querySelector('.composer');
     const textarea = document.querySelector('textarea');
     const newSessionButton = document.querySelector('.composer__add');
+    const contextElement = document.querySelector('.composer__context');
+    const contextValueElement = document.querySelector('.composer__context-value');
+    const contextTooltipElement = document.querySelector('.composer__context-tooltip');
     const modelElement = document.querySelector('.composer__model');
     const submitButton = document.querySelector('.composer__submit');
     const messagesBottomThreshold = 4;
     const maxTextareaHeight = 180;
     const minTextareaHeight = 22;
     const isMac = navigator.platform.toUpperCase().includes('MAC');
-    let state = { messages: [], busy: false, modelLabel: '' };
+    let state = { messages: [], busy: false, modelLabel: '', contextUsageLabel: '', contextUsageTitle: '', contextUsageLevel: '' };
     const activityExpansion = new Map();
     const markdownRenderer = window.markdownit
       ? window.markdownit({
@@ -511,7 +578,10 @@ export function createWebviewHtml(scriptUris: WebviewScriptUris): string {
       state = {
         messages: Array.isArray(event.data.messages) ? event.data.messages : [],
         busy: Boolean(event.data.busy),
-        modelLabel: typeof event.data.modelLabel === 'string' ? event.data.modelLabel : ''
+        modelLabel: typeof event.data.modelLabel === 'string' ? event.data.modelLabel : '',
+        contextUsageLabel: typeof event.data.contextUsageLabel === 'string' ? event.data.contextUsageLabel : '',
+        contextUsageTitle: typeof event.data.contextUsageTitle === 'string' ? event.data.contextUsageTitle : '',
+        contextUsageLevel: typeof event.data.contextUsageLevel === 'string' ? event.data.contextUsageLevel : ''
       };
       render();
     });
@@ -826,6 +896,11 @@ export function createWebviewHtml(scriptUris: WebviewScriptUris): string {
     }
 
     function syncModelLabel() {
+      contextValueElement.textContent = state.contextUsageLabel;
+      contextTooltipElement.textContent = state.contextUsageTitle;
+      contextElement.title = state.contextUsageTitle;
+      contextElement.className = 'composer__context' + (state.contextUsageLevel ? ' composer__context--' + state.contextUsageLevel : '');
+      contextElement.hidden = state.contextUsageLabel.length === 0;
       modelElement.textContent = state.modelLabel;
       modelElement.title = state.modelLabel;
     }

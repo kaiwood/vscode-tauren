@@ -15,7 +15,7 @@ import {
   type ActivityRemoveAction,
   type ActivityUpdateAction
 } from './piEventMapper';
-import { PiRpcClient, type PiSessionState, type RpcEvent } from './piRpcClient';
+import { PiRpcClient, type PiSessionState, type PiSessionStats, type RpcEvent } from './piRpcClient';
 
 export const chatViewType = 'piui.chatView';
 
@@ -26,6 +26,9 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   private webviewReady = false;
   private assistantStreamId = 0;
   private modelLabel = '';
+  private contextUsageLabel = '';
+  private contextUsageTitle = '';
+  private contextUsageLevel = '';
   private fullRpcAgentCommunication = false;
   private readonly session = new ChatSession();
   private readonly disposables: vscode.Disposable[] = [];
@@ -115,7 +118,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       this.webviewReady = true;
       this.postState();
       this.postInputFocusSoon();
-      void this.refreshModelLabel();
+      void this.refreshSessionMeta();
       return;
     }
 
@@ -152,25 +155,41 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
   private startNewSession(): void {
     this.assistantStreamId = 0;
+    this.contextUsageLabel = '';
+    this.contextUsageTitle = '';
+    this.contextUsageLevel = '';
     this.session.startNewSession();
     this.disposeClient();
     this.postState();
   }
 
-  private async refreshModelLabel(): Promise<void> {
+  private async refreshSessionMeta(): Promise<void> {
     const sessionGeneration = this.session.generation;
 
     try {
-      const state = await this.getClient().getState();
+      const client = this.getClient();
+      const [state, stats] = await Promise.all([
+        client.getState(),
+        client.getSessionStats()
+      ]);
 
       if (sessionGeneration !== this.session.generation) {
         return;
       }
 
       const label = formatModelLabel(state);
+      const contextUsage = formatContextUsage(stats);
 
-      if (label !== this.modelLabel) {
+      if (
+        label !== this.modelLabel
+        || contextUsage.label !== this.contextUsageLabel
+        || contextUsage.title !== this.contextUsageTitle
+        || contextUsage.level !== this.contextUsageLevel
+      ) {
         this.modelLabel = label;
+        this.contextUsageLabel = contextUsage.label;
+        this.contextUsageTitle = contextUsage.title;
+        this.contextUsageLevel = contextUsage.level;
         this.postState();
       }
     } catch (error) {
@@ -228,6 +247,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
         this.applyRpcActivity(event);
         this.session.handleAgentEnd();
         this.postState();
+        void this.refreshSessionMeta();
         break;
       case 'turn_start':
       case 'turn_end':
@@ -375,7 +395,10 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     void this.webviewView?.webview.postMessage(
       createWebviewStateMessage(
         this.session.snapshot(),
-        this.modelLabel
+        this.modelLabel,
+        this.contextUsageLabel,
+        this.contextUsageTitle,
+        this.contextUsageLevel
       )
     );
   }
@@ -399,6 +422,48 @@ function getFullRpcAgentCommunicationSetting(): boolean {
     'fullRpcAgentCommunication',
     false
   );
+}
+
+function formatContextUsage(stats: PiSessionStats): { label: string; title: string; level: string } {
+  const usage = stats.contextUsage;
+
+  if (!usage || typeof usage.contextWindow !== 'number') {
+    return { label: '', title: '', level: '' };
+  }
+
+  const percent = typeof usage.percent === 'number' ? Math.round(usage.percent) : undefined;
+  const tokens = typeof usage.tokens === 'number' ? usage.tokens : undefined;
+
+  if (percent === undefined && tokens === undefined) {
+    return { label: '', title: '', level: '' };
+  }
+
+  const derivedPercent = percent ?? Math.round(((tokens ?? 0) / usage.contextWindow) * 100);
+  const label = `${derivedPercent}%`;
+  const titleTokens = tokens === undefined ? 'Unknown' : formatInteger(tokens);
+  const title = [
+    `Context used: ${derivedPercent}%`,
+    `Current context: ${titleTokens} tokens`,
+    `Model context size: ${formatInteger(usage.contextWindow)} tokens`
+  ].join('\n');
+
+  return { label, title, level: getContextUsageLevel(derivedPercent) };
+}
+
+function getContextUsageLevel(percent: number): string {
+  if (percent >= 80) {
+    return 'high';
+  }
+
+  if (percent >= 50) {
+    return 'medium';
+  }
+
+  return 'low';
+}
+
+function formatInteger(value: number): string {
+  return Math.round(value).toLocaleString('en-US');
 }
 
 function formatModelLabel(state: PiSessionState): string {

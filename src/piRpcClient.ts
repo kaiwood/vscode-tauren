@@ -25,8 +25,17 @@ export type PiSessionState = {
     provider?: string;
     id?: string;
     reasoning?: boolean;
+    contextWindow?: number;
   } | null;
   thinkingLevel?: string;
+};
+
+export type PiSessionStats = {
+  contextUsage?: {
+    tokens?: number | null;
+    contextWindow?: number;
+    percent?: number | null;
+  };
 };
 
 type PendingRequest = {
@@ -74,6 +83,11 @@ export class PiRpcClient {
 
   public async getState(): Promise<PiSessionState> {
     const response = await this.send({ type: 'get_state' });
+    return isRecord(response.data) ? response.data : {};
+  }
+
+  public async getSessionStats(): Promise<PiSessionStats> {
+    const response = await this.send({ type: 'get_session_stats' });
     return isRecord(response.data) ? response.data : {};
   }
 
