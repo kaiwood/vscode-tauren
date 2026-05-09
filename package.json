@@ -51,7 +51,8 @@
         {
           "id": "piui.chatView",
           "name": "Pi",
-          "type": "webview"
+          "type": "webview",
+          "icon": "resources/pi.svg"
         }
       ]
     },
