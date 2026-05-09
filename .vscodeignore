@@ -1,0 +1,40 @@
+# Source, tests, and local tooling
+src/**
+test/**
+out/test/**
+.vscode/**
+.vscode-test/**
+.vscode-test.js
+tsconfig.json
+
+# Project-only docs/assets not needed at runtime
+AGENTS.md
+TODO.md
+plan/**
+
+# Repository metadata and generated packages
+.git/**
+.gitignore
+.vscodeignore
+*.vsix
+
+# Build metadata
+out/**/*.map
+
+# Runtime only needs these browser bundles from dependencies.
+node_modules/**
+!node_modules/markdown-it/
+node_modules/markdown-it/**
+!node_modules/markdown-it/dist/
+node_modules/markdown-it/dist/**
+!node_modules/markdown-it/dist/markdown-it.min.js
+!node_modules/dompurify/
+node_modules/dompurify/**
+!node_modules/dompurify/dist/
+node_modules/dompurify/dist/**
+!node_modules/dompurify/dist/purify.min.js
+!node_modules/@highlightjs/
+node_modules/@highlightjs/**
+!node_modules/@highlightjs/cdn-assets/
+node_modules/@highlightjs/cdn-assets/**
+!node_modules/@highlightjs/cdn-assets/highlight.min.js
