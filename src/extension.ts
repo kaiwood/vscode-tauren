@@ -19,7 +19,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     provider,
-    vscode.window.registerWebviewViewProvider(viewType, provider)
+    vscode.window.registerWebviewViewProvider(viewType, provider),
+    vscode.commands.registerCommand('piui.focus', () => provider.focus()),
+    vscode.commands.registerCommand('piui.newSession', () => provider.newSession())
   );
 }
 
@@ -31,6 +33,8 @@ class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposabl
   private activeAssistantIndex: number | undefined;
   private busy = false;
   private sessionGeneration = 0;
+  private pendingInputFocus = false;
+  private webviewReady = false;
   private readonly transcript: ChatMessage[] = [];
   private readonly disposables: vscode.Disposable[] = [];
   private readonly clientDisposables: vscode.Disposable[] = [];
@@ -47,6 +51,7 @@ class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposabl
 
   public resolveWebviewView(webviewView: vscode.WebviewView): void {
     this.webviewView = webviewView;
+    this.webviewReady = false;
     webviewView.webview.options = {
       enableScripts: true,
       localResourceRoots: [this.extensionUri]
@@ -54,6 +59,12 @@ class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposabl
 
     webviewView.webview.html = this.getHtml();
     this.disposables.push(
+      webviewView.onDidDispose(() => {
+        if (this.webviewView === webviewView) {
+          this.webviewView = undefined;
+          this.webviewReady = false;
+        }
+      }),
       webviewView.webview.onDidReceiveMessage((message: WebviewMessage) => {
         void this.handleWebviewMessage(message);
       })
@@ -62,9 +73,28 @@ class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposabl
     this.postState();
   }
 
+  public async focus(): Promise<void> {
+    this.pendingInputFocus = true;
+
+    if (this.webviewView?.visible) {
+      this.webviewView.show(false);
+    } else {
+      await vscode.commands.executeCommand(`${viewType}.focus`);
+    }
+
+    this.postInputFocus();
+  }
+
+  public async newSession(): Promise<void> {
+    this.startNewSession();
+    await this.focus();
+  }
+
   private async handleWebviewMessage(message: WebviewMessage): Promise<void> {
     if (message.type === 'ready') {
+      this.webviewReady = true;
       this.postState();
+      this.postInputFocus();
       return;
     }
 
@@ -286,6 +316,15 @@ class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposabl
       messages: this.transcript,
       busy: this.busy
     });
+  }
+
+  private postInputFocus(): void {
+    if (!this.pendingInputFocus || !this.webviewView || !this.webviewReady) {
+      return;
+    }
+
+    this.pendingInputFocus = false;
+    void this.webviewView.webview.postMessage({ type: 'focusInput' });
   }
 
   private getHtml(): string {
@@ -511,9 +550,15 @@ class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposabl
     const messagesBottomThreshold = 4;
     const maxTextareaHeight = 180;
     const minTextareaHeight = 22;
+    const isMac = navigator.platform.toUpperCase().includes('MAC');
     let state = { messages: [], busy: false };
 
     window.addEventListener('message', (event) => {
+      if (event.data?.type === 'focusInput') {
+        focusPromptInput();
+        return;
+      }
+
       if (event.data?.type !== 'state') {
         return;
       }
@@ -539,10 +584,17 @@ class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposabl
       focusPromptInput();
     });
 
-    newSessionButton?.addEventListener('click', () => {
-      vscode.postMessage({ type: 'newSession' });
-      focusPromptInput();
-    });
+    newSessionButton?.addEventListener('click', startNewSession);
+
+    window.addEventListener('keydown', (event) => {
+      if (!isNewSessionShortcut(event)) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      startNewSession();
+    }, true);
 
     textarea?.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey) {
@@ -664,6 +716,23 @@ class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposabl
       if (shouldPreserveBottom) {
         scrollMessagesToBottom();
       }
+    }
+
+    function startNewSession() {
+      vscode.postMessage({ type: 'newSession' });
+      focusPromptInput();
+    }
+
+    function isNewSessionShortcut(event) {
+      if (event.key.toLowerCase() !== 'n' || event.shiftKey || event.altKey) {
+        return false;
+      }
+
+      if (isMac) {
+        return event.metaKey && !event.ctrlKey;
+      }
+
+      return event.ctrlKey && !event.metaKey;
     }
 
     function focusPromptInput() {

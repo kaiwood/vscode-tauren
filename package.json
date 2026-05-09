@@ -10,10 +10,32 @@
     "Other"
   ],
   "activationEvents": [
-    "onView:piui.chatView"
+    "onView:piui.chatView",
+    "onCommand:piui.focus",
+    "onCommand:piui.newSession"
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "commands": [
+      {
+        "command": "piui.focus",
+        "title": "Focus on PiUI",
+        "category": "PiUI"
+      },
+      {
+        "command": "piui.newSession",
+        "title": "New Session",
+        "category": "PiUI"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "piui.newSession",
+        "key": "ctrl+n",
+        "mac": "cmd+n",
+        "when": "focusedView == 'piui.chatView' || webviewId == 'piui.chatView'"
+      }
+    ],
     "viewsContainers": {
       "activitybar": [
         {
