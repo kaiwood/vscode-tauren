@@ -321,6 +321,10 @@ export function createWebviewHtml(scriptUris: WebviewScriptUris): string {
       font-size: 11px;
     }
 
+    .activity__body--markdown {
+      white-space: normal;
+    }
+
     .status {
       display: inline-flex;
       align-items: center;
@@ -704,7 +708,7 @@ export function createWebviewHtml(scriptUris: WebviewScriptUris): string {
       const savedOpenState = activityExpansion.get(activityId);
       details.open = typeof savedOpenState === 'boolean'
         ? savedOpenState
-        : activity.status === 'running';
+        : activity.status === 'running' || shouldKeepActivityOpen(activity);
 
       details.addEventListener('toggle', () => {
         if (activityId) {
@@ -736,12 +740,24 @@ export function createWebviewHtml(scriptUris: WebviewScriptUris): string {
 
       if (typeof activity.body === 'string' && activity.body.length > 0) {
         const body = document.createElement(activity.code ? 'pre' : 'div');
-        body.className = \`activity__body\${activity.code ? ' activity__body--code' : ''}\`;
-        body.textContent = activity.body;
+        body.className = \`activity__body\${activity.code ? ' activity__body--code' : ' activity__body--markdown'}\`;
+
+        if (activity.code) {
+          body.textContent = activity.body;
+        } else {
+          renderMarkdownInto(body, activity.body);
+        }
+
         details.append(body);
       }
 
       return details;
+    }
+
+    function shouldKeepActivityOpen(activity) {
+      return activity.kind === 'thinking'
+        && typeof activity.body === 'string'
+        && activity.body.length > 0;
     }
 
     function roleLabel(role) {
