@@ -9,7 +9,10 @@ import {
   formatExtensionError,
   getFailedResponseError,
   mapExtensionUiRequest,
-  mapMessageUpdate
+  mapMessageUpdate,
+  mapRpcActivity,
+  type ActivityAddAction,
+  type ActivityUpdateAction
 } from './piEventMapper';
 import { PiRpcClient, type PiSessionState, type RpcEvent } from './piRpcClient';
 
@@ -20,6 +23,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   private client: PiRpcClient | undefined;
   private pendingInputFocus = false;
   private webviewReady = false;
+  private assistantStreamId = 0;
   private modelLabel = '';
   private readonly session = new ChatSession();
   private readonly disposables: vscode.Disposable[] = [];
@@ -117,6 +121,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   }
 
   private startNewSession(): void {
+    this.assistantStreamId = 0;
     this.session.startNewSession();
     this.disposeClient();
     this.postState();
@@ -183,30 +188,54 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     switch (event.type) {
       case 'agent_start':
         this.session.handleAgentStart();
+        this.applyRpcActivity(event);
         this.postState();
         break;
       case 'message_update':
         this.handleMessageUpdate(event);
         break;
       case 'agent_end':
+        this.applyRpcActivity(event);
         this.session.handleAgentEnd();
         this.postState();
         break;
+      case 'turn_start':
+      case 'turn_end':
+      case 'message_start':
+      case 'message_end':
+      case 'tool_execution_start':
+      case 'tool_execution_update':
+      case 'tool_execution_end':
+      case 'queue_update':
+      case 'compaction_start':
+      case 'compaction_end':
+      case 'auto_retry_start':
+      case 'auto_retry_end':
+        this.applyRpcActivity(event);
+        this.postState();
+        break;
       case 'extension_ui_request':
+        this.applyRpcActivity(event);
         this.handleExtensionUiRequest(event);
+        this.postState();
         break;
       case 'extension_error':
+        this.applyRpcActivity(event);
         this.session.addErrorMessage(formatExtensionError(event));
         this.postState();
         break;
       case 'response':
         this.handleUnmatchedResponse(event);
         break;
+      default:
+        this.applyRpcActivity(event);
+        this.postState();
+        break;
     }
   }
 
   private handleMessageUpdate(event: RpcEvent): void {
-    const action = mapMessageUpdate(event);
+    const action = mapMessageUpdate(event, this.getMessageUpdateStreamId(event));
 
     if (action.type === 'text_delta') {
       if (this.session.appendAssistantDelta(action.delta)) {
@@ -220,6 +249,40 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       this.session.markActiveAssistantError(action.message);
       this.postState();
     }
+
+    if (action.type === 'activity_update' || action.type === 'activity_add') {
+      this.applyActivityAction(action);
+      this.postState();
+    }
+  }
+
+  private applyRpcActivity(event: RpcEvent): void {
+    if (!this.session.isBusy && event.type !== 'agent_start') {
+      return;
+    }
+
+    const action = mapRpcActivity(event);
+
+    if (action.type === 'activity_update' || action.type === 'activity_add') {
+      this.applyActivityAction(action);
+    }
+  }
+
+  private applyActivityAction(action: ActivityUpdateAction | ActivityAddAction): void {
+    if (action.type === 'activity_update') {
+      this.session.upsertActivity(action.sourceId, action.activity, action.bodyMode);
+      return;
+    }
+
+    this.session.addActivity(action.activity);
+  }
+
+  private getMessageUpdateStreamId(event: RpcEvent): number {
+    if (isMessageUpdateStart(event)) {
+      this.assistantStreamId += 1;
+    }
+
+    return this.assistantStreamId;
   }
 
   private handleExtensionUiRequest(event: RpcEvent): void {
@@ -318,4 +381,13 @@ function getErrorMessage(error: unknown): string {
   }
 
   return String(error);
+}
+
+function isMessageUpdateStart(event: RpcEvent): boolean {
+  const assistantMessageEvent = event.assistantMessageEvent;
+
+  return typeof assistantMessageEvent === 'object'
+    && assistantMessageEvent !== null
+    && 'type' in assistantMessageEvent
+    && assistantMessageEvent.type === 'start';
 }

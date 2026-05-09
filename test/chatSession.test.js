@@ -99,3 +99,105 @@ test('errors mark active assistant or create a system error when idle', () => {
   session.failActivePrompt('prompt failed');
   assert.equal(session.snapshot().busy, false);
 });
+
+test('activities attach to the active assistant message and can be updated', () => {
+  const session = new ChatSession();
+
+  session.beginSubmit('show activity');
+  const firstId = session.upsertActivity('thinking:0', {
+    kind: 'thinking',
+    title: 'Thinking',
+    status: 'running',
+    body: 'one',
+    code: false
+  });
+
+  assert.equal(
+    session.upsertActivity('thinking:0', {
+      kind: 'thinking',
+      title: 'Thinking',
+      status: 'running',
+      body: ' two',
+      code: false
+    }, 'append'),
+    firstId
+  );
+
+  session.upsertActivity('thinking:0', {
+    kind: 'thinking',
+    title: 'Thinking',
+    status: 'completed',
+    summary: 'Completed'
+  });
+
+  session.addActivity({
+    kind: 'turn',
+    title: 'Turn completed',
+    status: 'completed'
+  });
+
+  assert.deepEqual(session.snapshot(), {
+    messages: [
+      { role: 'user', text: 'show activity' },
+      {
+        role: 'assistant',
+        text: '',
+        activities: [
+          {
+            id: firstId,
+            kind: 'thinking',
+            title: 'Thinking',
+            status: 'completed',
+            summary: 'Completed',
+            body: 'one two',
+            code: false
+          },
+          {
+            id: 'activity-0-2',
+            kind: 'turn',
+            title: 'Turn completed',
+            status: 'completed'
+          }
+        ]
+      }
+    ],
+    busy: true
+  });
+});
+
+test('activity snapshots are copied before returning', () => {
+  const session = new ChatSession();
+
+  session.beginSubmit('copy activity');
+  session.addActivity({
+    kind: 'rpc',
+    title: 'RPC event',
+    status: 'info',
+    body: 'original'
+  });
+
+  const snapshot = session.snapshot();
+  snapshot.messages[1].activities[0].body = 'changed';
+
+  assert.equal(session.snapshot().messages[1].activities[0].body, 'original');
+});
+
+test('ending an agent run clears activity source mappings', () => {
+  const session = new ChatSession();
+
+  session.beginSubmit('first');
+  const firstId = session.upsertActivity('agent', {
+    kind: 'agent',
+    title: 'Agent processing',
+    status: 'running'
+  });
+  session.handleAgentEnd();
+
+  const secondId = session.upsertActivity('agent', {
+    kind: 'agent',
+    title: 'Agent processing',
+    status: 'running'
+  });
+
+  assert.notEqual(firstId, secondId);
+});

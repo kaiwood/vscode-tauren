@@ -93,6 +93,10 @@ export function createWebviewHtml(): string {
       line-height: 1.45;
     }
 
+    .message__body--after-activities {
+      margin-top: 8px;
+    }
+
     .message--user .message__body {
       color: var(--vscode-input-foreground);
     }
@@ -101,10 +105,87 @@ export function createWebviewHtml(): string {
       color: var(--vscode-errorForeground);
     }
 
+    .activity-list {
+      display: grid;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .activity {
+      overflow: hidden;
+      color: var(--vscode-descriptionForeground);
+      background: color-mix(in srgb, var(--vscode-sideBar-background) 86%, var(--vscode-foreground) 14%);
+      border: 1px solid color-mix(in srgb, var(--vscode-foreground) 15%, transparent);
+      border-radius: 6px;
+    }
+
+    .activity--running {
+      border-color: color-mix(in srgb, var(--vscode-progressBar-background, var(--vscode-focusBorder)) 58%, var(--vscode-foreground) 18%);
+    }
+
+    .activity--error {
+      border-color: color-mix(in srgb, var(--vscode-errorForeground) 70%, transparent);
+    }
+
+    .activity__summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 2px 8px;
+      padding: 6px 8px;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .activity__summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .activity__title {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--vscode-foreground);
+      font-size: 12px;
+      font-weight: 600;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .activity__status {
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .activity__description {
+      grid-column: 1 / -1;
+      min-width: 0;
+      overflow-wrap: anywhere;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .activity__body {
+      max-height: 260px;
+      margin: 0;
+      padding: 7px 8px 8px;
+      overflow: auto;
+      color: var(--vscode-foreground);
+      border-top: 1px solid color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      line-height: 1.4;
+    }
+
+    .activity__body--code {
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 11px;
+    }
+
     .status {
       margin-top: 8px;
       color: var(--vscode-descriptionForeground);
       font-size: 12px;
+      overflow-wrap: anywhere;
     }
 
     .composer {
@@ -241,6 +322,7 @@ export function createWebviewHtml(): string {
     const minTextareaHeight = 22;
     const isMac = navigator.platform.toUpperCase().includes('MAC');
     let state = { messages: [], busy: false, modelLabel: '' };
+    const activityExpansion = new Map();
 
     window.addEventListener('message', (event) => {
       if (event.data?.type === 'focusInput') {
@@ -315,7 +397,7 @@ export function createWebviewHtml(): string {
       if (state.busy) {
         const status = document.createElement('div');
         status.className = 'status';
-        status.textContent = 'Pi is working...';
+        status.textContent = getBusyStatusText();
         messagesElement.append(status);
       }
 
@@ -338,8 +420,88 @@ export function createWebviewHtml(): string {
       body.className = 'message__body';
       body.textContent = message.text || '';
 
-      article.append(role, body);
+      article.append(role);
+
+      const activities = Array.isArray(message.activities) ? message.activities : [];
+      const hasBody = Boolean(message.text || message.error || activities.length === 0);
+
+      if (message.role !== 'assistant') {
+        article.append(body);
+        return article;
+      }
+
+      if (activities.length > 0) {
+        article.append(createActivityListElement(activities));
+      }
+
+      if (hasBody) {
+        if (activities.length > 0) {
+          body.classList.add('message__body--after-activities');
+        }
+
+        article.append(body);
+      }
+
       return article;
+    }
+
+    function createActivityListElement(activities) {
+      const list = document.createElement('div');
+      list.className = 'activity-list';
+
+      for (const activity of activities) {
+        list.append(createActivityElement(activity));
+      }
+
+      return list;
+    }
+
+    function createActivityElement(activity) {
+      const details = document.createElement('details');
+      details.className = \`activity activity--\${activity.kind || 'rpc'} activity--\${activity.status || 'info'}\`;
+
+      const activityId = typeof activity.id === 'string' ? activity.id : '';
+      const savedOpenState = activityExpansion.get(activityId);
+      details.open = typeof savedOpenState === 'boolean'
+        ? savedOpenState
+        : activity.status === 'running';
+
+      details.addEventListener('toggle', () => {
+        if (activityId) {
+          activityExpansion.set(activityId, details.open);
+        }
+      });
+
+      const summary = document.createElement('summary');
+      summary.className = 'activity__summary';
+
+      const title = document.createElement('span');
+      title.className = 'activity__title';
+      title.textContent = typeof activity.title === 'string' ? activity.title : 'Activity';
+
+      const status = document.createElement('span');
+      status.className = 'activity__status';
+      status.textContent = activityStatusLabel(activity.status);
+
+      summary.append(title, status);
+
+      if (typeof activity.summary === 'string' && activity.summary.length > 0) {
+        const description = document.createElement('span');
+        description.className = 'activity__description';
+        description.textContent = activity.summary;
+        summary.append(description);
+      }
+
+      details.append(summary);
+
+      if (typeof activity.body === 'string' && activity.body.length > 0) {
+        const body = document.createElement(activity.code ? 'pre' : 'div');
+        body.className = \`activity__body\${activity.code ? ' activity__body--code' : ''}\`;
+        body.textContent = activity.body;
+        details.append(body);
+      }
+
+      return details;
     }
 
     function roleLabel(role) {
@@ -356,6 +518,55 @@ export function createWebviewHtml(): string {
 
     function syncSubmit() {
       submitButton.disabled = state.busy || textarea.value.trim().length === 0;
+    }
+
+    function activityStatusLabel(status) {
+      if (status === 'running') {
+        return 'Running';
+      }
+
+      if (status === 'completed') {
+        return 'Done';
+      }
+
+      if (status === 'error') {
+        return 'Error';
+      }
+
+      return 'Info';
+    }
+
+    function getBusyStatusText() {
+      const activity = getLatestRunningActivity();
+
+      if (!activity) {
+        return 'Pi is working...';
+      }
+
+      const title = typeof activity.title === 'string' && activity.title
+        ? activity.title
+        : 'Pi is working';
+      const summary = typeof activity.summary === 'string' && activity.summary
+        ? ': ' + activity.summary
+        : '';
+
+      return title + summary;
+    }
+
+    function getLatestRunningActivity() {
+      for (let messageIndex = state.messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+        const activities = Array.isArray(state.messages[messageIndex].activities)
+          ? state.messages[messageIndex].activities
+          : [];
+
+        for (let activityIndex = activities.length - 1; activityIndex >= 0; activityIndex -= 1) {
+          if (activities[activityIndex]?.status === 'running') {
+            return activities[activityIndex];
+          }
+        }
+      }
+
+      return undefined;
     }
 
     function syncModelLabel() {
