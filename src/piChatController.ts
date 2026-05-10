@@ -3,6 +3,7 @@ import {
   createWebviewStateMessage,
   type WebviewMessage,
   type WebviewModelOption,
+  type WebviewPromptContextAttachment,
   type WebviewSessionItem,
   type WebviewSlashCommand,
   type WebviewStateMessage
@@ -87,6 +88,23 @@ export type PiChatSessionMetaSnapshot = {
   contextUsage?: PiChatContextUsage;
 };
 
+export type PiPromptContextInput = {
+  kind: 'file' | 'selection';
+  path: string;
+  label?: string;
+  title?: string;
+  languageId?: string;
+  startLine?: number;
+  endLine?: number;
+  text?: string;
+};
+
+export type PiPromptContextAttachment = PiPromptContextInput & {
+  id: string;
+  label: string;
+  title: string;
+};
+
 export type PiChatControllerOptions = {
   createClient: PiRpcClientFactory;
   postState: (message: WebviewStateMessage) => void;
@@ -123,6 +141,8 @@ export class PiChatController {
   private metadataRefreshing = false;
   private slashCommands: WebviewSlashCommand[] = [];
   private slashCommandsRefreshing = false;
+  private promptContextSequence = 0;
+  private promptContext: PiPromptContextAttachment[] = [];
   private sessionViewMode: 'chat' | 'sessions' = 'chat';
   private sessions: WebviewSessionItem[] = [];
   private sessionsRefreshing = false;
@@ -235,6 +255,11 @@ export class PiChatController {
       return;
     }
 
+    if (message.type === 'removePromptContext') {
+      this.removePromptContext(message.id);
+      return;
+    }
+
     if (message.type === 'abort') {
       await this.abortActivePrompt();
       return;
@@ -271,11 +296,14 @@ export class PiChatController {
       return;
     }
 
+    const promptContext = this.consumePromptContext();
+    const promptText = formatPromptWithIdeContext(submittedPrompt.text, promptContext);
+
     this.resetAbortState();
     this.postState();
 
     try {
-      await this.getClient().prompt(submittedPrompt.text);
+      await this.getClient().prompt(promptText);
     } catch (error) {
       if (submittedPrompt.sessionGeneration !== this.session.generation) {
         return;
@@ -291,6 +319,7 @@ export class PiChatController {
     this.assistantStreamId = 0;
     this.resetAbortState();
     this.session.startNewSession();
+    this.promptContext = [];
     this.sessionViewMode = 'chat';
     this.sessionsError = '';
     this.currentSessionFile = undefined;
@@ -331,6 +360,31 @@ export class PiChatController {
     this.statePublisher.flush();
   }
 
+  public addPromptContext(context: PiPromptContextInput | PiPromptContextInput[]): void {
+    const entries = Array.isArray(context) ? context : [context];
+    const attachments = entries.flatMap((entry) => this.createPromptContextAttachment(entry));
+
+    if (attachments.length === 0) {
+      return;
+    }
+
+    this.promptContext.push(...attachments);
+    this.sessionViewMode = 'chat';
+    this.sessionsError = '';
+    this.postState();
+  }
+
+  public removePromptContext(id: string): void {
+    const nextContext = this.promptContext.filter((attachment) => attachment.id !== id);
+
+    if (nextContext.length === this.promptContext.length) {
+      return;
+    }
+
+    this.promptContext = nextContext;
+    this.postState();
+  }
+
   private clearPostedComposerText(message: WebviewStateMessage): void {
     if (this.pendingComposerText && message.composerTextRevision === this.pendingComposerText.revision) {
       this.pendingComposerText = undefined;
@@ -350,6 +404,7 @@ export class PiChatController {
       },
       slashCommands: this.slashCommands,
       slashCommandsRefreshing: this.slashCommandsRefreshing,
+      promptContext: this.getWebviewPromptContext(),
       composer: this.pendingComposerText
         ? {
           text: this.pendingComposerText.text,
@@ -380,6 +435,64 @@ export class PiChatController {
       || this.sessionsRefreshing
       || Boolean(this.sessionsError)
       || Boolean(this.currentSessionFile);
+  }
+
+  private createPromptContextAttachment(input: PiPromptContextInput): PiPromptContextAttachment[] {
+    const path = input.path.trim();
+
+    if (!path) {
+      return [];
+    }
+
+    const kind = input.kind === 'selection' ? 'selection' : 'file';
+    const label = (input.label ?? '').trim() || createPromptContextLabel(input, path);
+    const title = (input.title ?? '').trim() || createPromptContextTitle(input, path);
+
+    if (kind === 'file') {
+      return [{ id: this.nextPromptContextId(), kind, path, label, title }];
+    }
+
+    const text = typeof input.text === 'string' ? input.text : '';
+
+    if (!text.trim()) {
+      return [];
+    }
+
+    return [{
+      id: this.nextPromptContextId(),
+      kind,
+      path,
+      label,
+      title,
+      languageId: input.languageId,
+      startLine: normalizeLineNumber(input.startLine),
+      endLine: normalizeLineNumber(input.endLine),
+      text
+    }];
+  }
+
+  private nextPromptContextId(): string {
+    this.promptContextSequence += 1;
+    return `context-${this.promptContextSequence}`;
+  }
+
+  private getWebviewPromptContext(): WebviewPromptContextAttachment[] {
+    return this.promptContext.map((attachment) => ({
+      id: attachment.id,
+      kind: attachment.kind,
+      label: attachment.label,
+      title: attachment.title
+    }));
+  }
+
+  private consumePromptContext(): PiPromptContextAttachment[] {
+    if (this.promptContext.length === 0) {
+      return [];
+    }
+
+    const context = this.promptContext.map((attachment) => ({ ...attachment }));
+    this.promptContext = [];
+    return context;
   }
 
   public refreshSessionMeta(options: { startClient?: boolean; force?: boolean } = {}): Promise<void> {
@@ -513,6 +626,7 @@ export class PiChatController {
     this.extensionUiRequestHandler.startNewGeneration();
     this.assistantStreamId = 0;
     this.resetAbortState();
+    this.promptContext = [];
     this.metadataRefreshSequence += 1;
     this.slashCommandsRefreshSequence += 1;
     this.shouldRestoreInitialSessionHistory = false;
@@ -875,9 +989,15 @@ export class PiChatController {
     }
 
     const sessionGeneration = this.session.generation;
+    const promptContext = this.consumePromptContext();
+    const promptText = formatPromptWithIdeContext(trimmedText, promptContext);
+
+    if (promptContext.length > 0) {
+      this.postState();
+    }
 
     try {
-      await this.getClient().prompt(trimmedText, streamingBehavior);
+      await this.getClient().prompt(promptText, streamingBehavior);
 
       if (sessionGeneration !== this.session.generation) {
         return;
@@ -1536,6 +1656,153 @@ function getSessionFile(state: { sessionFile?: string }): string | undefined {
     : undefined;
 }
 
+const ideContextStartMarker = '<!-- piui:ide-context:start -->';
+const ideContextEndMarker = '<!-- piui:ide-context:end -->';
+
+function normalizeLineNumber(value: number | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? Math.floor(value)
+    : undefined;
+}
+
+function createPromptContextLabel(input: PiPromptContextInput, path: string): string {
+  return appendLineRange(getPathBasename(path), input);
+}
+
+function createPromptContextTitle(input: PiPromptContextInput, path: string): string {
+  return appendLineRange(path, input);
+}
+
+function appendLineRange(label: string, input: PiPromptContextInput): string {
+  if (input.kind !== 'selection') {
+    return label;
+  }
+
+  const startLine = normalizeLineNumber(input.startLine);
+  const endLine = normalizeLineNumber(input.endLine);
+
+  if (startLine && endLine && endLine !== startLine) {
+    return `${label}:${startLine}-${endLine}`;
+  }
+
+  if (startLine) {
+    return `${label}:${startLine}`;
+  }
+
+  return label;
+}
+
+function getPathBasename(path: string): string {
+  const normalizedPath = path.replace(/\\/g, '/');
+  const lastSlashIndex = normalizedPath.lastIndexOf('/');
+  return lastSlashIndex === -1 ? normalizedPath : normalizedPath.slice(lastSlashIndex + 1);
+}
+
+function formatPromptWithIdeContext(
+  userText: string,
+  context: PiPromptContextAttachment[]
+): string {
+  if (context.length === 0) {
+    return userText;
+  }
+
+  const contextBody = context.flatMap((attachment) => {
+    const formatted = formatPromptContextAttachment(attachment);
+    return formatted ? [formatted] : [];
+  }).join('\n\n');
+
+  if (!contextBody) {
+    return userText;
+  }
+
+  return [
+    ideContextStartMarker,
+    '<ide_context source="vscode-piui">',
+    'The user explicitly attached this IDE context. Use it as relevant. File-only entries identify relevant files; inspect or read them if content is needed.',
+    '',
+    contextBody,
+    '</ide_context>',
+    ideContextEndMarker,
+    '',
+    userText
+  ].join('\n');
+}
+
+function stripIdeContextFromPrompt(text: string): string {
+  const startIndex = text.indexOf(ideContextStartMarker);
+
+  if (startIndex === -1 || text.slice(0, startIndex).trim()) {
+    return text;
+  }
+
+  const endIndex = text.indexOf(ideContextEndMarker, startIndex + ideContextStartMarker.length);
+
+  if (endIndex === -1) {
+    return text;
+  }
+
+  return text.slice(endIndex + ideContextEndMarker.length).replace(/^\s+/, '');
+}
+
+function formatPromptContextAttachment(attachment: PiPromptContextAttachment): string | undefined {
+  if (attachment.kind === 'file') {
+    return `<file path="${escapeXmlAttribute(attachment.path)}" />`;
+  }
+
+  const text = attachment.text ?? '';
+
+  if (!text.trim()) {
+    return undefined;
+  }
+
+  const attributes = [
+    `path="${escapeXmlAttribute(attachment.path)}"`,
+    ...(attachment.startLine ? [`start_line="${attachment.startLine}"`] : []),
+    ...(attachment.endLine ? [`end_line="${attachment.endLine}"`] : []),
+    ...(attachment.languageId ? [`language="${escapeXmlAttribute(attachment.languageId)}"`] : [])
+  ];
+  const fence = getMarkdownFence(text);
+  const language = sanitizeFenceLanguage(attachment.languageId);
+
+  return [
+    `<selection ${attributes.join(' ')}>`,
+    `${fence}${language}`,
+    text,
+    fence,
+    '</selection>'
+  ].join('\n');
+}
+
+function escapeXmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function getMarkdownFence(text: string): string {
+  return '`'.repeat(Math.max(3, getLongestBacktickRun(text) + 1));
+}
+
+function getLongestBacktickRun(text: string): number {
+  let longest = 0;
+
+  for (const match of text.matchAll(/`+/g)) {
+    longest = Math.max(longest, match[0].length);
+  }
+
+  return longest;
+}
+
+function sanitizeFenceLanguage(languageId: string | undefined): string {
+  if (!languageId || !/^[A-Za-z0-9_#+.-]+$/.test(languageId)) {
+    return '';
+  }
+
+  return languageId;
+}
+
 type ForkMessageOption = {
   entryId: string;
   text: string;
@@ -1579,7 +1846,7 @@ function formatAgentMessages(messages: PiAgentMessage[] | undefined): ChatMessag
     }
 
     if (message.role === 'user') {
-      const text = extractMessageText(message.content);
+      const text = stripIdeContextFromPrompt(extractMessageText(message.content));
       return text.trim() ? [{ role: 'user', text }] : [];
     }
 

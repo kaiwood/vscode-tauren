@@ -8,6 +8,7 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
     const form = document.querySelector('.composer');
     const textarea = document.querySelector('textarea');
     const slashMenuElement = document.querySelector('.composer__slash-menu');
+    const contextBadgesElement = document.querySelector('.composer__context-badges');
     const busySubmitElement = document.querySelector('.composer__busy-submit');
     const busySubmitHintElement = document.querySelector('.composer__busy-submit-hint');
     const streamingBehaviorButtonElements = Array.from(document.querySelectorAll('.composer__mode-button'));
@@ -24,7 +25,7 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
     const maxTextareaHeight = 180;
     const minTextareaHeight = 22;
     const isMac = navigator.platform.toUpperCase().includes('MAC');
-    let state = { messages: [], busy: false, modelLabel: '', modelProvider: '', modelId: '', modelReasoning: false, thinkingLevel: '', modelOptions: [], contextUsageLabel: '', contextUsageTitle: '', contextUsageLevel: '', metadataRefreshing: false, slashCommands: [], slashCommandsRefreshing: false, composerText: '', composerTextRevision: 0, viewMode: 'chat', sessions: [], sessionsRefreshing: false, sessionsError: '', currentSessionFile: '' };
+    let state = { messages: [], busy: false, modelLabel: '', modelProvider: '', modelId: '', modelReasoning: false, thinkingLevel: '', modelOptions: [], contextUsageLabel: '', contextUsageTitle: '', contextUsageLevel: '', metadataRefreshing: false, slashCommands: [], slashCommandsRefreshing: false, promptContext: [], composerText: '', composerTextRevision: 0, viewMode: 'chat', sessions: [], sessionsRefreshing: false, sessionsError: '', currentSessionFile: '' };
     let appliedComposerTextRevision = 0;
     let slashMenuOpen = false;
     let slashMenuActiveIndex = 0;
@@ -99,6 +100,7 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
         metadataRefreshing: Boolean(event.data.metadataRefreshing),
         slashCommands: Array.isArray(event.data.slashCommands) ? event.data.slashCommands : [],
         slashCommandsRefreshing: Boolean(event.data.slashCommandsRefreshing),
+        promptContext: Array.isArray(event.data.promptContext) ? event.data.promptContext : [],
         composerText: typeof event.data.composerText === 'string' ? event.data.composerText : '',
         composerTextRevision: typeof event.data.composerTextRevision === 'number' ? event.data.composerTextRevision : 0,
         viewMode: event.data.viewMode === 'sessions' ? 'sessions' : 'chat',
@@ -281,6 +283,29 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
       }
     });
 
+    contextBadgesElement?.addEventListener('mousedown', (event) => {
+      if (event.target?.closest?.('.composer__context-remove')) {
+        event.preventDefault();
+      }
+    });
+
+    contextBadgesElement?.addEventListener('click', (event) => {
+      const removeButton = event.target?.closest?.('.composer__context-remove');
+
+      if (!removeButton) {
+        return;
+      }
+
+      const id = removeButton.getAttribute('data-context-id');
+
+      if (!id) {
+        return;
+      }
+
+      vscode.postMessage({ type: 'removePromptContext', id });
+      focusPromptInput();
+    });
+
     function render() {
       const isSessionView = state.viewMode === 'sessions';
       const shouldStickToBottom = !isSessionView && isMessagesAtBottom();
@@ -337,6 +362,7 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
       }
 
       syncModelLabel();
+      syncPromptContextBadges();
       syncComposer();
       syncSlashMenu();
       if (shouldStickToBottom) {
@@ -1037,6 +1063,47 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
       }
 
       return undefined;
+    }
+
+    function syncPromptContextBadges() {
+      if (!contextBadgesElement) {
+        return;
+      }
+
+      const attachments = Array.isArray(state.promptContext)
+        ? state.promptContext.filter(isPromptContextAttachment)
+        : [];
+      form?.classList.toggle('composer--has-context', attachments.length > 0);
+      contextBadgesElement.hidden = attachments.length === 0;
+      contextBadgesElement.replaceChildren();
+
+      for (const attachment of attachments) {
+        const badge = document.createElement('span');
+        badge.className = 'composer__context-badge';
+        badge.title = attachment.title || attachment.label;
+
+        const label = document.createElement('span');
+        label.className = 'composer__context-label';
+        label.textContent = attachment.label;
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'composer__context-remove';
+        remove.setAttribute('data-context-id', attachment.id);
+        remove.setAttribute('aria-label', 'Remove context ' + attachment.label);
+        remove.title = 'Remove context';
+        remove.textContent = '×';
+
+        badge.append(label, remove);
+        contextBadgesElement.append(badge);
+      }
+    }
+
+    function isPromptContextAttachment(value) {
+      return value
+        && typeof value.id === 'string'
+        && typeof value.label === 'string'
+        && typeof value.title === 'string';
     }
 
     function syncModelLabel() {

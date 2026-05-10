@@ -312,6 +312,107 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
+  test('submit sends one-shot IDE context without showing it in the transcript', async () => {
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client]);
+
+    harness.controller.addPromptContext({
+      kind: 'selection',
+      path: 'src/foo.ts',
+      label: 'foo.ts:2-4',
+      title: 'src/foo.ts:2-4',
+      languageId: 'typescript',
+      startLine: 2,
+      endLine: 4,
+      text: 'const answer = 42;'
+    });
+
+    assert.deepStrictEqual(lastState(harness).promptContext, [
+      { id: 'context-1', kind: 'selection', label: 'foo.ts:2-4', title: 'src/foo.ts:2-4' }
+    ]);
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: 'explain this' });
+
+    assert.strictEqual(client.prompts.length, 1);
+    assert.ok(client.prompts[0].includes('<!-- piui:ide-context:start -->'));
+    assert.ok(client.prompts[0].includes('<selection path="src/foo.ts" start_line="2" end_line="4" language="typescript">'));
+    assert.ok(client.prompts[0].includes('```typescript\nconst answer = 42;\n```'));
+    assert.ok(client.prompts[0].endsWith('\n\nexplain this'));
+    assert.deepStrictEqual(lastState(harness).messages, [
+      { role: 'user', text: 'explain this' },
+      { role: 'assistant', text: '' }
+    ]);
+    assert.strictEqual(lastState(harness).promptContext, undefined);
+    harness.controller.dispose();
+  });
+
+  test('prompt context can be removed before submit', async () => {
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client]);
+
+    harness.controller.addPromptContext({
+      kind: 'file',
+      path: 'src/foo.ts',
+      label: 'foo.ts',
+      title: 'src/foo.ts'
+    });
+
+    const contextId = lastState(harness).promptContext?.[0]?.id;
+    assert.strictEqual(contextId, 'context-1');
+    assert.ok(contextId);
+
+    await harness.controller.handleWebviewMessage({ type: 'removePromptContext', id: contextId });
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: 'hello' });
+
+    assert.deepStrictEqual(client.prompts, ['hello']);
+    assert.strictEqual(lastState(harness).promptContext, undefined);
+    harness.controller.dispose();
+  });
+
+  test('busy queued prompts can include one-shot IDE context', async () => {
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: 'hello' });
+    harness.controller.addPromptContext({
+      kind: 'file',
+      path: 'src/foo.ts',
+      label: 'foo.ts',
+      title: 'src/foo.ts'
+    });
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: 'change direction' });
+
+    assert.strictEqual(client.prompts.length, 2);
+    assert.strictEqual(client.prompts[0], 'hello');
+    assert.ok(client.prompts[1].includes('<file path="src/foo.ts" />'));
+    assert.ok(client.prompts[1].endsWith('\n\nchange direction'));
+    assert.strictEqual(lastState(harness).messages[1].activities?.[0]?.summary, 'change direction');
+    assert.strictEqual(lastState(harness).promptContext, undefined);
+    harness.controller.dispose();
+  });
+
+  test('restored history hides PiUI IDE context wrappers from user messages', async () => {
+    const client = new FakePiClient({
+      messages: [
+        {
+          role: 'user',
+          content: '<!-- piui:ide-context:start -->\n<ide_context source="vscode-piui">\n<file path="src/foo.ts" />\n</ide_context>\n<!-- piui:ide-context:end -->\n\nexplain this'
+        }
+      ]
+    });
+    const harness = createControllerHarness([client], {
+      initialSessionFile: '/sessions/current.jsonl'
+    });
+
+    await harness.controller.handleWebviewMessage({ type: 'ready' });
+    await flushPromises();
+
+    assert.deepStrictEqual(lastState(harness).messages, [
+      { role: 'user', text: 'explain this' }
+    ]);
+    harness.controller.dispose();
+  });
+
   test('busy submit defaults to steering and adds a compact queued notice', async () => {
     const client = new FakePiClient();
     const harness = createControllerHarness([client]);

@@ -8,7 +8,8 @@ export function activate(context: vscode.ExtensionContext): void {
     provider,
     vscode.window.registerWebviewViewProvider(chatViewType, provider),
     vscode.commands.registerCommand('piui.focus', () => provider.focus()),
-    vscode.commands.registerCommand('piui.newSession', () => provider.newSession())
+    vscode.commands.registerCommand('piui.newSession', () => provider.newSession()),
+    vscode.commands.registerCommand('piui.addContext', () => provider.addContext())
   );
 }
 

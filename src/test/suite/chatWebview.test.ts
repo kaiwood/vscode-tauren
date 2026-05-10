@@ -80,6 +80,18 @@ suite('Chat webview helpers', () => {
     );
   });
 
+  test('createWebviewStateMessage includes prompt context attachments when present', () => {
+    assert.deepStrictEqual(
+      createWebviewStateMessage({
+        state: { messages: [], busy: false },
+        promptContext: [
+          { id: 'context-1', kind: 'selection', label: 'foo.ts:2-4', title: 'src/foo.ts:2-4' }
+        ]
+      }).promptContext,
+      [{ id: 'context-1', kind: 'selection', label: 'foo.ts:2-4', title: 'src/foo.ts:2-4' }]
+    );
+  });
+
   test('parseWebviewMessage narrows valid inbound messages', () => {
     assert.deepStrictEqual(parseWebviewMessage({ type: 'ready' }), { type: 'ready' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'newSession' }), { type: 'newSession' });
@@ -92,6 +104,7 @@ suite('Chat webview helpers', () => {
     );
     assert.deepStrictEqual(parseWebviewMessage({ type: 'refreshMetadata' }), { type: 'refreshMetadata' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'refreshSlashCommands' }), { type: 'refreshSlashCommands' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'removePromptContext', id: 'context-1' }), { type: 'removePromptContext', id: 'context-1' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'abort' }), { type: 'abort' });
     assert.deepStrictEqual(
       parseWebviewMessage({ type: 'submit', text: 'hello' }),
@@ -120,6 +133,7 @@ suite('Chat webview helpers', () => {
     assert.deepStrictEqual(parseWebviewMessage({}), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'submit', text: 42 }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'selectSession', sessionPath: '' }), { type: 'unknown' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'removePromptContext', id: '' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'submit', text: 'hello', streamingBehavior: 'later' }), { type: 'unknown' });
     assert.deepStrictEqual(
       parseWebviewMessage({ type: 'setModel', provider: 'openai' }),
@@ -159,6 +173,7 @@ suite('Chat webview helpers', () => {
     assert.ok(!html.includes('Full RPC Agent communication'));
     assert.ok(!html.includes('setFullRpcAgentCommunication'));
     assert.ok(html.includes('class="composer__button composer__add"'));
+    assert.ok(html.includes('class="composer__context-badges"'));
     assert.ok(html.includes('class="composer__context"'));
     assert.ok(html.includes('class="composer__context-tooltip"'));
     assert.ok(html.includes('class="composer__model"'));

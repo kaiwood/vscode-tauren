@@ -26,6 +26,11 @@
         "command": "piui.newSession",
         "title": "New Session",
         "category": "PiUI"
+      },
+      {
+        "command": "piui.addContext",
+        "title": "Add Context",
+        "category": "PiUI"
       }
     ],
     "keybindings": [
@@ -57,6 +62,22 @@
           "name": "Pi",
           "type": "webview",
           "icon": "resources/pi.svg"
+        }
+      ]
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "piui.addContext",
+          "when": "editorTextFocus",
+          "group": "navigation@90"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "piui.addContext",
+          "when": "resourceScheme == file",
+          "group": "navigation@90"
         }
       ]
     },

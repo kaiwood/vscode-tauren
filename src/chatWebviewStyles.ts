@@ -624,6 +624,10 @@ export const chatWebviewStyles = /* css */ `    :root {
       box-shadow: inset 0 1px 0 color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
     }
 
+    .composer--has-context {
+      grid-template-rows: auto minmax(22px, auto) 36px;
+    }
+
     .composer__slash-menu {
       position: absolute;
       left: 9px;
@@ -710,6 +714,68 @@ export const chatWebviewStyles = /* css */ `    :root {
       padding: 7px 8px;
       color: var(--vscode-descriptionForeground);
       font-size: 12px;
+    }
+
+    .composer__context-badges {
+      grid-column: 1 / -1;
+      align-self: start;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      min-width: 0;
+      padding: 0 4px 9px;
+    }
+
+    .composer__context-badges[hidden] {
+      display: none;
+    }
+
+    .composer__context-badge {
+      display: inline-flex;
+      align-items: center;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+      color: var(--vscode-badge-foreground, var(--vscode-foreground));
+      background: var(--vscode-badge-background, color-mix(in srgb, var(--vscode-foreground) 16%, transparent));
+      border: 1px solid color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+      border-radius: 999px;
+      font-size: 11px;
+      line-height: 1.3;
+    }
+
+    .composer__context-label {
+      min-width: 0;
+      overflow: hidden;
+      padding: 2px 2px 2px 7px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .composer__context-remove {
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      width: 17px;
+      height: 17px;
+      margin: 0 2px 0 1px;
+      padding: 0;
+      color: inherit;
+      background: transparent;
+      border: 0;
+      border-radius: 999px;
+      font: inherit;
+      font-size: 13px;
+      line-height: 1;
+      cursor: pointer;
+      opacity: 0.78;
+    }
+
+    .composer__context-remove:hover,
+    .composer__context-remove:focus-visible {
+      background: color-mix(in srgb, currentColor 18%, transparent);
+      outline: none;
+      opacity: 1;
     }
 
     .composer__input {

@@ -5,6 +5,13 @@ import { createNonce } from './nonce';
 
 export type WebviewStreamingBehavior = 'steer' | 'followUp';
 
+export type WebviewPromptContextAttachment = {
+  id: string;
+  kind: 'file' | 'selection';
+  label: string;
+  title: string;
+};
+
 export type WebviewMessage =
   | { type: 'ready' }
   | { type: 'newSession' }
@@ -14,6 +21,7 @@ export type WebviewMessage =
   | { type: 'selectSession'; sessionPath: string }
   | { type: 'refreshMetadata' }
   | { type: 'refreshSlashCommands' }
+  | { type: 'removePromptContext'; id: string }
   | { type: 'abort' }
   | { type: 'submit'; text: string; streamingBehavior?: WebviewStreamingBehavior }
   | { type: 'setModel'; provider: string; modelId: string }
@@ -44,6 +52,10 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
       return { type: 'refreshMetadata' };
     case 'refreshSlashCommands':
       return { type: 'refreshSlashCommands' };
+    case 'removePromptContext':
+      return typeof value.id === 'string' && value.id
+        ? { type: 'removePromptContext', id: value.id }
+        : { type: 'unknown' };
     case 'abort':
       return { type: 'abort' };
     case 'submit': {
@@ -121,6 +133,7 @@ export type WebviewStateMessage = ChatState & {
   metadataRefreshing: boolean;
   slashCommands: WebviewSlashCommand[];
   slashCommandsRefreshing: boolean;
+  promptContext?: WebviewPromptContextAttachment[];
   composerText?: string;
   composerTextRevision?: number;
   viewMode?: WebviewViewMode;
@@ -148,6 +161,7 @@ type CreateWebviewStateMessageOptions = {
   metadataRefreshing?: boolean;
   slashCommands?: WebviewSlashCommand[];
   slashCommandsRefreshing?: boolean;
+  promptContext?: WebviewPromptContextAttachment[];
   composer?: {
     text?: string;
     revision?: number;
@@ -168,6 +182,7 @@ export function createWebviewStateMessage({
   metadataRefreshing = false,
   slashCommands = [],
   slashCommandsRefreshing = false,
+  promptContext = [],
   composer,
   sessionView
 }: CreateWebviewStateMessageOptions): WebviewStateMessage {
@@ -188,6 +203,10 @@ export function createWebviewStateMessage({
     slashCommands,
     slashCommandsRefreshing
   };
+
+  if (promptContext.length > 0) {
+    message.promptContext = promptContext.map((attachment) => ({ ...attachment }));
+  }
 
   if (composer && typeof composer.revision === 'number' && composer.revision > 0) {
     message.composerText = composer.text ?? '';
@@ -245,6 +264,7 @@ ${chatWebviewStyles}
     <section class="sessions" aria-label="Pi sessions" role="listbox" tabindex="0" hidden></section>
     <form class="composer" aria-label="Pi message input">
       <div id="slash-command-list" class="composer__slash-menu" role="listbox" aria-label="Slash commands"></div>
+      <div class="composer__context-badges" aria-label="Attached context" hidden></div>
       <textarea class="composer__input" rows="1" aria-label="Message" placeholder="Write your prompt…" aria-autocomplete="list" aria-controls="slash-command-list" aria-expanded="false"></textarea>
       <div class="composer__busy-submit" hidden aria-live="polite">
         <span class="composer__busy-submit-hint"></span>

@@ -8,6 +8,7 @@ import {
   PiChatController,
   type PiChatContextUsage,
   type PiChatModelMeta,
+  type PiPromptContextInput,
   type PiChatSessionMetaSnapshot,
   type PiRpcClientFactory
 } from './piChatController';
@@ -154,6 +155,25 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     await this.focus();
   }
 
+  public async addContext(): Promise<void> {
+    const editor = vscode.window.activeTextEditor;
+
+    if (!editor) {
+      this.showNotification('Open a file or select code before adding Pi context.', 'warning');
+      return;
+    }
+
+    const context = createPromptContextFromEditor(editor);
+
+    if (context.length === 0) {
+      this.showNotification('No file context is available for the active editor.', 'warning');
+      return;
+    }
+
+    this.controller.addPromptContext(context);
+    await this.focus();
+  }
+
   private async handleWebviewMessage(message: WebviewMessage): Promise<void> {
     if (message.type === 'ready') {
       this.webviewReady = true;
@@ -240,6 +260,86 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
     void this.workspaceState.update(currentSessionFileStorageKey, sessionFile || undefined).then(undefined, () => undefined);
   }
+}
+
+function createPromptContextFromEditor(editor: vscode.TextEditor): PiPromptContextInput[] {
+  const document = editor.document;
+  const path = getDocumentContextPath(document);
+
+  if (!path) {
+    return [];
+  }
+
+  const selectedContexts = editor.selections.flatMap((selection): PiPromptContextInput[] => {
+    if (selection.isEmpty) {
+      return [];
+    }
+
+    const text = document.getText(selection);
+
+    if (!text.trim()) {
+      return [];
+    }
+
+    const lineRange = getSelectedLineRange(selection);
+    const lineLabel = formatLineRange(lineRange.startLine, lineRange.endLine);
+    const title = `${path}:${lineLabel}`;
+
+    return [{
+      kind: 'selection',
+      path,
+      label: `${getPathBasename(path)}:${lineLabel}`,
+      title,
+      languageId: document.languageId,
+      startLine: lineRange.startLine,
+      endLine: lineRange.endLine,
+      text
+    }];
+  });
+
+  if (selectedContexts.length > 0) {
+    return selectedContexts;
+  }
+
+  return [{
+    kind: 'file',
+    path,
+    label: getPathBasename(path),
+    title: path
+  }];
+}
+
+function getDocumentContextPath(document: vscode.TextDocument): string {
+  if (document.uri.scheme === 'file') {
+    return vscode.workspace.asRelativePath(document.uri, false);
+  }
+
+  return document.uri.toString(true);
+}
+
+function getSelectedLineRange(selection: vscode.Selection): { startLine: number; endLine: number } {
+  let endLine = selection.end.line;
+
+  if (selection.end.character === 0 && selection.end.line > selection.start.line) {
+    endLine -= 1;
+  }
+
+  endLine = Math.max(selection.start.line, endLine);
+
+  return {
+    startLine: selection.start.line + 1,
+    endLine: endLine + 1
+  };
+}
+
+function formatLineRange(startLine: number, endLine: number): string {
+  return startLine === endLine ? String(startLine) : `${startLine}-${endLine}`;
+}
+
+function getPathBasename(path: string): string {
+  const normalizedPath = path.replace(/\\/g, '/');
+  const lastSlashIndex = normalizedPath.lastIndexOf('/');
+  return lastSlashIndex === -1 ? normalizedPath : normalizedPath.slice(lastSlashIndex + 1);
 }
 
 function getFullRpcAgentCommunicationSetting(): boolean {
