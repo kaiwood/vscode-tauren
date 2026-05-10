@@ -69,7 +69,7 @@
   },
   "scripts": {
     "compile": "tsc -p ./",
-    "install:local": "npm run compile && npx --yes @vscode/vsce package --out piui-local.vsix && code --install-extension piui-local.vsix --force && code --reuse-window --command workbench.action.reloadWindow",
+    "install:local": "npm run compile && npx --yes @vscode/vsce package --out piui-local.vsix && code --install-extension piui-local.vsix --force && node scripts/restart-vscode-extension-host.js",
     "test": "npm run compile -- --pretty false && vscode-test",
     "watch": "tsc -watch -p ./"
   },
