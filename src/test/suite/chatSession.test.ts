@@ -1,5 +1,9 @@
 import * as assert from 'assert';
-import { ChatSession } from '../../chatSession';
+import {
+  ChatSession,
+  chatActivityBodyMaxDisplayLength,
+  chatTruncationMarker
+} from '../../chatSession';
 
 suite('ChatSession', () => {
   test('beginSubmit rejects blank input and accepts trimmed non-blank input', () => {
@@ -202,6 +206,77 @@ suite('ChatSession', () => {
     });
   });
 
+  test('activity replace bodies are truncated for display', () => {
+    const session = new ChatSession();
+    const longBody = 'x'.repeat(chatActivityBodyMaxDisplayLength + 1);
+
+    session.beginSubmit('show activity');
+    session.addActivity({
+      kind: 'rpc',
+      title: 'Large RPC event',
+      status: 'info',
+      body: longBody
+    });
+
+    assert.strictEqual(
+      session.snapshot().messages[1].activities![0].body,
+      truncateForTest(longBody)
+    );
+  });
+
+  test('activity append bodies are truncated for display', () => {
+    const session = new ChatSession();
+    const keptLength = chatActivityBodyMaxDisplayLength - chatTruncationMarker.length;
+    const firstChunk = 'a'.repeat(keptLength - 2);
+    const secondChunk = 'b'.repeat(chatTruncationMarker.length + 3);
+
+    session.beginSubmit('show activity');
+    session.upsertActivity('thinking:0', {
+      kind: 'thinking',
+      title: 'Thinking',
+      status: 'running',
+      body: firstChunk
+    });
+    session.upsertActivity('thinking:0', {
+      kind: 'thinking',
+      title: 'Thinking',
+      status: 'running',
+      body: secondChunk
+    }, 'append');
+
+    assert.strictEqual(
+      session.snapshot().messages[1].activities![0].body,
+      truncateForTest(`${firstChunk}${secondChunk}`)
+    );
+  });
+
+  test('normal short activity bodies are unchanged', () => {
+    const session = new ChatSession();
+
+    session.beginSubmit('show activity');
+    session.addActivity({
+      kind: 'rpc',
+      title: 'Short RPC event',
+      status: 'info',
+      body: 'short body'
+    });
+    session.upsertActivity('thinking:0', {
+      kind: 'thinking',
+      title: 'Thinking',
+      status: 'running',
+      body: 'one'
+    });
+    session.upsertActivity('thinking:0', {
+      kind: 'thinking',
+      title: 'Thinking',
+      status: 'running',
+      body: ' two'
+    }, 'append');
+
+    assert.strictEqual(session.snapshot().messages[1].activities![0].body, 'short body');
+    assert.strictEqual(session.snapshot().messages[1].activities![1].body, 'one two');
+  });
+
   test('removeActivity removes an upserted activity and source mapping', () => {
     const session = new ChatSession();
 
@@ -292,3 +367,7 @@ suite('ChatSession', () => {
     assert.strictEqual(id, 'activity-1-1');
   });
 });
+
+function truncateForTest(value: string): string {
+  return `${value.slice(0, chatActivityBodyMaxDisplayLength - chatTruncationMarker.length)}${chatTruncationMarker}`;
+}

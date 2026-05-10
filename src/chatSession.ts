@@ -1,3 +1,8 @@
+export const chatActivityBodyMaxDisplayLength = 20000;
+export const chatActivitySummaryMaxDisplayLength = 300;
+export const chatErrorMaxDisplayLength = 6000;
+export const chatTruncationMarker = '\n...[truncated]';
+
 export type ChatActivityStatus = 'running' | 'completed' | 'error' | 'info';
 
 export type ChatActivityKind =
@@ -119,7 +124,7 @@ export class ChatSession {
 
   public markActiveAssistantError(message: string): void {
     const index = this.ensureActiveAssistantMessage();
-    this.transcript[index].text = message;
+    this.transcript[index].text = limitErrorMessage(message);
     this.transcript[index].error = true;
   }
 
@@ -128,7 +133,7 @@ export class ChatSession {
     const index = this.ensureActiveAssistantMessage();
     const message = this.transcript[index];
     message.activities ??= [];
-    message.activities.push({ id, ...activity });
+    message.activities.push({ id, ...limitActivityDisplay(activity) });
 
     return id;
   }
@@ -152,7 +157,7 @@ export class ChatSession {
     const existingIndex = message.activities.findIndex((item) => item.id === id);
 
     if (existingIndex === -1) {
-      message.activities.push({ id, ...activity });
+      message.activities.push({ id, ...limitActivityDisplay(activity) });
       return id;
     }
 
@@ -197,7 +202,7 @@ export class ChatSession {
       return;
     }
 
-    this.transcript.push({ role: 'system', text: message, error: true });
+    this.transcript.push({ role: 'system', text: limitErrorMessage(message), error: true });
   }
 
   private ensureActiveAssistantMessage(): number {
@@ -228,13 +233,13 @@ function mergeActivity(
   };
 
   if ('summary' in activity) {
-    next.summary = activity.summary;
+    next.summary = limitSummary(activity.summary);
   }
 
   if ('body' in activity) {
     next.body = bodyMode === 'append'
-      ? `${existing.body ?? ''}${activity.body ?? ''}`
-      : activity.body;
+      ? appendActivityBody(existing.body, activity.body)
+      : limitActivityBody(activity.body);
   }
 
   if ('code' in activity) {
@@ -242,6 +247,51 @@ function mergeActivity(
   }
 
   return next;
+}
+
+function limitActivityDisplay(activity: ChatActivityInput): ChatActivityInput {
+  const next: ChatActivityInput = { ...activity };
+
+  if ('summary' in activity) {
+    next.summary = limitSummary(activity.summary);
+  }
+
+  if ('body' in activity) {
+    next.body = limitActivityBody(activity.body);
+  }
+
+  return next;
+}
+
+function appendActivityBody(existingBody: string | undefined, delta: string | undefined): string {
+  const current = existingBody ?? '';
+
+  if (current.length >= chatActivityBodyMaxDisplayLength && current.endsWith(chatTruncationMarker)) {
+    return current;
+  }
+
+  return limitActivityBody(`${current}${delta ?? ''}`) ?? '';
+}
+
+function limitActivityBody(value: string | undefined): string | undefined {
+  return limitDisplayText(value, chatActivityBodyMaxDisplayLength);
+}
+
+function limitSummary(value: string | undefined): string | undefined {
+  return limitDisplayText(value, chatActivitySummaryMaxDisplayLength);
+}
+
+function limitErrorMessage(value: string): string {
+  return limitDisplayText(value, chatErrorMaxDisplayLength) ?? '';
+}
+
+function limitDisplayText(value: string | undefined, maxLength: number): string | undefined {
+  if (value === undefined || value.length <= maxLength) {
+    return value;
+  }
+
+  const keptLength = Math.max(0, maxLength - chatTruncationMarker.length);
+  return `${value.slice(0, keptLength)}${chatTruncationMarker}`;
 }
 
 function cloneMessage(message: ChatMessage): ChatMessage {
