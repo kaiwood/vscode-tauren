@@ -152,7 +152,7 @@ ${chatWebviewStyles}
     </section>
     <form class="composer" aria-label="Pi message input">
       <div id="slash-command-list" class="composer__slash-menu" role="listbox" aria-label="Slash commands"></div>
-      <textarea class="composer__input" rows="1" aria-label="Message" aria-autocomplete="list" aria-controls="slash-command-list" aria-expanded="false"></textarea>
+      <textarea class="composer__input" rows="1" aria-label="Message" placeholder="Write your prompt…" aria-autocomplete="list" aria-controls="slash-command-list" aria-expanded="false"></textarea>
       <button class="composer__button composer__add" type="button" aria-label="New session" title="New session">
         <svg aria-hidden="true" width="19" height="19" viewBox="0 0 19 19" fill="none">
           <path d="M9.5 3.5V15.5M3.5 9.5H15.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>

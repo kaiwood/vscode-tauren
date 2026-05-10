@@ -434,6 +434,11 @@ export const chatWebviewStyles = /* css */ `    :root {
       line-height: 1.4;
     }
 
+    .composer__input::placeholder {
+      color: color-mix(in srgb, var(--vscode-input-background) 68%, var(--vscode-input-foreground) 32%);
+      opacity: 1;
+    }
+
     .composer__input:focus {
       outline: none;
     }
@@ -455,6 +460,8 @@ export const chatWebviewStyles = /* css */ `    :root {
     .composer__button:hover:not(:disabled) {
       color: var(--vscode-foreground);
       background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--vscode-foreground) 18%, transparent),
+        0 0 7px color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
     }
 
     .composer__button:focus-visible {
@@ -666,6 +673,7 @@ export const chatWebviewStyles = /* css */ `    :root {
     }
 
     .composer__submit:hover:not(:disabled) {
+      color: var(--vscode-input-background);
       background: var(--vscode-foreground);
     }
 
