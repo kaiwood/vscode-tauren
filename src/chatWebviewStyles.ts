@@ -29,12 +29,15 @@ export const chatWebviewStyles = /* css */ `    :root {
     }
 
     .pi-toolbar {
+      position: relative;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
+      width: 100%;
       min-height: 34px;
-      padding: 6px 8px 2px;
+      padding: 3px 2px 2px;
       color: var(--vscode-descriptionForeground);
+      border-bottom: 1px solid color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
     }
 
     .pi-toolbar__sessions {
@@ -57,19 +60,142 @@ export const chatWebviewStyles = /* css */ `    :root {
       outline: none;
     }
 
+    .pi-toolbar__sessions svg {
+      transition: transform 120ms ease;
+    }
+
+    .pi-toolbar__sessions--back svg {
+      transform: scaleX(-1);
+    }
+
     .pi-toolbar__title {
+      position: relative;
+      flex: 1 1 auto;
+      min-width: 0;
+      height: 26px;
+      padding: 0 18px 0 7px;
+      overflow: hidden;
+      color: var(--vscode-foreground);
+      background: transparent;
+      border: 0;
+      border-radius: 5px;
+      font: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 26px;
+      text-align: left;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .pi-toolbar__title::after {
+      content: '';
+      position: absolute;
+      right: 7px;
+      top: 50%;
+      width: 5px;
+      height: 5px;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      transform: translateY(-70%) rotate(45deg);
+      opacity: 0.8;
+      pointer-events: none;
+    }
+
+    .pi-toolbar__title:hover:not(:disabled),
+    .pi-toolbar__title:focus-visible,
+    .pi-toolbar__title[aria-expanded="true"] {
+      color: var(--vscode-foreground);
+      background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+      outline: none;
+    }
+
+    .pi-toolbar__title:disabled {
+      padding-right: 7px;
+      color: var(--vscode-descriptionForeground);
+      cursor: default;
+    }
+
+    .pi-toolbar__title:disabled::after {
+      display: none;
+    }
+
+    .pi-toolbar__session-menu {
+      position: absolute;
+      left: 2px;
+      right: 2px;
+      top: calc(100% + 4px);
+      z-index: 4;
+      display: none;
+      max-height: min(300px, 48vh);
+      overflow-y: auto;
+      padding: 4px;
+      color: var(--vscode-foreground);
+      background: var(--vscode-dropdown-background, var(--vscode-editorWidget-background));
+      border: 1px solid var(--vscode-dropdown-border, var(--vscode-input-border, transparent));
+      border-radius: 8px;
+      box-shadow: 0 4px 16px color-mix(in srgb, #000 38%, transparent);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .pi-toolbar__session-menu[open] {
+      display: grid;
+      gap: 2px;
+    }
+
+    .pi-toolbar__session-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 2px 8px;
+      width: 100%;
+      min-width: 0;
+      padding: 6px 7px;
+      color: inherit;
+      background: transparent;
+      border: 0;
+      border-radius: 5px;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .pi-toolbar__session-item:hover,
+    .pi-toolbar__session-item--current {
+      color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+      background: var(--vscode-list-activeSelectionBackground, color-mix(in srgb, var(--vscode-foreground) 14%, transparent));
+    }
+
+    .pi-toolbar__session-title {
       min-width: 0;
       overflow: hidden;
-      font-size: 11px;
       font-weight: 600;
       text-overflow: ellipsis;
-      text-transform: uppercase;
       white-space: nowrap;
+    }
+
+    .pi-toolbar__session-meta {
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .pi-toolbar__session-item:hover .pi-toolbar__session-meta,
+    .pi-toolbar__session-item--current .pi-toolbar__session-meta {
+      color: inherit;
+      opacity: 0.78;
+    }
+
+    .pi-toolbar__session-empty {
+      padding: 7px 8px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
     }
 
     .messages {
       min-height: 0;
-      padding: 12px 12px calc(8px + 4lh);
+      padding: 6px 2px calc(4px + 4lh);
       overflow-y: auto;
     }
 
@@ -80,7 +206,7 @@ export const chatWebviewStyles = /* css */ `    :root {
 
     .sessions {
       min-height: 0;
-      padding: 8px 8px 12px;
+      padding: 6px 2px 8px;
       overflow-y: auto;
       outline: none;
     }
@@ -447,7 +573,7 @@ export const chatWebviewStyles = /* css */ `    :root {
       gap: 4px 8px;
       min-height: 84px;
       max-height: calc(100vh - 16px);
-      margin: 0 8px 8px;
+      margin: 0 2px 1lh;
       padding: 14px 9px 8px;
       overflow: visible;
       background: #303030;

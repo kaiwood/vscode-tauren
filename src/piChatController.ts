@@ -169,6 +169,7 @@ export class PiChatController {
     if (message.type === 'ready') {
       this.postState();
       void this.refreshSessionMeta({ startClient: true });
+      void this.refreshSessions();
       return;
     }
 
@@ -282,6 +283,7 @@ export class PiChatController {
     this.sessionViewMode = 'chat';
     this.sessionsError = '';
     this.currentSessionFile = undefined;
+    this.sessions = this.sessions.map((session) => ({ ...session, current: false }));
     this.nextClientSessionFile = undefined;
     this.shouldRestoreInitialSessionHistory = false;
     this.options.onSessionFileChange?.(undefined);
@@ -319,9 +321,9 @@ export class PiChatController {
         level: this.contextUsageLevel
       },
       metadataRefreshing: this.metadataRefreshing,
-      sessionView: this.sessionViewMode === 'sessions'
+      sessionView: this.shouldPublishSessionView()
         ? {
-          viewMode: this.sessionViewMode,
+          viewMode: this.sessionViewMode === 'sessions' ? this.sessionViewMode : undefined,
           sessions: this.sessions,
           refreshing: this.sessionsRefreshing,
           error: this.sessionsError,
@@ -329,6 +331,14 @@ export class PiChatController {
         }
         : undefined
     });
+  }
+
+  private shouldPublishSessionView(): boolean {
+    return this.sessionViewMode === 'sessions'
+      || this.sessions.length > 0
+      || this.sessionsRefreshing
+      || Boolean(this.sessionsError)
+      || Boolean(this.currentSessionFile);
   }
 
   public refreshSessionMeta(options: { startClient?: boolean; force?: boolean } = {}): Promise<void> {
@@ -558,7 +568,11 @@ export class PiChatController {
       return;
     }
 
-    this.applyCurrentSessionFile(getSessionFile(state));
+    const sessionFileChanged = this.applyCurrentSessionFile(getSessionFile(state));
+
+    if (sessionFileChanged) {
+      void this.refreshSessions();
+    }
 
     if (this.applyModelMeta(getModelMeta(state))) {
       this.postState();
@@ -578,8 +592,8 @@ export class PiChatController {
 
     const statsSessionFile = getSessionFile(stats);
 
-    if (statsSessionFile) {
-      this.applyCurrentSessionFile(statsSessionFile);
+    if (statsSessionFile && this.applyCurrentSessionFile(statsSessionFile)) {
+      void this.refreshSessions();
     }
 
     if (this.applyContextUsage(formatContextUsage(stats))) {
@@ -716,13 +730,18 @@ export class PiChatController {
     return true;
   }
 
-  private applyCurrentSessionFile(sessionFile: string | undefined): void {
+  private applyCurrentSessionFile(sessionFile: string | undefined): boolean {
     if (sessionFile === this.currentSessionFile) {
-      return;
+      return false;
     }
 
     this.currentSessionFile = sessionFile;
+    this.sessions = this.sessions.map((session) => ({
+      ...session,
+      current: Boolean(sessionFile) && session.path === sessionFile
+    }));
     this.options.onSessionFileChange?.(sessionFile);
+    return true;
   }
 
   private setSessionMetaFields(snapshot: PiChatSessionMetaSnapshot): void {

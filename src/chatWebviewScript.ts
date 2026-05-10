@@ -1,6 +1,7 @@
 export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsCodeApi();
     const toolbarTitleElement = document.querySelector('.pi-toolbar__title');
     const sessionToggleButton = document.querySelector('.pi-toolbar__sessions');
+    const sessionMenuElement = document.querySelector('.pi-toolbar__session-menu');
     const messagesElement = document.querySelector('.messages');
     const sessionsElement = document.querySelector('.sessions');
     const form = document.querySelector('.composer');
@@ -32,6 +33,9 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
     let streamingBehavior = 'steer';
     let busySubmitHideTimeout;
     let sessionListSelectedIndex = 0;
+    let sessionMenuOpen = false;
+    let sessionMenuItems = [];
+    const maxSessionMenuItems = 20;
     const localSlashCommands = [
       { name: 'model', description: 'Select model', source: 'builtin' },
       { name: 'name', description: 'Set or clear session name', source: 'builtin' },
@@ -119,6 +123,7 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
       }
 
       closeSlashMenu();
+      closeSessionMenu();
       vscode.postMessage(state.busy
         ? { type: 'submit', text, streamingBehavior }
         : { type: 'submit', text });
@@ -152,6 +157,25 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
 
     newSessionButton?.addEventListener('click', startNewSession);
     sessionToggleButton?.addEventListener('click', toggleSessionView);
+    toolbarTitleElement?.addEventListener('click', toggleSessionMenu);
+    sessionMenuElement?.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+    });
+    sessionMenuElement?.addEventListener('click', (event) => {
+      const item = event.target?.closest?.('.pi-toolbar__session-item');
+
+      if (!item) {
+        return;
+      }
+
+      const index = Number(item.getAttribute('data-index'));
+      const session = sessionMenuItems[index];
+
+      if (session?.path) {
+        closeSessionMenu();
+        selectSessionByPath(session.path);
+      }
+    });
     sessionsElement?.addEventListener('keydown', handleSessionListKeydown);
     sessionsElement?.addEventListener('click', (event) => {
       const item = event.target?.closest?.('.sessions__item');
@@ -179,6 +203,12 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
           closeSlashMenu();
         }
       }
+
+      if (sessionMenuOpen) {
+        if (!sessionMenuElement?.contains(event.target) && !toolbarTitleElement?.contains(event.target)) {
+          closeSessionMenu();
+        }
+      }
     });
 
     window.addEventListener('keydown', (event) => {
@@ -189,6 +219,7 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
       if (event.key === 'Escape') {
         dismissSlashMenu();
         closeModelMenu();
+        closeSessionMenu();
         return;
       }
 
@@ -251,14 +282,19 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
       messagesElement.hidden = isSessionView;
       sessionsElement.hidden = !isSessionView;
       form.hidden = isSessionView;
-      toolbarTitleElement.textContent = isSessionView ? 'Sessions' : 'Pi';
+      toolbarTitleElement.textContent = isSessionView ? 'Sessions' : getCurrentSessionTitle();
+      toolbarTitleElement.title = isSessionView ? 'Sessions' : 'Switch session';
+      toolbarTitleElement.disabled = isSessionView;
       sessionToggleButton.title = isSessionView ? 'Back to chat' : 'Show sessions';
       sessionToggleButton.setAttribute('aria-label', sessionToggleButton.title);
+      sessionToggleButton.classList.toggle('pi-toolbar__sessions--back', isSessionView);
+      renderSessionMenu();
 
       if (isSessionView) {
         renderSessions();
         closeSlashMenu();
         closeModelMenu();
+        closeSessionMenu();
         requestAnimationFrame(() => sessionsElement?.focus({ preventScroll: true }));
         return;
       }
@@ -358,7 +394,7 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
 
       const title = document.createElement('span');
       title.className = 'sessions__title';
-      title.textContent = session.name || session.firstMessage || '(no messages)';
+      title.textContent = getSessionDisplayName(session);
       item.append(title);
 
       const meta = document.createElement('span');
@@ -374,6 +410,45 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
       }
 
       return item;
+    }
+
+    function getCurrentSessionTitle() {
+      const session = getCurrentSession();
+
+      if (session) {
+        return getSessionDisplayName(session);
+      }
+
+      if (state.currentSessionFile) {
+        return 'Current session';
+      }
+
+      return state.messages.length === 0 ? 'New session' : 'Current session';
+    }
+
+    function getCurrentSession() {
+      if (!Array.isArray(state.sessions) || state.sessions.length === 0 || !state.currentSessionFile) {
+        return undefined;
+      }
+
+      return state.sessions.find((session) => session.path === state.currentSessionFile)
+        ?? state.sessions.find((session) => session.current);
+    }
+
+    function getSessionDisplayName(session) {
+      const title = sanitizeSessionTitle(session?.name || session?.firstMessage || '');
+      return title || '(no messages)';
+    }
+
+    function sanitizeSessionTitle(value) {
+      if (typeof value !== 'string') {
+        return '';
+      }
+
+      return value
+        .replace(/<\\/?[A-Za-z][^>\\n]*(?:>|$)/g, '')
+        .replace(/\\s+/g, ' ')
+        .trim();
     }
 
     function buildSessionTreePrefix(session) {
@@ -493,11 +568,19 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
     function selectSessionIndex(index) {
       const session = Array.isArray(state.sessions) ? state.sessions[index] : undefined;
 
-      if (!session || !session.path || state.busy || state.sessionsRefreshing) {
+      if (!session?.path) {
         return;
       }
 
-      vscode.postMessage({ type: 'selectSession', sessionPath: session.path });
+      selectSessionByPath(session.path);
+    }
+
+    function selectSessionByPath(sessionPath) {
+      if (!sessionPath || state.busy || state.sessionsRefreshing) {
+        return;
+      }
+
+      vscode.postMessage({ type: 'selectSession', sessionPath });
     }
 
     function clampSessionIndex(index) {
@@ -515,6 +598,110 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
         ? state.sessions.findIndex((session) => session.current || session.path === state.currentSessionFile)
         : -1;
       sessionListSelectedIndex = currentIndex >= 0 ? currentIndex : 0;
+    }
+
+    function toggleSessionMenu(event) {
+      event?.preventDefault();
+      event?.stopPropagation();
+
+      if (state.viewMode === 'sessions') {
+        return;
+      }
+
+      if (sessionMenuOpen) {
+        closeSessionMenu();
+        return;
+      }
+
+      openSessionMenu();
+    }
+
+    function openSessionMenu() {
+      if (!sessionMenuElement) {
+        return;
+      }
+
+      closeSlashMenu();
+      closeModelMenu();
+
+      if (!state.sessionsRefreshing && (!Array.isArray(state.sessions) || state.sessions.length === 0)) {
+        vscode.postMessage({ type: 'refreshSessions' });
+      }
+
+      sessionMenuOpen = true;
+      sessionMenuElement.setAttribute('open', '');
+      toolbarTitleElement?.setAttribute('aria-expanded', 'true');
+      renderSessionMenu();
+    }
+
+    function closeSessionMenu() {
+      sessionMenuOpen = false;
+      sessionMenuItems = [];
+      sessionMenuElement?.removeAttribute('open');
+      toolbarTitleElement?.setAttribute('aria-expanded', 'false');
+    }
+
+    function renderSessionMenu() {
+      if (!sessionMenuElement) {
+        return;
+      }
+
+      sessionMenuElement.replaceChildren();
+
+      if (!sessionMenuOpen) {
+        return;
+      }
+
+      if (state.sessionsRefreshing && (!Array.isArray(state.sessions) || state.sessions.length === 0)) {
+        sessionMenuElement.append(createSessionMenuEmptyElement('Loading sessions...'));
+        return;
+      }
+
+      if (state.sessionsError) {
+        sessionMenuElement.append(createSessionMenuEmptyElement(state.sessionsError));
+        return;
+      }
+
+      sessionMenuItems = Array.isArray(state.sessions)
+        ? state.sessions.slice(0, maxSessionMenuItems)
+        : [];
+
+      if (sessionMenuItems.length === 0) {
+        sessionMenuElement.append(createSessionMenuEmptyElement('No sessions found for this workspace.'));
+        return;
+      }
+
+      for (let index = 0; index < sessionMenuItems.length; index += 1) {
+        sessionMenuElement.append(createSessionMenuItemElement(sessionMenuItems[index], index));
+      }
+    }
+
+    function createSessionMenuItemElement(session, index) {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'pi-toolbar__session-item' + (session.current || session.path === state.currentSessionFile ? ' pi-toolbar__session-item--current' : '');
+      item.setAttribute('role', 'option');
+      item.setAttribute('aria-selected', session.current || session.path === state.currentSessionFile ? 'true' : 'false');
+      item.setAttribute('data-index', String(index));
+
+      const title = document.createElement('span');
+      title.className = 'pi-toolbar__session-title';
+      title.textContent = getSessionDisplayName(session);
+      item.append(title);
+
+      const meta = document.createElement('span');
+      meta.className = 'pi-toolbar__session-meta';
+      meta.textContent = formatSessionMeta(session);
+      item.append(meta);
+
+      return item;
+    }
+
+    function createSessionMenuEmptyElement(text) {
+      const empty = document.createElement('div');
+      empty.className = 'pi-toolbar__session-empty';
+      empty.textContent = text;
+      return empty;
     }
 
     function toggleSessionView() {
@@ -919,6 +1106,7 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
         vscode.postMessage({ type: 'refreshMetadata' });
       }
 
+      closeSessionMenu();
       const open = !modelMenuElement.hasAttribute('open');
       modelMenuElement.toggleAttribute('open', open);
       modelElement.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -999,6 +1187,7 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
       }
 
       closeModelMenu();
+      closeSessionMenu();
       if (!state.slashCommandsRefreshing && !slashCommandsRefreshRequested) {
         slashCommandsRefreshRequested = true;
         vscode.postMessage({ type: 'refreshSlashCommands' });

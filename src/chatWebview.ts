@@ -183,7 +183,10 @@ export function createWebviewStateMessage({
   };
 
   if (sessionView) {
-    message.viewMode = sessionView.viewMode ?? 'chat';
+    if (sessionView.viewMode) {
+      message.viewMode = sessionView.viewMode;
+    }
+
     message.sessions = sessionView.sessions ?? [];
     message.sessionsRefreshing = sessionView.refreshing ?? false;
     message.sessionsError = sessionView.error ?? '';
@@ -221,7 +224,8 @@ ${chatWebviewStyles}
           <path d="M11.25 4.5L6.75 9L11.25 13.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
-      <span class="pi-toolbar__title">Pi</span>
+      <button class="pi-toolbar__title" type="button" aria-haspopup="listbox" aria-expanded="false">Pi</button>
+      <div class="pi-toolbar__session-menu" role="listbox" aria-label="Recent sessions"></div>
     </header>
     <section class="messages" aria-live="polite" aria-label="Pi conversation">
       <p class="empty-state">Ask Pi about this workspace.</p>
