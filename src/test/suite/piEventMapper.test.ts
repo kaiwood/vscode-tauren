@@ -2,7 +2,6 @@ import * as assert from 'assert';
 import {
   formatExtensionError,
   getFailedResponseError,
-  mapExtensionUiRequest,
   mapMessageUpdate,
   mapRpcActivity
 } from '../../piEventMapper';
@@ -666,43 +665,6 @@ suite('Pi event mapper', () => {
   test('mapRpcActivity ignores message updates and responses', () => {
     assert.deepStrictEqual(mapRpcActivity({ type: 'message_update' }), { type: 'ignore' });
     assert.deepStrictEqual(mapRpcActivity({ type: 'response' }), { type: 'ignore' });
-  });
-
-  test('mapExtensionUiRequest maps notifications and unsupported dialogs', () => {
-    assert.deepStrictEqual(
-      mapExtensionUiRequest({
-        type: 'extension_ui_request',
-        method: 'notify',
-        message: 'Saved',
-        notifyType: 'warning'
-      }),
-      { type: 'notify', message: 'Saved', notifyType: 'warning' }
-    );
-
-    assert.deepStrictEqual(
-      mapExtensionUiRequest({
-        type: 'extension_ui_request',
-        method: 'notify'
-      }),
-      { type: 'notify', message: 'Pi notification', notifyType: 'info' }
-    );
-
-    assert.deepStrictEqual(
-      mapExtensionUiRequest({
-        type: 'extension_ui_request',
-        method: 'confirm',
-        id: 'dialog-1'
-      }),
-      { type: 'cancel', id: 'dialog-1' }
-    );
-
-    assert.deepStrictEqual(
-      mapExtensionUiRequest({
-        type: 'extension_ui_request',
-        method: 'confirm'
-      }),
-      { type: 'ignore' }
-    );
   });
 
   test('getFailedResponseError maps failed unmatched responses only', () => {

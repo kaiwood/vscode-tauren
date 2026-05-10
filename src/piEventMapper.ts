@@ -35,11 +35,6 @@ export type RpcActivityAction =
   | ActivityRemoveAction
   | { type: 'ignore' };
 
-export type ExtensionUiRequestAction =
-  | { type: 'notify'; message: string; notifyType: string }
-  | { type: 'cancel'; id: string }
-  | { type: 'ignore' };
-
 export type RpcMappingOptions = {
   fullCommunication?: boolean;
 };
@@ -352,28 +347,6 @@ export function mapRpcActivity(
         code: true
       });
   }
-}
-
-export function mapExtensionUiRequest(event: RpcEvent): ExtensionUiRequestAction {
-  const method = typeof event.method === 'string' ? event.method : '';
-
-  if (method === 'notify') {
-    return {
-      type: 'notify',
-      message: typeof event.message === 'string' ? event.message : 'Pi notification',
-      notifyType: typeof event.notifyType === 'string' ? event.notifyType : 'info'
-    };
-  }
-
-  if (method === 'select' || method === 'confirm' || method === 'input' || method === 'editor') {
-    const id = typeof event.id === 'string' ? event.id : undefined;
-
-    if (id) {
-      return { type: 'cancel', id };
-    }
-  }
-
-  return { type: 'ignore' };
 }
 
 export function getFailedResponseError(event: RpcEvent): string | undefined {

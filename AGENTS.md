@@ -26,6 +26,7 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - `src/chatWebviewScript.ts` owns the static browser script string embedded into the webview HTML.
 - `src/nonce.ts` owns nonce generation for CSP-protected inline scripts.
 - `src/piEventMapper.ts` owns pure Pi RPC event-to-UI action mapping helpers.
+- `src/extensionUiRequestHandler.ts` owns extension UI request routing through an injected VS Code UI adapter, safe cancellation, and stale request cleanup.
 - `src/piRpcClient.ts` owns the `pi --mode rpc` subprocess, strict JSONL parsing, request/response tracking, stderr collection, and process cleanup.
 - There is no bundler. Keep the implementation compatible with the current direct `tsc` build.
 
@@ -53,7 +54,7 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - Stream assistant text from `message_update` events where `assistantMessageEvent.type === "text_delta"`.
 - Treat `agent_start` as busy and `agent_end` as idle.
 - Surface failed command responses, parse failures, process exits, and stderr-backed startup failures in the UI.
-- For unsupported `extension_ui_request` dialog methods, send `extension_ui_response` with `{ cancelled: true }` so Pi does not hang.
+- Route `extension_ui_request` handling through `ExtensionUiRequestHandler`; `select`, `confirm`, and `input` use VS Code-native UI, while unsupported dialog methods still receive `extension_ui_response` with `{ cancelled: true }` so Pi does not hang.
 - Fire-and-forget `notify` requests can be shown with VS Code notifications.
 
 ## UI Guidelines

@@ -2,7 +2,14 @@ import * as assert from 'assert';
 import { PiChatController, type PiChatControllerOptions, type PiRpcClientLike } from '../../piChatController';
 import type { WebviewStateMessage } from '../../chatWebview';
 import type { StatePublisherScheduler } from '../../statePublisher';
-import type { PiModel, PiRpcClientOptions, PiSessionState, PiSessionStats, RpcEvent } from '../../piRpcClient';
+import type {
+  ExtensionUiResponse,
+  PiModel,
+  PiRpcClientOptions,
+  PiSessionState,
+  PiSessionStats,
+  RpcEvent
+} from '../../piRpcClient';
 
 suite('PiChatController', () => {
   test('webview ready does not create a Pi client', async () => {
@@ -230,6 +237,36 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
+  test('extension UI select requests are routed through the configured UI', async () => {
+    const client = new FakePiClient();
+    const selectCalls: { title: string; options: string[] }[] = [];
+    const harness = createControllerHarness([client], {
+      extensionUi: {
+        notify: () => {},
+        select: (title, options) => {
+          selectCalls.push({ title, options });
+          return 'Allow';
+        },
+        confirm: async () => undefined,
+        input: async () => undefined
+      }
+    });
+
+    await harness.controller.handleWebviewMessage({ type: 'refreshMetadata' });
+    client.emit({
+      type: 'extension_ui_request',
+      method: 'select',
+      id: 'select-1',
+      title: 'Allow command?',
+      options: ['Allow', 'Block']
+    });
+    await flushPromises();
+
+    assert.deepStrictEqual(selectCalls, [{ title: 'Allow command?', options: ['Allow', 'Block'] }]);
+    assert.deepStrictEqual(client.extensionUiResponses, [{ id: 'select-1', value: 'Allow' }]);
+    harness.controller.dispose();
+  });
+
   test('unmatched failed responses are added to the transcript', async () => {
     const client = new FakePiClient();
     const harness = createControllerHarness([client]);
@@ -291,6 +328,7 @@ type ControllerHarness = {
 
 type ControllerHarnessOptions = {
   cwd?: string;
+  extensionUi?: PiChatControllerOptions['extensionUi'];
   fullRpcAgentCommunication?: boolean;
   stateScheduler?: StatePublisherScheduler;
 };
@@ -320,6 +358,7 @@ function createControllerHarness(
     showNotification: (message, type) => {
       notifications.push({ message, type });
     },
+    extensionUi: options.extensionUi,
     fullRpcAgentCommunication: options.fullRpcAgentCommunication ?? false,
     stateScheduler: options.stateScheduler
   };
@@ -386,6 +425,7 @@ class FakePiClient implements PiRpcClientLike {
   public modelsCalls = 0;
   public statsCalls = 0;
   public prompts: string[] = [];
+  public extensionUiResponses: ExtensionUiResponse[] = [];
   public state: PiSessionState;
   public models: PiModel[];
   public stats: PiSessionStats;
@@ -458,7 +498,9 @@ class FakePiClient implements PiRpcClientLike {
 
   public async setThinkingLevel(_level: string): Promise<void> {}
 
-  public async cancelExtensionUiRequest(_id: string): Promise<void> {}
+  public async respondExtensionUiRequest(response: ExtensionUiResponse): Promise<void> {
+    this.extensionUiResponses.push(response);
+  }
 
   public dispose(): void {
     this.disposed = true;

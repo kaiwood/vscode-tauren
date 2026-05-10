@@ -13,6 +13,11 @@ export type RpcResponse = RpcEventBase & {
   data?: unknown;
 };
 
+export type ExtensionUiResponse =
+  | { id: string; value: string }
+  | { id: string; confirmed: boolean }
+  | { id: string; cancelled: true };
+
 export type AgentStartRpcEvent = RpcEventBase & { type: 'agent_start' };
 export type AgentEndRpcEvent = RpcEventBase & { type: 'agent_end'; messages?: unknown };
 export type TurnStartRpcEvent = RpcEventBase & { type: 'turn_start' };

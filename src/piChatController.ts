@@ -10,9 +10,13 @@ import {
   type StatePublisherScheduler
 } from './statePublisher';
 import {
+  createCancellingExtensionUi,
+  ExtensionUiRequestHandler,
+  type ExtensionUiRequestUi
+} from './extensionUiRequestHandler';
+import {
   formatExtensionError,
   getFailedResponseError,
-  mapExtensionUiRequest,
   mapMessageUpdate,
   mapRpcActivity,
   type ActivityAddAction,
@@ -39,7 +43,7 @@ export type PiRpcClientLike = Pick<
   | 'getAvailableModels'
   | 'setModel'
   | 'setThinkingLevel'
-  | 'cancelExtensionUiRequest'
+  | 'respondExtensionUiRequest'
   | 'dispose'
 >;
 
@@ -49,6 +53,7 @@ export type PiChatControllerOptions = {
   createClient: PiRpcClientFactory;
   postState: (message: WebviewStateMessage) => void;
   showNotification: (message: string, notifyType: string) => void;
+  extensionUi?: ExtensionUiRequestUi;
   getCwd?: () => string | undefined;
   fullRpcAgentCommunication?: boolean;
   stateScheduler?: StatePublisherScheduler;
@@ -74,6 +79,7 @@ export class PiChatController {
   private readonly session = new ChatSession();
   private readonly clientDisposables: DisposableLike[] = [];
   private readonly statePublisher: StatePublisher<WebviewStateMessage>;
+  private readonly extensionUiRequestHandler: ExtensionUiRequestHandler;
 
   public constructor(private readonly options: PiChatControllerOptions) {
     this.fullRpcAgentCommunication = options.fullRpcAgentCommunication ?? false;
@@ -82,9 +88,15 @@ export class PiChatController {
       options.postState,
       options.stateScheduler
     );
+    this.extensionUiRequestHandler = new ExtensionUiRequestHandler({
+      ui: options.extensionUi ?? createCancellingExtensionUi(options.showNotification),
+      respond: (response) => this.getExistingClient()?.respondExtensionUiRequest(response),
+      onError: (message) => this.handleClientError(message)
+    });
   }
 
   public dispose(): void {
+    this.extensionUiRequestHandler.dispose();
     this.statePublisher.dispose();
     this.disposeClient();
   }
@@ -144,6 +156,7 @@ export class PiChatController {
   }
 
   public startNewSession(): void {
+    this.extensionUiRequestHandler.startNewGeneration();
     this.assistantStreamId = 0;
     this.resetSessionMeta();
     this.session.startNewSession();
@@ -435,19 +448,7 @@ export class PiChatController {
   }
 
   private handleExtensionUiRequest(event: RpcEvent): void {
-    const action = mapExtensionUiRequest(event);
-
-    if (action.type === 'notify') {
-      this.options.showNotification(action.message, action.notifyType);
-      return;
-    }
-
-    if (action.type === 'cancel') {
-      void this.client?.cancelExtensionUiRequest(action.id).catch((error) => {
-        this.session.addErrorMessage(getErrorMessage(error));
-        this.postState();
-      });
-    }
+    void this.extensionUiRequestHandler.handle(event);
   }
 
   private handleUnmatchedResponse(event: RpcEvent): void {

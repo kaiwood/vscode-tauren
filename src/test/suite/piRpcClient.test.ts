@@ -70,6 +70,42 @@ suite('PiRpcClient', () => {
     client.dispose();
   });
 
+  test('writes extension UI responses without command correlation', async () => {
+    const { client, fakeProcess } = createClient();
+
+    const statePromise = client.getState();
+    const command = await fakeProcess.nextCommand();
+
+    await client.respondExtensionUiRequest({ id: 'dialog-1', value: 'Allow' });
+    const response = await fakeProcess.nextCommand();
+
+    assert.deepStrictEqual(response, {
+      type: 'extension_ui_response',
+      id: 'dialog-1',
+      value: 'Allow'
+    });
+
+    fakeProcess.writeRecord({
+      type: 'response',
+      id: command.id,
+      command: 'get_state',
+      success: true,
+      data: {}
+    });
+
+    await statePromise;
+    client.dispose();
+  });
+
+  test('rejects extension UI responses when the process is not running', async () => {
+    const { client } = createClient();
+
+    await assert.rejects(
+      client.respondExtensionUiRequest({ id: 'dialog-1', cancelled: true }),
+      /Pi RPC process is not running/
+    );
+  });
+
   test('rejects failed command responses', async () => {
     const { client, fakeProcess } = createClient();
     const responsePromise = client.setThinkingLevel('high');

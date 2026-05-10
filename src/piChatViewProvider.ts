@@ -32,6 +32,18 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
         void this.webviewView?.webview.postMessage(message);
       },
       showNotification: (message, notifyType) => this.showNotification(message, notifyType),
+      extensionUi: {
+        notify: (message, notifyType) => this.showNotification(message, notifyType),
+        select: (title, options) => vscode.window.showQuickPick(options, {
+          title,
+          placeHolder: title
+        }),
+        confirm: (title, message) => this.showConfirmation(title, message),
+        input: (title, placeholder) => vscode.window.showInputBox({
+          title,
+          placeHolder: placeholder
+        })
+      },
       fullRpcAgentCommunication: getFullRpcAgentCommunicationSetting()
     });
 
@@ -145,6 +157,27 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     }
 
     void vscode.window.showInformationMessage(message);
+  }
+
+  private async showConfirmation(title: string, message: string | undefined): Promise<boolean | undefined> {
+    const yes = 'Yes';
+    const no = 'No';
+    const selected = await vscode.window.showWarningMessage(
+      title,
+      { modal: true, ...(message ? { detail: message } : {}) },
+      yes,
+      no
+    );
+
+    if (selected === yes) {
+      return true;
+    }
+
+    if (selected === no) {
+      return false;
+    }
+
+    return undefined;
   }
 
   private postInputFocus(): void {

@@ -4,12 +4,13 @@ import {
   parseRpcEvent,
   parseRpcResponse,
   serializeJsonLine,
+  type ExtensionUiResponse,
   type RpcEvent,
   type RpcResponse
 } from './piRpcProtocol';
 
 export { parseRpcEvent, parseRpcResponse } from './piRpcProtocol';
-export type { RpcEvent, RpcResponse } from './piRpcProtocol';
+export type { ExtensionUiResponse, RpcEvent, RpcResponse } from './piRpcProtocol';
 
 type RpcCommand = {
   type: string;
@@ -133,8 +134,12 @@ export class PiRpcClient {
     await this.send({ type: 'set_thinking_level', level });
   }
 
+  public respondExtensionUiRequest(response: ExtensionUiResponse): Promise<void> {
+    return this.writeToRunningProcess({ type: 'extension_ui_response', ...response });
+  }
+
   public async cancelExtensionUiRequest(id: string): Promise<void> {
-    await this.write({ type: 'extension_ui_response', id, cancelled: true });
+    await this.respondExtensionUiRequest({ id, cancelled: true });
   }
 
   public dispose(): void {
@@ -177,9 +182,15 @@ export class PiRpcClient {
     });
   }
 
-  private async write(command: RpcCommand): Promise<void> {
-    const child = await this.ensureStarted();
+  private writeToRunningProcess(command: RpcCommand): Promise<void> {
+    if (!this.process || this.process.exitCode !== null) {
+      return Promise.reject(new Error('Pi RPC process is not running.'));
+    }
 
+    return this.writeToProcess(this.process, command);
+  }
+
+  private writeToProcess(child: PiRpcProcess, command: RpcCommand): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       child.stdin.write(serializeJsonLine(command), (error?: Error | null) => {
         if (error) {
