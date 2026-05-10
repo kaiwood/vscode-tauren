@@ -121,6 +121,8 @@ export type WebviewStateMessage = ChatState & {
   metadataRefreshing: boolean;
   slashCommands: WebviewSlashCommand[];
   slashCommandsRefreshing: boolean;
+  composerText?: string;
+  composerTextRevision?: number;
   viewMode?: WebviewViewMode;
   sessions?: WebviewSessionItem[];
   sessionsRefreshing?: boolean;
@@ -146,6 +148,10 @@ type CreateWebviewStateMessageOptions = {
   metadataRefreshing?: boolean;
   slashCommands?: WebviewSlashCommand[];
   slashCommandsRefreshing?: boolean;
+  composer?: {
+    text?: string;
+    revision?: number;
+  };
   sessionView?: {
     viewMode?: WebviewViewMode;
     sessions?: WebviewSessionItem[];
@@ -162,6 +168,7 @@ export function createWebviewStateMessage({
   metadataRefreshing = false,
   slashCommands = [],
   slashCommandsRefreshing = false,
+  composer,
   sessionView
 }: CreateWebviewStateMessageOptions): WebviewStateMessage {
   const message: WebviewStateMessage = {
@@ -181,6 +188,11 @@ export function createWebviewStateMessage({
     slashCommands,
     slashCommandsRefreshing
   };
+
+  if (composer && typeof composer.revision === 'number' && composer.revision > 0) {
+    message.composerText = composer.text ?? '';
+    message.composerTextRevision = composer.revision;
+  }
 
   if (sessionView) {
     if (sessionView.viewMode) {

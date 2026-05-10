@@ -24,7 +24,8 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
     const maxTextareaHeight = 180;
     const minTextareaHeight = 22;
     const isMac = navigator.platform.toUpperCase().includes('MAC');
-    let state = { messages: [], busy: false, modelLabel: '', modelProvider: '', modelId: '', modelReasoning: false, thinkingLevel: '', modelOptions: [], contextUsageLabel: '', contextUsageTitle: '', contextUsageLevel: '', metadataRefreshing: false, slashCommands: [], slashCommandsRefreshing: false, viewMode: 'chat', sessions: [], sessionsRefreshing: false, sessionsError: '', currentSessionFile: '' };
+    let state = { messages: [], busy: false, modelLabel: '', modelProvider: '', modelId: '', modelReasoning: false, thinkingLevel: '', modelOptions: [], contextUsageLabel: '', contextUsageTitle: '', contextUsageLevel: '', metadataRefreshing: false, slashCommands: [], slashCommandsRefreshing: false, composerText: '', composerTextRevision: 0, viewMode: 'chat', sessions: [], sessionsRefreshing: false, sessionsError: '', currentSessionFile: '' };
+    let appliedComposerTextRevision = 0;
     let slashMenuOpen = false;
     let slashMenuActiveIndex = 0;
     let slashMenuItems = [];
@@ -51,12 +52,12 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
       { name: 'share', description: 'Not supported here yet', source: 'unsupported' },
       { name: 'changelog', description: 'Not supported here yet', source: 'unsupported' },
       { name: 'hotkeys', description: 'Terminal-only: use VS Code keybindings instead', source: 'unsupported' },
-      { name: 'fork', description: 'Not supported here yet', source: 'unsupported' },
-      { name: 'clone', description: 'Not supported here yet', source: 'unsupported' },
+      { name: 'fork', description: 'Fork from a previous user message', source: 'builtin' },
+      { name: 'clone', description: 'Duplicate the current session', source: 'builtin' },
       { name: 'tree', description: 'Open session switcher', source: 'builtin' },
       { name: 'login', description: 'Terminal-only: run pi in a terminal to authenticate', source: 'unsupported' },
       { name: 'logout', description: 'Terminal-only: run pi in a terminal to manage auth', source: 'unsupported' },
-      { name: 'resume', description: 'Terminal-only: session picker is not supported here yet', source: 'unsupported' },
+      { name: 'resume', description: 'Resume a different session', source: 'builtin' },
       { name: 'reload', description: 'Reload keybindings, extensions, skills, prompts, and themes', source: 'builtin' },
       { name: 'quit', description: 'Not supported here', source: 'unsupported' }
     ];
@@ -98,6 +99,8 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
         metadataRefreshing: Boolean(event.data.metadataRefreshing),
         slashCommands: Array.isArray(event.data.slashCommands) ? event.data.slashCommands : [],
         slashCommandsRefreshing: Boolean(event.data.slashCommandsRefreshing),
+        composerText: typeof event.data.composerText === 'string' ? event.data.composerText : '',
+        composerTextRevision: typeof event.data.composerTextRevision === 'number' ? event.data.composerTextRevision : 0,
         viewMode: event.data.viewMode === 'sessions' ? 'sessions' : 'chat',
         sessions: Array.isArray(event.data.sessions) ? event.data.sessions : [],
         sessionsRefreshing: Boolean(event.data.sessionsRefreshing),
@@ -113,6 +116,7 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
         selectCurrentSession();
       }
       render();
+      applyComposerTextFromState();
     });
 
     form?.addEventListener('submit', (event) => {
@@ -1498,6 +1502,18 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
 
     function parseCssPixelValue(value) {
       return Number.parseFloat(value) || 0;
+    }
+
+    function applyComposerTextFromState() {
+      if (!textarea || state.composerTextRevision <= appliedComposerTextRevision) {
+        return;
+      }
+
+      appliedComposerTextRevision = state.composerTextRevision;
+      textarea.value = state.composerText;
+      closeSlashMenu();
+      syncComposer({ preserveBottom: true });
+      focusPromptInput();
     }
 
     function syncComposer(options = {}) {

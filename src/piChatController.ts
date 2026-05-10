@@ -28,6 +28,7 @@ import {
 import type {
   PiAgentMessage,
   PiCommand,
+  PiForkMessage,
   PiModel,
   PiPromptStreamingBehavior,
   PiRpcClient,
@@ -57,6 +58,9 @@ export type PiRpcClientLike = Pick<
   | 'getLastAssistantText'
   | 'getMessages'
   | 'switchSession'
+  | 'getForkMessages'
+  | 'fork'
+  | 'clone'
   | 'respondExtensionUiRequest'
   | 'dispose'
 >;
@@ -122,6 +126,8 @@ export class PiChatController {
   private sessions: WebviewSessionItem[] = [];
   private sessionsRefreshing = false;
   private sessionsError = '';
+  private pendingComposerText: { text: string; revision: number } | undefined;
+  private composerTextRevision = 0;
   private sessionsRefreshSequence = 0;
   private metadataRefreshSequence = 0;
   private slashCommandsRefreshSequence = 0;
@@ -149,7 +155,10 @@ export class PiChatController {
 
     this.statePublisher = new StatePublisher(
       () => this.getStateMessage(),
-      options.postState,
+      (message) => {
+        options.postState(message);
+        this.clearPostedComposerText(message);
+      },
       options.stateScheduler
     );
     this.extensionUiRequestHandler = new ExtensionUiRequestHandler({
@@ -302,6 +311,12 @@ export class PiChatController {
     this.statePublisher.flush();
   }
 
+  private clearPostedComposerText(message: WebviewStateMessage): void {
+    if (this.pendingComposerText && message.composerTextRevision === this.pendingComposerText.revision) {
+      this.pendingComposerText = undefined;
+    }
+  }
+
   public getStateMessage(): WebviewStateMessage {
     return createWebviewStateMessage({
       state: this.session.snapshot(),
@@ -315,6 +330,12 @@ export class PiChatController {
       },
       slashCommands: this.slashCommands,
       slashCommandsRefreshing: this.slashCommandsRefreshing,
+      composer: this.pendingComposerText
+        ? {
+          text: this.pendingComposerText.text,
+          revision: this.pendingComposerText.revision
+        }
+        : undefined,
       contextUsage: {
         label: this.contextUsageLabel,
         title: this.contextUsageTitle,
@@ -454,20 +475,7 @@ export class PiChatController {
         return;
       }
 
-      this.extensionUiRequestHandler.startNewGeneration();
-      this.assistantStreamId = 0;
-      this.resetAbortState();
-      this.metadataRefreshSequence += 1;
-      this.slashCommandsRefreshSequence += 1;
-      this.shouldRestoreInitialSessionHistory = false;
-      this.applyCurrentSessionFile(trimmedPath);
-      this.resetSessionMeta();
-
-      const messages = formatAgentMessages((await this.getClient().getMessages()).messages);
-      this.session.replaceMessages(messages);
-      this.sessionViewMode = 'chat';
-      this.postState();
-      void this.refreshSessionMeta({ startClient: true, force: true });
+      await this.adoptReplacedSession({ fallbackSessionFile: trimmedPath });
     } catch (error) {
       this.sessionsError = getErrorMessage(error);
       this.postState();
@@ -476,6 +484,38 @@ export class PiChatController {
       if (this.sessionViewMode === 'sessions') {
         this.postState();
       }
+    }
+  }
+
+  private async adoptReplacedSession(options: { fallbackSessionFile?: string; refreshSessions?: boolean } = {}): Promise<void> {
+    const client = this.getClient();
+
+    this.extensionUiRequestHandler.startNewGeneration();
+    this.assistantStreamId = 0;
+    this.resetAbortState();
+    this.metadataRefreshSequence += 1;
+    this.slashCommandsRefreshSequence += 1;
+    this.shouldRestoreInitialSessionHistory = false;
+    this.resetSessionMeta();
+
+    const [messagesResult, stateResult] = await Promise.all([
+      client.getMessages(),
+      client.getState().catch(() => undefined)
+    ]);
+
+    const sessionFile = stateResult
+      ? getSessionFile(stateResult) ?? options.fallbackSessionFile
+      : options.fallbackSessionFile;
+    this.applyCurrentSessionFile(sessionFile);
+    this.session.replaceMessages(formatAgentMessages(messagesResult.messages));
+    this.sessionViewMode = 'chat';
+    this.sessionsError = '';
+    this.postState();
+
+    void this.refreshSessionMeta({ startClient: true, force: true });
+
+    if (options.refreshSessions) {
+      void this.refreshSessions();
     }
   }
 
@@ -877,7 +917,14 @@ export class PiChatController {
           await this.handleSessionSlashCommand();
           return;
         case 'tree':
+        case 'resume':
           this.showSessions();
+          return;
+        case 'fork':
+          await this.handleForkSlashCommand();
+          return;
+        case 'clone':
+          await this.handleCloneSlashCommand();
           return;
         case 'copy':
           await this.handleCopySlashCommand();
@@ -953,6 +1000,57 @@ export class PiChatController {
 
     this.session.addSystemMessage(formatSessionInfo(state, stats));
     this.postState();
+  }
+
+  private async handleForkSlashCommand(): Promise<void> {
+    const select = this.options.extensionUi?.select;
+
+    if (!select) {
+      this.session.addSystemMessage('Fork selection is not available in this environment.');
+      this.postState();
+      return;
+    }
+
+    const forkMessages = formatForkMessages((await this.getClient().getForkMessages()).messages);
+
+    if (forkMessages.length === 0) {
+      this.session.addSystemMessage('No messages to fork from.');
+      this.postState();
+      return;
+    }
+
+    const labels = forkMessages.map((message, index) => formatForkMessageLabel(message, index));
+    const picked = await select('Fork from message', labels);
+
+    if (!picked) {
+      return;
+    }
+
+    const selected = forkMessages[labels.indexOf(picked)];
+
+    if (!selected) {
+      return;
+    }
+
+    const result = await this.getClient().fork(selected.entryId);
+
+    if (result.cancelled) {
+      return;
+    }
+
+    await this.adoptReplacedSession({ refreshSessions: true });
+    this.setComposerText(typeof result.text === 'string' ? result.text : selected.text);
+    this.postState();
+  }
+
+  private async handleCloneSlashCommand(): Promise<void> {
+    const result = await this.getClient().clone();
+
+    if (result.cancelled) {
+      return;
+    }
+
+    await this.adoptReplacedSession({ refreshSessions: true });
   }
 
   private async handleCopySlashCommand(): Promise<void> {
@@ -1090,6 +1188,11 @@ export class PiChatController {
   private resetAbortState(): void {
     this.abortRequested = false;
     this.abortNoticeAdded = false;
+  }
+
+  private setComposerText(text: string): void {
+    this.composerTextRevision += 1;
+    this.pendingComposerText = { text, revision: this.composerTextRevision };
   }
 
   private resetSessionMeta(): void {
@@ -1356,6 +1459,38 @@ function getSessionFile(state: { sessionFile?: string }): string | undefined {
     : undefined;
 }
 
+type ForkMessageOption = {
+  entryId: string;
+  text: string;
+};
+
+function formatForkMessages(messages: PiForkMessage[] | undefined): ForkMessageOption[] {
+  if (!Array.isArray(messages)) {
+    return [];
+  }
+
+  return messages.flatMap((message) => {
+    const entryId = typeof message.entryId === 'string' ? message.entryId : '';
+    const text = typeof message.text === 'string' ? message.text.trim() : '';
+
+    return entryId && text ? [{ entryId, text }] : [];
+  });
+}
+
+function formatForkMessageLabel(message: ForkMessageOption, index: number): string {
+  return `${index + 1}. ${truncateOneLine(message.text, 120)}`;
+}
+
+function truncateOneLine(text: string, maxLength: number): string {
+  const singleLine = text.replace(/\s+/g, ' ').trim();
+
+  if (singleLine.length <= maxLength) {
+    return singleLine;
+  }
+
+  return `${singleLine.slice(0, Math.max(0, maxLength - 1))}…`;
+}
+
 function formatAgentMessages(messages: PiAgentMessage[] | undefined): ChatMessage[] {
   if (!Array.isArray(messages)) {
     return [];
@@ -1585,6 +1720,9 @@ const supportedBuiltinSlashCommandNames = new Set([
   'name',
   'session',
   'tree',
+  'resume',
+  'fork',
+  'clone',
   'new',
   'compact',
   'reload'

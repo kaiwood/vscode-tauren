@@ -351,6 +351,18 @@ class FakePiClient implements PiRpcClientLike {
     return { cancelled: false };
   }
 
+  public async getForkMessages(): Promise<{ messages?: [] }> {
+    return { messages: [] };
+  }
+
+  public async fork(_entryId: string): Promise<{ cancelled?: boolean }> {
+    return { cancelled: false };
+  }
+
+  public async clone(): Promise<{ cancelled?: boolean }> {
+    return { cancelled: false };
+  }
+
   public async setModel(_provider: string, _modelId: string): Promise<PiModel> {
     return {};
   }

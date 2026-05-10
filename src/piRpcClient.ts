@@ -86,6 +86,24 @@ export type PiSwitchSessionResult = {
   cancelled?: boolean;
 };
 
+export type PiForkMessage = {
+  entryId?: string;
+  text?: string;
+};
+
+export type PiForkMessagesResult = {
+  messages?: PiForkMessage[];
+};
+
+export type PiForkResult = {
+  text?: string;
+  cancelled?: boolean;
+};
+
+export type PiCloneResult = {
+  cancelled?: boolean;
+};
+
 export type PiAgentMessage = {
   role?: string;
   content?: unknown;
@@ -243,6 +261,21 @@ export class PiRpcClient {
 
   public async switchSession(sessionPath: string): Promise<PiSwitchSessionResult> {
     const response = await this.send({ type: 'switch_session', sessionPath });
+    return isRecord(response.data) ? response.data : {};
+  }
+
+  public async getForkMessages(): Promise<PiForkMessagesResult> {
+    const response = await this.send({ type: 'get_fork_messages' });
+    return isRecord(response.data) ? response.data : {};
+  }
+
+  public async fork(entryId: string): Promise<PiForkResult> {
+    const response = await this.send({ type: 'fork', entryId });
+    return isRecord(response.data) ? response.data : {};
+  }
+
+  public async clone(): Promise<PiCloneResult> {
+    const response = await this.send({ type: 'clone' });
     return isRecord(response.data) ? response.data : {};
   }
 

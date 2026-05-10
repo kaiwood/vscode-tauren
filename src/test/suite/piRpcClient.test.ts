@@ -175,6 +175,72 @@ suite('PiRpcClient', () => {
     client.dispose();
   });
 
+  test('gets forkable messages', async () => {
+    const { client, fakeProcess } = createClient();
+
+    const forkMessagesPromise = client.getForkMessages();
+    const command = await fakeProcess.nextCommand();
+
+    assert.strictEqual(command.type, 'get_fork_messages');
+    assert.ok(typeof command.id === 'string');
+
+    fakeProcess.writeRecord({
+      type: 'response',
+      id: command.id,
+      command: 'get_fork_messages',
+      success: true,
+      data: { messages: [{ entryId: 'u1', text: 'First prompt' }] }
+    });
+
+    assert.deepStrictEqual(await forkMessagesPromise, {
+      messages: [{ entryId: 'u1', text: 'First prompt' }]
+    });
+    client.dispose();
+  });
+
+  test('forks a session from a selected message', async () => {
+    const { client, fakeProcess } = createClient();
+
+    const forkPromise = client.fork('u1');
+    const command = await fakeProcess.nextCommand();
+
+    assert.strictEqual(command.type, 'fork');
+    assert.strictEqual(command.entryId, 'u1');
+    assert.ok(typeof command.id === 'string');
+
+    fakeProcess.writeRecord({
+      type: 'response',
+      id: command.id,
+      command: 'fork',
+      success: true,
+      data: { text: 'Original prompt', cancelled: false }
+    });
+
+    assert.deepStrictEqual(await forkPromise, { text: 'Original prompt', cancelled: false });
+    client.dispose();
+  });
+
+  test('clones the current session branch', async () => {
+    const { client, fakeProcess } = createClient();
+
+    const clonePromise = client.clone();
+    const command = await fakeProcess.nextCommand();
+
+    assert.strictEqual(command.type, 'clone');
+    assert.ok(typeof command.id === 'string');
+
+    fakeProcess.writeRecord({
+      type: 'response',
+      id: command.id,
+      command: 'clone',
+      success: true,
+      data: { cancelled: false }
+    });
+
+    assert.deepStrictEqual(await clonePromise, { cancelled: false });
+    client.dispose();
+  });
+
   test('sends streaming behavior with queued prompts', async () => {
     const { client, fakeProcess } = createClient();
 

@@ -371,6 +371,85 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
+  test('resume slash command opens the session switcher', async () => {
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/resume' });
+
+    assert.strictEqual(harness.createCalls, 0);
+    assert.deepStrictEqual(client.prompts, []);
+    assert.strictEqual(lastState(harness).viewMode, 'sessions');
+    harness.controller.dispose();
+  });
+
+  test('fork slash command selects a message, switches to forked session, and prefills composer', async () => {
+    const client = new FakePiClient({
+      state: {
+        model: { provider: 'openai', id: 'gpt-test', reasoning: false },
+        thinkingLevel: 'off',
+        sessionFile: '/sessions/forked.jsonl'
+      },
+      forkMessages: [
+        { entryId: 'u1', text: 'First prompt' },
+        { entryId: 'u2', text: 'Second prompt' }
+      ],
+      forkResult: { text: 'Second prompt', cancelled: false },
+      messages: [{ role: 'user', content: 'First prompt' }]
+    });
+    const harness = createControllerHarness([client], {
+      extensionUi: {
+        notify: () => {},
+        select: async (title, options) => {
+          assert.strictEqual(title, 'Fork from message');
+          assert.deepStrictEqual(options, ['1. First prompt', '2. Second prompt']);
+          return options[1];
+        },
+        confirm: async () => undefined,
+        input: async () => undefined
+      }
+    });
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/fork' });
+
+    assert.strictEqual(client.forkMessagesCalls, 1);
+    assert.deepStrictEqual(client.forkedEntries, ['u2']);
+    assert.deepStrictEqual(lastState(harness).messages, [
+      { role: 'user', text: 'First prompt' }
+    ]);
+    assert.strictEqual(lastState(harness).currentSessionFile, '/sessions/forked.jsonl');
+    const composerState = harness.states.find((state) => state.composerTextRevision === 1);
+    assert.ok(composerState);
+    assert.strictEqual(composerState.composerText, 'Second prompt');
+    harness.controller.dispose();
+  });
+
+  test('clone slash command switches to cloned session messages', async () => {
+    const client = new FakePiClient({
+      state: {
+        model: { provider: 'openai', id: 'gpt-test', reasoning: false },
+        thinkingLevel: 'off',
+        sessionFile: '/sessions/cloned.jsonl'
+      },
+      messages: [
+        { role: 'user', content: 'Hello' },
+        { role: 'assistant', content: 'Hi there' }
+      ]
+    });
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/clone' });
+
+    assert.strictEqual(client.cloneCalls, 1);
+    assert.deepStrictEqual(client.prompts, []);
+    assert.deepStrictEqual(lastState(harness).messages, [
+      { role: 'user', text: 'Hello' },
+      { role: 'assistant', text: 'Hi there' }
+    ]);
+    assert.strictEqual(lastState(harness).currentSessionFile, '/sessions/cloned.jsonl');
+    harness.controller.dispose();
+  });
+
   test('reload slash command reloads Pi resources and refreshes command metadata', async () => {
     const client = new FakePiClient({
       state: {
@@ -941,6 +1020,9 @@ type FakePiClientOptions = {
   reloadError?: unknown;
   switchSessionResult?: { cancelled?: boolean };
   switchSessionError?: unknown;
+  forkMessages?: Array<{ entryId?: string; text?: string }>;
+  forkResult?: { text?: string; cancelled?: boolean };
+  cloneResult?: { cancelled?: boolean };
   promptResult?: Promise<void>;
   promptError?: unknown;
 };
@@ -1008,6 +1090,12 @@ class FakePiClient implements PiRpcClientLike {
   public switchSessionResult: { cancelled?: boolean };
   public switchSessionError: unknown;
   public switchedSessions: string[] = [];
+  public forkMessages: Array<{ entryId?: string; text?: string }>;
+  public forkMessagesCalls = 0;
+  public forkResult: { text?: string; cancelled?: boolean };
+  public forkedEntries: string[] = [];
+  public cloneResult: { cancelled?: boolean };
+  public cloneCalls = 0;
   public promptResult: Promise<void> | undefined;
   public promptError: unknown;
   private readonly eventListeners = new Set<(event: RpcEvent) => void>();
@@ -1031,6 +1119,9 @@ class FakePiClient implements PiRpcClientLike {
     this.reloadError = options.reloadError;
     this.switchSessionResult = options.switchSessionResult ?? { cancelled: false };
     this.switchSessionError = options.switchSessionError;
+    this.forkMessages = options.forkMessages ?? [];
+    this.forkResult = options.forkResult ?? { cancelled: false };
+    this.cloneResult = options.cloneResult ?? { cancelled: false };
     this.promptResult = options.promptResult;
     this.promptError = options.promptError;
   }
@@ -1118,6 +1209,21 @@ class FakePiClient implements PiRpcClientLike {
     }
 
     return this.switchSessionResult;
+  }
+
+  public async getForkMessages(): Promise<{ messages?: Array<{ entryId?: string; text?: string }> }> {
+    this.forkMessagesCalls += 1;
+    return { messages: this.forkMessages };
+  }
+
+  public async fork(entryId: string): Promise<{ text?: string; cancelled?: boolean }> {
+    this.forkedEntries.push(entryId);
+    return this.forkResult;
+  }
+
+  public async clone(): Promise<{ cancelled?: boolean }> {
+    this.cloneCalls += 1;
+    return this.cloneResult;
   }
 
   public async setModel(_provider: string, _modelId: string): Promise<PiModel> {
