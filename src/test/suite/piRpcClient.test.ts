@@ -4,6 +4,31 @@ import { PassThrough, Writable } from 'stream';
 import { PiRpcClient, type RpcEvent } from '../../piRpcClient';
 
 suite('PiRpcClient', () => {
+  test('reports whether the RPC process is running', async () => {
+    const { client, fakeProcess } = createClient();
+
+    assert.strictEqual(client.isRunning(), false);
+
+    const statePromise = client.getState();
+    const command = await fakeProcess.nextCommand();
+
+    assert.strictEqual(client.isRunning(), true);
+
+    fakeProcess.writeRecord({
+      type: 'response',
+      id: command.id,
+      command: 'get_state',
+      success: true,
+      data: {}
+    });
+
+    await statePromise;
+    fakeProcess.emitExit(0);
+
+    assert.strictEqual(client.isRunning(), false);
+    client.dispose();
+  });
+
   test('correlates responses by id', async () => {
     const { client, fakeProcess, spawnCalls } = createClient({ cwd: '/workspace' });
 

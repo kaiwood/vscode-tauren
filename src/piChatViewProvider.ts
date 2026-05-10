@@ -25,6 +25,7 @@ export type PiRpcClientLike = Pick<
   | 'onEvent'
   | 'onError'
   | 'prompt'
+  | 'isRunning'
   | 'getState'
   | 'getSessionStats'
   | 'getAvailableModels'
@@ -152,6 +153,14 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       return;
     }
 
+    if (message.type === 'refreshMetadata') {
+      if (!this.session.isBusy) {
+        await this.refreshSessionMeta({ startClient: true });
+      }
+
+      return;
+    }
+
     if (message.type === 'setModel') {
       await this.setModel(message.provider, message.modelId);
       return;
@@ -216,6 +225,13 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
   private startNewSession(): void {
     this.assistantStreamId = 0;
+    this.resetSessionMeta();
+    this.session.startNewSession();
+    this.disposeClient();
+    this.postState();
+  }
+
+  private resetSessionMeta(): void {
     this.modelLabel = '';
     this.modelProvider = '';
     this.modelId = '';
@@ -225,17 +241,18 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     this.contextUsageLabel = '';
     this.contextUsageTitle = '';
     this.contextUsageLevel = '';
-    this.session.startNewSession();
-    this.disposeClient();
-    this.postState();
-    void this.refreshSessionMeta();
   }
 
-  private async refreshSessionMeta(): Promise<void> {
+  private async refreshSessionMeta(options: { startClient?: boolean } = {}): Promise<void> {
     const sessionGeneration = this.session.generation;
 
     try {
-      const client = this.getClient();
+      const client = options.startClient ? this.getClient() : this.getExistingClient();
+
+      if (!client) {
+        return;
+      }
+
       const [state, stats, availableModels] = await Promise.all([
         client.getState(),
         client.getSessionStats(),
@@ -286,6 +303,14 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
     this.client?.dispose();
     this.client = undefined;
+  }
+
+  private getExistingClient(): PiRpcClientLike | undefined {
+    if (!this.client?.isRunning()) {
+      return undefined;
+    }
+
+    return this.client;
   }
 
   private getClient(): PiRpcClientLike {

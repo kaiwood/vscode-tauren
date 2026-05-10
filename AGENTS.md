@@ -33,8 +33,9 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - Do not use `pi --mode json` for the main chat UI; it streams events for a command-line prompt but is less suitable for a persistent IDE frontend.
 - Do not add `@earendil-works/pi-coding-agent` SDK as a runtime dependency unless there is a clear reason to move away from the already configured CLI.
 - Spawn Pi lazily on first submitted prompt, not when the sidebar opens.
+- Opening the sidebar or receiving webview `ready` must not start Pi just to read model/context metadata.
 - Use the first VS Code workspace folder as the Pi process `cwd`.
-- Treat the Pi agent as the source of truth for current model/settings; after a new session or restart, re-read state from the agent instead of preserving or guessing local settings.
+- Treat the Pi agent as the source of truth for current model/settings; after a new session or restart, clear local metadata and re-read state from the agent only once a new client is started by the first prompt or explicit model/settings interaction.
 - Keep default Pi tool and session behavior unless the user explicitly asks for safer or ephemeral behavior.
 - Stop the child process when the extension provider is disposed.
 

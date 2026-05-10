@@ -55,6 +55,7 @@ suite('Chat webview helpers', () => {
   test('parseWebviewMessage narrows valid inbound messages', () => {
     assert.deepStrictEqual(parseWebviewMessage({ type: 'ready' }), { type: 'ready' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'newSession' }), { type: 'newSession' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'refreshMetadata' }), { type: 'refreshMetadata' });
     assert.deepStrictEqual(
       parseWebviewMessage({ type: 'submit', text: 'hello' }),
       { type: 'submit', text: 'hello' }
@@ -111,6 +112,7 @@ suite('Chat webview helpers', () => {
     assert.ok(html.includes('class="composer__select composer__thinking-select"'));
     assert.ok(html.includes('class="composer__select composer__model-select"'));
     assert.ok(html.includes('class="composer__button composer__submit"'));
+    assert.ok(html.includes("vscode.postMessage({ type: 'refreshMetadata' });"));
     assert.ok(html.includes("vscode.postMessage({ type: 'ready' });"));
   });
 });

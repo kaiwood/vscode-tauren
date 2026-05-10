@@ -3,6 +3,7 @@ import type { ChatState } from './chatSession';
 export type WebviewMessage =
   | { type: 'ready' }
   | { type: 'newSession' }
+  | { type: 'refreshMetadata' }
   | { type: 'submit'; text: string }
   | { type: 'setModel'; provider: string; modelId: string }
   | { type: 'setThinkingLevel'; level: string }
@@ -18,6 +19,8 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
       return { type: 'ready' };
     case 'newSession':
       return { type: 'newSession' };
+    case 'refreshMetadata':
+      return { type: 'refreshMetadata' };
     case 'submit':
       return typeof value.text === 'string'
         ? { type: 'submit', text: value.text }
@@ -1065,8 +1068,10 @@ export function createWebviewHtml(scriptUris: WebviewScriptUris): string {
 
       const label = state.modelLabel || 'Select model';
       modelElement.textContent = label;
-      modelElement.title = label;
-      modelElement.disabled = state.busy || state.modelOptions.length === 0;
+      modelElement.title = state.modelOptions.length === 0 && !state.busy
+        ? 'Load model settings'
+        : label;
+      modelElement.disabled = state.busy;
 
       syncModelSelect();
       syncThinkingSelect();
@@ -1104,6 +1109,11 @@ export function createWebviewHtml(scriptUris: WebviewScriptUris): string {
 
     function toggleModelMenu() {
       if (modelElement.disabled) {
+        return;
+      }
+
+      if (state.modelOptions.length === 0) {
+        vscode.postMessage({ type: 'refreshMetadata' });
         return;
       }
 

@@ -85,6 +85,10 @@ export class PiRpcClient {
 
   public constructor(private readonly options: PiRpcClientOptions = {}) {}
 
+  public isRunning(): boolean {
+    return Boolean(this.process && this.process.exitCode === null);
+  }
+
   public onEvent(listener: (event: RpcEvent) => void): () => void {
     this.eventListeners.add(listener);
 
