@@ -19,6 +19,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   private webviewReady = false;
   private readonly controller: PiChatController;
   private readonly disposables: vscode.Disposable[] = [];
+  private readonly webviewDisposables: vscode.Disposable[] = [];
 
   public constructor(
     private readonly extensionUri: vscode.Uri,
@@ -46,6 +47,8 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   }
 
   public dispose(): void {
+    this.disposeWebviewDisposables();
+
     for (const disposable of this.disposables.splice(0)) {
       disposable.dispose();
     }
@@ -54,6 +57,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   }
 
   public resolveWebviewView(webviewView: vscode.WebviewView): void {
+    this.disposeWebviewDisposables();
     this.webviewView = webviewView;
     this.webviewReady = false;
     webviewView.webview.options = {
@@ -77,12 +81,15 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       highlightScriptUri: highlightUri.toString()
     });
 
-    this.disposables.push(
+    this.webviewDisposables.push(
       webviewView.onDidDispose(() => {
-        if (this.webviewView === webviewView) {
-          this.webviewView = undefined;
-          this.webviewReady = false;
+        if (this.webviewView !== webviewView) {
+          return;
         }
+
+        this.webviewView = undefined;
+        this.webviewReady = false;
+        this.disposeWebviewDisposables();
       }),
       webviewView.webview.onDidReceiveMessage((message: unknown) => {
         void this.handleWebviewMessage(parseWebviewMessage(message));
@@ -118,6 +125,12 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     }
 
     await this.controller.handleWebviewMessage(message);
+  }
+
+  private disposeWebviewDisposables(): void {
+    for (const disposable of this.webviewDisposables.splice(0)) {
+      disposable.dispose();
+    }
   }
 
   private showNotification(message: string, notifyType: string): void {
