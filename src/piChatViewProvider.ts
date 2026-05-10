@@ -38,6 +38,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     this.controller = new PiChatController({
       createClient,
       getCwd: () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+      getPiPath: () => getPiPathSetting(),
       postState: (message) => {
         void this.webviewView?.webview.postMessage(message);
       },
@@ -244,6 +245,11 @@ function getFullRpcAgentCommunicationSetting(): boolean {
     'fullRpcAgentCommunication',
     false
   );
+}
+
+function getPiPathSetting(): string | undefined {
+  const value = vscode.workspace.getConfiguration('piui').get<string>('piPath', 'pi').trim();
+  return value && value !== 'pi' ? value : undefined;
 }
 
 function readCachedSessionMeta(workspaceState: vscode.Memento | undefined): PiChatSessionMetaSnapshot | undefined {

@@ -93,6 +93,7 @@ export type PiChatControllerOptions = {
   showNotification: (message: string, notifyType: string) => void;
   extensionUi?: ExtensionUiRequestUi;
   getCwd?: () => string | undefined;
+  getPiPath?: () => string | undefined;
   fullRpcAgentCommunication?: boolean;
   stateScheduler?: StatePublisherScheduler;
   initialSessionMeta?: PiChatSessionMetaSnapshot;
@@ -1231,6 +1232,11 @@ export class PiChatController {
     const sessionFile = this.nextClientSessionFile ?? this.currentSessionFile;
     this.nextClientSessionFile = undefined;
     const clientOptions: PiRpcClientOptions = { cwd: this.options.getCwd?.() };
+    const piPath = this.options.getPiPath?.();
+
+    if (piPath) {
+      clientOptions.piPath = piPath;
+    }
 
     if (sessionFile) {
       clientOptions.sessionFile = sessionFile;

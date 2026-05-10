@@ -207,6 +207,16 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
+  test('submit passes configured Pi path to the client', async () => {
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client], { cwd: '/workspace', piPath: 'npx pi' });
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: 'hello Pi' });
+
+    assert.deepStrictEqual(harness.clientOptions, [{ cwd: '/workspace', piPath: 'npx pi' }]);
+    harness.controller.dispose();
+  });
+
   test('submit creates a client and sends the trimmed prompt', async () => {
     const client = new FakePiClient();
     const harness = createControllerHarness([client], { cwd: '/workspace' });
@@ -947,6 +957,7 @@ type ControllerHarness = {
 
 type ControllerHarnessOptions = {
   cwd?: string;
+  piPath?: string;
   extensionUi?: PiChatControllerOptions['extensionUi'];
   fullRpcAgentCommunication?: boolean;
   stateScheduler?: StatePublisherScheduler;
@@ -976,6 +987,7 @@ function createControllerHarness(
       return client;
     },
     getCwd: () => options.cwd,
+    getPiPath: () => options.piPath,
     postState: (message) => {
       states.push(message);
     },

@@ -101,6 +101,69 @@ suite('PiRpcClient', () => {
     client.dispose();
   });
 
+  test('uses configured Pi executable path', async () => {
+    const { client, fakeProcess, spawnCalls } = createClient({ piPath: '/opt/homebrew/bin/pi' });
+
+    const statePromise = client.getState();
+    const command = await fakeProcess.nextCommand();
+
+    assert.strictEqual(spawnCalls[0].command, '/opt/homebrew/bin/pi');
+    assert.deepStrictEqual(spawnCalls[0].args, ['--mode', 'rpc']);
+
+    fakeProcess.writeRecord({
+      type: 'response',
+      id: command.id,
+      command: 'get_state',
+      success: true,
+      data: {}
+    });
+
+    await statePromise;
+    client.dispose();
+  });
+
+  test('uses configured Pi command with arguments', async () => {
+    const { client, fakeProcess, spawnCalls } = createClient({ piPath: 'npx pi' });
+
+    const statePromise = client.getState();
+    const command = await fakeProcess.nextCommand();
+
+    assert.strictEqual(spawnCalls[0].command, 'npx');
+    assert.deepStrictEqual(spawnCalls[0].args, ['pi', '--mode', 'rpc']);
+
+    fakeProcess.writeRecord({
+      type: 'response',
+      id: command.id,
+      command: 'get_state',
+      success: true,
+      data: {}
+    });
+
+    await statePromise;
+    client.dispose();
+  });
+
+  test('parses quoted configured Pi command paths', async () => {
+    const { client, fakeProcess, spawnCalls } = createClient({ piPath: '"/Applications/Pi Tools/pi" --profile local' });
+
+    const statePromise = client.getState();
+    const command = await fakeProcess.nextCommand();
+
+    assert.strictEqual(spawnCalls[0].command, '/Applications/Pi Tools/pi');
+    assert.deepStrictEqual(spawnCalls[0].args, ['--profile', 'local', '--mode', 'rpc']);
+
+    fakeProcess.writeRecord({
+      type: 'response',
+      id: command.id,
+      command: 'get_state',
+      success: true,
+      data: {}
+    });
+
+    await statePromise;
+    client.dispose();
+  });
+
   test('gets available slash commands', async () => {
     const { client, fakeProcess } = createClient();
 
@@ -652,7 +715,7 @@ class CommandWritable extends Writable {
   }
 }
 
-function createClient(options: { cwd?: string; sessionFile?: string; commandTimeoutMs?: number } = {}): {
+function createClient(options: { cwd?: string; sessionFile?: string; piPath?: string; commandTimeoutMs?: number } = {}): {
   client: PiRpcClient;
   fakeProcess: FakePiProcess;
   spawnCalls: SpawnCall[];
@@ -662,6 +725,7 @@ function createClient(options: { cwd?: string; sessionFile?: string; commandTime
   const client = new PiRpcClient({
     cwd: options.cwd,
     sessionFile: options.sessionFile,
+    piPath: options.piPath,
     commandTimeoutMs: options.commandTimeoutMs,
     spawnFactory: (command, args, spawnOptions) => {
       spawnCalls.push({

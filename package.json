@@ -67,6 +67,11 @@
           "type": "boolean",
           "default": false,
           "description": "Show full RPC agent communication in the Pi sidebar transcript. When disabled, only assistant text, thinking, tool progress, and errors are shown."
+        },
+        "piui.piPath": {
+          "type": "string",
+          "default": "pi",
+          "description": "Command used to launch Pi. Use an executable name or path, optionally with arguments, for example: pi, /opt/homebrew/bin/pi, npx pi, or \"/path with spaces/pi\"."
         }
       }
     }

@@ -144,6 +144,7 @@ type PiRpcSpawnFactory = (
 export type PiRpcClientOptions = {
   cwd?: string;
   sessionFile?: string;
+  piPath?: string;
   spawnFactory?: PiRpcSpawnFactory;
   commandTimeoutMs?: number;
 };
@@ -364,12 +365,14 @@ export class PiRpcClient {
     this.stderr = '';
     this.isDisposing = false;
 
+    const launchCommand = parsePiLaunchCommand(this.options.piPath);
     const args = [
+      ...launchCommand.args,
       '--mode',
       'rpc',
       ...(this.options.sessionFile ? ['--session', this.options.sessionFile] : [])
     ];
-    const child = (this.options.spawnFactory ?? defaultSpawnFactory)('pi', args, {
+    const child = (this.options.spawnFactory ?? defaultSpawnFactory)(launchCommand.command, args, {
       cwd: this.options.cwd,
       env: process.env,
       stdio: ['pipe', 'pipe', 'pipe']
@@ -557,6 +560,55 @@ export class PiRpcClient {
 
     return ` Stderr: ${stderr}`;
   }
+}
+
+function parsePiLaunchCommand(piPath: string | undefined): { command: string; args: string[] } {
+  const parts = splitCommandLine(piPath?.trim() ?? '');
+
+  if (parts.length === 0) {
+    return { command: 'pi', args: [] };
+  }
+
+  const [command, ...args] = parts;
+  return { command, args };
+}
+
+function splitCommandLine(value: string): string[] {
+  const parts: string[] = [];
+  let current = '';
+  let quote: '"' | "'" | undefined;
+
+  for (const char of value) {
+    if (quote) {
+      if (char === quote) {
+        quote = undefined;
+      } else {
+        current += char;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      if (current) {
+        parts.push(current);
+        current = '';
+      }
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current) {
+    parts.push(current);
+  }
+
+  return parts;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
