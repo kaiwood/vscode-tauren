@@ -4,3 +4,4 @@ out/
 *.vsix
 plan/
 TODO.md
+.DS_Store
