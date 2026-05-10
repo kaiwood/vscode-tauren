@@ -21,7 +21,10 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - `src/extension.ts` is only the activation entrypoint and command/view registration.
 - `src/piChatViewProvider.ts` owns VS Code webview/provider integration, focus handling, notifications, workspace `cwd` lookup, and Pi client lifecycle.
 - `src/chatSession.ts` owns pure in-memory transcript/session state and has no VS Code or Pi process dependencies.
-- `src/chatWebview.ts` owns the sidebar webview HTML, CSS, browser script, nonce generation, and webview message types.
+- `src/chatWebview.ts` owns public sidebar webview HTML composition plus webview state/message types.
+- `src/chatWebviewStyles.ts` owns the static sidebar CSS string.
+- `src/chatWebviewScript.ts` owns the static browser script string embedded into the webview HTML.
+- `src/nonce.ts` owns nonce generation for CSP-protected inline scripts.
 - `src/piEventMapper.ts` owns pure Pi RPC event-to-UI action mapping helpers.
 - `src/piRpcClient.ts` owns the `pi --mode rpc` subprocess, strict JSONL parsing, request/response tracking, stderr collection, and process cleanup.
 - There is no bundler. Keep the implementation compatible with the current direct `tsc` build.
