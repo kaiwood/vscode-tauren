@@ -379,10 +379,13 @@ export const chatWebviewStyles = /* css */ `    :root {
     }
 
     .composer__info {
+      grid-column: 2;
       justify-self: end;
       display: flex;
+      justify-content: flex-end;
       align-items: baseline;
       gap: 14px;
+      width: 100%;
       padding: 0 2px 8px 0;
       min-width: 0;
       overflow: visible;
@@ -437,17 +440,36 @@ export const chatWebviewStyles = /* css */ `    :root {
     }
 
     .composer__model {
+      position: relative;
+      flex: 0 1 auto;
       min-width: 0;
       max-width: 100%;
-      padding: 0;
+      padding: 0 16px 0 0;
       overflow: hidden;
       color: inherit;
       background: transparent;
       border: 0;
       font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1;
       text-align: left;
       text-overflow: ellipsis;
       cursor: pointer;
+    }
+
+    .composer__model::after {
+      content: '';
+      position: absolute;
+      right: 2px;
+      top: 50%;
+      width: 6px;
+      height: 6px;
+      border-right: 2px solid currentColor;
+      border-bottom: 2px solid currentColor;
+      transform: translateY(-70%) rotate(45deg);
+      opacity: 0.9;
+      pointer-events: none;
     }
 
     .composer__model:hover:not(:disabled),
