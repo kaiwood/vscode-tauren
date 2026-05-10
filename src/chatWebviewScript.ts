@@ -316,8 +316,12 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
         messagesElement.append(empty);
       }
 
+      let previousMessageRole;
+
       for (const message of state.messages) {
-        messagesElement.append(createMessageElement(message));
+        const showRole = message.role !== previousMessageRole;
+        messagesElement.append(createMessageElement(message, showRole));
+        previousMessageRole = message.role;
       }
 
       if (state.busy) {
@@ -722,13 +726,9 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
       vscode.postMessage({ type: 'showSessions' });
     }
 
-    function createMessageElement(message) {
+    function createMessageElement(message, showRole) {
       const article = document.createElement('article');
       article.className = \`message message--\${message.role}\${message.error ? ' message--error' : ''}\${message.variant === 'thinking' ? ' message--thinking' : ''}\`;
-
-      const role = document.createElement('div');
-      role.className = 'message__role';
-      role.textContent = roleLabel(message.role);
 
       const body = document.createElement('div');
       body.className = 'message__body';
@@ -739,7 +739,12 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
         body.textContent = message.text || '';
       }
 
-      article.append(role);
+      if (showRole) {
+        const role = document.createElement('div');
+        role.className = 'message__role';
+        role.textContent = roleLabel(message.role);
+        article.append(role);
+      }
 
       const activities = Array.isArray(message.activities) ? message.activities : [];
       const hasBody = Boolean(message.text || message.error || activities.length === 0);

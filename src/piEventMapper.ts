@@ -375,40 +375,48 @@ function mapToolCallEnd(
   }, fullCommunication));
 }
 
-function mapToolExecutionStart(event: RpcEvent, fullCommunication: boolean): ActivityUpdateAction {
+function mapToolExecutionStart(event: RpcEvent, fullCommunication: boolean): ActivityUpdateAction | { type: 'ignore' } {
+  if (!fullCommunication) {
+    return { type: 'ignore' };
+  }
+
   const toolName = getToolName(event);
   const args = event.args;
 
-  return updateActivity(getToolExecutionSourceId(event), compactActivity({
+  return updateActivity(getToolExecutionSourceId(event), {
     kind: 'tool_execution',
     title: `Running ${toolName}`,
     status: 'running',
     summary: summarizeToolArgs(args),
     body: formatBodyValue(args),
     code: true
-  }, fullCommunication));
+  });
 }
 
-function mapToolExecutionUpdate(event: RpcEvent, fullCommunication: boolean): ActivityUpdateAction {
+function mapToolExecutionUpdate(event: RpcEvent, fullCommunication: boolean): ActivityUpdateAction | { type: 'ignore' } {
+  if (!fullCommunication) {
+    return { type: 'ignore' };
+  }
+
   const toolName = getToolName(event);
 
-  return updateActivity(getToolExecutionSourceId(event), compactActivity({
+  return updateActivity(getToolExecutionSourceId(event), {
     kind: 'tool_execution',
     title: `Running ${toolName}`,
     status: 'running',
     summary: summarizeToolArgs(event.args),
     body: formatToolResult(event.partialResult),
     code: true
-  }, fullCommunication));
+  });
 }
 
-function mapToolExecutionEnd(event: RpcEvent, fullCommunication: boolean): ActivityUpdateAction | ActivityRemoveAction {
+function mapToolExecutionEnd(event: RpcEvent, fullCommunication: boolean): ActivityUpdateAction | { type: 'ignore' } {
   const toolName = getToolName(event);
   const isError = event.isError === true;
   const sourceId = getToolExecutionSourceId(event);
 
   if (!fullCommunication && !isError) {
-    return removeActivity(sourceId);
+    return { type: 'ignore' };
   }
 
   return updateActivity(sourceId, compactActivity({
@@ -452,13 +460,6 @@ function addActivity(activity: ChatActivityInput): ActivityAddAction {
   return {
     type: 'activity_add',
     activity
-  };
-}
-
-function removeActivity(sourceId: string): ActivityRemoveAction {
-  return {
-    type: 'activity_remove',
-    sourceId
   };
 }
 

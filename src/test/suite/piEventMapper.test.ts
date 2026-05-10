@@ -437,7 +437,7 @@ suite('Pi event mapper', () => {
     );
   });
 
-  test('mapRpcActivity compacts tool execution when full communication is disabled', () => {
+  test('mapRpcActivity hides successful tool execution when full communication is disabled', () => {
     assert.deepStrictEqual(
       mapRpcActivity({
         type: 'tool_execution_start',
@@ -445,16 +445,18 @@ suite('Pi event mapper', () => {
         toolName: 'bash',
         args: { command: 'npm test' }
       }, { fullCommunication: false }),
-      {
-        type: 'activity_update',
-        sourceId: 'tool:call-1',
-        activity: {
-          kind: 'tool_execution',
-          title: 'Running bash',
-          status: 'running',
-          summary: 'npm test'
-        }
-      }
+      { type: 'ignore' }
+    );
+
+    assert.deepStrictEqual(
+      mapRpcActivity({
+        type: 'tool_execution_update',
+        toolCallId: 'call-1',
+        toolName: 'bash',
+        args: { command: 'npm test' },
+        partialResult: 'running'
+      }, { fullCommunication: false }),
+      { type: 'ignore' }
     );
 
     assert.deepStrictEqual(
@@ -464,10 +466,7 @@ suite('Pi event mapper', () => {
         toolName: 'bash',
         args: { command: 'npm test' }
       }, { fullCommunication: false }),
-      {
-        type: 'activity_remove',
-        sourceId: 'tool:call-1'
-      }
+      { type: 'ignore' }
     );
 
     assert.deepStrictEqual(
