@@ -259,6 +259,89 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
+  test('reload slash command reloads Pi resources and refreshes command metadata', async () => {
+    const client = new FakePiClient({
+      state: {
+        model: { provider: 'anthropic', id: 'claude-test', reasoning: true },
+        thinkingLevel: 'high'
+      },
+      models: [{ provider: 'anthropic', id: 'claude-test', name: 'Claude Test', reasoning: true }],
+      stats: { contextUsage: { tokens: 250, contextWindow: 1000, percent: 25 } },
+      commands: [
+        { name: 'skill:new-skill', description: 'Newly added skill', source: 'skill', location: 'project' }
+      ]
+    });
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/reload' });
+
+    assert.strictEqual(harness.createCalls, 1);
+    assert.strictEqual(client.reloadCalls, 1);
+    assert.strictEqual(client.stateCalls, 1);
+    assert.strictEqual(client.modelsCalls, 1);
+    assert.strictEqual(client.statsCalls, 1);
+    assert.strictEqual(client.commandsCalls, 1);
+    assert.deepStrictEqual(lastState(harness).messages, [
+      { role: 'system', text: 'Reloading Pi resources...' },
+      { role: 'system', text: 'Reloaded keybindings, extensions, skills, prompts, and themes.' }
+    ]);
+    assert.strictEqual(lastState(harness).modelId, 'claude-test');
+    assert.deepStrictEqual(lastState(harness).slashCommands, [
+      { name: 'skill:new-skill', description: 'Newly added skill', source: 'skill', location: 'project', path: undefined }
+    ]);
+    harness.controller.dispose();
+  });
+
+  test('reload slash command restarts Pi when RPC reload is unavailable', async () => {
+    const oldClient = new FakePiClient({
+      reloadError: new Error('Unknown command: reload'),
+      state: {
+        model: { provider: 'openai', id: 'gpt-test', reasoning: false },
+        thinkingLevel: 'off',
+        sessionFile: '/sessions/current.jsonl'
+      }
+    });
+    const newClient = new FakePiClient({
+      commands: [
+        { name: 'skill:new-skill', description: 'Newly added skill', source: 'skill', location: 'project' }
+      ]
+    });
+    const harness = createControllerHarness([oldClient, newClient]);
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/reload' });
+
+    assert.strictEqual(harness.createCalls, 2);
+    assert.strictEqual(harness.clientOptions[1].sessionFile, '/sessions/current.jsonl');
+    assert.strictEqual(oldClient.reloadCalls, 1);
+    assert.strictEqual(oldClient.stateCalls, 1);
+    assert.strictEqual(oldClient.disposed, true);
+    assert.strictEqual(newClient.commandsCalls, 1);
+    assert.deepStrictEqual(lastState(harness).messages, [
+      { role: 'system', text: 'Reloading Pi resources...' },
+      { role: 'system', text: 'Pi RPC reload is not supported by this Pi version; restarted Pi and reconnected to the current session.' },
+      { role: 'system', text: 'Reloaded skills, prompts, extensions, metadata, and restored LLM session context.' }
+    ]);
+    assert.deepStrictEqual(lastState(harness).slashCommands, [
+      { name: 'skill:new-skill', description: 'Newly added skill', source: 'skill', location: 'project', path: undefined }
+    ]);
+    harness.controller.dispose();
+  });
+
+  test('reload slash command reports reload failures', async () => {
+    const client = new FakePiClient({ reloadError: new Error('reload unavailable') });
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/reload' });
+
+    assert.strictEqual(client.reloadCalls, 1);
+    assert.strictEqual(client.commandsCalls, 0);
+    assert.deepStrictEqual(lastState(harness).messages, [
+      { role: 'system', text: 'Reloading Pi resources...' },
+      { role: 'system', text: 'reload unavailable', error: true }
+    ]);
+    harness.controller.dispose();
+  });
+
   test('submit failure marks the active assistant message as an error', async () => {
     const client = new FakePiClient({ promptError: new Error('Prompt failed') });
     const harness = createControllerHarness([client]);
@@ -715,6 +798,7 @@ type FakePiClientOptions = {
   commands?: PiCommand[];
   commandsResult?: Promise<PiCommand[]>;
   commandsError?: unknown;
+  reloadError?: unknown;
   promptResult?: Promise<void>;
   promptError?: unknown;
 };
@@ -761,6 +845,7 @@ class FakePiClient implements PiRpcClientLike {
   public statsCalls = 0;
   public commandsCalls = 0;
   public abortCalls = 0;
+  public reloadCalls = 0;
   public prompts: string[] = [];
   public promptStreamingBehaviors: Array<'steer' | 'followUp' | undefined> = [];
   public sessionNames: string[] = [];
@@ -774,6 +859,7 @@ class FakePiClient implements PiRpcClientLike {
   public statsResult: Promise<PiSessionStats> | undefined;
   public commandsResult: Promise<PiCommand[]> | undefined;
   public commandsError: unknown;
+  public reloadError: unknown;
   public promptResult: Promise<void> | undefined;
   public promptError: unknown;
   private readonly eventListeners = new Set<(event: RpcEvent) => void>();
@@ -792,6 +878,7 @@ class FakePiClient implements PiRpcClientLike {
     this.statsResult = options.statsResult;
     this.commandsResult = options.commandsResult;
     this.commandsError = options.commandsError;
+    this.reloadError = options.reloadError;
     this.promptResult = options.promptResult;
     this.promptError = options.promptError;
   }
@@ -831,6 +918,14 @@ class FakePiClient implements PiRpcClientLike {
 
   public async abort(): Promise<void> {
     this.abortCalls += 1;
+  }
+
+  public async reload(): Promise<void> {
+    this.reloadCalls += 1;
+
+    if (this.reloadError) {
+      throw this.reloadError;
+    }
   }
 
   public async getState(): Promise<PiSessionState> {

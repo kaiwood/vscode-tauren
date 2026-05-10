@@ -85,6 +85,7 @@ export type PiLastAssistantText = {
 export type PiPromptStreamingBehavior = 'steer' | 'followUp';
 
 type PendingRequest = {
+  commandType: string;
   timeout: NodeJS.Timeout;
   resolve: (response: RpcResponse) => void;
   reject: (error: Error) => void;
@@ -108,6 +109,7 @@ type PiRpcSpawnFactory = (
 
 export type PiRpcClientOptions = {
   cwd?: string;
+  sessionFile?: string;
   spawnFactory?: PiRpcSpawnFactory;
   commandTimeoutMs?: number;
 };
@@ -158,6 +160,10 @@ export class PiRpcClient {
 
   public async abort(): Promise<void> {
     await this.send({ type: 'abort' });
+  }
+
+  public async reload(): Promise<void> {
+    await this.send({ type: 'reload' });
   }
 
   public async getState(): Promise<PiSessionState> {
@@ -248,7 +254,7 @@ export class PiRpcClient {
         );
       }, this.options.commandTimeoutMs ?? defaultCommandTimeoutMs);
 
-      this.pendingRequests.set(id, { timeout, resolve, reject });
+      this.pendingRequests.set(id, { commandType: command.type, timeout, resolve, reject });
 
       child.stdin.write(serializeJsonLine(fullCommand), (error?: Error | null) => {
         if (!error) {
@@ -299,7 +305,12 @@ export class PiRpcClient {
     this.stderr = '';
     this.isDisposing = false;
 
-    const child = (this.options.spawnFactory ?? defaultSpawnFactory)('pi', ['--mode', 'rpc'], {
+    const args = [
+      '--mode',
+      'rpc',
+      ...(this.options.sessionFile ? ['--session', this.options.sessionFile] : [])
+    ];
+    const child = (this.options.spawnFactory ?? defaultSpawnFactory)('pi', args, {
       cwd: this.options.cwd,
       env: process.env,
       stdio: ['pipe', 'pipe', 'pipe']
@@ -410,11 +421,40 @@ export class PiRpcClient {
         return;
       }
 
+      if (response.success === false && response.command) {
+        const pending = this.getSinglePendingRequestForCommand(response.command);
+
+        if (pending) {
+          this.pendingRequests.delete(pending.id);
+          clearTimeout(pending.request.timeout);
+          pending.request.reject(new Error(response.error ?? `Pi command ${response.command} failed.`));
+          return;
+        }
+      }
+
       this.emitEvent(response);
       return;
     }
 
     this.emitEvent(event);
+  }
+
+  private getSinglePendingRequestForCommand(commandType: string): { id: string; request: PendingRequest } | undefined {
+    let match: { id: string; request: PendingRequest } | undefined;
+
+    for (const [id, request] of this.pendingRequests) {
+      if (request.commandType !== commandType) {
+        continue;
+      }
+
+      if (match) {
+        return undefined;
+      }
+
+      match = { id, request };
+    }
+
+    return match;
   }
 
   private handleProcessFailure(message: string): void {

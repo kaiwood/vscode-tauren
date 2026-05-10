@@ -41,6 +41,7 @@ export type PiRpcClientLike = Pick<
   | 'onError'
   | 'prompt'
   | 'abort'
+  | 'reload'
   | 'isRunning'
   | 'getState'
   | 'getSessionStats'
@@ -112,6 +113,7 @@ export class PiChatController {
   private slashCommandsRefreshing = false;
   private metadataRefreshSequence = 0;
   private slashCommandsRefreshSequence = 0;
+  private nextClientSessionFile: string | undefined;
   private abortRequested = false;
   private abortNoticeAdded = false;
   private metadataRefreshInFlight: { generation: number; promise: Promise<void> } | undefined;
@@ -237,6 +239,7 @@ export class PiChatController {
     this.assistantStreamId = 0;
     this.resetAbortState();
     this.session.startNewSession();
+    this.nextClientSessionFile = undefined;
     this.resetSessionMeta();
     this.disposeClient();
     this.postState();
@@ -665,6 +668,9 @@ export class PiChatController {
         case 'compact':
           await this.handleCompactSlashCommand(command.args);
           return;
+        case 'reload':
+          await this.handleReloadSlashCommand();
+          return;
         case 'export':
           await this.handleExportSlashCommand(command.args);
           return;
@@ -767,6 +773,45 @@ export class PiChatController {
     this.postState();
   }
 
+  private async handleReloadSlashCommand(): Promise<void> {
+    this.session.addSystemMessage('Reloading Pi resources...');
+    this.postState();
+
+    let restartedClient = false;
+    let restoredSession = false;
+    const client = this.getClient();
+
+    try {
+      await client.reload();
+    } catch (error) {
+      if (!isUnsupportedReloadCommandError(error)) {
+        throw error;
+      }
+
+      const sessionFile = getSessionFile(await client.getState());
+      restartedClient = true;
+      restoredSession = Boolean(sessionFile);
+      this.nextClientSessionFile = sessionFile;
+      this.disposeClient();
+      this.session.addSystemMessage(sessionFile
+        ? 'Pi RPC reload is not supported by this Pi version; restarted Pi and reconnected to the current session.'
+        : 'Pi RPC reload is not supported by this Pi version; restarted Pi without a persisted session to reconnect.');
+      this.postState();
+    }
+
+    await Promise.all([
+      this.refreshSessionMeta({ startClient: true, force: true }),
+      this.refreshSlashCommands({ startClient: true, force: true })
+    ]);
+
+    this.session.addSystemMessage(restartedClient
+      ? restoredSession
+        ? 'Reloaded skills, prompts, extensions, metadata, and restored LLM session context.'
+        : 'Reloaded skills, prompts, extensions, and metadata by restarting Pi.'
+      : 'Reloaded keybindings, extensions, skills, prompts, and themes.');
+    this.postState();
+  }
+
   private async setModel(provider: string, modelId: string): Promise<void> {
     if (this.session.isBusy) {
       return;
@@ -863,7 +908,15 @@ export class PiChatController {
       return this.client;
     }
 
-    const client = this.options.createClient({ cwd: this.options.getCwd?.() });
+    const sessionFile = this.nextClientSessionFile;
+    this.nextClientSessionFile = undefined;
+    const clientOptions: PiRpcClientOptions = { cwd: this.options.getCwd?.() };
+
+    if (sessionFile) {
+      clientOptions.sessionFile = sessionFile;
+    }
+
+    const client = this.options.createClient(clientOptions);
     const sessionGeneration = this.session.generation;
     this.client = client;
     this.clientDisposables.push(
@@ -1076,6 +1129,12 @@ function formatInteger(value: number): string {
   return Math.round(value).toLocaleString('en-US');
 }
 
+function getSessionFile(state: PiSessionState): string | undefined {
+  return typeof state.sessionFile === 'string' && state.sessionFile
+    ? state.sessionFile
+    : undefined;
+}
+
 function getModelMeta(state: PiSessionState): PiChatModelMeta {
   const model = state.model;
   const id = typeof model?.id === 'string' ? model.id : '';
@@ -1226,7 +1285,8 @@ const supportedBuiltinSlashCommandNames = new Set([
   'name',
   'session',
   'new',
-  'compact'
+  'compact',
+  'reload'
 ]);
 
 function parseLocalSlashCommand(text: string): { name: string; args: string } | undefined {
@@ -1326,6 +1386,10 @@ function getErrorMessage(error: unknown): string {
   }
 
   return String(error);
+}
+
+function isUnsupportedReloadCommandError(error: unknown): boolean {
+  return /unknown command:?\s+reload/i.test(getErrorMessage(error));
 }
 
 function isAbortMessage(message: string): boolean {

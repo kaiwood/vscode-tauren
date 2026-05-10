@@ -46,7 +46,7 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
       { name: 'login', description: 'Terminal-only: run pi in a terminal to authenticate', source: 'unsupported' },
       { name: 'logout', description: 'Terminal-only: run pi in a terminal to manage auth', source: 'unsupported' },
       { name: 'resume', description: 'Terminal-only: session picker is not supported here yet', source: 'unsupported' },
-      { name: 'reload', description: 'Not supported here yet', source: 'unsupported' },
+      { name: 'reload', description: 'Reload keybindings, extensions, skills, prompts, and themes', source: 'builtin' },
       { name: 'quit', description: 'Not supported here', source: 'unsupported' }
     ];
     const activityExpansion = new Map();

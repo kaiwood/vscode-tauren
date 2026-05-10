@@ -61,7 +61,7 @@ suite('PiRpcClient', () => {
   });
 
   test('correlates responses by id', async () => {
-    const { client, fakeProcess, spawnCalls } = createClient({ cwd: '/workspace' });
+    const { client, fakeProcess, spawnCalls } = createClient({ cwd: '/workspace', sessionFile: '/sessions/current.jsonl' });
 
     const statePromise = client.getState();
     const statsPromise = client.getSessionStats();
@@ -71,7 +71,7 @@ suite('PiRpcClient', () => {
 
     assert.strictEqual(spawnCalls.length, 1);
     assert.strictEqual(spawnCalls[0].command, 'pi');
-    assert.deepStrictEqual(spawnCalls[0].args, ['--mode', 'rpc']);
+    assert.deepStrictEqual(spawnCalls[0].args, ['--mode', 'rpc', '--session', '/sessions/current.jsonl']);
     assert.strictEqual(spawnCalls[0].options.cwd, '/workspace');
     assert.deepStrictEqual(spawnCalls[0].options.stdio, ['pipe', 'pipe', 'pipe']);
     assert.ok(stateCommand);
@@ -172,6 +172,26 @@ suite('PiRpcClient', () => {
     client.dispose();
   });
 
+  test('sends reload as a correlated RPC command', async () => {
+    const { client, fakeProcess } = createClient();
+
+    const reloadPromise = client.reload();
+    const command = await fakeProcess.nextCommand();
+
+    assert.strictEqual(command.type, 'reload');
+    assert.ok(typeof command.id === 'string');
+
+    fakeProcess.writeRecord({
+      type: 'response',
+      id: command.id,
+      command: 'reload',
+      success: true
+    });
+
+    await reloadPromise;
+    client.dispose();
+  });
+
   test('writes extension UI responses without command correlation', async () => {
     const { client, fakeProcess } = createClient();
 
@@ -222,6 +242,22 @@ suite('PiRpcClient', () => {
     });
 
     await assert.rejects(responsePromise, /bad thinking level/);
+    client.dispose();
+  });
+
+  test('rejects id-less failed command responses when they match one pending command', async () => {
+    const { client, fakeProcess } = createClient();
+    const reloadPromise = client.reload();
+    await fakeProcess.nextCommand();
+
+    fakeProcess.writeRecord({
+      type: 'response',
+      command: 'reload',
+      success: false,
+      error: 'Unknown command: reload'
+    });
+
+    await assert.rejects(reloadPromise, /Unknown command: reload/);
     client.dispose();
   });
 
@@ -505,7 +541,7 @@ class CommandWritable extends Writable {
   }
 }
 
-function createClient(options: { cwd?: string; commandTimeoutMs?: number } = {}): {
+function createClient(options: { cwd?: string; sessionFile?: string; commandTimeoutMs?: number } = {}): {
   client: PiRpcClient;
   fakeProcess: FakePiProcess;
   spawnCalls: SpawnCall[];
@@ -514,6 +550,7 @@ function createClient(options: { cwd?: string; commandTimeoutMs?: number } = {})
   const spawnCalls: SpawnCall[] = [];
   const client = new PiRpcClient({
     cwd: options.cwd,
+    sessionFile: options.sessionFile,
     commandTimeoutMs: options.commandTimeoutMs,
     spawnFactory: (command, args, spawnOptions) => {
       spawnCalls.push({

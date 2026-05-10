@@ -279,6 +279,8 @@ class FakePiClient implements PiRpcClientLike {
 
   public async abort(): Promise<void> {}
 
+  public async reload(): Promise<void> {}
+
   public isRunning(): boolean {
     return !this.disposed;
   }
