@@ -15,7 +15,7 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
     const maxTextareaHeight = 180;
     const minTextareaHeight = 22;
     const isMac = navigator.platform.toUpperCase().includes('MAC');
-    let state = { messages: [], busy: false, modelLabel: '', modelProvider: '', modelId: '', modelReasoning: false, thinkingLevel: '', modelOptions: [], contextUsageLabel: '', contextUsageTitle: '', contextUsageLevel: '' };
+    let state = { messages: [], busy: false, modelLabel: '', modelProvider: '', modelId: '', modelReasoning: false, thinkingLevel: '', modelOptions: [], contextUsageLabel: '', contextUsageTitle: '', contextUsageLevel: '', metadataRefreshing: false };
     const activityExpansion = new Map();
     const markdownRenderer = window.markdownit
       ? window.markdownit({
@@ -47,7 +47,8 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
         modelOptions: Array.isArray(event.data.modelOptions) ? event.data.modelOptions : [],
         contextUsageLabel: typeof event.data.contextUsageLabel === 'string' ? event.data.contextUsageLabel : '',
         contextUsageTitle: typeof event.data.contextUsageTitle === 'string' ? event.data.contextUsageTitle : '',
-        contextUsageLevel: typeof event.data.contextUsageLevel === 'string' ? event.data.contextUsageLevel : ''
+        contextUsageLevel: typeof event.data.contextUsageLevel === 'string' ? event.data.contextUsageLevel : '',
+        metadataRefreshing: Boolean(event.data.metadataRefreshing)
       };
       render();
     });
@@ -390,10 +391,15 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
 
       const label = state.modelLabel || 'Select model';
       modelElement.textContent = label;
-      modelElement.title = state.modelOptions.length === 0 && !state.busy
+      modelElement.className = 'composer__model' + (state.metadataRefreshing ? ' composer__model--refreshing' : '');
+      modelElement.title = state.metadataRefreshing
+        ? label + ' (refreshing...)'
+        : state.modelOptions.length === 0 && !state.busy
         ? 'Load model settings'
         : label;
       modelElement.disabled = state.busy;
+      modelElement.setAttribute('aria-busy', state.metadataRefreshing ? 'true' : 'false');
+      modelMenuElement?.setAttribute('aria-busy', state.metadataRefreshing ? 'true' : 'false');
 
       syncModelSelect();
       syncThinkingSelect();
@@ -402,9 +408,10 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
     function syncModelSelect() {
       const selectedValue = modelKey(state.modelProvider, state.modelId);
       const currentValue = modelSelectElement.value;
+      const modelOptions = getDisplayModelOptions();
       modelSelectElement.replaceChildren();
 
-      for (const model of state.modelOptions) {
+      for (const model of modelOptions) {
         if (!model || typeof model.provider !== 'string' || typeof model.id !== 'string') {
           continue;
         }
@@ -418,7 +425,24 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
       }
 
       modelSelectElement.value = selectedValue || currentValue;
-      modelSelectElement.disabled = state.busy || state.modelOptions.length === 0;
+      modelSelectElement.disabled = state.busy || modelOptions.length === 0;
+    }
+
+    function getDisplayModelOptions() {
+      if (state.modelOptions.length > 0) {
+        return state.modelOptions;
+      }
+
+      if (!state.modelProvider || !state.modelId) {
+        return [];
+      }
+
+      return [{
+        provider: state.modelProvider,
+        id: state.modelId,
+        name: state.modelLabel || state.modelId,
+        reasoning: state.modelReasoning
+      }];
     }
 
     function syncThinkingSelect() {
@@ -434,9 +458,8 @@ export const chatWebviewScript = /* javascript */ `    const vscode = acquireVsC
         return;
       }
 
-      if (state.modelOptions.length === 0) {
+      if (state.modelOptions.length === 0 && !state.metadataRefreshing) {
         vscode.postMessage({ type: 'refreshMetadata' });
-        return;
       }
 
       const open = !modelMenuElement.hasAttribute('open');

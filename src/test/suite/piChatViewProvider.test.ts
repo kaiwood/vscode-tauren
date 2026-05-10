@@ -11,7 +11,7 @@ import type {
 } from '../../piRpcClient';
 
 suite('PiChatViewProvider', () => {
-  test('posts cached model metadata and persists refreshed model metadata', async () => {
+  test('posts cached legacy model metadata and persists refreshed session metadata', async () => {
     const workspaceState = new FakeMemento({
       'piui.cachedModelMeta': {
         label: 'cached-model High',
@@ -22,8 +22,12 @@ suite('PiChatViewProvider', () => {
       }
     });
     const client = new FakePiClient({
-      model: { provider: 'openai', id: 'live-model', reasoning: true },
-      thinkingLevel: 'medium'
+      state: {
+        model: { provider: 'openai', id: 'live-model', reasoning: true },
+        thinkingLevel: 'medium'
+      },
+      models: [{ provider: 'openai', id: 'live-model', name: 'Live Model', reasoning: true }],
+      stats: { contextUsage: { tokens: 60, contextWindow: 100, percent: 60 } }
     });
     const provider = new PiChatViewProvider(
       vscode.Uri.file('/extension'),
@@ -35,19 +39,37 @@ suite('PiChatViewProvider', () => {
     provider.resolveWebviewView(view.asWebviewView());
 
     assert.strictEqual(lastPostedState(view).modelLabel, 'cached-model High');
-    assert.strictEqual(client.stateCalls, 0);
-
-    view.webview.fireMessage({ type: 'refreshMetadata' });
+    assert.strictEqual(lastPostedState(view).metadataRefreshing, true);
+    assert.strictEqual(client.stateCalls, 1);
+    assert.strictEqual(client.modelsCalls, 1);
+    assert.strictEqual(client.statsCalls, 1);
     await flushPromises();
 
     assert.strictEqual(lastPostedState(view).modelLabel, 'live-model Medium');
-    assert.deepStrictEqual(workspaceState.get<unknown>('piui.cachedModelMeta'), {
-      label: 'live-model Medium',
-      provider: 'openai',
-      id: 'live-model',
-      reasoning: true,
-      thinkingLevel: 'medium'
+    assert.strictEqual(lastPostedState(view).contextUsageLabel, '60%');
+    assert.strictEqual(lastPostedState(view).metadataRefreshing, false);
+    assert.deepStrictEqual(workspaceState.get<unknown>('piui.cachedSessionMeta'), {
+      model: {
+        label: 'live-model Medium',
+        provider: 'openai',
+        id: 'live-model',
+        reasoning: true,
+        thinkingLevel: 'medium'
+      },
+      modelOptions: [
+        { provider: 'openai', id: 'live-model', name: 'Live Model', reasoning: true }
+      ],
+      contextUsage: {
+        label: '60%',
+        title: [
+          'Context used: 60%',
+          'Current context: 60 tokens',
+          'Model context size: 100 tokens'
+        ].join('\n'),
+        level: 'medium'
+      }
     });
+    assert.strictEqual(workspaceState.get<unknown>('piui.cachedModelMeta'), undefined);
     provider.dispose();
   });
 
@@ -59,27 +81,27 @@ suite('PiChatViewProvider', () => {
     const first = new FakeWebviewView();
     provider.resolveWebviewView(first.asWebviewView());
 
-    assert.strictEqual(first.webviewDisposableCount, 2);
+    assert.strictEqual(first.webviewDisposableCount, 3);
     assert.strictEqual(first.disposedWebviewDisposableCount, 0);
 
     const second = new FakeWebviewView();
     provider.resolveWebviewView(second.asWebviewView());
 
-    assert.strictEqual(first.disposedWebviewDisposableCount, 2);
-    assert.strictEqual(second.webviewDisposableCount, 2);
+    assert.strictEqual(first.disposedWebviewDisposableCount, 3);
+    assert.strictEqual(second.webviewDisposableCount, 3);
     assert.strictEqual(second.disposedWebviewDisposableCount, 0);
 
     first.fireDispose();
     assert.strictEqual(second.disposedWebviewDisposableCount, 0);
 
     second.fireDispose();
-    assert.strictEqual(second.disposedWebviewDisposableCount, 2);
+    assert.strictEqual(second.disposedWebviewDisposableCount, 3);
 
     const third = new FakeWebviewView();
     provider.resolveWebviewView(third.asWebviewView());
     provider.dispose();
 
-    assert.strictEqual(third.disposedWebviewDisposableCount, 2);
+    assert.strictEqual(third.disposedWebviewDisposableCount, 3);
   });
 });
 
@@ -87,6 +109,7 @@ class FakeWebviewView {
   public readonly webview = new FakeWebview();
   public visible = true;
   private readonly disposeListeners = new Set<() => void>();
+  private readonly visibilityListeners = new Set<() => void>();
   private readonly disposables: TrackableDisposable[] = [];
 
   public asWebviewView(): vscode.WebviewView {
@@ -103,7 +126,25 @@ class FakeWebviewView {
     return disposable;
   }
 
+  public onDidChangeVisibility(listener: () => void): vscode.Disposable {
+    this.visibilityListeners.add(listener);
+    const disposable = new TrackableDisposable(() => {
+      this.visibilityListeners.delete(listener);
+    });
+    this.disposables.push(disposable);
+
+    return disposable;
+  }
+
   public show(_preserveFocus?: boolean): void {}
+
+  public fireVisibilityChange(visible: boolean): void {
+    this.visible = visible;
+
+    for (const listener of [...this.visibilityListeners]) {
+      listener();
+    }
+  }
 
   public fireDispose(): void {
     for (const listener of [...this.disposeListeners]) {
@@ -213,11 +254,17 @@ class FakeMemento implements vscode.Memento {
 
 class FakePiClient implements PiRpcClientLike {
   public stateCalls = 0;
+  public modelsCalls = 0;
+  public statsCalls = 0;
   private disposed = false;
   private readonly state: PiSessionState;
+  private readonly models: PiModel[];
+  private readonly stats: PiSessionStats;
 
-  public constructor(state: PiSessionState) {
-    this.state = state;
+  public constructor(options: { state: PiSessionState; models?: PiModel[]; stats?: PiSessionStats }) {
+    this.state = options.state;
+    this.models = options.models ?? [];
+    this.stats = options.stats ?? {};
   }
 
   public onEvent(_listener: (event: RpcEvent) => void): () => void {
@@ -240,11 +287,13 @@ class FakePiClient implements PiRpcClientLike {
   }
 
   public async getSessionStats(): Promise<PiSessionStats> {
-    return {};
+    this.statsCalls += 1;
+    return this.stats;
   }
 
   public async getAvailableModels(): Promise<{ models?: PiModel[] }> {
-    return { models: [] };
+    this.modelsCalls += 1;
+    return { models: this.models };
   }
 
   public async setModel(_provider: string, _modelId: string): Promise<PiModel> {

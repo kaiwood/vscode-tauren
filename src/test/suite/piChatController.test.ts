@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import {
   PiChatController,
   type PiChatControllerOptions,
-  type PiChatModelMeta,
+  type PiChatSessionMetaSnapshot,
   type PiRpcClientLike
 } from '../../piChatController';
 import type { WebviewStateMessage } from '../../chatWebview';
@@ -17,37 +17,80 @@ import type {
 } from '../../piRpcClient';
 
 suite('PiChatController', () => {
-  test('webview ready does not create a Pi client', async () => {
-    const harness = createControllerHarness();
+  test('webview ready starts one live metadata refresh and dedupes repeated ready messages', async () => {
+    const stateDeferred = createDeferred<PiSessionState>();
+    const statsDeferred = createDeferred<PiSessionStats>();
+    const modelsDeferred = createDeferred<PiModel[]>();
+    const client = new FakePiClient({
+      stateResult: stateDeferred.promise,
+      statsResult: statsDeferred.promise,
+      modelsResult: modelsDeferred.promise
+    });
+    const harness = createControllerHarness([client]);
 
+    await harness.controller.handleWebviewMessage({ type: 'ready' });
     await harness.controller.handleWebviewMessage({ type: 'ready' });
     await flushPromises();
 
-    assert.strictEqual(harness.createCalls, 0);
-    assert.strictEqual(harness.states.length, 1);
+    assert.strictEqual(harness.createCalls, 1);
+    assert.strictEqual(client.stateCalls, 1);
+    assert.strictEqual(client.statsCalls, 1);
+    assert.strictEqual(client.modelsCalls, 1);
+    assert.strictEqual(lastState(harness).metadataRefreshing, true);
+
+    stateDeferred.resolve({
+      model: { provider: 'openai', id: 'live-model', reasoning: false },
+      thinkingLevel: 'off'
+    });
+    statsDeferred.resolve({ contextUsage: { tokens: 100, contextWindow: 1000, percent: 10 } });
+    modelsDeferred.resolve([{ provider: 'openai', id: 'live-model', name: 'Live Model', reasoning: false }]);
+    await flushPromises();
+
+    assert.strictEqual(lastState(harness).modelId, 'live-model');
+    assert.strictEqual(lastState(harness).contextUsageLabel, '10%');
+    assert.deepStrictEqual(lastState(harness).modelOptions, [
+      { provider: 'openai', id: 'live-model', name: 'Live Model', reasoning: false }
+    ]);
+    assert.strictEqual(lastState(harness).metadataRefreshing, false);
     harness.controller.dispose();
   });
 
-  test('initial cached model metadata is visible without creating a Pi client', async () => {
-    const harness = createControllerHarness([], {
-      initialModelMeta: {
-        label: 'cached-model High',
-        provider: 'anthropic',
-        id: 'cached-model',
-        reasoning: true,
-        thinkingLevel: 'high'
+  test('initial cached session metadata is visible before live refresh completes', async () => {
+    const client = new FakePiClient({
+      stateResult: createDeferred<PiSessionState>().promise,
+      statsResult: createDeferred<PiSessionStats>().promise,
+      modelsResult: createDeferred<PiModel[]>().promise
+    });
+    const harness = createControllerHarness([client], {
+      initialSessionMeta: {
+        model: {
+          label: 'cached-model High',
+          provider: 'anthropic',
+          id: 'cached-model',
+          reasoning: true,
+          thinkingLevel: 'high'
+        },
+        modelOptions: [
+          { provider: 'anthropic', id: 'cached-model', name: 'Cached Model', reasoning: true }
+        ],
+        contextUsage: {
+          label: '42%',
+          title: 'Cached context usage',
+          level: 'low'
+        }
       }
     });
 
     await harness.controller.handleWebviewMessage({ type: 'ready' });
     await flushPromises();
 
-    assert.strictEqual(harness.createCalls, 0);
-    assert.strictEqual(lastState(harness).modelLabel, 'cached-model High');
-    assert.strictEqual(lastState(harness).modelProvider, 'anthropic');
-    assert.strictEqual(lastState(harness).modelId, 'cached-model');
-    assert.strictEqual(lastState(harness).modelReasoning, true);
-    assert.strictEqual(lastState(harness).thinkingLevel, 'high');
+    assert.strictEqual(harness.states[0].modelLabel, 'cached-model High');
+    assert.strictEqual(harness.states[0].contextUsageLabel, '42%');
+    assert.deepStrictEqual(harness.states[0].modelOptions, [
+      { provider: 'anthropic', id: 'cached-model', name: 'Cached Model', reasoning: true }
+    ]);
+    assert.strictEqual(lastState(harness).metadataRefreshing, true);
+    assert.strictEqual(harness.createCalls, 1);
     harness.controller.dispose();
   });
 
@@ -75,7 +118,8 @@ suite('PiChatController', () => {
       modelOptions: [],
       contextUsageLabel: '',
       contextUsageTitle: '',
-      contextUsageLevel: ''
+      contextUsageLevel: '',
+      metadataRefreshing: false
     });
     harness.controller.dispose();
   });
@@ -94,7 +138,10 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
-  test('starting a new session keeps selected model visible until explicit refresh', async () => {
+  test('starting a new session keeps model metadata visible while live refresh runs', async () => {
+    const secondStateDeferred = createDeferred<PiSessionState>();
+    const secondStatsDeferred = createDeferred<PiSessionStats>();
+    const secondModelsDeferred = createDeferred<PiModel[]>();
     const firstClient = new FakePiClient({
       state: {
         model: { provider: 'openai', id: 'first-model', reasoning: false },
@@ -104,11 +151,9 @@ suite('PiChatController', () => {
       stats: { contextUsage: { tokens: 100, contextWindow: 1000, percent: 10 } }
     });
     const secondClient = new FakePiClient({
-      state: {
-        model: { provider: 'anthropic', id: 'second-model', reasoning: true },
-        thinkingLevel: 'high'
-      },
-      models: [{ provider: 'anthropic', id: 'second-model', name: 'Second Model', reasoning: true }]
+      stateResult: secondStateDeferred.promise,
+      statsResult: secondStatsDeferred.promise,
+      modelsResult: secondModelsDeferred.promise
     });
     const harness = createControllerHarness([firstClient, secondClient]);
 
@@ -118,22 +163,36 @@ suite('PiChatController', () => {
     assert.strictEqual(lastState(harness).modelProvider, 'openai');
     assert.strictEqual(lastState(harness).modelId, 'first-model');
     assert.strictEqual(lastState(harness).contextUsageLabel, '10%');
+    assert.deepStrictEqual(lastState(harness).modelOptions, [
+      { provider: 'openai', id: 'first-model', name: 'First Model', reasoning: false }
+    ]);
     assert.strictEqual(firstClient.stateCalls, 1);
 
     harness.controller.startNewSession();
     await flushPromises();
 
     assert.strictEqual(firstClient.disposed, true);
-    assert.strictEqual(harness.createCalls, 1);
+    assert.strictEqual(harness.createCalls, 2);
     assert.strictEqual(lastState(harness).modelProvider, 'openai');
     assert.strictEqual(lastState(harness).modelId, 'first-model');
     assert.strictEqual(lastState(harness).modelReasoning, false);
     assert.strictEqual(lastState(harness).thinkingLevel, 'off');
-    assert.deepStrictEqual(lastState(harness).modelOptions, []);
+    assert.deepStrictEqual(lastState(harness).modelOptions, [
+      { provider: 'openai', id: 'first-model', name: 'First Model', reasoning: false }
+    ]);
     assert.strictEqual(lastState(harness).contextUsageLabel, '');
-    assert.strictEqual(secondClient.stateCalls, 0);
+    assert.strictEqual(lastState(harness).metadataRefreshing, true);
+    assert.strictEqual(secondClient.stateCalls, 1);
+    assert.strictEqual(secondClient.modelsCalls, 1);
+    assert.strictEqual(secondClient.statsCalls, 1);
 
-    await harness.controller.handleWebviewMessage({ type: 'refreshMetadata' });
+    secondStateDeferred.resolve({
+      model: { provider: 'anthropic', id: 'second-model', reasoning: true },
+      thinkingLevel: 'high'
+    });
+    secondStatsDeferred.resolve({});
+    secondModelsDeferred.resolve([{ provider: 'anthropic', id: 'second-model', name: 'Second Model', reasoning: true }]);
+    await flushPromises();
 
     assert.strictEqual(harness.createCalls, 2);
     assert.strictEqual(lastState(harness).modelProvider, 'anthropic');
@@ -143,13 +202,11 @@ suite('PiChatController', () => {
     assert.deepStrictEqual(lastState(harness).modelOptions, [
       { provider: 'anthropic', id: 'second-model', name: 'Second Model', reasoning: true }
     ]);
-    assert.strictEqual(secondClient.stateCalls, 1);
-    assert.strictEqual(secondClient.modelsCalls, 1);
-    assert.strictEqual(secondClient.statsCalls, 1);
+    assert.strictEqual(lastState(harness).metadataRefreshing, false);
     harness.controller.dispose();
   });
 
-  test('refresh metadata reads and posts selected model before requesting slower model list and context stats', async () => {
+  test('refresh metadata updates model, options, and context independently as each call resolves', async () => {
     const stateDeferred = createDeferred<PiSessionState>();
     const statsDeferred = createDeferred<PiSessionStats>();
     const modelsDeferred = createDeferred<PiModel[]>();
@@ -158,17 +215,23 @@ suite('PiChatController', () => {
       statsResult: statsDeferred.promise,
       modelsResult: modelsDeferred.promise
     });
-    const cachedModelChanges: PiChatModelMeta[] = [];
+    const cachedSessionChanges: PiChatSessionMetaSnapshot[] = [];
     const harness = createControllerHarness([client], {
-      onModelMetaChange: (metadata) => cachedModelChanges.push(metadata)
+      onSessionMetaChange: (metadata) => cachedSessionChanges.push(metadata)
     });
 
     const refresh = harness.controller.handleWebviewMessage({ type: 'refreshMetadata' });
     await flushPromises();
 
     assert.strictEqual(client.stateCalls, 1);
-    assert.strictEqual(client.statsCalls, 0);
-    assert.strictEqual(client.modelsCalls, 0);
+    assert.strictEqual(client.statsCalls, 1);
+    assert.strictEqual(client.modelsCalls, 1);
+    assert.strictEqual(lastState(harness).metadataRefreshing, true);
+
+    statsDeferred.resolve({ contextUsage: { tokens: 600, contextWindow: 1000 } });
+    await flushPromises();
+
+    assert.strictEqual(lastState(harness).contextUsageLabel, '60%');
 
     stateDeferred.resolve({
       model: { provider: 'anthropic', id: 'fast-model', reasoning: true },
@@ -180,17 +243,14 @@ suite('PiChatController', () => {
     assert.strictEqual(lastState(harness).modelId, 'fast-model');
     assert.strictEqual(lastState(harness).modelLabel, 'fast-model High');
     assert.deepStrictEqual(lastState(harness).modelOptions, []);
-    assert.strictEqual(client.statsCalls, 1);
-    assert.strictEqual(client.modelsCalls, 1);
-    assert.deepStrictEqual(cachedModelChanges, [{
+    assert.deepStrictEqual(cachedSessionChanges[cachedSessionChanges.length - 1].model, {
       label: 'fast-model High',
       provider: 'anthropic',
       id: 'fast-model',
       reasoning: true,
       thinkingLevel: 'high'
-    }]);
+    });
 
-    statsDeferred.resolve({ contextUsage: { tokens: 600, contextWindow: 1000 } });
     modelsDeferred.resolve([{ provider: 'anthropic', id: 'fast-model', name: 'Fast Model', reasoning: true }]);
     await refresh;
 
@@ -198,13 +258,19 @@ suite('PiChatController', () => {
       { provider: 'anthropic', id: 'fast-model', name: 'Fast Model', reasoning: true }
     ]);
     assert.strictEqual(lastState(harness).contextUsageLabel, '60%');
+    assert.strictEqual(lastState(harness).metadataRefreshing, false);
     harness.controller.dispose();
   });
 
   test('stale prompt failure is ignored after a new session', async () => {
     const deferred = createDeferred<void>();
     const client = new FakePiClient({ promptResult: deferred.promise });
-    const harness = createControllerHarness([client]);
+    const nextClient = new FakePiClient({
+      stateResult: createDeferred<PiSessionState>().promise,
+      statsResult: createDeferred<PiSessionStats>().promise,
+      modelsResult: createDeferred<PiModel[]>().promise
+    });
+    const harness = createControllerHarness([client, nextClient]);
 
     const submit = harness.controller.handleWebviewMessage({ type: 'submit', text: 'hello' });
     assert.strictEqual(lastState(harness).busy, true);
@@ -270,16 +336,17 @@ suite('PiChatController', () => {
     client.emit({ type: 'agent_end' });
 
     assert.strictEqual(scheduler.pendingCount, 0);
-    assert.strictEqual(harness.states.length, stateCountAfterSubmit + 1);
     assert.deepStrictEqual(lastState(harness).messages, [
       { role: 'user', text: 'hello' },
       { role: 'assistant', text: 'done' }
     ]);
     assert.strictEqual(lastState(harness).busy, false);
+    assert.ok(harness.states.length > stateCountAfterSubmit);
+    const stateCountAfterEnd = harness.states.length;
 
     scheduler.runAll();
 
-    assert.strictEqual(harness.states.length, stateCountAfterSubmit + 1);
+    assert.strictEqual(harness.states.length, stateCountAfterEnd);
     harness.controller.dispose();
   });
 
@@ -414,8 +481,8 @@ type ControllerHarnessOptions = {
   extensionUi?: PiChatControllerOptions['extensionUi'];
   fullRpcAgentCommunication?: boolean;
   stateScheduler?: StatePublisherScheduler;
-  initialModelMeta?: PiChatModelMeta;
-  onModelMetaChange?: (metadata: PiChatModelMeta) => void;
+  initialSessionMeta?: PiChatSessionMetaSnapshot;
+  onSessionMetaChange?: (metadata: PiChatSessionMetaSnapshot) => void;
 };
 
 function createControllerHarness(
@@ -446,8 +513,8 @@ function createControllerHarness(
     extensionUi: options.extensionUi,
     fullRpcAgentCommunication: options.fullRpcAgentCommunication ?? false,
     stateScheduler: options.stateScheduler,
-    initialModelMeta: options.initialModelMeta,
-    onModelMetaChange: options.onModelMetaChange
+    initialSessionMeta: options.initialSessionMeta,
+    onSessionMetaChange: options.onSessionMetaChange
   };
 
   const controller = new PiChatController(controllerOptions);

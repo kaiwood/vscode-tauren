@@ -472,6 +472,25 @@ export const chatWebviewStyles = /* css */ `    :root {
       pointer-events: none;
     }
 
+    .composer__model--refreshing {
+      padding-right: 30px;
+    }
+
+    .composer__model--refreshing::before {
+      content: '';
+      position: absolute;
+      right: 16px;
+      top: calc(50% - 4px);
+      width: 8px;
+      height: 8px;
+      border: 1.4px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 999px;
+      opacity: 0.8;
+      animation: pi-spin 0.8s linear infinite;
+      pointer-events: none;
+    }
+
     .composer__model:hover:not(:disabled),
     .composer__model:focus-visible {
       color: var(--vscode-foreground);

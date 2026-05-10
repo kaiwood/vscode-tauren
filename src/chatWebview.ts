@@ -59,6 +59,7 @@ export type WebviewStateMessage = ChatState & {
   contextUsageLabel: string;
   contextUsageTitle: string;
   contextUsageLevel: string;
+  metadataRefreshing: boolean;
 };
 
 type CreateWebviewStateMessageOptions = {
@@ -76,12 +77,14 @@ type CreateWebviewStateMessageOptions = {
     title?: string;
     level?: string;
   };
+  metadataRefreshing?: boolean;
 };
 
 export function createWebviewStateMessage({
   state,
   model = {},
-  contextUsage = {}
+  contextUsage = {},
+  metadataRefreshing = false
 }: CreateWebviewStateMessageOptions): WebviewStateMessage {
   return {
     type: 'state',
@@ -95,7 +98,8 @@ export function createWebviewStateMessage({
     modelOptions: model.options ?? [],
     contextUsageLabel: contextUsage.label ?? '',
     contextUsageTitle: contextUsage.title ?? '',
-    contextUsageLevel: contextUsage.level ?? ''
+    contextUsageLevel: contextUsage.level ?? '',
+    metadataRefreshing
   };
 }
 

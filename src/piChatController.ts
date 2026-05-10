@@ -57,6 +57,18 @@ export type PiChatModelMeta = {
   thinkingLevel: string;
 };
 
+export type PiChatContextUsage = {
+  label: string;
+  title: string;
+  level: string;
+};
+
+export type PiChatSessionMetaSnapshot = {
+  model?: PiChatModelMeta;
+  modelOptions?: WebviewModelOption[];
+  contextUsage?: PiChatContextUsage;
+};
+
 export type PiChatControllerOptions = {
   createClient: PiRpcClientFactory;
   postState: (message: WebviewStateMessage) => void;
@@ -65,8 +77,8 @@ export type PiChatControllerOptions = {
   getCwd?: () => string | undefined;
   fullRpcAgentCommunication?: boolean;
   stateScheduler?: StatePublisherScheduler;
-  initialModelMeta?: PiChatModelMeta;
-  onModelMetaChange?: (metadata: PiChatModelMeta) => void;
+  initialSessionMeta?: PiChatSessionMetaSnapshot;
+  onSessionMetaChange?: (metadata: PiChatSessionMetaSnapshot) => void;
 };
 
 type DisposableLike = {
@@ -85,6 +97,9 @@ export class PiChatController {
   private contextUsageLabel = '';
   private contextUsageTitle = '';
   private contextUsageLevel = '';
+  private metadataRefreshing = false;
+  private metadataRefreshSequence = 0;
+  private metadataRefreshInFlight: { generation: number; promise: Promise<void> } | undefined;
   private fullRpcAgentCommunication: boolean;
   private readonly session = new ChatSession();
   private readonly clientDisposables: DisposableLike[] = [];
@@ -94,8 +109,8 @@ export class PiChatController {
   public constructor(private readonly options: PiChatControllerOptions) {
     this.fullRpcAgentCommunication = options.fullRpcAgentCommunication ?? false;
 
-    if (options.initialModelMeta) {
-      this.setModelMetaFields(options.initialModelMeta);
+    if (options.initialSessionMeta) {
+      this.setSessionMetaFields(options.initialSessionMeta);
     }
 
     this.statePublisher = new StatePublisher(
@@ -119,7 +134,7 @@ export class PiChatController {
   public async handleWebviewMessage(message: WebviewMessage): Promise<void> {
     if (message.type === 'ready') {
       this.postState();
-      void this.refreshSessionMeta();
+      void this.refreshSessionMeta({ startClient: true });
       return;
     }
 
@@ -173,10 +188,11 @@ export class PiChatController {
   public startNewSession(): void {
     this.extensionUiRequestHandler.startNewGeneration();
     this.assistantStreamId = 0;
-    this.resetSessionMeta();
     this.session.startNewSession();
+    this.resetSessionMeta();
     this.disposeClient();
     this.postState();
+    void this.refreshSessionMeta({ startClient: true });
   }
 
   public setFullRpcAgentCommunication(value: boolean): void {
@@ -203,12 +219,39 @@ export class PiChatController {
         label: this.contextUsageLabel,
         title: this.contextUsageTitle,
         level: this.contextUsageLevel
-      }
+      },
+      metadataRefreshing: this.metadataRefreshing
     });
   }
 
-  public async refreshSessionMeta(options: { startClient?: boolean } = {}): Promise<void> {
+  public refreshSessionMeta(options: { startClient?: boolean; force?: boolean } = {}): Promise<void> {
     const sessionGeneration = this.session.generation;
+    const existingRefresh = this.metadataRefreshInFlight;
+
+    if (!options.force && existingRefresh?.generation === sessionGeneration) {
+      return existingRefresh.promise;
+    }
+
+    const refreshId = ++this.metadataRefreshSequence;
+    let refreshPromise!: Promise<void>;
+
+    refreshPromise = this.runSessionMetaRefresh(options, sessionGeneration, refreshId)
+      .finally(() => {
+        if (this.metadataRefreshInFlight?.promise === refreshPromise) {
+          this.metadataRefreshInFlight = undefined;
+        }
+      });
+
+    this.metadataRefreshInFlight = { generation: sessionGeneration, promise: refreshPromise };
+
+    return refreshPromise;
+  }
+
+  private async runSessionMetaRefresh(
+    options: { startClient?: boolean },
+    sessionGeneration: number,
+    refreshId: number
+  ): Promise<void> {
     let client: PiRpcClientLike | undefined;
 
     try {
@@ -225,9 +268,11 @@ export class PiChatController {
       return;
     }
 
+    this.setMetadataRefreshing(true);
+
     let handledError = false;
     const handleRefreshError = (error: unknown): void => {
-      if (handledError || sessionGeneration !== this.session.generation) {
+      if (handledError || !this.isCurrentMetadataRefresh(sessionGeneration, refreshId)) {
         return;
       }
 
@@ -235,22 +280,27 @@ export class PiChatController {
       this.handleClientError(getErrorMessage(error));
     };
 
-    await this.refreshModelMeta(client, sessionGeneration).catch(handleRefreshError);
-
-    if (handledError || sessionGeneration !== this.session.generation) {
-      return;
+    try {
+      await Promise.all([
+        this.refreshModelMeta(client, sessionGeneration, refreshId),
+        this.refreshContextUsage(client, sessionGeneration, refreshId),
+        this.refreshModelOptions(client, sessionGeneration, refreshId)
+      ].map((refresh) => refresh.catch(handleRefreshError)));
+    } finally {
+      if (this.isCurrentMetadataRefresh(sessionGeneration, refreshId)) {
+        this.setMetadataRefreshing(false);
+      }
     }
-
-    await Promise.all([
-      this.refreshContextUsage(client, sessionGeneration),
-      this.refreshModelOptions(client, sessionGeneration)
-    ].map((refresh) => refresh.catch(handleRefreshError)));
   }
 
-  private async refreshModelMeta(client: PiRpcClientLike, sessionGeneration: number): Promise<void> {
+  private async refreshModelMeta(
+    client: PiRpcClientLike,
+    sessionGeneration: number,
+    refreshId: number
+  ): Promise<void> {
     const state = await client.getState();
 
-    if (sessionGeneration !== this.session.generation) {
+    if (!this.isCurrentMetadataRefresh(sessionGeneration, refreshId)) {
       return;
     }
 
@@ -259,10 +309,14 @@ export class PiChatController {
     }
   }
 
-  private async refreshContextUsage(client: PiRpcClientLike, sessionGeneration: number): Promise<void> {
+  private async refreshContextUsage(
+    client: PiRpcClientLike,
+    sessionGeneration: number,
+    refreshId: number
+  ): Promise<void> {
     const stats = await client.getSessionStats();
 
-    if (sessionGeneration !== this.session.generation) {
+    if (!this.isCurrentMetadataRefresh(sessionGeneration, refreshId)) {
       return;
     }
 
@@ -271,16 +325,25 @@ export class PiChatController {
     }
   }
 
-  private async refreshModelOptions(client: PiRpcClientLike, sessionGeneration: number): Promise<void> {
+  private async refreshModelOptions(
+    client: PiRpcClientLike,
+    sessionGeneration: number,
+    refreshId: number
+  ): Promise<void> {
     const availableModels = await client.getAvailableModels();
 
-    if (sessionGeneration !== this.session.generation) {
+    if (!this.isCurrentMetadataRefresh(sessionGeneration, refreshId)) {
       return;
     }
 
     if (this.applyModelOptions(formatModelOptions(availableModels.models))) {
       this.postState();
     }
+  }
+
+  private isCurrentMetadataRefresh(sessionGeneration: number, refreshId: number): boolean {
+    return sessionGeneration === this.session.generation
+      && refreshId === this.metadataRefreshSequence;
   }
 
   private applyModelMeta(modelMeta: PiChatModelMeta): boolean {
@@ -295,7 +358,7 @@ export class PiChatController {
     }
 
     this.setModelMetaFields(modelMeta);
-    this.options.onModelMetaChange?.(modelMeta);
+    this.notifySessionMetaChange();
     return true;
   }
 
@@ -307,7 +370,7 @@ export class PiChatController {
     this.thinkingLevel = modelMeta.thinkingLevel;
   }
 
-  private applyContextUsage(contextUsage: { label: string; title: string; level: string }): boolean {
+  private applyContextUsage(contextUsage: PiChatContextUsage): boolean {
     if (
       contextUsage.label === this.contextUsageLabel
       && contextUsage.title === this.contextUsageTitle
@@ -319,6 +382,7 @@ export class PiChatController {
     this.contextUsageLabel = contextUsage.label;
     this.contextUsageTitle = contextUsage.title;
     this.contextUsageLevel = contextUsage.level;
+    this.notifySessionMetaChange();
     return true;
   }
 
@@ -328,7 +392,59 @@ export class PiChatController {
     }
 
     this.modelOptions = modelOptions;
+    this.notifySessionMetaChange();
     return true;
+  }
+
+  private setSessionMetaFields(snapshot: PiChatSessionMetaSnapshot): void {
+    if (snapshot.model) {
+      this.setModelMetaFields(snapshot.model);
+    }
+
+    if (snapshot.modelOptions) {
+      this.modelOptions = snapshot.modelOptions.map((modelOption) => ({ ...modelOption }));
+    }
+
+    if (snapshot.contextUsage) {
+      this.contextUsageLabel = snapshot.contextUsage.label;
+      this.contextUsageTitle = snapshot.contextUsage.title;
+      this.contextUsageLevel = snapshot.contextUsage.level;
+    }
+  }
+
+  private notifySessionMetaChange(): void {
+    this.options.onSessionMetaChange?.(this.getSessionMetaSnapshot());
+  }
+
+  private getSessionMetaSnapshot(): PiChatSessionMetaSnapshot {
+    return {
+      model: this.modelId
+        ? {
+          label: this.modelLabel,
+          provider: this.modelProvider,
+          id: this.modelId,
+          reasoning: this.modelReasoning,
+          thinkingLevel: this.thinkingLevel
+        }
+        : undefined,
+      modelOptions: this.modelOptions.map((modelOption) => ({ ...modelOption })),
+      contextUsage: this.contextUsageLabel
+        ? {
+          label: this.contextUsageLabel,
+          title: this.contextUsageTitle,
+          level: this.contextUsageLevel
+        }
+        : undefined
+    };
+  }
+
+  private setMetadataRefreshing(value: boolean): void {
+    if (this.metadataRefreshing === value) {
+      return;
+    }
+
+    this.metadataRefreshing = value;
+    this.postState();
   }
 
   private async setModel(provider: string, modelId: string): Promise<void> {
@@ -338,7 +454,7 @@ export class PiChatController {
 
     try {
       await this.getClient().setModel(provider, modelId);
-      await this.refreshSessionMeta();
+      await this.refreshSessionMeta({ startClient: true, force: true });
     } catch (error) {
       this.session.addErrorMessage(getErrorMessage(error));
       this.postState();
@@ -352,7 +468,7 @@ export class PiChatController {
 
     try {
       await this.getClient().setThinkingLevel(level);
-      await this.refreshSessionMeta();
+      await this.refreshSessionMeta({ startClient: true, force: true });
     } catch (error) {
       this.session.addErrorMessage(getErrorMessage(error));
       this.postState();
@@ -360,10 +476,14 @@ export class PiChatController {
   }
 
   private resetSessionMeta(): void {
-    this.modelOptions = [];
+    const changed = Boolean(this.contextUsageLabel || this.contextUsageTitle || this.contextUsageLevel);
     this.contextUsageLabel = '';
     this.contextUsageTitle = '';
     this.contextUsageLevel = '';
+
+    if (changed) {
+      this.notifySessionMetaChange();
+    }
   }
 
   private disposeClient(): void {
@@ -546,11 +666,12 @@ export class PiChatController {
   private handleClientError(message: string): void {
     this.session.addErrorMessage(message);
     this.session.setBusy(false);
+    this.metadataRefreshing = false;
     this.postState();
   }
 }
 
-function formatContextUsage(stats: PiSessionStats): { label: string; title: string; level: string } {
+function formatContextUsage(stats: PiSessionStats): PiChatContextUsage {
   const usage = stats.contextUsage;
 
   if (!usage || typeof usage.contextWindow !== 'number') {

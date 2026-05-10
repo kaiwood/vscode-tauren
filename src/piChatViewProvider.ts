@@ -6,14 +6,18 @@ import {
 } from './chatWebview';
 import {
   PiChatController,
+  type PiChatContextUsage,
   type PiChatModelMeta,
+  type PiChatSessionMetaSnapshot,
   type PiRpcClientFactory
 } from './piChatController';
 import { PiRpcClient } from './piRpcClient';
+import type { WebviewModelOption } from './chatWebview';
 
 export const chatViewType = 'piui.chatView';
 export type { PiRpcClientLike } from './piChatController';
 
+const cachedSessionMetaStorageKey = 'piui.cachedSessionMeta';
 const cachedModelMetaStorageKey = 'piui.cachedModelMeta';
 
 export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
@@ -49,8 +53,8 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
         })
       },
       fullRpcAgentCommunication: getFullRpcAgentCommunicationSetting(),
-      initialModelMeta: readCachedModelMeta(this.workspaceState),
-      onModelMetaChange: (metadata) => this.writeCachedModelMeta(metadata)
+      initialSessionMeta: readCachedSessionMeta(this.workspaceState),
+      onSessionMetaChange: (metadata) => this.writeCachedSessionMeta(metadata)
     });
 
     this.disposables.push(
@@ -111,10 +115,16 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       }),
       webviewView.webview.onDidReceiveMessage((message: unknown) => {
         void this.handleWebviewMessage(parseWebviewMessage(message));
+      }),
+      webviewView.onDidChangeVisibility(() => {
+        if (webviewView.visible) {
+          this.refreshLiveMetadata();
+        }
       })
     );
 
     this.controller.postState();
+    this.refreshLiveMetadata();
   }
 
   public async focus(): Promise<void> {
@@ -127,6 +137,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     }
 
     this.postInputFocusSoon();
+    this.refreshLiveMetadata();
   }
 
   public async newSession(): Promise<void> {
@@ -199,13 +210,18 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     setTimeout(() => this.postInputFocus(), 0);
   }
 
-  private writeCachedModelMeta(metadata: PiChatModelMeta): void {
+  private refreshLiveMetadata(): void {
+    void this.controller.refreshSessionMeta({ startClient: true }).then(undefined, () => undefined);
+  }
+
+  private writeCachedSessionMeta(metadata: PiChatSessionMetaSnapshot): void {
     if (!this.workspaceState) {
       return;
     }
 
-    const value = metadata.id ? metadata : undefined;
-    void this.workspaceState.update(cachedModelMetaStorageKey, value).then(undefined, () => undefined);
+    const value = hasCachedSessionMeta(metadata) ? metadata : undefined;
+    void this.workspaceState.update(cachedSessionMetaStorageKey, value).then(undefined, () => undefined);
+    void this.workspaceState.update(cachedModelMetaStorageKey, undefined).then(undefined, () => undefined);
   }
 }
 
@@ -216,9 +232,45 @@ function getFullRpcAgentCommunicationSetting(): boolean {
   );
 }
 
-function readCachedModelMeta(workspaceState: vscode.Memento | undefined): PiChatModelMeta | undefined {
-  const value = workspaceState?.get<unknown>(cachedModelMetaStorageKey);
+function readCachedSessionMeta(workspaceState: vscode.Memento | undefined): PiChatSessionMetaSnapshot | undefined {
+  const value = workspaceState?.get<unknown>(cachedSessionMetaStorageKey);
+  const snapshot = parseCachedSessionMeta(value);
 
+  if (snapshot) {
+    return snapshot;
+  }
+
+  const legacyModelMeta = parseCachedModelMeta(workspaceState?.get<unknown>(cachedModelMetaStorageKey));
+
+  return legacyModelMeta ? { model: legacyModelMeta } : undefined;
+}
+
+function parseCachedSessionMeta(value: unknown): PiChatSessionMetaSnapshot | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const model = parseCachedModelMeta(value.model);
+  const modelOptions = parseCachedModelOptions(value.modelOptions);
+  const contextUsage = parseCachedContextUsage(value.contextUsage);
+  const snapshot: PiChatSessionMetaSnapshot = {};
+
+  if (model) {
+    snapshot.model = model;
+  }
+
+  if (modelOptions) {
+    snapshot.modelOptions = modelOptions;
+  }
+
+  if (contextUsage) {
+    snapshot.contextUsage = contextUsage;
+  }
+
+  return hasCachedSessionMeta(snapshot) ? snapshot : undefined;
+}
+
+function parseCachedModelMeta(value: unknown): PiChatModelMeta | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
@@ -236,6 +288,60 @@ function readCachedModelMeta(workspaceState: vscode.Memento | undefined): PiChat
     reasoning: value.reasoning === true,
     thinkingLevel: getRecordString(value, 'thinkingLevel') ?? ''
   };
+}
+
+function parseCachedModelOptions(value: unknown): WebviewModelOption[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const modelOptions = value.flatMap((item) => {
+    if (!isRecord(item)) {
+      return [];
+    }
+
+    const provider = getRecordString(item, 'provider');
+    const id = getRecordString(item, 'id');
+
+    if (!provider || !id) {
+      return [];
+    }
+
+    return [{
+      provider,
+      id,
+      name: getRecordString(item, 'name') || id,
+      reasoning: item.reasoning === true
+    }];
+  });
+
+  return modelOptions.length > 0 ? modelOptions : undefined;
+}
+
+function parseCachedContextUsage(value: unknown): PiChatContextUsage | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const label = getRecordString(value, 'label');
+
+  if (!label) {
+    return undefined;
+  }
+
+  return {
+    label,
+    title: getRecordString(value, 'title') ?? '',
+    level: getRecordString(value, 'level') ?? ''
+  };
+}
+
+function hasCachedSessionMeta(snapshot: PiChatSessionMetaSnapshot): boolean {
+  return Boolean(
+    snapshot.model
+    || (snapshot.modelOptions && snapshot.modelOptions.length > 0)
+    || snapshot.contextUsage
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

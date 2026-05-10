@@ -48,7 +48,8 @@ suite('Chat webview helpers', () => {
         modelOptions,
         contextUsageLabel: '30%',
         contextUsageTitle: '60,000 / 200,000 context tokens',
-        contextUsageLevel: 'low'
+        contextUsageLevel: 'low',
+        metadataRefreshing: false
       }
     );
   });
@@ -68,7 +69,8 @@ suite('Chat webview helpers', () => {
         modelOptions: [],
         contextUsageLabel: '',
         contextUsageTitle: '',
-        contextUsageLevel: ''
+        contextUsageLevel: '',
+        metadataRefreshing: false
       }
     );
   });
@@ -131,9 +133,11 @@ suite('Chat webview helpers', () => {
     assert.ok(html.includes('class="composer__context-tooltip"'));
     assert.ok(html.includes('class="composer__model"'));
     assert.ok(html.includes('class="composer__model-menu"'));
+    assert.ok(html.includes('composer__model--refreshing'));
     assert.ok(html.includes('class="composer__select composer__thinking-select"'));
     assert.ok(html.includes('class="composer__select composer__model-select"'));
     assert.ok(html.includes('class="composer__button composer__submit"'));
+    assert.ok(html.includes('state.modelOptions.length === 0 && !state.metadataRefreshing'));
     assert.ok(html.includes("vscode.postMessage({ type: 'refreshMetadata' });"));
     assert.ok(html.includes("vscode.postMessage({ type: 'ready' });"));
   });
