@@ -22,6 +22,7 @@ export const chatWebviewStyles = /* css */ `    :root {
       width: 100%;
       max-width: 100%;
       margin: 0;
+      padding: 0;
       overflow: hidden;
       overflow-x: hidden;
       color: var(--vscode-foreground);
@@ -262,7 +263,7 @@ export const chatWebviewStyles = /* css */ `    :root {
       max-width: 100vw;
       min-width: 0;
       min-height: 0;
-      padding: 6px 12px calc(12px + 4lh) 8px;
+      padding: 8px 16px calc(14px + 4lh) 16px;
       overflow-x: hidden;
       overflow-y: auto;
     }
@@ -649,7 +650,7 @@ export const chatWebviewStyles = /* css */ `    :root {
       min-height: 84px;
       max-width: 100%;
       max-height: calc(100vh - 16px);
-      margin: 0 12px 1lh 8px;
+      margin: 0 16px 1lh;
       padding: 14px 9px 8px;
       overflow: visible;
       background: var(--vscode-input-background);
