@@ -3,6 +3,7 @@
   "displayName": "Tau",
   "description": "A VS Code sidebar UI for the Pi agent.",
   "version": "0.0.1",
+  "publisher": "kaiwood",
   "repository": {
     "type": "git",
     "url": "https://github.com/kaiwood/vscode-tau.git"
