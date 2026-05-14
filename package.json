@@ -33,19 +33,6 @@
         "category": "PiUI"
       }
     ],
-    "keybindings": [
-      {
-        "command": "piui.focus",
-        "key": "ctrl+[BracketLeft]",
-        "mac": "cmd+[BracketLeft]"
-      },
-      {
-        "command": "piui.newSession",
-        "key": "ctrl+n",
-        "mac": "cmd+n",
-        "when": "focusedView == 'piui.chatView' || webviewId == 'piui.chatView'"
-      }
-    ],
     "viewsContainers": {
       "activitybar": [
         {
