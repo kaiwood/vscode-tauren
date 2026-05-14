@@ -53,7 +53,7 @@ function shouldLinkifyTextNode(node: Node): boolean {
 
 function replaceFileReferences(node: Text): void {
   const text = node.textContent ?? '';
-  const pattern = /((?:\.{1,2}\/|\/|[A-Za-z0-9_-]+\/)[^\s`"'<>()[\]{}]+?\.[A-Za-z0-9][A-Za-z0-9_-]*)(?::(\d+)(?::(\d+))?)?/g;
+  const pattern = /((?:\.{1,2}\/|\/|[A-Za-z0-9_-]+\/)[^\s`"'<>()[\]{}]+?\.[A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)*)(?::(\d+)(?::(\d+))?)?/g;
   const fragment = document.createDocumentFragment();
   let lastIndex = 0;
   let changed = false;
