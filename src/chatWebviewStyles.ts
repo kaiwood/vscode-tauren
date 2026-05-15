@@ -200,7 +200,7 @@ export const chatWebviewStyles = /* css */ `    :root {
       top: 30px;
       right: 0;
       z-index: 10;
-      min-width: 112px;
+      min-width: 140px;
       padding: 4px;
       background: var(--vscode-dropdown-background, var(--vscode-editorWidget-background));
       border: 1px solid var(--vscode-dropdown-border, var(--vscode-input-border, transparent));
@@ -224,6 +224,7 @@ export const chatWebviewStyles = /* css */ `    :root {
       font-size: 12px;
       line-height: 1.35;
       text-align: left;
+      white-space: nowrap;
       cursor: pointer;
     }
 
