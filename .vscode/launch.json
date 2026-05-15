@@ -6,8 +6,10 @@
       "type": "extensionHost",
       "request": "launch",
       "args": [
+        "${workspaceFolder}/.vscode/extension-dev.code-workspace",
         "--extensionDevelopmentPath=${workspaceFolder}"
       ],
+      "cwd": "${workspaceFolder}",
       "outFiles": [
         "${workspaceFolder}/out/**/*.js"
       ],
