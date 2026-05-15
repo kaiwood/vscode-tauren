@@ -316,6 +316,20 @@ ${chatWebviewStyles}
           <path d="M9.15 4.7L10.8 6.35" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>
         </svg>
       </button>
+      <div class="pi-toolbar__menu-wrap">
+        <button class="pi-toolbar__menu-button" type="button" aria-label="Session commands" title="Session commands" aria-haspopup="menu" aria-expanded="false">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="3.5" r="1.15" fill="currentColor"/>
+            <circle cx="8" cy="8" r="1.15" fill="currentColor"/>
+            <circle cx="8" cy="12.5" r="1.15" fill="currentColor"/>
+          </svg>
+        </button>
+        <div class="pi-toolbar__menu" role="menu" hidden>
+          <button class="pi-toolbar__menu-item" type="button" role="menuitem" data-session-command="reload">Reload Pi</button>
+          <button class="pi-toolbar__menu-item" type="button" role="menuitem" data-session-command="compact">Compact session</button>
+          <button class="pi-toolbar__menu-item" type="button" role="menuitem" data-session-command="export">Export HTML</button>
+        </div>
+      </div>
     </header>
     <div class="pi-toast" role="status" aria-live="polite" hidden></div>
     <section class="messages" aria-live="polite" aria-label="Pi conversation">

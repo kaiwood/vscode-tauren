@@ -25,6 +25,10 @@ const {
   sessionNameInputElement,
   sessionToggleButton,
   sessionEditButton,
+  sessionMenuWrapElement,
+  sessionMenuButton,
+  sessionMenuElement,
+  sessionMenuItemElements,
   toastElement,
   messagesElement,
   sessionsElement,
@@ -195,6 +199,10 @@ cloneSessionButton?.addEventListener('click', () => runSessionSlashCommand('clon
 messagesElement?.addEventListener('click', handleMessageClick);
 sessionToggleButton?.addEventListener('click', toggleSessionView);
 sessionEditButton?.addEventListener('click', startSessionNameEdit);
+sessionMenuButton?.addEventListener('click', toggleSessionCommandMenu);
+for (const item of sessionMenuItemElements) {
+  item.addEventListener('click', () => runSessionMenuCommand(item.getAttribute('data-session-command')));
+}
 sessionNameInputElement?.addEventListener('blur', () => cancelSessionNameEdit());
 sessionsElement?.addEventListener('keydown', handleSessionListKeydown);
 sessionsElement?.addEventListener('click', (event) => {
@@ -218,6 +226,10 @@ window.addEventListener('click', (event) => {
     if (!modelMenuElement.contains(target) && !modelElement?.contains(target)) {
       closeModelMenu();
     }
+  }
+
+  if (!sessionMenuWrapElement.contains(target)) {
+    closeSessionCommandMenu();
   }
 
   if (slashMenuOpen) {
@@ -253,6 +265,7 @@ window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     dismissSlashMenu();
     closeModelMenu();
+    closeSessionCommandMenu();
     cancelSessionNameEdit();
     return;
   }
@@ -369,6 +382,14 @@ function render() {
   sessionNameInputElement.hidden = !sessionNameEditing;
   sessionEditButton.hidden = isListView;
   sessionEditButton.disabled = state.busy || sessionNameEditing;
+  sessionMenuWrapElement.hidden = isListView;
+  sessionMenuButton.disabled = state.busy || sessionNameEditing;
+  for (const item of sessionMenuItemElements) {
+    item.disabled = state.busy || sessionNameEditing;
+  }
+  if (isListView || state.busy || sessionNameEditing) {
+    closeSessionCommandMenu();
+  }
   sessionToggleButton.title = isListView ? 'Back to chat' : 'Show sessions';
   sessionToggleButton.setAttribute('aria-label', sessionToggleButton.title);
   sessionToggleButton.classList.toggle('pi-toolbar__sessions--back', isListView);
@@ -378,6 +399,7 @@ function render() {
     state.viewMode === 'tree' ? renderTree() : renderSessions();
     closeSlashMenu();
     closeModelMenu();
+    closeSessionCommandMenu();
     cancelSessionNameEdit();
     requestAnimationFrame(() => sessionsElement?.focus({ preventScroll: true }));
     return;
@@ -830,6 +852,7 @@ function startSessionNameEdit(event?: MouseEvent): void {
 
   closeSlashMenu();
   closeModelMenu();
+  closeSessionCommandMenu();
 
   const initialName = getCurrentSessionName();
   sessionNameEditing = true;
@@ -885,6 +908,38 @@ function syncSessionNameEditor(): void {
   toolbarTitleTextElement.hidden = sessionNameEditing;
   sessionNameInputElement.hidden = !sessionNameEditing;
   sessionEditButton.disabled = state.busy || sessionNameEditing;
+  sessionMenuButton.disabled = state.busy || sessionNameEditing;
+}
+
+function toggleSessionCommandMenu(event?: MouseEvent): void {
+  event?.preventDefault();
+  event?.stopPropagation();
+
+  if (state.viewMode === 'sessions' || state.viewMode === 'tree' || state.busy || sessionNameEditing) {
+    return;
+  }
+
+  closeSlashMenu();
+  closeModelMenu();
+
+  const isOpen = !sessionMenuElement.hidden;
+  sessionMenuElement.hidden = isOpen;
+  sessionMenuButton.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+}
+
+function closeSessionCommandMenu(): void {
+  sessionMenuElement.hidden = true;
+  sessionMenuButton.setAttribute('aria-expanded', 'false');
+}
+
+function runSessionMenuCommand(command: string | null): void {
+  if (command !== 'reload' && command !== 'compact' && command !== 'export') {
+    return;
+  }
+
+  closeSessionCommandMenu();
+  vscode.postMessage({ type: 'submit', text: '/' + command });
+  focusPromptInput();
 }
 
 function getCurrentSessionName(): string {

@@ -150,7 +150,8 @@ export const chatWebviewStyles = /* css */ `    :root {
       display: none;
     }
 
-    .pi-toolbar__edit {
+    .pi-toolbar__edit,
+    .pi-toolbar__menu-button {
       display: grid;
       place-items: center;
       flex: 0 0 26px;
@@ -166,19 +167,76 @@ export const chatWebviewStyles = /* css */ `    :root {
     }
 
     .pi-toolbar__edit:hover:not(:disabled),
-    .pi-toolbar__edit:focus-visible {
+    .pi-toolbar__edit:focus-visible,
+    .pi-toolbar__menu-button:hover:not(:disabled),
+    .pi-toolbar__menu-button:focus-visible,
+    .pi-toolbar__menu-button[aria-expanded="true"] {
       color: var(--vscode-foreground);
       background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
       outline: none;
     }
 
-    .pi-toolbar__edit:disabled {
+    .pi-toolbar__edit:disabled,
+    .pi-toolbar__menu-button:disabled {
       opacity: 0.45;
       cursor: default;
     }
 
-    .pi-toolbar__edit[hidden] {
+    .pi-toolbar__edit[hidden],
+    .pi-toolbar__menu-wrap[hidden] {
       display: none;
+    }
+
+    .pi-toolbar__menu-wrap {
+      position: relative;
+      flex: 0 0 26px;
+      width: 26px;
+      max-width: 26px;
+      height: 26px;
+    }
+
+    .pi-toolbar__menu {
+      position: absolute;
+      top: 30px;
+      right: 0;
+      z-index: 10;
+      min-width: 112px;
+      padding: 4px;
+      background: var(--vscode-dropdown-background, var(--vscode-editorWidget-background));
+      border: 1px solid var(--vscode-dropdown-border, var(--vscode-input-border, transparent));
+      border-radius: 6px;
+      box-shadow: 0 6px 18px color-mix(in srgb, #000 28%, transparent);
+    }
+
+    .pi-toolbar__menu[hidden] {
+      display: none;
+    }
+
+    .pi-toolbar__menu-item {
+      display: block;
+      width: 100%;
+      padding: 5px 8px;
+      color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
+      background: transparent;
+      border: 0;
+      border-radius: 4px;
+      font: inherit;
+      font-size: 12px;
+      line-height: 1.35;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .pi-toolbar__menu-item:hover:not(:disabled),
+    .pi-toolbar__menu-item:focus-visible {
+      color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+      background: var(--vscode-list-hoverBackground, color-mix(in srgb, var(--vscode-foreground) 8%, transparent));
+      outline: none;
+    }
+
+    .pi-toolbar__menu-item:disabled {
+      opacity: 0.45;
+      cursor: default;
     }
 
     .pi-toast {
