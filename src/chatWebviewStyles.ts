@@ -399,9 +399,16 @@ export const chatWebviewStyles = /* css */ `    :root {
       white-space: nowrap;
     }
 
-    .sessions__delete {
+    .sessions__menu-wrap {
+      position: relative;
       grid-column: 3;
       grid-row: 1 / 3;
+      align-self: start;
+      width: 22px;
+      height: 22px;
+    }
+
+    .sessions__menu-button {
       display: grid;
       place-items: center;
       width: 22px;
@@ -415,17 +422,41 @@ export const chatWebviewStyles = /* css */ `    :root {
       opacity: 0;
     }
 
-    .sessions--pointer-hover .sessions__item:hover .sessions__delete,
-    .sessions__item--active .sessions__delete,
-    .sessions__delete:focus-visible {
+    .sessions--pointer-hover .sessions__item:hover .sessions__menu-button,
+    .sessions__item--active .sessions__menu-button,
+    .sessions__menu-button:focus-visible,
+    .sessions__menu-button[aria-expanded="true"] {
       opacity: 0.78;
     }
 
-    .sessions__delete:hover,
-    .sessions__delete:focus-visible {
+    .sessions__menu-button:hover:not(:disabled),
+    .sessions__menu-button:focus-visible,
+    .sessions__menu-button[aria-expanded="true"] {
       background: color-mix(in srgb, currentColor 16%, transparent);
       outline: none;
       opacity: 1;
+    }
+
+    .sessions__menu-button:disabled {
+      cursor: default;
+      opacity: 0.35;
+    }
+
+    .sessions__menu {
+      position: absolute;
+      top: 26px;
+      right: 0;
+      z-index: 20;
+      min-width: 170px;
+      padding: 4px;
+      background: var(--vscode-dropdown-background, var(--vscode-editorWidget-background));
+      border: 1px solid var(--vscode-dropdown-border, var(--vscode-input-border, transparent));
+      border-radius: 6px;
+      box-shadow: 0 6px 18px color-mix(in srgb, #000 28%, transparent);
+    }
+
+    .sessions__menu[hidden] {
+      display: none;
     }
 
     .sessions__item--active .sessions__meta,
@@ -1138,6 +1169,11 @@ export const chatWebviewStyles = /* css */ `    :root {
 
     .composer__button svg {
       display: block;
+    }
+
+    .composer__add svg {
+      width: 22px;
+      height: 22px;
     }
 
     .composer__button-tooltip {

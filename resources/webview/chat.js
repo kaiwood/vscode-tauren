@@ -589,8 +589,20 @@
   var sessionListSelectedIndex = 0;
   var treeListSelectedIndex = 0;
   var sessionPointerHoverEnabled = false;
+  var openSessionListMenuIndex;
+  var pendingSessionItemCommand;
   var sessionNameEditing = false;
   var sessionNameEditInitialValue = "";
+  var sessionItemMenuCommands = ["reload", "rename", "fork", "clone", "compact", "export", "delete"];
+  var sessionItemCommandIcons = {
+    reload: '<svg class="pi-toolbar__menu-icon" aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M12.5 5.3A5 5 0 1 0 13 8" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/><path d="M12.5 2.75V5.3H9.95" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    rename: '<svg class="pi-toolbar__menu-icon" aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4.1 11.9L5.45 11.6L11.15 5.9C11.55 5.5 11.55 4.85 11.15 4.45L10.9 4.2C10.5 3.8 9.85 3.8 9.45 4.2L3.75 9.9L3.45 11.25C3.37 11.65 3.7 11.98 4.1 11.9Z" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.85 4.8L10.55 6.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg>',
+    fork: '<svg class="pi-toolbar__menu-icon" aria-hidden="true" width="14" height="14" viewBox="0 0 19 19" fill="none"><path d="M5.5 4.25V8.5C5.5 10.16 6.84 11.5 8.5 11.5H10.5" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 4.25V14.75" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/><path d="M10.25 8.5L13.25 11.5L10.25 14.5" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5.5" cy="4.25" r="1.55" fill="currentColor"/><circle cx="5.5" cy="14.75" r="1.55" fill="currentColor"/></svg>',
+    clone: '<svg class="pi-toolbar__menu-icon" aria-hidden="true" width="14" height="14" viewBox="0 0 19 19" fill="none"><rect x="4.25" y="6.25" width="8.5" height="8.5" rx="1.5" stroke="currentColor" stroke-width="1.35"/><path d="M7.25 4.25H13.25C14.08 4.25 14.75 4.92 14.75 5.75V11.75" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    compact: '<svg class="pi-toolbar__menu-icon" aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M5 3.5H3.5V5" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/><path d="M11 3.5H12.5V5" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 12.5H3.5V11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/><path d="M11 12.5H12.5V11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.3 5.3L7.05 7.05M10.7 5.3L8.95 7.05M5.3 10.7L7.05 8.95M10.7 10.7L8.95 8.95" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+    export: '<svg class="pi-toolbar__menu-icon" aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3.5V10" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/><path d="M5.6 5.9L8 3.5L10.4 5.9" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9.5V11.6C4 12.1 4.4 12.5 4.9 12.5H11.1C11.6 12.5 12 12.1 12 11.6V9.5" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg>',
+    delete: '<svg class="pi-toolbar__menu-icon" aria-hidden="true" width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M6 2h4l1 1h3v1H2V3h3l1-1Zm-2 3h8l-.6 9.2A2 2 0 0 1 9.4 16H6.6a2 2 0 0 1-2-1.8L4 5Zm2 1v8h1V6H6Zm3 0v8h1V6H9Z"/></svg>'
+  };
   var renderedMessageViews = [];
   window.addEventListener("message", (event) => {
     if (event.data?.type === "focusInput") {
@@ -650,6 +662,7 @@
     }
     render();
     applyComposerTextFromState();
+    runPendingSessionItemCommand();
     if ((previousViewMode === "sessions" || previousViewMode === "tree") && state.viewMode === "chat") {
       focusPromptInput();
     }
@@ -703,19 +716,30 @@
   sessionsElement?.addEventListener("pointermove", enableSessionPointerHover);
   sessionsElement?.addEventListener("click", (event) => {
     const target = eventTargetElement(event);
-    const deleteButton = target?.closest(".sessions__delete");
-    if (deleteButton) {
+    const sessionMenuButton2 = target?.closest(".sessions__menu-button");
+    if (sessionMenuButton2) {
       event.preventDefault();
       event.stopPropagation();
-      const item2 = deleteButton.closest(".sessions__item");
+      const item2 = sessionMenuButton2.closest(".sessions__item");
       const index2 = Number(item2?.getAttribute("data-index"));
-      deleteSessionIndex(index2);
+      toggleSessionItemMenu(index2);
+      return;
+    }
+    const sessionMenuItem = target?.closest(".sessions__menu-item");
+    if (sessionMenuItem) {
+      event.preventDefault();
+      event.stopPropagation();
+      const item2 = sessionMenuItem.closest(".sessions__item");
+      const index2 = Number(item2?.getAttribute("data-index"));
+      runSessionItemMenuCommand(index2, sessionMenuItem.getAttribute("data-session-command"));
       return;
     }
     const item = target?.closest(".sessions__item");
     if (!item) {
+      closeSessionItemMenus();
       return;
     }
+    closeSessionItemMenus();
     const index = Number(item.getAttribute("data-index"));
     state.viewMode === "tree" ? selectTreeIndex(index) : selectSessionIndex(index);
   });
@@ -731,6 +755,9 @@
     }
     if (!sessionMenuWrapElement.contains(target)) {
       closeSessionCommandMenu();
+    }
+    if (!target || !(target instanceof Node) || !sessionsElement.contains(target) || !eventTargetElement(event)?.closest(".sessions__menu-wrap")) {
+      closeSessionItemMenus();
     }
     if (slashMenuOpen) {
       if (!slashMenuElement?.contains(target) && target !== textarea) {
@@ -841,6 +868,9 @@
   function render() {
     const isListView = state.viewMode === "sessions" || state.viewMode === "tree";
     const shouldStickToBottom = !isListView && isMessagesAtBottom();
+    if (!isListView) {
+      openSessionListMenuIndex = void 0;
+    }
     messagesElement.hidden = isListView;
     sessionsElement.hidden = !isListView;
     form.classList.toggle("composer--list-hidden", isListView);
@@ -996,6 +1026,9 @@
     const header = document.createElement("div");
     header.className = "sessions__header";
     const count = Array.isArray(state.sessions) ? state.sessions.length : 0;
+    if (openSessionListMenuIndex !== void 0 && openSessionListMenuIndex >= count) {
+      openSessionListMenuIndex = void 0;
+    }
     header.textContent = state.sessionsRefreshing ? "Loading sessions..." : count === 1 ? "1 session" : count + " sessions";
     sessionsElement.append(header);
     if (state.sessionsError) {
@@ -1047,16 +1080,45 @@
       cwd.textContent = shortenPath(session.cwd);
       item.append(cwd);
     }
-    if (canDeleteSession(session)) {
-      const deleteButton = document.createElement("button");
-      deleteButton.type = "button";
-      deleteButton.className = "sessions__delete";
-      deleteButton.title = "Move session to Trash";
-      deleteButton.setAttribute("aria-label", "Move session to Trash");
-      deleteButton.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M6 2h4l1 1h3v1H2V3h3l1-1Zm-2 3h8l-.6 9.2A2 2 0 0 1 9.4 16H6.6a2 2 0 0 1-2-1.8L4 5Zm2 1v8h1V6H6Zm3 0v8h1V6H9Z"/></svg>';
-      item.append(deleteButton);
-    }
+    item.append(createSessionItemMenuElement(session, index));
     return item;
+  }
+  function createSessionItemMenuElement(session, index) {
+    const wrap = document.createElement("span");
+    wrap.className = "sessions__menu-wrap";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "sessions__menu-button";
+    button.title = "Session commands";
+    button.setAttribute("aria-label", "Session commands");
+    button.setAttribute("aria-haspopup", "menu");
+    button.setAttribute("aria-expanded", openSessionListMenuIndex === index ? "true" : "false");
+    button.disabled = !canRunSessionItemCommand(session);
+    button.innerHTML = '<svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="3.5" r="1.15" fill="currentColor"/><circle cx="8" cy="8" r="1.15" fill="currentColor"/><circle cx="8" cy="12.5" r="1.15" fill="currentColor"/></svg>';
+    wrap.append(button);
+    const menu = document.createElement("span");
+    menu.className = "sessions__menu";
+    menu.setAttribute("role", "menu");
+    menu.hidden = openSessionListMenuIndex !== index;
+    for (const command of sessionItemMenuCommands) {
+      menu.append(createSessionItemMenuButton(command, session));
+    }
+    wrap.append(menu);
+    return wrap;
+  }
+  function createSessionItemMenuButton(command, session) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "pi-toolbar__menu-item sessions__menu-item";
+    button.setAttribute("role", "menuitem");
+    button.setAttribute("data-session-command", command);
+    button.disabled = !canRunSessionItemCommand(session, command);
+    button.innerHTML = '<span class="pi-toolbar__menu-label">' + getSessionItemCommandLabel(command) + "</span>" + getSessionItemCommandIcon(command);
+    button.addEventListener("pointerenter", () => setSessionMenuItemHover(button, true));
+    button.addEventListener("pointerleave", () => setSessionMenuItemHover(button, false));
+    button.addEventListener("focus", () => setSessionMenuItemHover(button, true));
+    button.addEventListener("blur", () => setSessionMenuItemHover(button, false));
+    return button;
   }
   function renderTree() {
     sessionsElement.replaceChildren();
@@ -1155,6 +1217,10 @@
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
+      if (openSessionListMenuIndex !== void 0) {
+        closeSessionItemMenus();
+        return true;
+      }
       vscode.postMessage({ type: "hideSessions" });
       focusPromptInput();
       return true;
@@ -1162,12 +1228,14 @@
     if (event.key === "ArrowDown") {
       event.preventDefault();
       event.stopPropagation();
+      closeSessionItemMenus();
       state.viewMode === "tree" ? moveTreeSelection(1) : moveSessionSelection(1);
       return true;
     }
     if (event.key === "ArrowUp") {
       event.preventDefault();
       event.stopPropagation();
+      closeSessionItemMenus();
       state.viewMode === "tree" ? moveTreeSelection(-1) : moveSessionSelection(-1);
       return true;
     }
@@ -1223,6 +1291,87 @@
       return;
     }
     vscode.postMessage({ type: "deleteSession", sessionPath: session.path });
+  }
+  function toggleSessionItemMenu(index) {
+    if (!Number.isInteger(index) || index < 0) {
+      return;
+    }
+    openSessionListMenuIndex = openSessionListMenuIndex === index ? void 0 : index;
+    renderSessions();
+  }
+  function closeSessionItemMenus() {
+    if (openSessionListMenuIndex === void 0) {
+      return;
+    }
+    openSessionListMenuIndex = void 0;
+    for (const menu of sessionsElement.querySelectorAll(".sessions__menu")) {
+      menu.hidden = true;
+    }
+    for (const button of sessionsElement.querySelectorAll(".sessions__menu-button")) {
+      button.setAttribute("aria-expanded", "false");
+    }
+  }
+  function runSessionItemMenuCommand(index, command) {
+    const parsedCommand = parseSessionItemCommand(command);
+    const session = Array.isArray(state.sessions) ? state.sessions[index] : void 0;
+    if (!parsedCommand || !session?.path || !canRunSessionItemCommand(session, parsedCommand)) {
+      return;
+    }
+    closeSessionItemMenus();
+    if (parsedCommand === "delete") {
+      vscode.postMessage({ type: "deleteSession", sessionPath: session.path });
+      return;
+    }
+    pendingSessionItemCommand = { sessionPath: session.path, command: parsedCommand };
+    selectSessionByPath(session.path);
+  }
+  function runPendingSessionItemCommand() {
+    if (!pendingSessionItemCommand || state.viewMode !== "chat") {
+      return;
+    }
+    const pending = pendingSessionItemCommand;
+    if (getCurrentSessionPath() !== pending.sessionPath) {
+      return;
+    }
+    pendingSessionItemCommand = void 0;
+    if (pending.command === "rename") {
+      startSessionNameEdit();
+      return;
+    }
+    if (pending.command === "delete") {
+      return;
+    }
+    runSessionSlashCommand(pending.command);
+  }
+  function parseSessionItemCommand(command) {
+    return command === "rename" || command === "fork" || command === "clone" || command === "compact" || command === "reload" || command === "export" || command === "delete" ? command : void 0;
+  }
+  function canRunSessionItemCommand(session, command) {
+    if (command === "delete") {
+      return canDeleteSession(session);
+    }
+    return session.liveStatus !== "running" && !(session.current && state.busy);
+  }
+  function getSessionItemCommandLabel(command) {
+    switch (command) {
+      case "reload":
+        return "Reload Pi";
+      case "rename":
+        return "Rename session";
+      case "fork":
+        return "Fork session";
+      case "clone":
+        return "Clone session";
+      case "compact":
+        return "Compact session";
+      case "export":
+        return "Export HTML";
+      case "delete":
+        return "Move session to trash";
+    }
+  }
+  function getSessionItemCommandIcon(command) {
+    return sessionItemCommandIcons[command];
   }
   function canDeleteSession(session) {
     return session.liveStatus !== "running" && !(session.current && state.busy);
