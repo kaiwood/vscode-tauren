@@ -1245,7 +1245,7 @@
     if (state.viewMode !== "chat" || event.key !== "PageUp" && event.key !== "PageDown") {
       return false;
     }
-    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+    if (event.altKey || event.metaKey || event.shiftKey) {
       return false;
     }
     const target = eventTargetElement(event);
@@ -1255,9 +1255,12 @@
     event.preventDefault();
     event.stopPropagation();
     const direction = event.key === "PageUp" ? -1 : 1;
-    const page = Math.max(80, Math.floor(messagesElement.clientHeight * 0.85));
-    messagesElement.scrollBy({ top: direction * page, behavior: "auto" });
+    const amount = event.ctrlKey ? getTranscriptLineScrollAmount() : Math.max(80, Math.floor(messagesElement.clientHeight * 0.85));
+    messagesElement.scrollBy({ top: direction * amount, behavior: "auto" });
     return true;
+  }
+  function getTranscriptLineScrollAmount() {
+    return parseCssPixelValue(getComputedStyle(messagesContentElement).lineHeight) || parseCssPixelValue(getComputedStyle(messagesElement).lineHeight) || 20;
   }
   function clampTreeIndex(index) {
     const count = Array.isArray(state.treeItems) ? state.treeItems.length : 0;

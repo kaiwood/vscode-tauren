@@ -62,23 +62,24 @@ You can also right-click in an editor and choose `Add Context`. If text is selec
 
 Tau-specific keys inside the sidebar:
 
-| Key | Where | Action |
-| --- | --- | --- |
-| `Enter` | Prompt | Send the prompt. |
-| `Shift+Enter` | Prompt | Insert a newline. |
-| `Cmd+N` / `Ctrl+N` | Anywhere in Tau | Start a new session. |
-| `PageUp` / `PageDown` | Chat | Scroll the transcript. |
-| `Esc` | Prompt, with no popup open | Open the session list. |
-| `Esc` | Session list or session tree | Return to the current session and focus the prompt. |
-| `ArrowUp` / `ArrowDown` | Session list or session tree | Move the selected row. |
-| `Enter` | Session list or session tree | Open the selected session or tree entry. |
-| `Delete` / `Backspace` | Session list | Delete the selected session if it is deletable. |
-| `ArrowUp` / `ArrowDown` | Slash command menu | Move the selected command. |
-| `Tab` | Slash command menu | Insert the selected command. |
-| `Enter` | Slash command menu | Insert the selected command. |
-| `Esc` | Slash command menu | Close the menu. |
-| `Enter` | Inline session naming | Save the session name. |
-| `Esc` | Inline session naming | Cancel editing and focus the prompt. |
+| Key                             | Where                        | Action                                              |
+| ------------------------------- | ---------------------------- | --------------------------------------------------- |
+| `Enter`                         | Prompt                       | Send the prompt.                                    |
+| `Shift+Enter`                   | Prompt                       | Insert a newline.                                   |
+| `Cmd+N` / `Ctrl+N`              | Anywhere in Tau              | Start a new session.                                |
+| `PageUp` / `PageDown`           | Chat                         | Scroll the transcript by page.                      |
+| `Ctrl+PageUp` / `Ctrl+PageDown` | Chat                         | Scroll the transcript by line.                      |
+| `Esc`                           | Prompt, with no popup open   | Open the session list.                              |
+| `Esc`                           | Session list or session tree | Return to the current session and focus the prompt. |
+| `ArrowUp` / `ArrowDown`         | Session list or session tree | Move the selected row.                              |
+| `Enter`                         | Session list or session tree | Open the selected session or tree entry.            |
+| `Delete` / `Backspace`          | Session list                 | Delete the selected session if it is deletable.     |
+| `ArrowUp` / `ArrowDown`         | Slash command menu           | Move the selected command.                          |
+| `Tab`                           | Slash command menu           | Insert the selected command.                        |
+| `Enter`                         | Slash command menu           | Insert the selected command.                        |
+| `Esc`                           | Slash command menu           | Close the menu.                                     |
+| `Enter`                         | Inline session naming        | Save the session name.                              |
+| `Esc`                           | Inline session naming        | Cancel editing and focus the prompt.                |
 
 `Esc` is intentionally overloaded as Tau's back key. It first closes the most local UI you opened: slash command menu, model picker, top-bar session menu, or inline session naming. If there is nothing local to close and the prompt is focused, `Esc` opens the session list. Press `Esc` again from the session list to return to chat, so you can toggle between writing and session navigation with one key.
 
