@@ -1046,11 +1046,11 @@ export const chatWebviewStyles = /* css */ `    :root {
       cursor: pointer;
     }
 
-    .composer__button:hover:not(:disabled) {
+    .composer__button:hover:not(:disabled),
+    .composer__button:focus-visible:not(:disabled) {
       color: var(--vscode-foreground);
       background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--vscode-foreground) 18%, transparent),
-        0 0 7px color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+      outline: none;
     }
 
     .composer__button:disabled {
@@ -1058,10 +1058,6 @@ export const chatWebviewStyles = /* css */ `    :root {
       opacity: 0.46;
     }
 
-    .composer__button:focus-visible {
-      outline: 1px solid var(--vscode-focusBorder);
-      outline-offset: 1px;
-    }
 
     .composer__button svg {
       display: block;
