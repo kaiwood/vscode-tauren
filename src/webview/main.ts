@@ -802,7 +802,7 @@ function handleChatEscape(event: KeyboardEvent): boolean {
     return true;
   }
 
-  if (document.activeElement === textarea && state.viewMode === 'chat') {
+  if (state.viewMode === 'chat') {
     event.preventDefault();
     event.stopPropagation();
     vscode.postMessage({ type: 'showSessions' });
