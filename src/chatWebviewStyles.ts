@@ -622,6 +622,10 @@ export const chatWebviewStyles = /* css */ `    :root {
       overflow-wrap: anywhere;
     }
 
+    .status[hidden] {
+      display: none;
+    }
+
     .status__spinner {
       width: 10px;
       height: 10px;
@@ -630,6 +634,7 @@ export const chatWebviewStyles = /* css */ `    :root {
       border-top-color: #ffffff;
       border-radius: 999px;
       animation: pi-spin 0.8s linear infinite;
+      will-change: transform;
     }
 
     @keyframes pi-spin {

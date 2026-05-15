@@ -46,6 +46,18 @@ const {
   thinkingSelectElement,
   submitButton
 } = getWebviewDom();
+const messagesContentElement = document.createElement('div');
+messagesContentElement.className = 'messages__content';
+const busyStatusElement = document.createElement('div');
+busyStatusElement.className = 'status';
+busyStatusElement.hidden = true;
+const busyStatusSpinnerElement = document.createElement('span');
+busyStatusSpinnerElement.className = 'status__spinner';
+busyStatusSpinnerElement.setAttribute('aria-hidden', 'true');
+const busyStatusTextElement = document.createElement('span');
+busyStatusElement.append(busyStatusSpinnerElement, busyStatusTextElement);
+messagesContentElement.replaceChildren(...Array.from(messagesElement.childNodes));
+messagesElement.append(messagesContentElement, busyStatusElement);
 const isMac = navigator.platform.toUpperCase().includes('MAC');
 let state: WebviewState = { messages: [], busy: false, modelLabel: '', modelProvider: '', modelId: '', modelReasoning: false, thinkingLevel: '', modelOptions: [], contextUsageLabel: '', contextUsageTitle: '', contextUsageLevel: '', metadataRefreshing: false, slashCommands: [], slashCommandsRefreshing: false, promptContext: [], composerText: '', composerTextRevision: 0, viewMode: 'chat', sessions: [], sessionsRefreshing: false, sessionsError: '', currentSessionFile: '', currentSessionName: '', treeItems: [], treeRefreshing: false, treeError: '' };
 let appliedComposerTextRevision = 0;
@@ -351,6 +363,7 @@ function render() {
   sessionToggleButton.classList.toggle('pi-toolbar__sessions--back', isListView);
 
   if (isListView) {
+    busyStatusElement.hidden = true;
     state.viewMode === 'tree' ? renderTree() : renderSessions();
     closeSlashMenu();
     closeModelMenu();
@@ -359,35 +372,24 @@ function render() {
     return;
   }
 
-  messagesElement.replaceChildren();
+  messagesContentElement.replaceChildren();
 
   if (state.messages.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'empty-state';
     empty.textContent = 'Ask Pi about this workspace.';
-    messagesElement.append(empty);
+    messagesContentElement.append(empty);
   }
 
   let previousMessageRole;
 
   for (const [index, message] of state.messages.entries()) {
     const showRole = message.role !== previousMessageRole;
-    messagesElement.append(createMessageElement(message, showRole, index));
+    messagesContentElement.append(createMessageElement(message, showRole, index));
     previousMessageRole = message.role;
   }
 
-  if (state.busy) {
-    const status = document.createElement('div');
-    status.className = 'status';
-    const spinner = document.createElement('span');
-    spinner.className = 'status__spinner';
-    spinner.setAttribute('aria-hidden', 'true');
-    const text = document.createElement('span');
-    text.textContent = getBusyStatusText();
-    status.append(spinner, text);
-    messagesElement.append(status);
-  }
-
+  syncBusyStatus();
   syncModelLabel();
   syncPromptContextBadges();
   syncComposer();
@@ -840,6 +842,20 @@ function setBusySubmitVisible(visible: boolean): void {
       busySubmitElement.hidden = true;
     }
   }, 160);
+}
+
+function syncBusyStatus() {
+  busyStatusElement.hidden = !state.busy;
+
+  if (!state.busy) {
+    return;
+  }
+
+  const nextText = getBusyStatusText();
+
+  if (busyStatusTextElement.textContent !== nextText) {
+    busyStatusTextElement.textContent = nextText;
+  }
 }
 
 function getBusyStatusText() {
