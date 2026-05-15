@@ -85,7 +85,6 @@ export const chatWebviewStyles = /* css */ `    :root {
       transition: transform 120ms ease;
     }
 
-
     .pi-toolbar__title {
       position: relative;
       display: block;
@@ -358,9 +357,19 @@ export const chatWebviewStyles = /* css */ `    :root {
     }
 
     .sessions__meta {
+      grid-column: 2 / -1;
       color: var(--vscode-descriptionForeground);
       font-size: 11px;
       white-space: nowrap;
+    }
+
+    .sessions__item--running .sessions__prefix {
+      color: var(--vscode-testing-iconQueued, var(--vscode-progressBar-background, var(--vscode-focusBorder)));
+    }
+
+    .sessions__item--unread .sessions__title::after {
+      content: ' •';
+      color: var(--vscode-focusBorder);
     }
 
     .sessions__cwd {

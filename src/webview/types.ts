@@ -41,6 +41,8 @@ export type SessionItem = {
   isLast: boolean;
   ancestorContinues: boolean[];
   current: boolean;
+  liveStatus?: 'idle' | 'running' | 'done' | 'error';
+  unread?: boolean;
 };
 
 export type TreeItem = {

@@ -151,6 +151,8 @@ export type WebviewSessionItem = {
   isLast: boolean;
   ancestorContinues: boolean[];
   current: boolean;
+  liveStatus?: 'idle' | 'running' | 'done' | 'error';
+  unread?: boolean;
 };
 
 export type WebviewTreeItem = {

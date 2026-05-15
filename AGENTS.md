@@ -19,7 +19,8 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - `package.json` defines a VS Code extension with an Activity Bar view container named `Tau`.
 - The extension is TypeScript, CommonJS, and compiles `src` to `out`.
 - `src/extension.ts` is only the activation entrypoint and command/view registration.
-- `src/piChatViewProvider.ts` owns VS Code webview/provider integration, focus handling, notifications, workspace `cwd` lookup, cached selected-model metadata, and Pi client lifecycle.
+- `src/piChatViewProvider.ts` owns VS Code webview/provider integration, focus handling, notifications, workspace `cwd` lookup, cached selected-model metadata, and Tau session manager lifecycle.
+- `src/tauSessionManager.ts` owns the open-session switcher model and coordinates multiple live `PiChatController` instances so background sessions can keep running.
 - `src/chatSession.ts` owns pure in-memory transcript/session state and has no VS Code or Pi process dependencies.
 - `src/chatWebview.ts` owns public sidebar webview HTML composition plus webview state/message types.
 - `src/chatWebviewStyles.ts` owns the static sidebar CSS string.

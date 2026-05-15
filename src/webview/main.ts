@@ -609,15 +609,17 @@ function createSessionItemElement(session: SessionItem, index: number): HTMLElem
   item.id = 'session-' + index;
   item.className = 'sessions__item'
     + (index === sessionListSelectedIndex ? ' sessions__item--active' : '')
-    + (session.current ? ' sessions__item--current' : '');
+    + (session.current ? ' sessions__item--current' : '')
+    + (session.liveStatus ? ' sessions__item--' + session.liveStatus : '')
+    + (session.unread ? ' sessions__item--unread' : '');
   item.setAttribute('role', 'option');
   item.setAttribute('aria-selected', index === sessionListSelectedIndex ? 'true' : 'false');
   item.setAttribute('data-index', String(index));
-  item.disabled = state.busy || state.sessionsRefreshing;
+  item.disabled = false;
 
   const prefix = document.createElement('span');
   prefix.className = 'sessions__prefix';
-  prefix.textContent = buildSessionTreePrefix(session);
+  prefix.textContent = (session.liveStatus === 'running' ? '● ' : '') + buildSessionTreePrefix(session);
   item.append(prefix);
 
   const title = document.createElement('span');
@@ -781,7 +783,7 @@ function selectSessionIndex(index: number): void {
 }
 
 function selectSessionByPath(sessionPath: string): void {
-  if (!sessionPath || state.busy || state.sessionsRefreshing) {
+  if (!sessionPath) {
     return;
   }
 
@@ -964,7 +966,7 @@ function syncSubmit() {
   const hasSendableText = textarea.value.trim().length > 0;
   const label = getSubmitLabel(isStopMode);
   submitButton.disabled = state.busy ? (hasInput && !hasSendableText) : !hasSendableText;
-  newSessionButton.disabled = state.busy;
+  newSessionButton.disabled = false;
   forkSessionButton.disabled = state.busy;
   cloneSessionButton.disabled = state.busy;
   submitButton.classList.toggle('composer__submit--stop', isStopMode);
@@ -1633,10 +1635,6 @@ function syncComposer(options: { preserveBottom?: boolean } = {}): void {
 }
 
 function startNewSession() {
-  if (state.busy) {
-    return;
-  }
-
   cancelSessionNameEdit();
   vscode.postMessage({ type: 'newSession' });
   focusPromptInput();

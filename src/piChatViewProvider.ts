@@ -6,7 +6,6 @@ import {
   type WebviewMessage
 } from './chatWebview';
 import {
-  PiChatController,
   type PiChatContextUsage,
   type PiChatModelMeta,
   type PiPromptContextInput,
@@ -14,6 +13,7 @@ import {
   type PiRpcClientFactory
 } from './piChatController';
 import { PiRpcClient } from './piRpcClient';
+import { TauSessionManager } from './tauSessionManager';
 import { listPiSessions } from './piSessionList';
 import type { WebviewModelOption } from './chatWebview';
 
@@ -29,7 +29,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   private webviewView: vscode.WebviewView | undefined;
   private pendingInputFocus = false;
   private webviewReady = false;
-  private readonly controller: PiChatController;
+  private readonly controller: TauSessionManager;
   private contextUsagePollTimer: NodeJS.Timeout | undefined;
   private readonly disposables: vscode.Disposable[] = [];
   private readonly webviewDisposables: vscode.Disposable[] = [];
@@ -39,7 +39,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     createClient: PiRpcClientFactory = (options) => new PiRpcClient(options),
     private readonly workspaceState?: vscode.Memento
   ) {
-    this.controller = new PiChatController({
+    this.controller = new TauSessionManager({
       createClient,
       getCwd: () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
       getPiPath: () => getPiPathSetting(),
@@ -170,7 +170,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   }
 
   public async newSession(): Promise<void> {
-    this.controller.startNewSession();
+    this.controller.newSession();
     await this.focus();
   }
 
@@ -305,7 +305,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   }
 
   private refreshLiveMetadata(): void {
-    void this.controller.refreshSessionMeta({ startClient: true }).then(undefined, () => undefined);
+    this.controller.refreshSessionMeta({ startClient: true });
   }
 
   private startContextUsagePolling(): void {
@@ -319,7 +319,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
         return;
       }
 
-      void this.controller.refreshContextUsage({ silent: true }).then(undefined, () => undefined);
+      this.controller.refreshContextUsage({ silent: true });
     }, contextUsagePollingIntervalMs);
   }
 
