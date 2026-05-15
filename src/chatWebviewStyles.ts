@@ -337,6 +337,10 @@ export const chatWebviewStyles = /* css */ `    :root {
       text-transform: uppercase;
     }
 
+    .message--user .message__role {
+      margin-bottom: 6px;
+    }
+
     .message__body {
       white-space: pre-wrap;
       overflow-wrap: anywhere;
