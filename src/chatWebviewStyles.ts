@@ -338,7 +338,7 @@ export const chatWebviewStyles = /* css */ `    :root {
     }
 
     .message--user .message__role {
-      margin-bottom: 6px;
+      margin-bottom: 8px;
     }
 
     .message__body {
