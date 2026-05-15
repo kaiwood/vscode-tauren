@@ -6,7 +6,7 @@ export type StatePublisherScheduler = {
   schedule(callback: () => void): DisposableLike;
 };
 
-const defaultScheduler: StatePublisherScheduler = createTimeoutStatePublisherScheduler();
+const defaultScheduler: StatePublisherScheduler = createTimeoutStatePublisherScheduler(80);
 
 export class StatePublisher<TState> implements DisposableLike {
   private pending: DisposableLike | undefined;
