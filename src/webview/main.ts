@@ -24,7 +24,6 @@ const {
   toolbarTitleTextElement,
   sessionNameInputElement,
   sessionToggleButton,
-  sessionEditButton,
   sessionMenuWrapElement,
   sessionMenuButton,
   sessionMenuElement,
@@ -64,7 +63,7 @@ busyStatusElement.append(busyStatusSpinnerElement, busyStatusTextElement);
 messagesContentElement.replaceChildren(...Array.from(messagesElement.childNodes));
 messagesElement.append(messagesContentElement, busyStatusElement);
 const isMac = navigator.platform.toUpperCase().includes('MAC');
-let state: WebviewState = { messages: [], busy: false, modelLabel: '', modelProvider: '', modelId: '', modelReasoning: false, thinkingLevel: '', modelOptions: [], contextUsageLabel: '', contextUsageTitle: '', contextUsageLevel: '', metadataRefreshing: false, slashCommands: [], slashCommandsRefreshing: false, promptContext: [], composerText: '', composerTextRevision: 0, viewMode: 'chat', sessions: [], sessionsRefreshing: false, sessionsError: '', currentSessionFile: '', currentSessionName: '', treeItems: [], treeRefreshing: false, treeError: '' };
+let state: WebviewState = { messages: [], busy: false, modelLabel: '', modelProvider: '', modelId: '', modelReasoning: false, thinkingLevel: '', modelOptions: [], contextUsageLabel: '', contextUsageTitle: '', contextUsageLevel: '', metadataRefreshing: false, slashCommands: [], slashCommandsRefreshing: false, promptContext: [], composerText: '', composerTextRevision: 0, viewMode: 'chat', sessions: [], sessionsRefreshing: false, sessionsError: '', currentSessionFile: '', currentSessionName: '', treeItems: [], treeRefreshing: false, treeError: '', sessionLoading: false };
 let appliedComposerTextRevision = 0;
 let slashMenuOpen = false;
 let slashMenuActiveIndex = 0;
@@ -135,7 +134,8 @@ window.addEventListener('message', (event) => {
     currentSessionName: typeof event.data.currentSessionName === 'string' ? event.data.currentSessionName : '',
     treeItems: Array.isArray(event.data.treeItems) ? event.data.treeItems : [],
     treeRefreshing: Boolean(event.data.treeRefreshing),
-    treeError: typeof event.data.treeError === 'string' ? event.data.treeError : ''
+    treeError: typeof event.data.treeError === 'string' ? event.data.treeError : '',
+    sessionLoading: Boolean(event.data.sessionLoading)
   };
   const wasListView = previousViewMode === 'sessions' || previousViewMode === 'tree';
   const isListView = state.viewMode === 'sessions' || state.viewMode === 'tree';
@@ -210,7 +210,6 @@ forkSessionButton?.addEventListener('click', () => runSessionSlashCommand('fork'
 cloneSessionButton?.addEventListener('click', () => runSessionSlashCommand('clone'));
 messagesElement?.addEventListener('click', handleMessageClick);
 sessionToggleButton?.addEventListener('click', toggleSessionView);
-sessionEditButton?.addEventListener('click', startSessionNameEdit);
 sessionMenuButton?.addEventListener('click', toggleSessionCommandMenu);
 for (const item of sessionMenuItemElements) {
   item.addEventListener('click', () => runSessionMenuCommand(item.getAttribute('data-session-command')));
@@ -395,7 +394,9 @@ function render() {
   const shouldStickToBottom = !isListView && isMessagesAtBottom();
   messagesElement.hidden = isListView;
   sessionsElement.hidden = !isListView;
-  form.hidden = isListView;
+  form.classList.toggle('composer--list-hidden', isListView);
+  form.setAttribute('aria-hidden', isListView ? 'true' : 'false');
+  form.inert = isListView;
   const toolbarTitle = state.viewMode === 'sessions' ? 'Sessions' : state.viewMode === 'tree' ? 'Session tree' : getCurrentSessionTitle();
   if ((isListView || state.busy) && sessionNameEditing) {
     cancelSessionNameEdit();
@@ -405,8 +406,6 @@ function render() {
   toolbarTitleElement.classList.toggle('pi-toolbar__title--editing', sessionNameEditing);
   toolbarTitleTextElement.hidden = sessionNameEditing;
   sessionNameInputElement.hidden = !sessionNameEditing;
-  sessionEditButton.hidden = isListView;
-  sessionEditButton.disabled = state.busy || sessionNameEditing;
   sessionMenuWrapElement.hidden = isListView;
   sessionMenuButton.disabled = state.busy || sessionNameEditing;
   for (const item of sessionMenuItemElements) {
@@ -445,10 +444,7 @@ function render() {
 function renderMessageList(): void {
   if (state.messages.length === 0) {
     renderedMessageViews = [];
-    const empty = document.createElement('p');
-    empty.className = 'empty-state';
-    empty.textContent = 'Ask Pi about this workspace.';
-    messagesContentElement.replaceChildren(empty);
+    messagesContentElement.replaceChildren(createEmptyStateElement());
     return;
   }
 
@@ -475,6 +471,25 @@ function renderMessageList(): void {
   }
 
   renderedMessageViews.length = state.messages.length;
+}
+
+function createEmptyStateElement(): HTMLElement {
+  const empty = document.createElement('p');
+  empty.className = 'empty-state';
+
+  if (!state.sessionLoading) {
+    empty.textContent = 'Ask Pi about this workspace.';
+    return empty;
+  }
+
+  empty.classList.add('empty-state--loading');
+  const spinner = document.createElement('span');
+  spinner.className = 'status__spinner';
+  spinner.setAttribute('aria-hidden', 'true');
+  const text = document.createElement('span');
+  text.textContent = 'Loading session…';
+  empty.append(spinner, text);
+  return empty;
 }
 
 function renderMessageAtIndex(index: number, message: ChatMessage, showRole: boolean): RenderedMessageView {
@@ -1044,7 +1059,6 @@ function syncSessionNameEditor(): void {
   toolbarTitleElement.classList.toggle('pi-toolbar__title--editing', sessionNameEditing);
   toolbarTitleTextElement.hidden = sessionNameEditing;
   sessionNameInputElement.hidden = !sessionNameEditing;
-  sessionEditButton.disabled = state.busy || sessionNameEditing;
   sessionMenuButton.disabled = state.busy || sessionNameEditing;
 }
 
@@ -1070,6 +1084,12 @@ function closeSessionCommandMenu(): void {
 }
 
 function runSessionMenuCommand(command: string | null): void {
+  if (command === 'rename') {
+    closeSessionCommandMenu();
+    startSessionNameEdit();
+    return;
+  }
+
   if (command !== 'reload' && command !== 'compact' && command !== 'export') {
     return;
   }

@@ -97,6 +97,7 @@ export type WebviewState = {
   treeItems: TreeItem[];
   treeRefreshing: boolean;
   treeError: string;
+  sessionLoading: boolean;
 };
 
 export type MarkdownRenderer = {

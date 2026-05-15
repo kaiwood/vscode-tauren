@@ -116,8 +116,10 @@ suite('PiChatController', () => {
     });
 
     await harness.controller.handleWebviewMessage({ type: 'ready' });
+    assert.strictEqual(lastState(harness).sessionLoading, true);
     await flushPromises();
 
+    assert.strictEqual(lastState(harness).sessionLoading, undefined);
     assert.deepStrictEqual(harness.clientOptions, [
       { cwd: '/workspace', sessionFile: '/sessions/current.jsonl' }
     ]);

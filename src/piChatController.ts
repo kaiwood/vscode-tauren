@@ -172,6 +172,7 @@ export class PiChatController {
   private currentSessionName = '';
   private nextClientSessionFile: string | undefined;
   private shouldRestoreInitialSessionHistory: boolean;
+  private sessionHistoryLoading: boolean;
   private restartClientWhenIdle = false;
   private abortRequested = false;
   private abortNoticeAdded = false;
@@ -189,6 +190,7 @@ export class PiChatController {
     this.fullRpcAgentCommunication = options.fullRpcAgentCommunication ?? false;
     this.currentSessionFile = options.initialSessionFile;
     this.shouldRestoreInitialSessionHistory = Boolean(options.initialSessionFile);
+    this.sessionHistoryLoading = Boolean(options.initialSessionFile);
 
     if (options.initialSessionMeta) {
       this.setSessionMetaFields(options.initialSessionMeta);
@@ -389,6 +391,7 @@ export class PiChatController {
     this.sessions = this.sessions.map((session) => ({ ...session, current: false }));
     this.nextClientSessionFile = undefined;
     this.shouldRestoreInitialSessionHistory = false;
+    this.sessionHistoryLoading = false;
     this.restartClientWhenIdle = false;
     this.options.onSessionFileChange?.(undefined);
     this.resetSessionMeta();
@@ -490,7 +493,8 @@ export class PiChatController {
           currentSessionName: this.currentSessionName,
           treeItems: this.treeItems,
           treeRefreshing: this.treeRefreshing,
-          treeError: this.treeError
+          treeError: this.treeError,
+          sessionLoading: this.sessionHistoryLoading
         }
         : undefined
     });
@@ -504,6 +508,7 @@ export class PiChatController {
       || Boolean(this.sessionsError)
       || Boolean(this.currentSessionFile)
       || Boolean(this.currentSessionName)
+      || this.sessionHistoryLoading
       || this.treeItems.length > 0
       || this.treeRefreshing
       || Boolean(this.treeError);
@@ -792,17 +797,21 @@ export class PiChatController {
 
     this.sessionsError = '';
     this.sessionsRefreshing = true;
+    this.sessionHistoryLoading = true;
     this.postState();
 
     try {
       const result = await this.getClient().switchSession(trimmedPath);
 
       if (result.cancelled) {
+        this.sessionHistoryLoading = false;
+        this.postState();
         return;
       }
 
       await this.adoptReplacedSession({ fallbackSessionFile: trimmedPath });
     } catch (error) {
+      this.sessionHistoryLoading = false;
       this.sessionsError = getErrorMessage(error);
       this.postState();
     } finally {
@@ -875,12 +884,22 @@ export class PiChatController {
     this.metadataRefreshSequence += 1;
     this.slashCommandsRefreshSequence += 1;
     this.shouldRestoreInitialSessionHistory = false;
+    this.sessionHistoryLoading = true;
     this.resetSessionMeta();
 
-    const [messagesResult, stateResult] = await Promise.all([
-      client.getMessages(),
-      client.getState().catch(() => undefined)
-    ]);
+    let messagesResult: Awaited<ReturnType<PiRpcClientLike['getMessages']>>;
+    let stateResult: Awaited<ReturnType<PiRpcClientLike['getState']>> | undefined;
+
+    try {
+      [messagesResult, stateResult] = await Promise.all([
+        client.getMessages(),
+        client.getState().catch(() => undefined)
+      ]);
+    } catch (error) {
+      this.sessionHistoryLoading = false;
+      this.postState();
+      throw error;
+    }
 
     const sessionFile = stateResult
       ? getSessionFile(stateResult) ?? options.fallbackSessionFile
@@ -888,6 +907,7 @@ export class PiChatController {
     this.applyCurrentSessionFile(sessionFile);
     this.applyCurrentSessionName(stateResult?.sessionName);
     this.session.replaceMessages(formatAgentMessages(messagesResult.messages));
+    this.sessionHistoryLoading = false;
     this.sessionViewMode = 'chat';
     this.sessionsError = '';
     this.postState();
@@ -910,6 +930,7 @@ export class PiChatController {
       client = options.startClient ? this.getClient() : this.getExistingClient();
     } catch (error) {
       if (sessionGeneration === this.session.generation) {
+        this.sessionHistoryLoading = false;
         this.handleClientError(getErrorMessage(error));
       }
 
@@ -955,25 +976,34 @@ export class PiChatController {
       return;
     }
 
-    const result = await client.getMessages();
+    let result: Awaited<ReturnType<PiRpcClientLike['getMessages']>>;
+
+    try {
+      result = await client.getMessages();
+    } catch (error) {
+      if (this.isCurrentMetadataRefresh(sessionGeneration, refreshId)) {
+        this.sessionHistoryLoading = false;
+        this.postState();
+      }
+
+      throw error;
+    }
 
     if (!this.isCurrentMetadataRefresh(sessionGeneration, refreshId)) {
       return;
     }
 
     this.shouldRestoreInitialSessionHistory = false;
+    this.sessionHistoryLoading = false;
 
-    if (!this.session.isEmpty) {
-      return;
+    if (this.session.isEmpty) {
+      const messages = formatAgentMessages(result.messages);
+
+      if (messages.length > 0) {
+        this.session.replaceMessages(messages);
+      }
     }
 
-    const messages = formatAgentMessages(result.messages);
-
-    if (messages.length === 0) {
-      return;
-    }
-
-    this.session.replaceMessages(messages);
     this.postState();
   }
 
@@ -2013,6 +2043,7 @@ export class PiChatController {
     this.compacting = false;
     this.metadataRefreshing = false;
     this.slashCommandsRefreshing = false;
+    this.sessionHistoryLoading = false;
     this.postState();
     this.restartClientForConfigurationChangeIfIdle();
   }

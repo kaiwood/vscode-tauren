@@ -7,7 +7,6 @@
       toolbarTitleTextElement: queryRequired(".pi-toolbar__title-text"),
       sessionNameInputElement: queryRequired(".pi-toolbar__title-input"),
       sessionToggleButton: queryRequired(".pi-toolbar__sessions"),
-      sessionEditButton: queryRequired(".pi-toolbar__edit"),
       sessionMenuWrapElement: queryRequired(".pi-toolbar__menu-wrap"),
       sessionMenuButton: queryRequired(".pi-toolbar__menu-button"),
       sessionMenuElement: queryRequired(".pi-toolbar__menu"),
@@ -541,7 +540,6 @@
     toolbarTitleTextElement,
     sessionNameInputElement,
     sessionToggleButton,
-    sessionEditButton,
     sessionMenuWrapElement,
     sessionMenuButton,
     sessionMenuElement,
@@ -581,7 +579,7 @@
   messagesContentElement.replaceChildren(...Array.from(messagesElement.childNodes));
   messagesElement.append(messagesContentElement, busyStatusElement);
   var isMac = navigator.platform.toUpperCase().includes("MAC");
-  var state = { messages: [], busy: false, modelLabel: "", modelProvider: "", modelId: "", modelReasoning: false, thinkingLevel: "", modelOptions: [], contextUsageLabel: "", contextUsageTitle: "", contextUsageLevel: "", metadataRefreshing: false, slashCommands: [], slashCommandsRefreshing: false, promptContext: [], composerText: "", composerTextRevision: 0, viewMode: "chat", sessions: [], sessionsRefreshing: false, sessionsError: "", currentSessionFile: "", currentSessionName: "", treeItems: [], treeRefreshing: false, treeError: "" };
+  var state = { messages: [], busy: false, modelLabel: "", modelProvider: "", modelId: "", modelReasoning: false, thinkingLevel: "", modelOptions: [], contextUsageLabel: "", contextUsageTitle: "", contextUsageLevel: "", metadataRefreshing: false, slashCommands: [], slashCommandsRefreshing: false, promptContext: [], composerText: "", composerTextRevision: 0, viewMode: "chat", sessions: [], sessionsRefreshing: false, sessionsError: "", currentSessionFile: "", currentSessionName: "", treeItems: [], treeRefreshing: false, treeError: "", sessionLoading: false };
   var appliedComposerTextRevision = 0;
   var slashMenuOpen = false;
   var slashMenuActiveIndex = 0;
@@ -640,7 +638,8 @@
       currentSessionName: typeof event.data.currentSessionName === "string" ? event.data.currentSessionName : "",
       treeItems: Array.isArray(event.data.treeItems) ? event.data.treeItems : [],
       treeRefreshing: Boolean(event.data.treeRefreshing),
-      treeError: typeof event.data.treeError === "string" ? event.data.treeError : ""
+      treeError: typeof event.data.treeError === "string" ? event.data.treeError : "",
+      sessionLoading: Boolean(event.data.sessionLoading)
     };
     const wasListView = previousViewMode === "sessions" || previousViewMode === "tree";
     const isListView = state.viewMode === "sessions" || state.viewMode === "tree";
@@ -696,7 +695,6 @@
   cloneSessionButton?.addEventListener("click", () => runSessionSlashCommand("clone"));
   messagesElement?.addEventListener("click", handleMessageClick);
   sessionToggleButton?.addEventListener("click", toggleSessionView);
-  sessionEditButton?.addEventListener("click", startSessionNameEdit);
   sessionMenuButton?.addEventListener("click", toggleSessionCommandMenu);
   for (const item of sessionMenuItemElements) {
     item.addEventListener("click", () => runSessionMenuCommand(item.getAttribute("data-session-command")));
@@ -846,7 +844,9 @@
     const shouldStickToBottom = !isListView && isMessagesAtBottom();
     messagesElement.hidden = isListView;
     sessionsElement.hidden = !isListView;
-    form.hidden = isListView;
+    form.classList.toggle("composer--list-hidden", isListView);
+    form.setAttribute("aria-hidden", isListView ? "true" : "false");
+    form.inert = isListView;
     const toolbarTitle = state.viewMode === "sessions" ? "Sessions" : state.viewMode === "tree" ? "Session tree" : getCurrentSessionTitle();
     if ((isListView || state.busy) && sessionNameEditing) {
       cancelSessionNameEdit();
@@ -856,8 +856,6 @@
     toolbarTitleElement.classList.toggle("pi-toolbar__title--editing", sessionNameEditing);
     toolbarTitleTextElement.hidden = sessionNameEditing;
     sessionNameInputElement.hidden = !sessionNameEditing;
-    sessionEditButton.hidden = isListView;
-    sessionEditButton.disabled = state.busy || sessionNameEditing;
     sessionMenuWrapElement.hidden = isListView;
     sessionMenuButton.disabled = state.busy || sessionNameEditing;
     for (const item of sessionMenuItemElements) {
@@ -892,10 +890,7 @@
   function renderMessageList() {
     if (state.messages.length === 0) {
       renderedMessageViews = [];
-      const empty = document.createElement("p");
-      empty.className = "empty-state";
-      empty.textContent = "Ask Pi about this workspace.";
-      messagesContentElement.replaceChildren(empty);
+      messagesContentElement.replaceChildren(createEmptyStateElement());
       return;
     }
     if (messagesContentElement.querySelector(".empty-state")) {
@@ -915,6 +910,22 @@
       renderedMessageViews[index]?.element.remove();
     }
     renderedMessageViews.length = state.messages.length;
+  }
+  function createEmptyStateElement() {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    if (!state.sessionLoading) {
+      empty.textContent = "Ask Pi about this workspace.";
+      return empty;
+    }
+    empty.classList.add("empty-state--loading");
+    const spinner = document.createElement("span");
+    spinner.className = "status__spinner";
+    spinner.setAttribute("aria-hidden", "true");
+    const text = document.createElement("span");
+    text.textContent = "Loading session\u2026";
+    empty.append(spinner, text);
+    return empty;
   }
   function renderMessageAtIndex(index, message, showRole) {
     const existingView = renderedMessageViews[index];
@@ -1329,7 +1340,6 @@
     toolbarTitleElement.classList.toggle("pi-toolbar__title--editing", sessionNameEditing);
     toolbarTitleTextElement.hidden = sessionNameEditing;
     sessionNameInputElement.hidden = !sessionNameEditing;
-    sessionEditButton.disabled = state.busy || sessionNameEditing;
     sessionMenuButton.disabled = state.busy || sessionNameEditing;
   }
   function toggleSessionCommandMenu(event) {
@@ -1349,6 +1359,11 @@
     sessionMenuButton.setAttribute("aria-expanded", "false");
   }
   function runSessionMenuCommand(command) {
+    if (command === "rename") {
+      closeSessionCommandMenu();
+      startSessionNameEdit();
+      return;
+    }
     if (command !== "reload" && command !== "compact" && command !== "export") {
       return;
     }

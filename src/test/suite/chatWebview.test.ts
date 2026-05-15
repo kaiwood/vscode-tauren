@@ -196,8 +196,11 @@ suite('Chat webview helpers', () => {
     assert.ok(html.includes('<script nonce="' + nonce + '" src="vscode-resource://dompurify.js"></script>'));
     assert.ok(html.includes('<script nonce="' + nonce + '" src="vscode-resource://chat.js"></script>'));
     assert.ok(html.includes('class="pi-toolbar__sessions"'));
-    assert.ok(html.includes('class="pi-toolbar__edit"'));
+    assert.ok(!html.includes('class="pi-toolbar__edit"'));
     assert.ok(html.includes('class="pi-toolbar__title-input"'));
+    assert.ok(html.includes('data-session-command="rename"'));
+    assert.ok(html.includes('<span class="pi-toolbar__menu-label">Rename session</span>'));
+    assert.ok(html.includes('class="pi-toolbar__menu-icon"'));
     assert.ok(!html.includes('pi-toolbar__session-menu'));
     assert.ok(html.includes('class="messages" aria-live="polite" aria-label="Pi conversation"'));
     assert.ok(html.includes('class="sessions" aria-label="Pi sessions and tree" role="listbox"'));

@@ -193,6 +193,7 @@ export type WebviewStateMessage = ChatState & {
   treeItems?: WebviewTreeItem[];
   treeRefreshing?: boolean;
   treeError?: string;
+  sessionLoading?: boolean;
 };
 
 type CreateWebviewStateMessageOptions = {
@@ -228,6 +229,7 @@ type CreateWebviewStateMessageOptions = {
     treeItems?: WebviewTreeItem[];
     treeRefreshing?: boolean;
     treeError?: string;
+    sessionLoading?: boolean;
   };
 };
 
@@ -282,6 +284,10 @@ export function createWebviewStateMessage({
     message.treeItems = sessionView.treeItems ?? [];
     message.treeRefreshing = sessionView.treeRefreshing ?? false;
     message.treeError = sessionView.treeError ?? '';
+
+    if (sessionView.sessionLoading) {
+      message.sessionLoading = true;
+    }
   }
 
   return message;
@@ -317,12 +323,6 @@ ${chatWebviewStyles}
         </svg>
       </button>
       <div class="pi-toolbar__title"><span class="pi-toolbar__title-text">Pi</span><input class="pi-toolbar__title-input" type="text" aria-label="Session name" spellcheck="false" hidden></div>
-      <button class="pi-toolbar__edit" type="button" aria-label="Edit session name" title="Edit session name">
-        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M4.25 11.75L5.7 11.45L11.45 5.7C11.83 5.32 11.83 4.7 11.45 4.32L11.18 4.05C10.8 3.67 10.18 3.67 9.8 4.05L4.05 9.8L3.75 11.25C3.69 11.55 3.95 11.81 4.25 11.75Z" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M9.15 4.7L10.8 6.35" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>
-        </svg>
-      </button>
       <div class="pi-toolbar__menu-wrap">
         <button class="pi-toolbar__menu-button" type="button" aria-label="Session commands" title="Session commands" aria-haspopup="menu" aria-expanded="false">
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -332,9 +332,38 @@ ${chatWebviewStyles}
           </svg>
         </button>
         <div class="pi-toolbar__menu" role="menu" hidden>
-          <button class="pi-toolbar__menu-item" type="button" role="menuitem" data-session-command="reload">Reload Pi</button>
-          <button class="pi-toolbar__menu-item" type="button" role="menuitem" data-session-command="compact">Compact session</button>
-          <button class="pi-toolbar__menu-item" type="button" role="menuitem" data-session-command="export">Export HTML</button>
+          <button class="pi-toolbar__menu-item" type="button" role="menuitem" data-session-command="reload">
+            <span class="pi-toolbar__menu-label">Reload Pi</span>
+            <svg class="pi-toolbar__menu-icon" aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M12.5 5.3A5 5 0 1 0 13 8" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M12.5 2.75V5.3H9.95" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <button class="pi-toolbar__menu-item" type="button" role="menuitem" data-session-command="rename">
+            <span class="pi-toolbar__menu-label">Rename session</span>
+            <svg class="pi-toolbar__menu-icon" aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M4.1 11.9L5.45 11.6L11.15 5.9C11.55 5.5 11.55 4.85 11.15 4.45L10.9 4.2C10.5 3.8 9.85 3.8 9.45 4.2L3.75 9.9L3.45 11.25C3.37 11.65 3.7 11.98 4.1 11.9Z" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8.85 4.8L10.55 6.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <button class="pi-toolbar__menu-item" type="button" role="menuitem" data-session-command="compact">
+            <span class="pi-toolbar__menu-label">Compact session</span>
+            <svg class="pi-toolbar__menu-icon" aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M5 3.5H3.5V5" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M11 3.5H12.5V5" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M5 12.5H3.5V11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M11 12.5H12.5V11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M5.3 5.3L7.05 7.05M10.7 5.3L8.95 7.05M5.3 10.7L7.05 8.95M10.7 10.7L8.95 8.95" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <button class="pi-toolbar__menu-item" type="button" role="menuitem" data-session-command="export">
+            <span class="pi-toolbar__menu-label">Export HTML</span>
+            <svg class="pi-toolbar__menu-icon" aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M8 3.5V10" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+              <path d="M5.6 5.9L8 3.5L10.4 5.9" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M4 9.5V11.6C4 12.1 4.4 12.5 4.9 12.5H11.1C11.6 12.5 12 12.1 12 11.6V9.5" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+            </svg>
+          </button>
         </div>
       </div>
     </header>

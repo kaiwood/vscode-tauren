@@ -149,7 +149,6 @@ export const chatWebviewStyles = /* css */ `    :root {
       display: none;
     }
 
-    .pi-toolbar__edit,
     .pi-toolbar__menu-button {
       display: grid;
       place-items: center;
@@ -165,8 +164,6 @@ export const chatWebviewStyles = /* css */ `    :root {
       cursor: pointer;
     }
 
-    .pi-toolbar__edit:hover:not(:disabled),
-    .pi-toolbar__edit:focus-visible,
     .pi-toolbar__menu-button:hover:not(:disabled),
     .pi-toolbar__menu-button:focus-visible,
     .pi-toolbar__menu-button[aria-expanded="true"] {
@@ -175,13 +172,11 @@ export const chatWebviewStyles = /* css */ `    :root {
       outline: none;
     }
 
-    .pi-toolbar__edit:disabled,
     .pi-toolbar__menu-button:disabled {
       opacity: 0.45;
       cursor: default;
     }
 
-    .pi-toolbar__edit[hidden],
     .pi-toolbar__menu-wrap[hidden] {
       display: none;
     }
@@ -199,7 +194,7 @@ export const chatWebviewStyles = /* css */ `    :root {
       top: 30px;
       right: 0;
       z-index: 10;
-      min-width: 140px;
+      min-width: 170px;
       padding: 4px;
       background: var(--vscode-dropdown-background, var(--vscode-editorWidget-background));
       border: 1px solid var(--vscode-dropdown-border, var(--vscode-input-border, transparent));
@@ -212,7 +207,10 @@ export const chatWebviewStyles = /* css */ `    :root {
     }
 
     .pi-toolbar__menu-item {
-      display: block;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
       width: 100%;
       padding: 5px 8px;
       color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
@@ -225,6 +223,11 @@ export const chatWebviewStyles = /* css */ `    :root {
       text-align: left;
       white-space: nowrap;
       cursor: pointer;
+    }
+
+    .pi-toolbar__menu-icon {
+      flex: 0 0 auto;
+      opacity: 0.78;
     }
 
     .pi-toolbar__menu-item:hover:not(:disabled),
@@ -285,6 +288,12 @@ export const chatWebviewStyles = /* css */ `    :root {
     .empty-state {
       margin: 0;
       color: var(--vscode-descriptionForeground);
+    }
+
+    .empty-state--loading {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
     }
 
     .sessions {
@@ -808,6 +817,28 @@ export const chatWebviewStyles = /* css */ `    :root {
       border: 1px solid var(--vscode-input-border, transparent);
       border-radius: 21px;
       box-shadow: inset 0 1px 0 color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity 140ms ease,
+        transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+        min-height 180ms ease,
+        max-height 180ms ease,
+        margin 180ms ease,
+        padding 180ms ease;
+      will-change: opacity, transform, max-height;
+    }
+
+    .composer--list-hidden {
+      min-height: 0;
+      max-height: 0;
+      margin-top: 0;
+      margin-bottom: 0;
+      padding-top: 0;
+      padding-bottom: 0;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(32px);
     }
 
     .composer--has-context {
