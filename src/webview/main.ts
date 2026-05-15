@@ -173,7 +173,8 @@ window.addEventListener('message', (event) => {
   applyComposerTextFromState();
   runPendingSessionItemCommand();
 
-  if ((previousViewMode === 'sessions' || previousViewMode === 'tree') && state.viewMode === 'chat') {
+  if (wasListView && state.viewMode === 'chat') {
+    scheduleMessagesToBottom();
     focusPromptInput();
   }
 });
@@ -1964,6 +1965,22 @@ function isMessagesAtBottom() {
 
 function scrollMessagesToBottom() {
   messagesElement.scrollTop = messagesElement.scrollHeight;
+}
+
+function scheduleMessagesToBottom(): void {
+  scrollMessagesToBottomIfChat();
+  requestAnimationFrame(() => {
+    scrollMessagesToBottomIfChat();
+    requestAnimationFrame(scrollMessagesToBottomIfChat);
+  });
+  setTimeout(scrollMessagesToBottomIfChat, 80);
+  setTimeout(scrollMessagesToBottomIfChat, 220);
+}
+
+function scrollMessagesToBottomIfChat(): void {
+  if (state.viewMode === 'chat') {
+    scrollMessagesToBottom();
+  }
 }
 
 function syncTextareaHeight() {

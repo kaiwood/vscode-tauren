@@ -663,7 +663,8 @@
     render();
     applyComposerTextFromState();
     runPendingSessionItemCommand();
-    if ((previousViewMode === "sessions" || previousViewMode === "tree") && state.viewMode === "chat") {
+    if (wasListView && state.viewMode === "chat") {
+      scheduleMessagesToBottom();
       focusPromptInput();
     }
   });
@@ -2029,6 +2030,20 @@
   }
   function scrollMessagesToBottom() {
     messagesElement.scrollTop = messagesElement.scrollHeight;
+  }
+  function scheduleMessagesToBottom() {
+    scrollMessagesToBottomIfChat();
+    requestAnimationFrame(() => {
+      scrollMessagesToBottomIfChat();
+      requestAnimationFrame(scrollMessagesToBottomIfChat);
+    });
+    setTimeout(scrollMessagesToBottomIfChat, 80);
+    setTimeout(scrollMessagesToBottomIfChat, 220);
+  }
+  function scrollMessagesToBottomIfChat() {
+    if (state.viewMode === "chat") {
+      scrollMessagesToBottom();
+    }
   }
   function syncTextareaHeight() {
     textarea.style.height = "auto";
