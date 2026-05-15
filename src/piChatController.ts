@@ -177,6 +177,7 @@ export class PiChatController {
   private metadataRefreshInFlight: { generation: number; promise: Promise<void> } | undefined;
   private contextUsageRefreshInFlight: { generation: number; promise: Promise<void> } | undefined;
   private slashCommandsRefreshInFlight: { generation: number; promise: Promise<void> } | undefined;
+  private compacting = false;
   private fullRpcAgentCommunication: boolean;
   private readonly session = new ChatSession();
   private readonly clientDisposables: DisposableLike[] = [];
@@ -304,6 +305,11 @@ export class PiChatController {
     const localSlashCommand = parseLocalSlashCommand(message.text);
 
     if (this.session.isBusy) {
+      if (this.compacting) {
+        this.addCompactionBusyNotice();
+        return;
+      }
+
       if (localSlashCommand) {
         this.addBusySlashCommandNotice(localSlashCommand.name);
         return;
@@ -1305,6 +1311,16 @@ export class PiChatController {
     this.postState();
   }
 
+  private addCompactionBusyNotice(): void {
+    this.session.addActivity({
+      kind: 'queue',
+      title: 'Compaction in progress',
+      status: 'info',
+      summary: 'Wait for context compaction to finish before sending another message.'
+    });
+    this.postState();
+  }
+
   private async handleLocalSlashCommand(command: { name: string; args: string }): Promise<void> {
     if (!isSupportedBuiltinSlashCommand(command.name)) {
       this.session.addSystemMessage(`/${command.name} is a Pi terminal command that is not supported in the VS Code sidebar yet.`);
@@ -1530,13 +1546,52 @@ export class PiChatController {
   }
 
   private async handleCompactSlashCommand(customInstructions: string): Promise<void> {
-    const result = await this.getClient().compact(customInstructions || undefined);
-    const summary = typeof result.summary === 'string' && result.summary
-      ? `\n\n${result.summary}`
-      : '';
-    this.session.addSystemMessage(`Compacted session context.${summary}`);
+    this.compacting = true;
+    this.session.setBusy(true);
+    this.applyActivityAction({
+      type: 'activity_update',
+      sourceId: 'compaction',
+      activity: {
+        kind: 'compaction',
+        title: 'Compacting context…',
+        status: 'running'
+      }
+    });
     this.postState();
-    void this.refreshSessionMeta({ startClient: true, force: true });
+
+    try {
+      const result = await this.getClient().compact(customInstructions || undefined);
+      const summary = typeof result.summary === 'string' ? result.summary.trim() : '';
+      this.applyActivityAction({
+        type: 'activity_update',
+        sourceId: 'compaction',
+        activity: {
+          kind: 'compaction',
+          title: 'Compacting context…',
+          status: 'completed',
+          summary: 'Completed',
+          ...(summary ? { body: summary } : {})
+        }
+      });
+      this.session.handleAgentEnd();
+      this.compacting = false;
+      this.postState();
+      void this.refreshSessionMeta({ startClient: true, force: true });
+    } catch (error) {
+      this.applyActivityAction({
+        type: 'activity_update',
+        sourceId: 'compaction',
+        activity: {
+          kind: 'compaction',
+          title: 'Compacting context…',
+          status: 'error',
+          summary: getErrorMessage(error)
+        }
+      });
+      this.session.handleAgentEnd();
+      this.compacting = false;
+      this.postState();
+    }
   }
 
   private async handleExportSlashCommand(outputPath: string): Promise<void> {
@@ -1891,6 +1946,7 @@ export class PiChatController {
   private handleClientError(message: string): void {
     this.session.addErrorMessage(message);
     this.session.setBusy(false);
+    this.compacting = false;
     this.metadataRefreshing = false;
     this.slashCommandsRefreshing = false;
     this.postState();
@@ -1938,7 +1994,14 @@ function formatContextUsage(stats: PiSessionStats): PiChatContextUsage {
   const tokens = typeof usage.tokens === 'number' ? usage.tokens : undefined;
 
   if (percent === undefined && tokens === undefined) {
-    return { label: '', title: '', level: '' };
+    return {
+      label: '?%',
+      title: [
+        'Context usage unavailable',
+        `Model context size: ${formatInteger(usage.contextWindow)} tokens`
+      ].join('\n'),
+      level: 'low'
+    };
   }
 
   const derivedPercent = percent ?? Math.round(((tokens ?? 0) / usage.contextWindow) * 100);

@@ -518,7 +518,7 @@ suite('Pi event mapper', () => {
         sourceId: 'compaction',
         activity: {
           kind: 'compaction',
-          title: 'Compacting context',
+          title: 'Compacting context…',
           status: 'running',
           body: '{\n  "remainingTokens": 4000\n}',
           code: true
@@ -533,7 +533,7 @@ suite('Pi event mapper', () => {
         sourceId: 'compaction',
         activity: {
           kind: 'compaction',
-          title: 'Compacting context',
+          title: 'Compacting context…',
           status: 'completed',
           summary: 'Completed',
           body: '{\n  "remainingTokens": 6000\n}',

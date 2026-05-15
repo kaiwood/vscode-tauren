@@ -271,7 +271,7 @@ export function mapRpcActivity(
     case 'compaction_start':
       return updateActivity('compaction', compactActivity({
         kind: 'compaction',
-        title: 'Compacting context',
+        title: 'Compacting context…',
         status: 'running',
         body: formatKnownEventBody(event, ['type']),
         code: true
@@ -279,7 +279,7 @@ export function mapRpcActivity(
     case 'compaction_end':
       return updateActivity('compaction', compactActivity({
         kind: 'compaction',
-        title: 'Compacting context',
+        title: 'Compacting context…',
         status: 'completed',
         summary: 'Completed',
         body: formatKnownEventBody(event, ['type']),

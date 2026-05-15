@@ -617,6 +617,22 @@ export const chatWebviewStyles = /* css */ `    :root {
       text-transform: uppercase;
     }
 
+    .activity--running .activity__status {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .activity--running .activity__status::before {
+      width: 9px;
+      height: 9px;
+      content: '';
+      border: 1.4px solid color-mix(in srgb, var(--vscode-descriptionForeground) 35%, transparent);
+      border-top-color: var(--vscode-progressBar-background, var(--vscode-focusBorder));
+      border-radius: 999px;
+      animation: pi-spin 0.8s linear infinite;
+    }
+
     .activity__description {
       grid-column: 1 / -1;
       min-width: 0;

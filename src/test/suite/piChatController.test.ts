@@ -524,6 +524,50 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
+  test('/compact shows busy compaction activity and blocks prompt queueing', async () => {
+    const compactDeferred = createDeferred<{}>();
+    const client = new FakePiClient({ compactResult: compactDeferred.promise });
+    const harness = createControllerHarness([client]);
+
+    const compactPromise = harness.controller.handleWebviewMessage({ type: 'submit', text: '/compact' });
+    await flushPromises();
+
+    assert.strictEqual(lastState(harness).busy, true);
+    assert.strictEqual(lastState(harness).messages[0].activities?.[0]?.title, 'Compacting context…');
+    assert.strictEqual(lastState(harness).messages[0].activities?.[0]?.status, 'running');
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: 'do not send yet' });
+
+    assert.deepStrictEqual(client.prompts, []);
+    assert.strictEqual(lastState(harness).messages[0].activities?.[1]?.title, 'Compaction in progress');
+
+    compactDeferred.resolve({ summary: 'Compacted summary' });
+    await compactPromise;
+    await flushPromises();
+
+    assert.strictEqual(client.compactCalls, 1);
+    assert.strictEqual(lastState(harness).busy, false);
+    assert.strictEqual(lastState(harness).messages.length, 1);
+    assert.strictEqual(lastState(harness).messages[0].activities?.[0]?.status, 'completed');
+    assert.strictEqual(lastState(harness).messages[0].activities?.[0]?.body, 'Compacted summary');
+    harness.controller.dispose();
+  });
+
+  test('unknown context usage still shows an unavailable context badge', async () => {
+    const client = new FakePiClient({
+      stats: { contextUsage: { tokens: null, contextWindow: 1000, percent: null } }
+    });
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.refreshContextUsage({ startClient: true });
+    await flushPromises();
+
+    assert.strictEqual(lastState(harness).contextUsageLabel, '?%');
+    assert.strictEqual(lastState(harness).contextUsageLevel, 'low');
+    assert.ok(lastState(harness).contextUsageTitle.includes('Context usage unavailable'));
+    harness.controller.dispose();
+  });
+
   test('abort sends RPC abort while keeping the current turn busy until agent events arrive', async () => {
     const promptDeferred = createDeferred<void>();
     const client = new FakePiClient({ promptResult: promptDeferred.promise });
@@ -1469,6 +1513,8 @@ type FakePiClientOptions = {
   forkMessages?: Array<{ entryId?: string; text?: string }>;
   forkResult?: { text?: string; cancelled?: boolean };
   cloneResult?: { cancelled?: boolean };
+  compactResult?: Promise<{}> | {};
+  compactError?: unknown;
   promptResult?: Promise<void>;
   promptError?: unknown;
 };
@@ -1543,6 +1589,9 @@ class FakePiClient implements PiRpcClientLike {
   public forkedEntries: string[] = [];
   public cloneResult: { cancelled?: boolean };
   public cloneCalls = 0;
+  public compactCalls = 0;
+  public compactResult: Promise<{}> | {};
+  public compactError: unknown;
   public promptResult: Promise<void> | undefined;
   public promptError: unknown;
   private readonly eventListeners = new Set<(event: RpcEvent) => void>();
@@ -1570,6 +1619,8 @@ class FakePiClient implements PiRpcClientLike {
     this.forkMessages = options.forkMessages ?? [];
     this.forkResult = options.forkResult ?? { cancelled: false };
     this.cloneResult = options.cloneResult ?? { cancelled: false };
+    this.compactResult = options.compactResult ?? {};
+    this.compactError = options.compactError;
     this.promptResult = options.promptResult;
     this.promptError = options.promptError;
   }
@@ -1694,7 +1745,13 @@ class FakePiClient implements PiRpcClientLike {
   }
 
   public async compact(): Promise<{}> {
-    return {};
+    this.compactCalls += 1;
+
+    if (this.compactError) {
+      throw this.compactError;
+    }
+
+    return this.compactResult;
   }
 
   public async exportHtml(): Promise<{}> {
