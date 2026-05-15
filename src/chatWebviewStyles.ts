@@ -1194,8 +1194,8 @@ export const chatWebviewStyles = /* css */ `    :root {
     }
 
     .composer__add svg {
-      width: 22px;
-      height: 22px;
+      width: 24px;
+      height: 24px;
     }
 
     .composer__button-tooltip {
