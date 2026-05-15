@@ -82,11 +82,6 @@
       "id": "tau",
       "title": "Tau",
       "properties": {
-        "tau.fullRpcAgentCommunication": {
-          "type": "boolean",
-          "default": false,
-          "description": "Show full RPC agent communication in the Pi sidebar transcript. When disabled, only assistant text, thinking, tool progress, and errors are shown."
-        },
         "tau.piPath": {
           "type": "string",
           "default": "pi",

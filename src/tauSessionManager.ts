@@ -101,12 +101,6 @@ export class TauSessionManager {
     void this.active().controller.refreshContextUsage(options);
   }
 
-  public setFullRpcAgentCommunication(value: boolean): void {
-    for (const session of this.sessions) {
-      session.controller.setFullRpcAgentCommunication(value);
-    }
-  }
-
   public handlePiPathChanged(): void {
     for (const session of this.sessions) {
       session.controller.handlePiPathChanged();

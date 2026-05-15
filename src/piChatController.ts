@@ -123,7 +123,6 @@ export type PiChatControllerOptions = {
   getCwd?: () => string | undefined;
   getPiPath?: () => string | undefined;
   getSystemPrompt?: () => string | undefined;
-  fullRpcAgentCommunication?: boolean;
   stateScheduler?: StatePublisherScheduler;
   initialSessionMeta?: PiChatSessionMetaSnapshot;
   initialSessionFile?: string;
@@ -181,14 +180,12 @@ export class PiChatController {
   private contextUsageRefreshInFlight: { generation: number; promise: Promise<void> } | undefined;
   private slashCommandsRefreshInFlight: { generation: number; promise: Promise<void> } | undefined;
   private compacting = false;
-  private fullRpcAgentCommunication: boolean;
   private readonly session = new ChatSession();
   private readonly clientDisposables: DisposableLike[] = [];
   private readonly statePublisher: StatePublisher<WebviewStateMessage>;
   private readonly extensionUiRequestHandler: ExtensionUiRequestHandler;
 
   public constructor(private readonly options: PiChatControllerOptions) {
-    this.fullRpcAgentCommunication = options.fullRpcAgentCommunication ?? false;
     this.currentSessionFile = options.initialSessionFile;
     this.shouldRestoreInitialSessionHistory = Boolean(options.initialSessionFile);
     this.sessionHistoryLoading = Boolean(options.initialSessionFile);
@@ -409,11 +406,6 @@ export class PiChatController {
     this.disposeClient();
     this.postState();
     void this.refreshSessionMeta({ startClient: true });
-  }
-
-  public setFullRpcAgentCommunication(value: boolean): void {
-    this.fullRpcAgentCommunication = value;
-    this.postState();
   }
 
   public handlePiPathChanged(): void {
@@ -2117,7 +2109,7 @@ export class PiChatController {
 
   private handleMessageUpdate(event: RpcEvent): void {
     const action = mapMessageUpdate(event, this.getMessageUpdateStreamId(event), {
-      fullCommunication: this.fullRpcAgentCommunication
+      fullCommunication: false
     });
 
     if (action.type === 'text_delta') {
@@ -2184,7 +2176,7 @@ export class PiChatController {
     }
 
     const action = mapRpcActivity(event, {
-      fullCommunication: this.fullRpcAgentCommunication
+      fullCommunication: false
     });
 
     if (action.type === 'activity_update' || action.type === 'activity_add' || action.type === 'activity_remove') {

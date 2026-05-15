@@ -223,8 +223,6 @@ suite('Chat webview helpers', () => {
     assert.ok(html.includes('class="messages" aria-live="polite" aria-label="Pi conversation"'));
     assert.ok(html.includes('class="sessions" aria-label="Pi sessions and tree" role="listbox"'));
     assert.ok(html.includes('<form class="composer" aria-label="Pi message input">'));
-    assert.ok(!html.includes('Full RPC Agent communication'));
-    assert.ok(!html.includes('setFullRpcAgentCommunication'));
     assert.ok(html.includes('class="composer__button composer__add"'));
     assert.ok(!html.includes('class="composer__button composer__fork"'));
     assert.ok(!html.includes('class="composer__button composer__clone"'));

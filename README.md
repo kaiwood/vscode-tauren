@@ -128,10 +128,6 @@ Command used to launch Pi. This can be an executable name or a full command, suc
 - `npx pi`
 - `"/path with spaces/pi"`
 
-### `tau.fullRpcAgentCommunication`
-
-Shows the full RPC conversation in the transcript. Most users should leave this off. It is mainly useful while debugging Tau or Pi RPC behavior.
-
 ## Development
 
 ```sh

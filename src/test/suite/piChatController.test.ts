@@ -1669,7 +1669,6 @@ type ControllerHarnessOptions = {
   piPath?: string;
   getPiPath?: () => string | undefined;
   extensionUi?: PiChatControllerOptions['extensionUi'];
-  fullRpcAgentCommunication?: boolean;
   stateScheduler?: StatePublisherScheduler;
   initialSessionMeta?: PiChatSessionMetaSnapshot;
   initialSessionFile?: string;
@@ -1711,7 +1710,6 @@ function createControllerHarness(
       toasts.push(message);
     },
     extensionUi: options.extensionUi,
-    fullRpcAgentCommunication: options.fullRpcAgentCommunication ?? false,
     stateScheduler: options.stateScheduler,
     initialSessionMeta: options.initialSessionMeta,
     initialSessionFile: options.initialSessionFile,

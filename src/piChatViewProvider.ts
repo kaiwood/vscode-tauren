@@ -64,7 +64,6 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
           placeHolder: placeholder
         })
       },
-      fullRpcAgentCommunication: getFullRpcAgentCommunicationSetting(),
       initialSessionMeta: readCachedSessionMeta(this.workspaceState),
       initialSessionFile: readCurrentSessionFile(this.workspaceState),
       onSessionMetaChange: (metadata) => this.writeCachedSessionMeta(metadata),
@@ -75,10 +74,6 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
     this.disposables.push(
       vscode.workspace.onDidChangeConfiguration((event) => {
-        if (event.affectsConfiguration('tau.fullRpcAgentCommunication')) {
-          this.controller.setFullRpcAgentCommunication(getFullRpcAgentCommunicationSetting());
-        }
-
         if (event.affectsConfiguration('tau.piPath')) {
           this.controller.handlePiPathChanged();
         }
@@ -446,13 +441,6 @@ function getPathBasename(path: string): string {
   const normalizedPath = path.replace(/\\/g, '/');
   const lastSlashIndex = normalizedPath.lastIndexOf('/');
   return lastSlashIndex === -1 ? normalizedPath : normalizedPath.slice(lastSlashIndex + 1);
-}
-
-function getFullRpcAgentCommunicationSetting(): boolean {
-  return vscode.workspace.getConfiguration('tau').get<boolean>(
-    'fullRpcAgentCommunication',
-    false
-  );
 }
 
 function getPiPathSetting(): string | undefined {
