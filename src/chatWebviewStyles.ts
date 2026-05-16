@@ -310,7 +310,10 @@ export const chatWebviewStyles = /* css */ `    :root {
     }
 
     .sessions {
+      grid-row: 2 / 4;
+      z-index: 1;
       padding: 6px 12px 12px 8px;
+      background: var(--vscode-sideBar-background);
       outline: none;
       transform: translate3d(100%, 0, 0);
       pointer-events: none;
@@ -932,13 +935,6 @@ export const chatWebviewStyles = /* css */ `    :root {
     }
 
     .composer--list-hidden {
-      min-height: 0;
-      max-height: 0;
-      margin-top: 0;
-      margin-bottom: 0;
-      padding-top: 0;
-      padding-bottom: 0;
-      overflow: hidden;
       opacity: 0;
       pointer-events: none;
       transform: translateY(32px);
