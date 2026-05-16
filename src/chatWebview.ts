@@ -337,10 +337,8 @@ ${chatWebviewStyles}
       <div class="pi-toolbar__title"><span class="pi-toolbar__title-text">Pi</span><input class="pi-toolbar__title-input" type="text" aria-label="Session name" spellcheck="false" hidden></div>
       <div class="pi-toolbar__menu-wrap">
         <button class="pi-toolbar__menu-button" type="button" aria-label="Session commands" title="Session commands" aria-haspopup="menu" aria-expanded="false">
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="3.5" r="1.15" fill="currentColor"/>
-            <circle cx="8" cy="8" r="1.15" fill="currentColor"/>
-            <circle cx="8" cy="12.5" r="1.15" fill="currentColor"/>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M5 8C5 8.55229 4.55228 9 4 9C3.44772 9 3 8.55229 3 8C3 7.44772 3.44772 7 4 7C4.55228 7 5 7.44772 5 8ZM9 8C9 8.55229 8.55229 9 8 9C7.44772 9 7 8.55229 7 8C7 7.44772 7.44772 7 8 7C8.55229 7 9 7.44772 9 8ZM12 9C12.5523 9 13 8.55229 13 8C13 7.44772 12.5523 7 12 7C11.4477 7 11 7.44772 11 8C11 8.55229 11.4477 9 12 9Z"/>
           </svg>
         </button>
         <div class="pi-toolbar__menu" role="menu" hidden>
