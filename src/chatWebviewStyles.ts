@@ -1263,7 +1263,7 @@ export const chatWebviewStyles = /* css */ `    :root {
       display: block;
     }
 
-    .composer__submit-arrow,
+    .composer__submit-play,
     .composer__submit-stop {
       transform-box: fill-box;
       transform-origin: center;
@@ -1275,7 +1275,7 @@ export const chatWebviewStyles = /* css */ `    :root {
       transform: scale(0.45);
     }
 
-    .composer__submit--stop .composer__submit-arrow {
+    .composer__submit--stop .composer__submit-play {
       opacity: 0;
       transform: scale(0.45);
     }

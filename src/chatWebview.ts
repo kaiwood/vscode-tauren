@@ -450,7 +450,7 @@ ${chatWebviewStyles}
       </div>
       <button class="composer__button composer__submit" type="submit" aria-label="Send message" title="Send message" disabled>
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <path class="composer__submit-arrow" d="M9 14.25V3.75M4.75 8L9 3.75L13.25 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path class="composer__submit-play" d="M5.1 3.55C5.1 2.75 5.97 2.27 6.65 2.68L15.65 8.05C16.34 8.46 16.34 9.54 15.65 9.95L6.65 15.32C5.97 15.73 5.1 15.25 5.1 14.45Z" fill="currentColor"/>
           <rect class="composer__submit-stop" x="4" y="4" width="10" height="10" rx="1.5" fill="currentColor"/>
         </svg>
       </button>
