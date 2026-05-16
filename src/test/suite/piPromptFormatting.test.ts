@@ -1,28 +1,12 @@
 import * as assert from 'assert';
 import {
   formatPromptForPi,
-  formatPromptWithIdeContext,
-  formatPromptWithVisibleSystemPrompt
+  formatPromptWithIdeContext
 } from '../../piPromptFormatting';
 
 suite('Pi prompt formatting helpers', () => {
-  test('returns the user prompt unchanged without context or system prompt', () => {
-    assert.strictEqual(formatPromptForPi('plain prompt', [], undefined), 'plain prompt');
-  });
-
-  test('wraps visible system prompt and trims configured whitespace', () => {
-    assert.strictEqual(
-      formatPromptWithVisibleSystemPrompt('user prompt', '  Use short answers.\n'),
-      [
-        '<!-- tau:visible-system-prompt:start -->',
-        '<system_prompt source="vscode-tau-settings" visibility="user-editable">',
-        'Use short answers.',
-        '</system_prompt>',
-        '<!-- tau:visible-system-prompt:end -->',
-        '',
-        'user prompt'
-      ].join('\n')
-    );
+  test('returns the user prompt unchanged without context', () => {
+    assert.strictEqual(formatPromptForPi('plain prompt', []), 'plain prompt');
   });
 
   test('formats file and selection IDE context attachments', () => {

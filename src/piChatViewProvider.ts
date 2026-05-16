@@ -43,7 +43,6 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       createClient,
       getCwd: () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
       getPiPath: () => getPiPathSetting(),
-      getSystemPrompt: () => getSystemPromptSetting(),
       postState: (message) => {
         void this.webviewView?.webview.postMessage(message);
       },
@@ -446,11 +445,6 @@ function getPathBasename(path: string): string {
 function getPiPathSetting(): string | undefined {
   const value = vscode.workspace.getConfiguration('tau').get<string>('piPath', 'pi').trim();
   return value && value !== 'pi' ? value : undefined;
-}
-
-function getSystemPromptSetting(): string | undefined {
-  const value = vscode.workspace.getConfiguration('tau').get<string>('systemPrompt', '').trim();
-  return value || undefined;
 }
 
 function resolveWorkspaceFileUri(filePath: string): vscode.Uri | undefined {

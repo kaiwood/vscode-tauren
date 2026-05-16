@@ -55,29 +55,6 @@ suite('Pi session list', () => {
     }
   });
 
-  test('strips Tau metadata from session names and first messages', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'tau-sessions-'));
-
-    try {
-      const sessionPath = join(dir, 'skill.jsonl');
-      const skillPrompt = '<skill name="plan" location="/skills/plan/SKILL.md">\nSkill instructions\n</skill>\n\nBuild this feature';
-      const wrappedName = '<!-- tau:visible-system-prompt:start -->\n<system_prompt source="vscode-tau-settings" visibility="user-editable">\nSettings prompt\n</system_prompt>\n<!-- tau:visible-system-prompt:end -->\n\nSession title';
-      await writeFile(sessionPath, [
-        JSON.stringify({ type: 'session', version: 3, id: 'skill', timestamp: '2026-01-01T00:00:00.000Z', cwd: '/workspace' }),
-        JSON.stringify({ type: 'message', id: 'u1', parentId: null, timestamp: '2026-01-01T00:00:01.000Z', message: { role: 'user', content: skillPrompt } }),
-        JSON.stringify({ type: 'session_info', id: 'n1', parentId: 'u1', timestamp: '2026-01-01T00:00:02.000Z', name: wrappedName })
-      ].join('\n') + '\n');
-
-      const sessions = await listPiSessions({ sessionDir: dir });
-
-      assert.strictEqual(sessions.length, 1);
-      assert.strictEqual(sessions[0].name, 'Session title');
-      assert.strictEqual(sessions[0].firstMessage, 'Build this feature');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-
   test('lists sessions with names, message counts, current marker, and fork tree metadata', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tau-sessions-'));
 

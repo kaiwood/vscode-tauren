@@ -47,7 +47,6 @@ import {
   isBuiltinSlashCommand,
   isSupportedBuiltinSlashCommand
 } from './slashCommands';
-import { stripTauPromptMetadata } from './tauPromptMetadata';
 
 export type PiRpcClientLike = Pick<
   PiRpcClient,
@@ -124,7 +123,6 @@ export type PiChatControllerOptions = {
   extensionUi?: ExtensionUiRequestUi;
   getCwd?: () => string | undefined;
   getPiPath?: () => string | undefined;
-  getSystemPrompt?: () => string | undefined;
   stateScheduler?: StatePublisherScheduler;
   initialSessionMeta?: PiChatSessionMetaSnapshot;
   initialSessionFile?: string;
@@ -695,18 +693,7 @@ export class PiChatController {
         return;
       }
 
-      this.sessions = sessions.map((session) => {
-        const sessionWithoutName = { ...session };
-        delete sessionWithoutName.name;
-        const cleanName = typeof session.name === 'string'
-          ? stripTauPromptMetadata(session.name).trim()
-          : '';
-        return {
-          ...sessionWithoutName,
-          ...(cleanName ? { name: cleanName } : {}),
-          firstMessage: stripTauPromptMetadata(session.firstMessage).trim()
-        };
-      });
+      this.sessions = sessions.map((session) => ({ ...session }));
       const currentSession = this.sessions.find((session) => this.currentSessionFile
         ? session.path === this.currentSessionFile
         : session.current);
@@ -1434,7 +1421,7 @@ export class PiChatController {
       return false;
     }
 
-    const nextName = stripTauPromptMetadata(name).trim();
+    const nextName = name.trim();
 
     const sessionsChanged = this.applySessionNameToCurrentSession(nextName);
 
@@ -1527,7 +1514,7 @@ export class PiChatController {
   }
 
   private formatPromptForPi(userText: string, context: PiPromptContextAttachment[]): string {
-    return formatPromptForPiMessage(userText, context, this.options.getSystemPrompt?.());
+    return formatPromptForPiMessage(userText, context);
   }
 
   private async queuePromptWhileBusy(
@@ -1772,7 +1759,7 @@ export class PiChatController {
     }
 
     const forkText = typeof result.text === 'string'
-      ? stripTauPromptMetadata(result.text).trim()
+      ? result.text.trim()
       : selected.text;
 
     await this.adoptReplacedSession({ refreshSessions: true });
@@ -2405,7 +2392,7 @@ function formatForkMessages(messages: PiForkMessage[] | undefined): ForkMessageO
   return messages.flatMap((message) => {
     const entryId = typeof message.entryId === 'string' ? message.entryId : '';
     const text = typeof message.text === 'string'
-      ? stripTauPromptMetadata(message.text).trim()
+      ? message.text.trim()
       : '';
 
     return entryId && text ? [{ entryId, text }] : [];
@@ -2437,7 +2424,7 @@ function formatAgentMessages(messages: PiAgentMessage[] | undefined): ChatMessag
     }
 
     if (message.role === 'user') {
-      const text = stripTauPromptMetadata(extractPiMessageText(message.content, { includeImages: true }));
+      const text = extractPiMessageText(message.content, { includeImages: true });
       return text.trim() ? [{ role: 'user', text }] : [];
     }
 

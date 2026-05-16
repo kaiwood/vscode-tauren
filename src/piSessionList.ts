@@ -3,7 +3,6 @@ import { readdir, readFile, stat } from 'fs/promises';
 import { homedir } from 'os';
 import { dirname, isAbsolute, join, resolve } from 'path';
 import { extractPiMessageText } from './piMessageContent';
-import { stripTauPromptMetadata } from './tauPromptMetadata';
 
 export type PiSessionListItem = {
   path: string;
@@ -197,10 +196,7 @@ async function buildSessionInfo(filePath: string): Promise<RawSessionInfo | unde
       }
 
       if (entry.type === 'session_info') {
-        const cleanName = typeof entry.name === 'string'
-          ? stripTauPromptMetadata(entry.name).trim()
-          : '';
-        name = cleanName || undefined;
+        name = typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : undefined;
         continue;
       }
 
@@ -220,7 +216,7 @@ async function buildSessionInfo(filePath: string): Promise<RawSessionInfo | unde
       }
 
       if (role === 'user' && !firstMessage) {
-        firstMessage = stripTauPromptMetadata(extractPiMessageText(entry.message.content, { separator: ' ' })).trim();
+        firstMessage = extractPiMessageText(entry.message.content, { separator: ' ' }).trim();
       }
     }
 

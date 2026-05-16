@@ -9,18 +9,12 @@ export type PiPromptFormattingContextAttachment = {
 
 const ideContextStartMarker = '<!-- tau:ide-context:start -->';
 const ideContextEndMarker = '<!-- tau:ide-context:end -->';
-const visibleSystemPromptStartMarker = '<!-- tau:visible-system-prompt:start -->';
-const visibleSystemPromptEndMarker = '<!-- tau:visible-system-prompt:end -->';
 
 export function formatPromptForPi(
   userText: string,
-  context: PiPromptFormattingContextAttachment[],
-  systemPrompt: string | undefined
+  context: PiPromptFormattingContextAttachment[]
 ): string {
-  return formatPromptWithVisibleSystemPrompt(
-    formatPromptWithIdeContext(userText, context),
-    systemPrompt
-  );
+  return formatPromptWithIdeContext(userText, context);
 }
 
 export function formatPromptWithIdeContext(
@@ -48,24 +42,6 @@ export function formatPromptWithIdeContext(
     contextBody,
     '</ide_context>',
     ideContextEndMarker,
-    '',
-    userText
-  ].join('\n');
-}
-
-export function formatPromptWithVisibleSystemPrompt(userText: string, systemPrompt: string | undefined): string {
-  const trimmedPrompt = systemPrompt?.trim();
-
-  if (!trimmedPrompt) {
-    return userText;
-  }
-
-  return [
-    visibleSystemPromptStartMarker,
-    '<system_prompt source="vscode-tau-settings" visibility="user-editable">',
-    trimmedPrompt,
-    '</system_prompt>',
-    visibleSystemPromptEndMarker,
     '',
     userText
   ].join('\n');
