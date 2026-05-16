@@ -26,6 +26,23 @@ const cachedSessionMetaStorageKey = 'tau.cachedSessionMeta';
 const cachedModelMetaStorageKey = 'tau.cachedModelMeta';
 const currentSessionFileStorageKey = 'tau.currentSessionFile';
 const contextUsagePollingIntervalMs = 2000;
+const workspaceDiffStatsRefreshDelayMs = 250;
+
+type GitExtensionApi = {
+  getAPI(version: number): GitApi | undefined;
+};
+
+type GitApi = {
+  repositories: GitRepository[];
+  onDidOpenRepository(listener: (repository: GitRepository) => void): vscode.Disposable;
+  onDidCloseRepository?(listener: (repository: GitRepository) => void): vscode.Disposable;
+};
+
+type GitRepository = {
+  state?: {
+    onDidChange(listener: () => void): vscode.Disposable;
+  };
+};
 
 export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   private webviewView: vscode.WebviewView | undefined;
@@ -34,8 +51,10 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   private readonly controller: TauSessionManager;
   private readonly codeRenderer = new ShikiCodeRenderer();
   private contextUsagePollTimer: NodeJS.Timeout | undefined;
+  private workspaceDiffStatsRefreshTimer: NodeJS.Timeout | undefined;
   private readonly disposables: vscode.Disposable[] = [];
   private readonly webviewDisposables: vscode.Disposable[] = [];
+  private readonly gitRepositoryDisposables = new Map<GitRepository, vscode.Disposable>();
 
   public constructor(
     private readonly extensionUri: vscode.Uri,
@@ -96,12 +115,18 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
           this.resetCodeRenderer();
         }
       }),
-      vscode.window.onDidChangeActiveColorTheme(() => this.resetCodeRenderer())
+      vscode.window.onDidChangeActiveColorTheme(() => this.resetCodeRenderer()),
+      createWorkspaceDiffStatsFileWatcher(() => this.scheduleWorkspaceDiffStatsRefresh()),
+      vscode.workspace.onDidChangeWorkspaceFolders(() => this.scheduleWorkspaceDiffStatsRefresh())
     );
+
+    void this.watchGitRepositories();
   }
 
   public dispose(): void {
     this.stopContextUsagePolling();
+    this.stopWorkspaceDiffStatsRefreshTimer();
+    this.disposeGitRepositoryDisposables();
     this.disposeWebviewDisposables();
 
     for (const disposable of this.disposables.splice(0)) {
@@ -155,6 +180,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       webviewView.onDidChangeVisibility(() => {
         if (webviewView.visible) {
           this.refreshLiveMetadata();
+          this.controller.refreshWorkspaceDiffStats();
           this.startContextUsagePolling();
         } else {
           this.stopContextUsagePolling();
@@ -164,6 +190,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
     this.controller.postState();
     this.refreshLiveMetadata();
+    this.controller.refreshWorkspaceDiffStats();
     this.startContextUsagePolling();
   }
 
@@ -178,6 +205,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
     this.postInputFocusSoon();
     this.refreshLiveMetadata();
+    this.controller.refreshWorkspaceDiffStats();
     this.startContextUsagePolling();
   }
 
@@ -357,6 +385,75 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     this.controller.refreshSessionMeta({ startClient: true });
   }
 
+  private scheduleWorkspaceDiffStatsRefresh(): void {
+    this.stopWorkspaceDiffStatsRefreshTimer();
+    this.workspaceDiffStatsRefreshTimer = setTimeout(() => {
+      this.workspaceDiffStatsRefreshTimer = undefined;
+      this.controller.refreshWorkspaceDiffStats();
+    }, workspaceDiffStatsRefreshDelayMs);
+  }
+
+  private stopWorkspaceDiffStatsRefreshTimer(): void {
+    if (!this.workspaceDiffStatsRefreshTimer) {
+      return;
+    }
+
+    clearTimeout(this.workspaceDiffStatsRefreshTimer);
+    this.workspaceDiffStatsRefreshTimer = undefined;
+  }
+
+  private async watchGitRepositories(): Promise<void> {
+    const gitExtension = vscode.extensions.getExtension<GitExtensionApi>('vscode.git');
+
+    if (!gitExtension) {
+      return;
+    }
+
+    try {
+      const git = await gitExtension.activate();
+      const api = git.getAPI(1);
+
+      if (!api) {
+        return;
+      }
+
+      for (const repository of api.repositories) {
+        this.watchGitRepository(repository);
+      }
+
+      this.disposables.push(
+        api.onDidOpenRepository((repository) => this.watchGitRepository(repository)),
+        api.onDidCloseRepository?.((repository) => this.unwatchGitRepository(repository)) ?? new vscode.Disposable(() => undefined)
+      );
+    } catch {
+      // Git integration is best-effort; filesystem events still refresh diff stats.
+    }
+  }
+
+  private watchGitRepository(repository: GitRepository): void {
+    if (this.gitRepositoryDisposables.has(repository) || !repository.state?.onDidChange) {
+      return;
+    }
+
+    this.gitRepositoryDisposables.set(
+      repository,
+      repository.state.onDidChange(() => this.scheduleWorkspaceDiffStatsRefresh())
+    );
+  }
+
+  private unwatchGitRepository(repository: GitRepository): void {
+    this.gitRepositoryDisposables.get(repository)?.dispose();
+    this.gitRepositoryDisposables.delete(repository);
+  }
+
+  private disposeGitRepositoryDisposables(): void {
+    for (const disposable of this.gitRepositoryDisposables.values()) {
+      disposable.dispose();
+    }
+
+    this.gitRepositoryDisposables.clear();
+  }
+
   private startContextUsagePolling(): void {
     if (this.contextUsagePollTimer || !this.webviewView?.visible) {
       return;
@@ -487,6 +584,23 @@ function getPiPathSetting(): string | undefined {
 
 function getOutputColorsSetting(): boolean {
   return vscode.workspace.getConfiguration('tau').get<boolean>('outputColors', true);
+}
+
+function createWorkspaceDiffStatsFileWatcher(onChange: () => void): vscode.Disposable {
+  const watcher = vscode.workspace.createFileSystemWatcher('**/*');
+  const disposables = [
+    watcher,
+    watcher.onDidChange(onChange),
+    watcher.onDidCreate(onChange),
+    watcher.onDidDelete(onChange),
+    vscode.workspace.onDidSaveTextDocument(onChange)
+  ];
+
+  return new vscode.Disposable(() => {
+    for (const disposable of disposables) {
+      disposable.dispose();
+    }
+  });
 }
 
 function getReadyScriptSetting(): string | undefined {

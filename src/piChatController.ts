@@ -198,9 +198,7 @@ export class PiChatController {
   private slashCommandsRefreshInFlight: { generation: number; promise: Promise<void> } | undefined;
   private compacting = false;
   private workspaceDiffStats = emptyWorkspaceDiffStats();
-  private workspaceDiffStatsPollTimeout: ReturnType<typeof setTimeout> | undefined;
   private workspaceDiffStatsRefreshInFlight: Promise<void> | undefined;
-  private workspaceDiffStatsDisposed = false;
   private readyScriptClient: PiRpcClientLike | undefined;
   private resumedClient: PiRpcClientLike | undefined;
   private readonly liveToolCallsById = new Map<string, RestoredToolCall>();
@@ -234,8 +232,6 @@ export class PiChatController {
   }
 
   public dispose(): void {
-    this.workspaceDiffStatsDisposed = true;
-    this.stopWorkspaceDiffStatsPolling();
     this.extensionUiRequestHandler.dispose();
     this.statePublisher.dispose();
     this.disposeClient();
@@ -381,7 +377,7 @@ export class PiChatController {
     const promptText = this.formatPromptForPi(submittedPrompt.text, promptContext);
 
     this.resetAbortState();
-    this.startWorkspaceDiffStatsPolling();
+    void this.refreshWorkspaceDiffStats();
     this.postState();
 
     try {
@@ -393,7 +389,6 @@ export class PiChatController {
 
       this.restorePromptContext(promptContext);
       this.session.failActivePrompt(getErrorMessage(error));
-      this.stopWorkspaceDiffStatsPolling();
       this.postState();
     }
   }
@@ -1970,41 +1965,7 @@ export class PiChatController {
     }
   }
 
-  private startWorkspaceDiffStatsPolling(): void {
-    if (this.workspaceDiffStatsDisposed || this.workspaceDiffStatsPollTimeout || !this.options.getCwd?.()) {
-      return;
-    }
-
-    void this.refreshWorkspaceDiffStats();
-    this.scheduleNextWorkspaceDiffStatsPoll();
-  }
-
-  private stopWorkspaceDiffStatsPolling(): void {
-    if (!this.workspaceDiffStatsPollTimeout) {
-      return;
-    }
-
-    clearTimeout(this.workspaceDiffStatsPollTimeout);
-    this.workspaceDiffStatsPollTimeout = undefined;
-  }
-
-  private scheduleNextWorkspaceDiffStatsPoll(): void {
-    this.workspaceDiffStatsPollTimeout = setTimeout(() => {
-      this.workspaceDiffStatsPollTimeout = undefined;
-
-      if (!this.workspaceDiffStatsDisposed && this.session.isBusy) {
-        void this.refreshWorkspaceDiffStats().finally(() => this.scheduleNextWorkspaceDiffStatsPollIfBusy());
-      }
-    }, 1000);
-  }
-
-  private scheduleNextWorkspaceDiffStatsPollIfBusy(): void {
-    if (!this.workspaceDiffStatsDisposed && this.session.isBusy && !this.workspaceDiffStatsPollTimeout) {
-      this.scheduleNextWorkspaceDiffStatsPoll();
-    }
-  }
-
-  private async refreshWorkspaceDiffStats(): Promise<void> {
+  public async refreshWorkspaceDiffStats(): Promise<void> {
     if (this.workspaceDiffStatsRefreshInFlight) {
       return this.workspaceDiffStatsRefreshInFlight;
     }
@@ -2013,7 +1974,7 @@ export class PiChatController {
     const refresh = (this.options.getWorkspaceDiffStats ?? getWorkspaceDiffStats)(this.options.getCwd?.())
       .catch(() => emptyWorkspaceDiffStats())
       .then((stats) => {
-        if (this.workspaceDiffStatsDisposed || sessionGeneration !== this.session.generation) {
+        if (sessionGeneration !== this.session.generation) {
           return;
         }
 
@@ -2187,7 +2148,7 @@ export class PiChatController {
     switch (event.type) {
       case 'agent_start':
         this.session.handleAgentStart();
-        this.startWorkspaceDiffStatsPolling();
+        void this.refreshWorkspaceDiffStats();
         this.applyRpcActivity(event);
         this.postState();
         break;
@@ -2198,7 +2159,6 @@ export class PiChatController {
         this.applyRpcActivity(event);
         this.appendAbortNoticeIfNeeded();
         this.session.handleAgentEnd();
-        this.stopWorkspaceDiffStatsPolling();
         this.resetAbortState();
         if (this.runReadyScript() && this.client) {
           this.readyScriptClient = this.client;
@@ -2420,7 +2380,6 @@ export class PiChatController {
 
     this.session.addErrorMessage(message);
     this.session.setBusy(false);
-    this.stopWorkspaceDiffStatsPolling();
     this.compacting = false;
     this.metadataRefreshing = false;
     this.slashCommandsRefreshing = false;
