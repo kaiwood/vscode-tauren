@@ -86,6 +86,7 @@ export type WebviewState = {
   metadataRefreshing: boolean;
   slashCommands: SlashCommand[];
   slashCommandsRefreshing: boolean;
+  outputColors: boolean;
   promptContext: PromptContextAttachment[];
   composerText: string;
   composerTextRevision: number;

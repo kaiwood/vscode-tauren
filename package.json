@@ -86,6 +86,11 @@
           "type": "string",
           "default": "pi",
           "description": "Command used to launch Pi. Use an executable name or path, optionally with arguments, for example: pi, /opt/homebrew/bin/pi, npx pi, or \"/path with spaces/pi\"."
+        },
+        "tau.outputColors": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable ANSI and syntax colors in Tau output boxes. When disabled, ANSI escape sequences are stripped."
         }
       }
     }

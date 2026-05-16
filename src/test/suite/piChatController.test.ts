@@ -546,7 +546,8 @@ suite('PiChatController', () => {
       contextUsageLevel: '',
       metadataRefreshing: false,
       slashCommands: [],
-      slashCommandsRefreshing: false
+      slashCommandsRefreshing: false,
+      outputColors: true
     });
     harness.controller.dispose();
   });

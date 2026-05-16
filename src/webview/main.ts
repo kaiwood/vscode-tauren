@@ -547,7 +547,10 @@ function renderMessageAtIndex(index: number, message: ChatMessage, showRole: boo
       updateMessageBodyElement(
         existingView.element,
         message,
-        animateFromText === undefined ? undefined : { animateFromText }
+        {
+          ...(animateFromText === undefined ? {} : { animateFromText }),
+          outputColors: state.outputColors
+        }
       );
     }
 
@@ -563,7 +566,10 @@ function renderMessageAtIndex(index: number, message: ChatMessage, showRole: boo
       message,
       showRole,
       index,
-      animateFromText === undefined ? undefined : { animateFromText }
+      {
+        ...(animateFromText === undefined ? {} : { animateFromText }),
+        outputColors: state.outputColors
+      }
     ),
     message,
     showRole,
@@ -641,7 +647,7 @@ function getActivitiesSignature(message: ChatMessage): string {
     return '';
   }
 
-  return JSON.stringify(message.activities);
+  return JSON.stringify({ outputColors: state.outputColors, activities: message.activities });
 }
 
 function renderSessions() {

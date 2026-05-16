@@ -53,7 +53,8 @@ suite('Chat webview helpers', () => {
         contextUsageLevel: 'low',
         metadataRefreshing: false,
         slashCommands: [],
-        slashCommandsRefreshing: false
+        slashCommandsRefreshing: false,
+        outputColors: true
       }
     );
   });
@@ -76,7 +77,8 @@ suite('Chat webview helpers', () => {
         contextUsageLevel: '',
         metadataRefreshing: false,
         slashCommands: [],
-        slashCommandsRefreshing: false
+        slashCommandsRefreshing: false,
+        outputColors: true
       }
     );
   });

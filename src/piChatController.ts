@@ -130,6 +130,7 @@ export type PiChatControllerOptions = {
   extensionUi?: ExtensionUiRequestUi;
   getCwd?: () => string | undefined;
   getPiPath?: () => string | undefined;
+  getOutputColors?: () => boolean;
   stateScheduler?: StatePublisherScheduler;
   initialSessionMeta?: PiChatSessionMetaSnapshot;
   initialSessionFile?: string;
@@ -482,6 +483,7 @@ export class PiChatController {
       },
       slashCommands: this.slashCommands,
       slashCommandsRefreshing: this.slashCommandsRefreshing,
+      outputColors: this.options.getOutputColors?.() ?? true,
       promptContext: this.getWebviewPromptContext(),
       composer: this.pendingComposerText
         ? {

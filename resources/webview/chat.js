@@ -339,7 +339,7 @@
       return article;
     }
     if (activities.length > 0) {
-      article.append(createActivityListElement(activities));
+      article.append(createActivityListElement(activities, options));
     }
     if (hasBody) {
       if (activities.length > 0) {
@@ -392,15 +392,15 @@
     actions.append(button);
     return actions;
   }
-  function createActivityListElement(activities) {
+  function createActivityListElement(activities, options) {
     const list = document.createElement("div");
     list.className = "activity-list";
     for (const activity of activities) {
-      list.append(createActivityElement(activity));
+      list.append(createActivityElement(activity, options));
     }
     return list;
   }
-  function createActivityElement(activity) {
+  function createActivityElement(activity, options) {
     const details = document.createElement("details");
     details.className = `activity activity--${activity.kind || "rpc"} activity--${activity.status || "info"}`;
     const activityId = typeof activity.id === "string" ? activity.id : "";
@@ -431,8 +431,8 @@
       const body = document.createElement(activity.code ? "pre" : "div");
       body.className = `activity__body${activity.code ? " activity__body--code" : " activity__body--markdown"}`;
       if (activity.code) {
-        if (!renderReadActivityCodeInto(body, activity)) {
-          renderAnsiTextInto(body, activity.body);
+        if (options.outputColors === false || !renderReadActivityCodeInto(body, activity)) {
+          renderAnsiTextInto(body, activity.body, options.outputColors !== false);
         }
       } else {
         renderMarkdownInto(body, activity.body);
@@ -458,8 +458,15 @@
   function containsAnsiEscape(value) {
     return /\x1b\[[0-?]*(?:[ -/][0-?]*)?[@-~]/.test(value);
   }
-  function renderAnsiTextInto(element, value) {
+  function stripAnsiSequences(value) {
+    return value.replace(/\x1b\[[0-?]*(?:[ -/][0-?]*)?[@-~]/g, "");
+  }
+  function renderAnsiTextInto(element, value, outputColors) {
     element.replaceChildren();
+    if (!outputColors) {
+      element.textContent = stripAnsiSequences(value);
+      return;
+    }
     const csiPattern = /\x1b\[([0-?]*)([ -/]*)?([@-~])/g;
     let style = {};
     let index = 0;
@@ -778,6 +785,7 @@
     metadataRefreshing: false,
     slashCommands: [],
     slashCommandsRefreshing: false,
+    outputColors: true,
     promptContext: [],
     composerText: "",
     composerTextRevision: 0,
@@ -809,6 +817,7 @@
       metadataRefreshing: Boolean(record.metadataRefreshing),
       slashCommands: Array.isArray(record.slashCommands) ? record.slashCommands : [],
       slashCommandsRefreshing: Boolean(record.slashCommandsRefreshing),
+      outputColors: typeof record.outputColors === "boolean" ? record.outputColors : true,
       promptContext: Array.isArray(record.promptContext) ? record.promptContext : [],
       composerText: typeof record.composerText === "string" ? record.composerText : "",
       composerTextRevision: typeof record.composerTextRevision === "number" ? record.composerTextRevision : 0,
@@ -1294,7 +1303,10 @@
         updateMessageBodyElement(
           existingView.element,
           message,
-          animateFromText === void 0 ? void 0 : { animateFromText }
+          {
+            ...animateFromText === void 0 ? {} : { animateFromText },
+            outputColors: state.outputColors
+          }
         );
       }
       existingView.message = message;
@@ -1308,7 +1320,10 @@
         message,
         showRole,
         index,
-        animateFromText === void 0 ? void 0 : { animateFromText }
+        {
+          ...animateFromText === void 0 ? {} : { animateFromText },
+          outputColors: state.outputColors
+        }
       ),
       message,
       showRole,
@@ -1348,7 +1363,7 @@
     if (!Array.isArray(message.activities) || message.activities.length === 0) {
       return "";
     }
-    return JSON.stringify(message.activities);
+    return JSON.stringify({ outputColors: state.outputColors, activities: message.activities });
   }
   function renderSessions() {
     sessionsElement.replaceChildren();

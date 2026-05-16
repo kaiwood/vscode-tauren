@@ -3,7 +3,9 @@ import type { Activity, ChatMessage } from './types';
 
 const activityExpansion = new Map<string, boolean>();
 
-export type MessageRenderOptions = RenderMarkdownOptions;
+export type MessageRenderOptions = RenderMarkdownOptions & {
+  outputColors?: boolean;
+};
 
 export function createMessageElement(
   message: ChatMessage,
@@ -39,7 +41,7 @@ export function createMessageElement(
   }
 
   if (activities.length > 0) {
-    article.append(createActivityListElement(activities));
+    article.append(createActivityListElement(activities, options));
   }
 
   if (hasBody) {
@@ -116,18 +118,18 @@ function createCopyButtonElement(messageIndex: number): HTMLElement {
   return actions;
 }
 
-function createActivityListElement(activities: Activity[]): HTMLElement {
+function createActivityListElement(activities: Activity[], options: MessageRenderOptions): HTMLElement {
   const list = document.createElement('div');
   list.className = 'activity-list';
 
   for (const activity of activities) {
-    list.append(createActivityElement(activity));
+    list.append(createActivityElement(activity, options));
   }
 
   return list;
 }
 
-function createActivityElement(activity: Activity): HTMLElement {
+function createActivityElement(activity: Activity, options: MessageRenderOptions): HTMLElement {
   const details = document.createElement('details');
   details.className = `activity activity--${activity.kind || 'rpc'} activity--${activity.status || 'info'}`;
 
@@ -170,8 +172,8 @@ function createActivityElement(activity: Activity): HTMLElement {
     body.className = `activity__body${activity.code ? ' activity__body--code' : ' activity__body--markdown'}`;
 
     if (activity.code) {
-      if (!renderReadActivityCodeInto(body, activity)) {
-        renderAnsiTextInto(body, activity.body);
+      if (options.outputColors === false || !renderReadActivityCodeInto(body, activity)) {
+        renderAnsiTextInto(body, activity.body, options.outputColors !== false);
       }
     } else {
       renderMarkdownInto(body, activity.body);
@@ -206,6 +208,10 @@ function containsAnsiEscape(value: string): boolean {
   return /\x1b\[[0-?]*(?:[ -/][0-?]*)?[@-~]/.test(value);
 }
 
+function stripAnsiSequences(value: string): string {
+  return value.replace(/\x1b\[[0-?]*(?:[ -/][0-?]*)?[@-~]/g, '');
+}
+
 type AnsiStyle = {
   foreground?: string;
   background?: string;
@@ -217,8 +223,13 @@ type AnsiStyle = {
   strikethrough?: boolean;
 };
 
-function renderAnsiTextInto(element: HTMLElement, value: string): void {
+function renderAnsiTextInto(element: HTMLElement, value: string, outputColors: boolean): void {
   element.replaceChildren();
+
+  if (!outputColors) {
+    element.textContent = stripAnsiSequences(value);
+    return;
+  }
 
   const csiPattern = /\x1b\[([0-?]*)([ -/]*)?([@-~])/g;
   let style: AnsiStyle = {};

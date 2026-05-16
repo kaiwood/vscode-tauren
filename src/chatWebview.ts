@@ -193,6 +193,7 @@ export type WebviewStateMessage = ChatState & {
   metadataRefreshing: boolean;
   slashCommands: WebviewSlashCommand[];
   slashCommandsRefreshing: boolean;
+  outputColors: boolean;
   promptContext?: WebviewPromptContextAttachment[];
   composerText?: string;
   composerTextRevision?: number;
@@ -226,6 +227,7 @@ type CreateWebviewStateMessageOptions = {
   metadataRefreshing?: boolean;
   slashCommands?: WebviewSlashCommand[];
   slashCommandsRefreshing?: boolean;
+  outputColors?: boolean;
   promptContext?: WebviewPromptContextAttachment[];
   composer?: {
     text?: string;
@@ -252,6 +254,7 @@ export function createWebviewStateMessage({
   metadataRefreshing = false,
   slashCommands = [],
   slashCommandsRefreshing = false,
+  outputColors = true,
   promptContext = [],
   composer,
   sessionView
@@ -271,7 +274,8 @@ export function createWebviewStateMessage({
     contextUsageLevel: contextUsage.level ?? '',
     metadataRefreshing,
     slashCommands,
-    slashCommandsRefreshing
+    slashCommandsRefreshing,
+    outputColors
   };
 
   if (promptContext.length > 0) {

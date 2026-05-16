@@ -43,6 +43,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       createClient,
       getCwd: () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
       getPiPath: () => getPiPathSetting(),
+      getOutputColors: () => getOutputColorsSetting(),
       postState: (message) => {
         void this.webviewView?.webview.postMessage(message);
       },
@@ -75,6 +76,10 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration('tau.piPath')) {
           this.controller.handlePiPathChanged();
+        }
+
+        if (event.affectsConfiguration('tau.outputColors')) {
+          this.controller.postState();
         }
       })
     );
@@ -445,6 +450,10 @@ function getPathBasename(path: string): string {
 function getPiPathSetting(): string | undefined {
   const value = vscode.workspace.getConfiguration('tau').get<string>('piPath', 'pi').trim();
   return value && value !== 'pi' ? value : undefined;
+}
+
+function getOutputColorsSetting(): boolean {
+  return vscode.workspace.getConfiguration('tau').get<boolean>('outputColors', true);
 }
 
 function resolveWorkspaceFileUri(filePath: string): vscode.Uri | undefined {
