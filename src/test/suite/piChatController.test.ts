@@ -1,4 +1,7 @@
 import * as assert from 'assert';
+import * as fs from 'fs/promises';
+import * as os from 'os';
+import * as path from 'path';
 import {
   PiChatController,
   type PiChatControllerOptions,
@@ -649,26 +652,26 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
-  test('publishes live workspace diff stats while busy', async () => {
+  test('publishes historical per-session diff stats from edit tool calls', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tau-session-diff-'));
     const client = new FakePiClient();
-    const stats = [
-      { addedLines: 10, removedLines: 4 },
-      { addedLines: 12, removedLines: 5 }
-    ];
-    const harness = createControllerHarness([client], {
-      cwd: '/workspace',
-      getWorkspaceDiffStats: async () => stats.shift() ?? { addedLines: 12, removedLines: 5 }
-    });
+    const harness = createControllerHarness([client], { cwd });
 
     await harness.controller.handleWebviewMessage({ type: 'submit', text: 'change files' });
+    client.emit({
+      type: 'tool_execution_end',
+      toolName: 'edit',
+      args: { edits: [{ oldText: 'const b = 2;\n', newText: 'const c = 3;\nconst d = 4;\n' }] }
+    });
     await flushPromises();
 
-    assert.deepStrictEqual(lastState(harness).workspaceDiffStats, { addedLines: 10, removedLines: 4 });
+    assert.deepStrictEqual(lastState(harness).workspaceDiffStats, { addedLines: 2, removedLines: 1 });
 
-    client.emit({ type: 'tool_execution_end' });
+    client.state.sessionFile = path.join(cwd, 'session.jsonl');
+    client.emit({ type: 'agent_end' });
     await flushPromises();
 
-    assert.deepStrictEqual(lastState(harness).workspaceDiffStats, { addedLines: 12, removedLines: 5 });
+    assert.deepStrictEqual(lastState(harness).workspaceDiffStats, { addedLines: 2, removedLines: 1 });
     harness.controller.dispose();
   });
 
@@ -1832,7 +1835,6 @@ type ControllerHarnessOptions = {
   listSessions?: (cwd: string | undefined, currentSessionFile: string | undefined) => Promise<WebviewSessionItem[]>;
   listSessionTree?: (sessionFile: string | undefined) => Promise<WebviewTreeItem[]>;
   deleteSession?: (sessionPath: string, displayName: string) => Promise<boolean>;
-  getWorkspaceDiffStats?: PiChatControllerOptions['getWorkspaceDiffStats'];
   getReadyScript?: () => string | undefined;
   getReadyScriptEnabled?: () => boolean;
   runReadyScript?: PiChatControllerOptions['runReadyScript'];
@@ -1877,7 +1879,6 @@ function createControllerHarness(
     listSessions: options.listSessions,
     listSessionTree: options.listSessionTree,
     deleteSession: options.deleteSession,
-    getWorkspaceDiffStats: options.getWorkspaceDiffStats,
     getReadyScript: options.getReadyScript,
     getReadyScriptEnabled: options.getReadyScriptEnabled,
     runReadyScript: options.runReadyScript

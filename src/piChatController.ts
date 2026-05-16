@@ -49,10 +49,12 @@ import {
   isSupportedBuiltinSlashCommand
 } from './slashCommands';
 import {
-  emptyWorkspaceDiffStats,
-  getWorkspaceDiffStats,
-  type WorkspaceDiffStats
-} from './workspaceDiffStats';
+  emptySessionDiffStats,
+  SessionDiffTracker,
+  type SessionDiffSnapshot,
+  type SessionDiffStats,
+  type ToolExecutionInput
+} from './sessionDiffTracker';
 
 export type PiRpcClientLike = Pick<
   PiRpcClient,
@@ -148,7 +150,8 @@ export type PiChatControllerOptions = {
   listSessions?: (cwd: string | undefined, currentSessionFile: string | undefined) => Promise<WebviewSessionItem[]>;
   listSessionTree?: (sessionFile: string | undefined) => Promise<WebviewTreeItem[]>;
   deleteSession?: (sessionPath: string, displayName: string) => Promise<boolean>;
-  getWorkspaceDiffStats?: (cwd: string | undefined) => Promise<WorkspaceDiffStats>;
+  loadSessionDiffSnapshot?: (sessionFile: string) => SessionDiffSnapshot | undefined;
+  saveSessionDiffSnapshot?: (sessionFile: string, snapshot: SessionDiffSnapshot) => void;
 };
 
 type DisposableLike = {
@@ -197,8 +200,9 @@ export class PiChatController {
   private contextUsageRefreshInFlight: { generation: number; promise: Promise<void> } | undefined;
   private slashCommandsRefreshInFlight: { generation: number; promise: Promise<void> } | undefined;
   private compacting = false;
-  private workspaceDiffStats = emptyWorkspaceDiffStats();
-  private workspaceDiffStatsRefreshInFlight: Promise<void> | undefined;
+  private sessionDiffStats = emptySessionDiffStats();
+  private sessionDiffRefreshInFlight: Promise<void> | undefined;
+  private readonly sessionDiffTracker: SessionDiffTracker;
   private readyScriptClient: PiRpcClientLike | undefined;
   private resumedClient: PiRpcClientLike | undefined;
   private readonly liveToolCallsById = new Map<string, RestoredToolCall>();
@@ -211,6 +215,9 @@ export class PiChatController {
     this.currentSessionFile = options.initialSessionFile;
     this.shouldRestoreInitialSessionHistory = Boolean(options.initialSessionFile);
     this.sessionHistoryLoading = Boolean(options.initialSessionFile);
+
+    this.sessionDiffTracker = new SessionDiffTracker(this.loadSessionDiffSnapshot(this.currentSessionFile));
+    this.sessionDiffStats = this.sessionDiffTracker.getStats();
 
     if (options.initialSessionMeta) {
       this.setSessionMetaFields(options.initialSessionMeta);
@@ -240,7 +247,7 @@ export class PiChatController {
   public async handleWebviewMessage(message: WebviewMessage): Promise<void> {
     if (message.type === 'ready') {
       this.postState();
-      void this.refreshWorkspaceDiffStats();
+      void this.refreshSessionDiffStats();
       void this.refreshSessionMeta({ startClient: true });
       void this.refreshSessions();
       return;
@@ -377,7 +384,7 @@ export class PiChatController {
     const promptText = this.formatPromptForPi(submittedPrompt.text, promptContext);
 
     this.resetAbortState();
-    void this.refreshWorkspaceDiffStats();
+    void this.refreshSessionDiffStats();
     this.postState();
 
     try {
@@ -420,6 +427,7 @@ export class PiChatController {
     this.treeRefreshing = false;
     this.treeError = '';
     this.currentSessionFile = undefined;
+    this.resetSessionDiffTracker(undefined);
     this.currentSessionName = '';
     this.sessions = this.sessions.map((session) => ({ ...session, current: false }));
     this.nextClientSessionFile = undefined;
@@ -512,7 +520,7 @@ export class PiChatController {
         level: this.contextUsageLevel
       },
       metadataRefreshing: this.metadataRefreshing,
-      workspaceDiffStats: this.workspaceDiffStats,
+      workspaceDiffStats: this.sessionDiffStats,
       sessionView: this.shouldPublishSessionView()
         ? {
           viewMode: this.sessionViewMode === 'sessions' || this.sessionViewMode === 'tree' ? this.sessionViewMode : undefined,
@@ -1112,7 +1120,7 @@ export class PiChatController {
     this.sessionHistoryLoading = false;
     this.sessionViewMode = 'chat';
     this.sessionsError = '';
-    void this.refreshWorkspaceDiffStats();
+    void this.refreshSessionDiffStats();
     this.postState();
 
     void this.refreshSessionMeta({ startClient: true, force: true });
@@ -1437,7 +1445,16 @@ export class PiChatController {
       return false;
     }
 
+    const previousSessionFile = this.currentSessionFile;
+    const currentDiffSnapshot = this.sessionDiffTracker.snapshot();
     this.currentSessionFile = sessionFile;
+
+    if (sessionFile && !previousSessionFile && hasSessionDiffStats(currentDiffSnapshot.stats) && !this.loadSessionDiffSnapshot(sessionFile)) {
+      this.saveSessionDiffSnapshot();
+    } else {
+      this.resetSessionDiffTracker(sessionFile);
+    }
+
     this.treeRefreshSequence += 1;
     this.treeRefreshing = false;
     this.treeItems = [];
@@ -1965,41 +1982,60 @@ export class PiChatController {
     }
   }
 
-  public async refreshWorkspaceDiffStats(): Promise<void> {
-    if (this.workspaceDiffStatsRefreshInFlight) {
-      return this.workspaceDiffStatsRefreshInFlight;
+  public async refreshSessionDiffStats(): Promise<void> {
+    if (this.sessionDiffRefreshInFlight) {
+      return this.sessionDiffRefreshInFlight;
     }
 
     const sessionGeneration = this.session.generation;
-    const refresh = (this.options.getWorkspaceDiffStats ?? getWorkspaceDiffStats)(this.options.getCwd?.())
-      .catch(() => emptyWorkspaceDiffStats())
+    const refresh = this.sessionDiffTracker.restoreFromSessionFile(this.currentSessionFile)
       .then((stats) => {
         if (sessionGeneration !== this.session.generation) {
           return;
         }
 
-        this.applyWorkspaceDiffStats(stats);
+        this.applySessionDiffStats(stats);
       })
       .finally(() => {
-        if (this.workspaceDiffStatsRefreshInFlight === refresh) {
-          this.workspaceDiffStatsRefreshInFlight = undefined;
+        if (this.sessionDiffRefreshInFlight === refresh) {
+          this.sessionDiffRefreshInFlight = undefined;
         }
       });
 
-    this.workspaceDiffStatsRefreshInFlight = refresh;
+    this.sessionDiffRefreshInFlight = refresh;
     return refresh;
   }
 
-  private applyWorkspaceDiffStats(stats: WorkspaceDiffStats): void {
+  private applySessionDiffStats(stats: SessionDiffStats): void {
     const addedLines = normalizeDiffLineCount(stats.addedLines);
     const removedLines = normalizeDiffLineCount(stats.removedLines);
 
-    if (addedLines === this.workspaceDiffStats.addedLines && removedLines === this.workspaceDiffStats.removedLines) {
+    this.saveSessionDiffSnapshot();
+
+    if (addedLines === this.sessionDiffStats.addedLines && removedLines === this.sessionDiffStats.removedLines) {
       return;
     }
 
-    this.workspaceDiffStats = { addedLines, removedLines };
+    this.sessionDiffStats = { addedLines, removedLines };
     this.postState();
+  }
+
+  private resetSessionDiffTracker(sessionFile: string | undefined): void {
+    this.sessionDiffTracker.restore(this.loadSessionDiffSnapshot(sessionFile));
+    this.sessionDiffStats = this.sessionDiffTracker.getStats();
+    void this.refreshSessionDiffStats();
+  }
+
+  private loadSessionDiffSnapshot(sessionFile: string | undefined): SessionDiffSnapshot | undefined {
+    return sessionFile ? this.options.loadSessionDiffSnapshot?.(sessionFile) : undefined;
+  }
+
+  private saveSessionDiffSnapshot(): void {
+    if (!this.currentSessionFile) {
+      return;
+    }
+
+    this.options.saveSessionDiffSnapshot?.(this.currentSessionFile, this.sessionDiffTracker.snapshot());
   }
 
   private async abortActivePrompt(): Promise<void> {
@@ -2148,7 +2184,7 @@ export class PiChatController {
     switch (event.type) {
       case 'agent_start':
         this.session.handleAgentStart();
-        void this.refreshWorkspaceDiffStats();
+        void this.refreshSessionDiffStats();
         this.applyRpcActivity(event);
         this.postState();
         break;
@@ -2163,7 +2199,7 @@ export class PiChatController {
         if (this.runReadyScript() && this.client) {
           this.readyScriptClient = this.client;
         }
-        void this.refreshWorkspaceDiffStats();
+        void this.refreshSessionDiffStats();
         this.postState();
         void this.refreshSessionMeta().then(
           () => this.restartClientForConfigurationChangeIfIdle(),
@@ -2175,12 +2211,16 @@ export class PiChatController {
       case 'message_start':
       case 'message_end':
       case 'tool_execution_start':
+        this.applyRpcActivity(event);
+        this.postState();
+        break;
       case 'tool_execution_update':
+        this.applyRpcActivity(event);
+        this.postState();
+        break;
       case 'tool_execution_end':
         this.applyRpcActivity(event);
-        if (event.type === 'tool_execution_end') {
-          void this.refreshWorkspaceDiffStats();
-        }
+        this.updateSessionDiffForToolExecution(event);
         this.postState();
         break;
       case 'queue_update':
@@ -2288,6 +2328,11 @@ export class PiChatController {
     if (action.type === 'activity_update' || action.type === 'activity_add' || action.type === 'activity_remove') {
       this.applyActivityAction(action);
     }
+  }
+
+  private updateSessionDiffForToolExecution(event: RpcEvent): void {
+    const stats = this.sessionDiffTracker.addToolExecution(this.enrichLiveToolExecutionEvent(event) as ToolExecutionInput);
+    this.applySessionDiffStats(stats);
   }
 
   private applyActivityAction(action: ActivityUpdateAction | ActivityAddAction | ActivityRemoveAction): void {
@@ -2957,6 +3002,10 @@ function getErrorMessage(error: unknown): string {
 
 function normalizeDiffLineCount(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+function hasSessionDiffStats(stats: SessionDiffStats | undefined): boolean {
+  return Boolean(stats && (stats.addedLines > 0 || stats.removedLines > 0));
 }
 
 function isUnsupportedReloadCommandError(error: unknown): boolean {

@@ -101,8 +101,8 @@ export class TauSessionManager {
     void this.active().controller.refreshContextUsage(options);
   }
 
-  public refreshWorkspaceDiffStats(): void {
-    void this.active().controller.refreshWorkspaceDiffStats();
+  public refreshSessionDiffStats(): void {
+    void this.active().controller.refreshSessionDiffStats();
   }
 
   public handlePiPathChanged(): void {
@@ -142,6 +142,7 @@ export class TauSessionManager {
     }
 
     session.controller.postState();
+    void session.controller.refreshSessionDiffStats();
 
     if (!options.initial) {
       void session.controller.refreshSessionMeta({ startClient: true });
@@ -161,7 +162,7 @@ export class TauSessionManager {
     this.activeSessionId = id;
     session.unread = false;
     this.updateActivePersistence(session);
-    void session.controller.refreshWorkspaceDiffStats();
+    void session.controller.refreshSessionDiffStats();
     void session.controller.handleWebviewMessage({ type: 'hideSessions' });
     this.postState();
   }

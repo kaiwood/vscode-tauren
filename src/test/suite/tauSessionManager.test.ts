@@ -57,6 +57,22 @@ suite('TauSessionManager', () => {
     harness.manager.dispose();
   });
 
+  test('shows restored per-session diff stats when selecting a resumed session', async () => {
+    const sessionPath = '/sessions/resumed.jsonl';
+    const harness = createManagerHarness([new FakePiClient({ state: { sessionFile: sessionPath } })], {
+      loadSessionDiffSnapshot: (requestedSessionPath) => requestedSessionPath === sessionPath
+        ? { stats: { addedLines: 2, removedLines: 1 } }
+        : undefined
+    });
+
+    await harness.manager.handleWebviewMessage({ type: 'selectSession', sessionPath });
+    await flushPromises();
+    await wait(20);
+
+    assert.deepStrictEqual(lastState(harness).workspaceDiffStats, { addedLines: 2, removedLines: 1 });
+    harness.manager.dispose();
+  });
+
   test('blocks forks while a background session is running', async () => {
     const firstClient = new FakePiClient();
     const secondClient = new FakePiClient();
@@ -86,10 +102,12 @@ type ManagerHarness = {
 };
 
 type ManagerHarnessOptions = {
+  cwd?: string;
   initialSessionFile?: string;
   onSessionFileChange?: (sessionFile: string | undefined) => void;
   listSessions?: TauSessionManagerOptions['listSessions'];
   listSessionTree?: (sessionFile: string | undefined) => Promise<WebviewTreeItem[]>;
+  loadSessionDiffSnapshot?: TauSessionManagerOptions['loadSessionDiffSnapshot'];
 };
 
 function createManagerHarness(
@@ -112,10 +130,12 @@ function createManagerHarness(
     },
     postState: (message) => states.push(message),
     showNotification: (message, type) => notifications.push({ message, type }),
+    getCwd: () => options.cwd,
     initialSessionFile: options.initialSessionFile,
     onSessionFileChange: options.onSessionFileChange,
     listSessions: options.listSessions,
     listSessionTree: options.listSessionTree,
+    loadSessionDiffSnapshot: options.loadSessionDiffSnapshot,
     extensionUi: {
       notify: (message, type) => notifications.push({ message, type }),
       select: async () => undefined,
@@ -292,4 +312,8 @@ class FakePiClient implements PiRpcClientLike {
 
 async function flushPromises(): Promise<void> {
   await new Promise((resolve) => setImmediate(resolve));
+}
+
+async function wait(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }

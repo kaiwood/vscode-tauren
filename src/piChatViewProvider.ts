@@ -18,6 +18,7 @@ import { TauSessionManager } from './tauSessionManager';
 import { listPiSessions } from './piSessionList';
 import { runReadyScript } from './readyScript';
 import type { WebviewModelOption } from './chatWebview';
+import type { SessionDiffSnapshot } from './sessionDiffTracker';
 
 export const chatViewType = 'tau.chatView';
 export type { PiRpcClientLike } from './piChatController';
@@ -25,24 +26,9 @@ export type { PiRpcClientLike } from './piChatController';
 const cachedSessionMetaStorageKey = 'tau.cachedSessionMeta';
 const cachedModelMetaStorageKey = 'tau.cachedModelMeta';
 const currentSessionFileStorageKey = 'tau.currentSessionFile';
+const sessionDiffSnapshotsStorageKey = 'tau.sessionDiffSnapshots';
 const contextUsagePollingIntervalMs = 2000;
-const workspaceDiffStatsRefreshDelayMs = 250;
-
-type GitExtensionApi = {
-  getAPI(version: number): GitApi | undefined;
-};
-
-type GitApi = {
-  repositories: GitRepository[];
-  onDidOpenRepository(listener: (repository: GitRepository) => void): vscode.Disposable;
-  onDidCloseRepository?(listener: (repository: GitRepository) => void): vscode.Disposable;
-};
-
-type GitRepository = {
-  state?: {
-    onDidChange(listener: () => void): vscode.Disposable;
-  };
-};
+const sessionDiffStatsRefreshDelayMs = 250;
 
 export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   private webviewView: vscode.WebviewView | undefined;
@@ -51,10 +37,9 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   private readonly controller: TauSessionManager;
   private readonly codeRenderer = new ShikiCodeRenderer();
   private contextUsagePollTimer: NodeJS.Timeout | undefined;
-  private workspaceDiffStatsRefreshTimer: NodeJS.Timeout | undefined;
+  private sessionDiffStatsRefreshTimer: NodeJS.Timeout | undefined;
   private readonly disposables: vscode.Disposable[] = [];
   private readonly webviewDisposables: vscode.Disposable[] = [];
-  private readonly gitRepositoryDisposables = new Map<GitRepository, vscode.Disposable>();
 
   public constructor(
     private readonly extensionUri: vscode.Uri,
@@ -97,6 +82,8 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       initialSessionFile: readCurrentSessionFile(this.workspaceState),
       onSessionMetaChange: (metadata) => this.writeCachedSessionMeta(metadata),
       onSessionFileChange: (sessionFile) => this.writeCurrentSessionFile(sessionFile),
+      loadSessionDiffSnapshot: (sessionFile) => this.readSessionDiffSnapshot(sessionFile),
+      saveSessionDiffSnapshot: (sessionFile, snapshot) => this.writeSessionDiffSnapshot(sessionFile, snapshot),
       listSessions: (cwd, currentSessionFile) => listPiSessions({ cwd, currentSessionFile }),
       deleteSession: (sessionPath, displayName) => this.deleteSession(sessionPath, displayName)
     });
@@ -116,17 +103,14 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
         }
       }),
       vscode.window.onDidChangeActiveColorTheme(() => this.resetCodeRenderer()),
-      createWorkspaceDiffStatsFileWatcher(() => this.scheduleWorkspaceDiffStatsRefresh()),
-      vscode.workspace.onDidChangeWorkspaceFolders(() => this.scheduleWorkspaceDiffStatsRefresh())
+      createSessionDiffStatsFileWatcher(() => this.scheduleSessionDiffStatsRefresh()),
+      vscode.workspace.onDidChangeWorkspaceFolders(() => this.scheduleSessionDiffStatsRefresh())
     );
-
-    void this.watchGitRepositories();
   }
 
   public dispose(): void {
     this.stopContextUsagePolling();
-    this.stopWorkspaceDiffStatsRefreshTimer();
-    this.disposeGitRepositoryDisposables();
+    this.stopSessionDiffStatsRefreshTimer();
     this.disposeWebviewDisposables();
 
     for (const disposable of this.disposables.splice(0)) {
@@ -180,7 +164,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       webviewView.onDidChangeVisibility(() => {
         if (webviewView.visible) {
           this.refreshLiveMetadata();
-          this.controller.refreshWorkspaceDiffStats();
+          this.controller.refreshSessionDiffStats();
           this.startContextUsagePolling();
         } else {
           this.stopContextUsagePolling();
@@ -190,7 +174,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
     this.controller.postState();
     this.refreshLiveMetadata();
-    this.controller.refreshWorkspaceDiffStats();
+    this.controller.refreshSessionDiffStats();
     this.startContextUsagePolling();
   }
 
@@ -205,7 +189,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
     this.postInputFocusSoon();
     this.refreshLiveMetadata();
-    this.controller.refreshWorkspaceDiffStats();
+    this.controller.refreshSessionDiffStats();
     this.startContextUsagePolling();
   }
 
@@ -385,73 +369,21 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     this.controller.refreshSessionMeta({ startClient: true });
   }
 
-  private scheduleWorkspaceDiffStatsRefresh(): void {
-    this.stopWorkspaceDiffStatsRefreshTimer();
-    this.workspaceDiffStatsRefreshTimer = setTimeout(() => {
-      this.workspaceDiffStatsRefreshTimer = undefined;
-      this.controller.refreshWorkspaceDiffStats();
-    }, workspaceDiffStatsRefreshDelayMs);
+  private scheduleSessionDiffStatsRefresh(): void {
+    this.stopSessionDiffStatsRefreshTimer();
+    this.sessionDiffStatsRefreshTimer = setTimeout(() => {
+      this.sessionDiffStatsRefreshTimer = undefined;
+      this.controller.refreshSessionDiffStats();
+    }, sessionDiffStatsRefreshDelayMs);
   }
 
-  private stopWorkspaceDiffStatsRefreshTimer(): void {
-    if (!this.workspaceDiffStatsRefreshTimer) {
+  private stopSessionDiffStatsRefreshTimer(): void {
+    if (!this.sessionDiffStatsRefreshTimer) {
       return;
     }
 
-    clearTimeout(this.workspaceDiffStatsRefreshTimer);
-    this.workspaceDiffStatsRefreshTimer = undefined;
-  }
-
-  private async watchGitRepositories(): Promise<void> {
-    const gitExtension = vscode.extensions.getExtension<GitExtensionApi>('vscode.git');
-
-    if (!gitExtension) {
-      return;
-    }
-
-    try {
-      const git = await gitExtension.activate();
-      const api = git.getAPI(1);
-
-      if (!api) {
-        return;
-      }
-
-      for (const repository of api.repositories) {
-        this.watchGitRepository(repository);
-      }
-
-      this.disposables.push(
-        api.onDidOpenRepository((repository) => this.watchGitRepository(repository)),
-        api.onDidCloseRepository?.((repository) => this.unwatchGitRepository(repository)) ?? new vscode.Disposable(() => undefined)
-      );
-    } catch {
-      // Git integration is best-effort; filesystem events still refresh diff stats.
-    }
-  }
-
-  private watchGitRepository(repository: GitRepository): void {
-    if (this.gitRepositoryDisposables.has(repository) || !repository.state?.onDidChange) {
-      return;
-    }
-
-    this.gitRepositoryDisposables.set(
-      repository,
-      repository.state.onDidChange(() => this.scheduleWorkspaceDiffStatsRefresh())
-    );
-  }
-
-  private unwatchGitRepository(repository: GitRepository): void {
-    this.gitRepositoryDisposables.get(repository)?.dispose();
-    this.gitRepositoryDisposables.delete(repository);
-  }
-
-  private disposeGitRepositoryDisposables(): void {
-    for (const disposable of this.gitRepositoryDisposables.values()) {
-      disposable.dispose();
-    }
-
-    this.gitRepositoryDisposables.clear();
+    clearTimeout(this.sessionDiffStatsRefreshTimer);
+    this.sessionDiffStatsRefreshTimer = undefined;
   }
 
   private startContextUsagePolling(): void {
@@ -494,6 +426,20 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     }
 
     void this.workspaceState.update(currentSessionFileStorageKey, sessionFile || undefined).then(undefined, () => undefined);
+  }
+
+  private readSessionDiffSnapshot(sessionFile: string): SessionDiffSnapshot | undefined {
+    return readSessionDiffSnapshots(this.workspaceState)[sessionFile];
+  }
+
+  private writeSessionDiffSnapshot(sessionFile: string, snapshot: SessionDiffSnapshot): void {
+    if (!this.workspaceState) {
+      return;
+    }
+
+    const snapshots = readSessionDiffSnapshots(this.workspaceState);
+    snapshots[sessionFile] = snapshot;
+    void this.workspaceState.update(sessionDiffSnapshotsStorageKey, snapshots).then(undefined, () => undefined);
   }
 }
 
@@ -586,7 +532,7 @@ function getOutputColorsSetting(): boolean {
   return vscode.workspace.getConfiguration('tau').get<boolean>('outputColors', true);
 }
 
-function createWorkspaceDiffStatsFileWatcher(onChange: () => void): vscode.Disposable {
+function createSessionDiffStatsFileWatcher(onChange: () => void): vscode.Disposable {
   const watcher = vscode.workspace.createFileSystemWatcher('**/*');
   const disposables = [
     watcher,
@@ -642,6 +588,41 @@ function readCachedSessionMeta(workspaceState: vscode.Memento | undefined): PiCh
 function readCurrentSessionFile(workspaceState: vscode.Memento | undefined): string | undefined {
   const value = workspaceState?.get<unknown>(currentSessionFileStorageKey);
   return typeof value === 'string' && value ? value : undefined;
+}
+
+function readSessionDiffSnapshots(workspaceState: vscode.Memento | undefined): Record<string, SessionDiffSnapshot> {
+  const value = workspaceState?.get<unknown>(sessionDiffSnapshotsStorageKey);
+
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const snapshots: Record<string, SessionDiffSnapshot> = {};
+
+  for (const [sessionFile, snapshot] of Object.entries(value)) {
+    const parsed = parseSessionDiffSnapshot(snapshot);
+
+    if (parsed) {
+      snapshots[sessionFile] = parsed;
+    }
+  }
+
+  return snapshots;
+}
+
+function parseSessionDiffSnapshot(value: unknown): SessionDiffSnapshot | undefined {
+  if (!isRecord(value) || !isRecord(value.stats)) {
+    return undefined;
+  }
+
+  const addedLines = normalizeLineCount(value.stats.addedLines);
+  const removedLines = normalizeLineCount(value.stats.removedLines);
+
+  return { stats: { addedLines, removedLines } };
+}
+
+function normalizeLineCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
 
 function parseCachedSessionMeta(value: unknown): PiChatSessionMetaSnapshot | undefined {
