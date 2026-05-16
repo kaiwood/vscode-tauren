@@ -25,7 +25,6 @@ import type {
 import { formatPromptForPi as formatPromptForPiMessage } from './prompt/formatting';
 import { PromptContextStore } from './prompt/contextStore';
 import type { PiPromptContextAttachment, PiPromptContextInput } from './prompt/types';
-import { isSupportedBuiltinSlashCommand } from './slashCommands';
 import { ReadyScriptState } from './readyScript';
 import {
   SessionMetadataRefreshController,
@@ -36,17 +35,11 @@ import { SessionDiffController } from './diff/sessionDiffController';
 import type { SessionDiffSnapshot } from './diff/types';
 import {
   getErrorMessage,
-  isClientLifecycleError,
-  isUnsupportedReloadCommandError
+  isClientLifecycleError
 } from './controller/errors';
-import { filterModelOptions, formatModelOptionLabel } from './controller/modelFormatting';
 import { parseLocalSlashCommand } from './controller/slashCommandParsing';
-import {
-  formatForkMessageLabel,
-  formatForkMessages,
-  formatSessionInfo,
-  getSessionFile
-} from './controller/sessionFormatting';
+import { getSessionFile } from './controller/sessionFormatting';
+import { LocalSlashCommandController } from './controller/localSlashCommandController';
 import { PiClientManager } from './controller/piClientManager';
 import { PiRpcEventHandler } from './controller/piRpcEventHandler';
 import { SessionViewController } from './controller/sessionViewController';
@@ -86,6 +79,7 @@ export class PiChatController {
   private readonly promptContext = new PromptContextStore();
   private readonly sessionMetadata: SessionMetadataState;
   private readonly sessionMetadataRefresh: SessionMetadataRefreshController;
+  private readonly slashCommandController: LocalSlashCommandController;
   private readonly sessionView: SessionViewController;
   private pendingComposerText: { text: string; revision: number } | undefined;
   private composerTextRevision = 0;
@@ -94,7 +88,6 @@ export class PiChatController {
   private sessionHistoryLoading: boolean;
   private abortRequested = false;
   private abortNoticeAdded = false;
-  private compacting = false;
   private readonly sessionDiffController: SessionDiffController;
   private readonly rpcEventHandler: PiRpcEventHandler;
   private readonly readyScriptState = new ReadyScriptState();
@@ -130,11 +123,11 @@ export class PiChatController {
       applySessionFile: (sessionFile) => this.sessionDiffController.applySessionFile(sessionFile),
       adoptReplacedSession: (adoptOptions) => this.adoptReplacedSession(adoptOptions),
       getClient: () => this.getClient(),
-      handleCompactCurrentSession: () => this.handleCompactSlashCommand(''),
+      handleCompactCurrentSession: () => this.slashCommandController.handleCompactSlashCommand(''),
       isBusy: () => this.session.isBusy,
       postState: () => this.postState(),
       setComposerText: (text) => this.setComposerText(text),
-      setCurrentSessionName: (name, nameOptions) => this.setCurrentSessionName(name, nameOptions),
+      setCurrentSessionName: (name, nameOptions) => this.slashCommandController.setCurrentSessionName(name, nameOptions),
       setSessionHistoryLoading: (value) => {
         this.sessionHistoryLoading = value;
       },
@@ -189,6 +182,26 @@ export class PiChatController {
       },
       onError: (message) => this.handleClientError(message),
       getErrorMessage
+    });
+    this.slashCommandController = new LocalSlashCommandController({
+      session: this.session,
+      sessionMetadata: this.sessionMetadata,
+      sessionView: this.sessionView,
+      extensionUi: options.extensionUi,
+      showNotification: options.showNotification,
+      showToast: options.showToast,
+      writeClipboard: options.writeClipboard,
+      getClient: () => this.getClient(),
+      postState: () => this.postState(),
+      refreshSessionMeta: (refreshOptions) => this.refreshSessionMeta(refreshOptions),
+      refreshSlashCommands: (refreshOptions) => this.refreshSlashCommands(refreshOptions),
+      adoptReplacedSession: (adoptOptions) => this.adoptReplacedSession(adoptOptions),
+      setComposerText: (text) => this.setComposerText(text),
+      restartClientForReload: (sessionFile) => {
+        this.clientManager.setNextSessionFile(sessionFile);
+        this.disposeClient();
+      },
+      startNewSession: () => this.startNewSession()
     });
 
     this.statePublisher = new StatePublisher(
@@ -251,7 +264,7 @@ export class PiChatController {
         await this.sessionView.navigateTree(message.entryId);
         return;
       case 'setSessionName':
-        await this.setSessionNameFromWebview(message.name);
+        await this.slashCommandController.setSessionNameFromWebview(message.name);
         return;
       case 'refreshMetadata':
         if (!this.session.isBusy) {
@@ -264,10 +277,10 @@ export class PiChatController {
         }
         return;
       case 'setModel':
-        await this.setModel(message.provider, message.modelId);
+        await this.slashCommandController.setModel(message.provider, message.modelId);
         return;
       case 'setThinkingLevel':
-        await this.setThinkingLevel(message.level);
+        await this.slashCommandController.setThinkingLevel(message.level);
         return;
       case 'removePromptContext':
         this.removePromptContext(message.id);
@@ -276,7 +289,7 @@ export class PiChatController {
         await this.abortActivePrompt();
         return;
       case 'copyText':
-        await this.copyTextFromWebview(message.text);
+        await this.slashCommandController.copyTextFromWebview(message.text);
         return;
       case 'submit':
         await this.handleSubmitMessage(message);
@@ -290,7 +303,7 @@ export class PiChatController {
     const localSlashCommand = parseLocalSlashCommand(message.text);
 
     if (this.session.isBusy) {
-      if (this.compacting) {
+      if (this.slashCommandController.isCompacting) {
         this.addCompactionBusyNotice();
         return;
       }
@@ -305,7 +318,7 @@ export class PiChatController {
     }
 
     if (localSlashCommand) {
-      await this.handleLocalSlashCommand(localSlashCommand);
+      await this.slashCommandController.handle(localSlashCommand);
       return;
     }
 
@@ -348,7 +361,7 @@ export class PiChatController {
       return;
     }
 
-    await this.handleLocalSlashCommand({ name, args });
+    await this.slashCommandController.handle({ name, args });
   }
 
   public startNewSession(options: { viewMode?: 'chat' | 'sessions' } = {}): void {
@@ -643,341 +656,6 @@ export class PiChatController {
     this.postState();
   }
 
-  private async handleLocalSlashCommand(command: { name: string; args: string }): Promise<void> {
-    if (!isSupportedBuiltinSlashCommand(command.name)) {
-      this.session.addSystemMessage(`/${command.name} is a Pi terminal command that is not supported in the VS Code sidebar yet.`);
-      this.postState();
-      return;
-    }
-
-    try {
-      switch (command.name) {
-        case 'new':
-          this.startNewSession();
-          return;
-        case 'model':
-          await this.handleModelSlashCommand(command.args);
-          return;
-        case 'name':
-          await this.handleNameSlashCommand(command.args);
-          return;
-        case 'session':
-          await this.handleSessionSlashCommand();
-          return;
-        case 'tree':
-          this.sessionView.showTree();
-          return;
-        case 'resume':
-          this.sessionView.showSessions();
-          return;
-        case 'fork':
-          await this.handleForkSlashCommand();
-          return;
-        case 'clone':
-          await this.handleCloneSlashCommand();
-          return;
-        case 'copy':
-          await this.handleCopySlashCommand();
-          return;
-        case 'compact':
-          await this.handleCompactSlashCommand(command.args);
-          return;
-        case 'reload':
-          await this.handleReloadSlashCommand();
-          return;
-        case 'export':
-          await this.handleExportSlashCommand(command.args);
-          return;
-        default:
-          return;
-      }
-    } catch (error) {
-      this.session.addErrorMessage(getErrorMessage(error));
-      this.postState();
-    }
-  }
-
-  private async handleModelSlashCommand(query: string): Promise<void> {
-    if (this.session.isBusy) {
-      return;
-    }
-
-    if (this.sessionMetadata.getModelOptions().length === 0) {
-      await this.refreshSessionMeta({ startClient: true, force: true });
-    }
-
-    const matches = filterModelOptions(this.sessionMetadata.getModelOptions(), query);
-
-    if (matches.length === 0) {
-      this.session.addSystemMessage(query ? `No model matched "${query}".` : 'No models are available yet.');
-      this.postState();
-      return;
-    }
-
-    let selected = matches.length === 1 ? matches[0] : undefined;
-
-    if (!selected) {
-      const labels = matches.map(formatModelOptionLabel);
-      const picked = await this.options.extensionUi?.select?.('Select Pi model', labels);
-
-      if (!picked) {
-        return;
-      }
-
-      selected = matches[labels.indexOf(picked)];
-    }
-
-    if (!selected) {
-      return;
-    }
-
-    await this.setModel(selected.provider, selected.id);
-  }
-
-  private async handleNameSlashCommand(name: string): Promise<void> {
-    await this.setCurrentSessionName(name, { announce: true });
-  }
-
-  private async setSessionNameFromWebview(name: string): Promise<void> {
-    if (this.session.isBusy) {
-      this.options.showNotification('Wait for Pi to finish before renaming the session.', 'warning');
-      return;
-    }
-
-    try {
-      await this.setCurrentSessionName(name, { announce: false });
-    } catch (error) {
-      this.session.addErrorMessage(getErrorMessage(error));
-      this.postState();
-    }
-  }
-
-  private async setCurrentSessionName(name: string, options: { announce: boolean }): Promise<void> {
-    const trimmedName = name.trim();
-    await this.getClient().setSessionName(trimmedName);
-    this.applyCurrentSessionName(trimmedName);
-
-    if (options.announce) {
-      this.session.addSystemMessage(trimmedName ? `Session name set to "${trimmedName}".` : 'Session name cleared.');
-    }
-
-    this.postState();
-    void this.refreshSessionMeta({ startClient: true, force: true });
-
-    if (this.sessionView.currentSessionFile || this.sessionView.sessionCount > 0) {
-      void this.sessionView.refreshSessions();
-    }
-  }
-
-  private async handleSessionSlashCommand(): Promise<void> {
-    const client = this.getClient();
-    const [state, stats] = await Promise.all([
-      client.getState(),
-      client.getSessionStats()
-    ]);
-
-    this.session.addSystemMessage(formatSessionInfo(state, stats));
-    this.postState();
-  }
-
-  private async handleForkSlashCommand(): Promise<void> {
-    const select = this.options.extensionUi?.select;
-
-    if (!select) {
-      this.session.addSystemMessage('Fork selection is not available in this environment.');
-      this.postState();
-      return;
-    }
-
-    const forkMessages = formatForkMessages((await this.getClient().getForkMessages()).messages);
-
-    if (forkMessages.length === 0) {
-      this.session.addSystemMessage('No messages to fork from.');
-      this.postState();
-      return;
-    }
-
-    const labels = forkMessages.map((message, index) => formatForkMessageLabel(message, index));
-    const picked = await select('Fork from message', labels);
-
-    if (!picked) {
-      return;
-    }
-
-    const selected = forkMessages[labels.indexOf(picked)];
-
-    if (!selected) {
-      return;
-    }
-
-    const result = await this.getClient().fork(selected.entryId);
-
-    if (result.cancelled) {
-      return;
-    }
-
-    const forkText = typeof result.text === 'string'
-      ? result.text.trim()
-      : selected.text;
-
-    await this.adoptReplacedSession({ refreshSessions: true });
-    this.setComposerText(forkText);
-    this.postState();
-  }
-
-  private async handleCloneSlashCommand(): Promise<void> {
-    const result = await this.getClient().clone();
-
-    if (result.cancelled) {
-      return;
-    }
-
-    await this.adoptReplacedSession({ refreshSessions: true });
-    this.options.showToast?.('Cloned current session.');
-  }
-
-  private async handleCopySlashCommand(): Promise<void> {
-    const result = await this.getClient().getLastAssistantText();
-    const text = typeof result.text === 'string' ? result.text : '';
-
-    if (!text) {
-      this.options.showNotification('No assistant message to copy.', 'warning');
-      return;
-    }
-
-    await this.copyTextToClipboard(text, 'Copied last Pi response.');
-  }
-
-  private async copyTextFromWebview(text: string): Promise<void> {
-    await this.copyTextToClipboard(text, 'Copied Pi response.');
-  }
-
-  private async copyTextToClipboard(text: string, successMessage: string): Promise<void> {
-    if (!text) {
-      this.options.showNotification('No assistant message to copy.', 'warning');
-      return;
-    }
-
-    if (!this.options.writeClipboard) {
-      this.options.showNotification('Copy is not available in this environment.', 'warning');
-      return;
-    }
-
-    await this.options.writeClipboard(text);
-    this.options.showNotification(successMessage, 'info');
-  }
-
-  private async handleCompactSlashCommand(customInstructions: string): Promise<void> {
-    this.compacting = true;
-    this.session.setBusy(true);
-    this.session.upsertActivity('compaction', {
-      kind: 'compaction',
-      title: 'Compacting context…',
-      status: 'running'
-    });
-    this.postState();
-
-    try {
-      const result = await this.getClient().compact(customInstructions || undefined);
-      const summary = typeof result.summary === 'string' ? result.summary.trim() : '';
-      this.session.upsertActivity('compaction', {
-        kind: 'compaction',
-        title: 'Compacting context…',
-        status: 'completed',
-        summary: 'Completed',
-        ...(summary ? { body: summary } : {})
-      });
-      this.session.handleAgentEnd();
-      this.compacting = false;
-      this.postState();
-      void this.refreshSessionMeta({ startClient: true, force: true });
-    } catch (error) {
-      this.session.upsertActivity('compaction', {
-        kind: 'compaction',
-        title: 'Compacting context…',
-        status: 'error',
-        summary: getErrorMessage(error)
-      });
-      this.session.handleAgentEnd();
-      this.compacting = false;
-      this.postState();
-    }
-  }
-
-  private async handleExportSlashCommand(outputPath: string): Promise<void> {
-    const result = await this.getClient().exportHtml(outputPath || undefined);
-    const path = typeof result.path === 'string' && result.path ? result.path : 'HTML file';
-    this.session.addSystemMessage(`Exported session to ${path}.`);
-    this.postState();
-  }
-
-  private async handleReloadSlashCommand(): Promise<void> {
-    this.session.addSystemMessage('Reloading Pi resources...');
-    this.postState();
-
-    let restartedClient = false;
-    let restoredSession = false;
-    const client = this.getClient();
-
-    try {
-      await client.reload();
-    } catch (error) {
-      if (!isUnsupportedReloadCommandError(error)) {
-        throw error;
-      }
-
-      const sessionFile = getSessionFile(await client.getState());
-      restartedClient = true;
-      restoredSession = Boolean(sessionFile);
-      this.clientManager.setNextSessionFile(sessionFile);
-      this.disposeClient();
-      this.session.addSystemMessage(sessionFile
-        ? 'Pi RPC reload is not supported by this Pi version; restarted Pi and reconnected to the current session.'
-        : 'Pi RPC reload is not supported by this Pi version; restarted Pi without a persisted session to reconnect.');
-      this.postState();
-    }
-
-    await Promise.all([
-      this.refreshSessionMeta({ startClient: true, force: true }),
-      this.refreshSlashCommands({ startClient: true, force: true })
-    ]);
-
-    this.session.addSystemMessage(restartedClient
-      ? restoredSession
-        ? 'Reloaded skills, prompts, extensions, metadata, and restored LLM session context.'
-        : 'Reloaded skills, prompts, extensions, and metadata by restarting Pi.'
-      : 'Reloaded keybindings, extensions, skills, prompts, and themes.');
-    this.postState();
-  }
-
-  private async setModel(provider: string, modelId: string): Promise<void> {
-    if (this.session.isBusy) {
-      return;
-    }
-
-    try {
-      await this.getClient().setModel(provider, modelId);
-      await this.refreshSessionMeta({ startClient: true, force: true });
-    } catch (error) {
-      this.session.addErrorMessage(getErrorMessage(error));
-      this.postState();
-    }
-  }
-
-  private async setThinkingLevel(level: string): Promise<void> {
-    if (this.session.isBusy) {
-      return;
-    }
-
-    try {
-      await this.getClient().setThinkingLevel(level);
-      await this.refreshSessionMeta({ startClient: true, force: true });
-    } catch (error) {
-      this.session.addErrorMessage(getErrorMessage(error));
-      this.postState();
-    }
-  }
-
   public async refreshSessionDiffStats(): Promise<void> {
     return this.sessionDiffController.refresh();
   }
@@ -1096,7 +774,7 @@ export class PiChatController {
 
     this.session.addErrorMessage(message);
     this.session.setBusy(false);
-    this.compacting = false;
+    this.slashCommandController.clearCompacting();
     this.sessionMetadata.clearRefreshing();
     this.sessionHistoryLoading = false;
     this.postState();
