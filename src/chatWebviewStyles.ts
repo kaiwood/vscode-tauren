@@ -1246,9 +1246,14 @@ const composerStyles = /* css */ `    .composer {
       display: block;
     }
 
+    .composer__add {
+      width: 34px;
+      height: 34px;
+    }
+
     .composer__add svg {
-      width: 24px;
-      height: 24px;
+      width: 28px;
+      height: 28px;
     }
 
     .composer__button-tooltip {
@@ -1478,4 +1483,4 @@ export const chatWebviewStyles = [
   messageStyles,
   activityStyles,
   composerStyles,
-].join('');
+].join("");
