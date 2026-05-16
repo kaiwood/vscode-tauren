@@ -1998,6 +1998,8 @@ export class PiChatController {
   }
 
   private disposeClient(): void {
+    this.extensionUiRequestHandler.startNewGeneration();
+
     for (const disposable of this.clientDisposables.splice(0)) {
       disposable.dispose();
     }
@@ -2222,6 +2224,10 @@ export class PiChatController {
   }
 
   private handleClientError(message: string): void {
+    if (isClientLifecycleError(message)) {
+      this.extensionUiRequestHandler.startNewGeneration();
+    }
+
     this.session.addErrorMessage(message);
     this.session.setBusy(false);
     this.compacting = false;
@@ -2825,6 +2831,17 @@ function isUnsupportedReloadCommandError(error: unknown): boolean {
 
 function isAbortMessage(message: string): boolean {
   return message.trim().toLowerCase() === 'aborted';
+}
+
+function isClientLifecycleError(message: string): boolean {
+  const normalized = message.trim().toLowerCase();
+
+  return normalized.startsWith('pi rpc process exited')
+    || normalized.startsWith('failed to start pi rpc process')
+    || normalized.startsWith('failed to parse pi rpc output')
+    || normalized.startsWith('received malformed pi rpc output')
+    || normalized.includes('pi rpc process is not running')
+    || normalized.includes('pi rpc client disposed');
 }
 
 function isMessageUpdateStart(event: RpcEvent): boolean {

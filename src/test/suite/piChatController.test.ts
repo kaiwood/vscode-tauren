@@ -1515,6 +1515,82 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
+  test('client replacement cancels pending extension UI requests and ignores late UI results', async () => {
+    const firstClient = new FakePiClient();
+    const secondClient = new FakePiClient();
+    const selectDeferred = createDeferred<string | undefined>();
+    let piPath: string | undefined;
+    const harness = createControllerHarness([firstClient, secondClient], {
+      getPiPath: () => piPath,
+      extensionUi: {
+        notify: () => {},
+        select: async () => selectDeferred.promise,
+        confirm: async () => undefined,
+        input: async () => undefined
+      }
+    });
+
+    await harness.controller.handleWebviewMessage({ type: 'refreshMetadata' });
+    firstClient.emit({
+      type: 'extension_ui_request',
+      method: 'select',
+      id: 'select-1',
+      title: 'Allow command?',
+      options: ['Allow', 'Block']
+    });
+    await flushPromises();
+
+    piPath = '/opt/pi-next';
+    harness.controller.handlePiPathChanged();
+    await flushPromises();
+    await flushPromises();
+
+    assert.deepStrictEqual(firstClient.extensionUiResponses, [{ id: 'select-1', cancelled: true }]);
+    assert.strictEqual(firstClient.disposed, true);
+    assert.strictEqual(harness.createCalls, 2);
+
+    selectDeferred.resolve('Allow');
+    await flushPromises();
+
+    assert.deepStrictEqual(firstClient.extensionUiResponses, [{ id: 'select-1', cancelled: true }]);
+    assert.deepStrictEqual(secondClient.extensionUiResponses, []);
+    harness.controller.dispose();
+  });
+
+  test('client lifecycle errors invalidate pending extension UI requests before a client restarts', async () => {
+    const client = new FakePiClient();
+    const selectDeferred = createDeferred<string | undefined>();
+    const harness = createControllerHarness([client], {
+      extensionUi: {
+        notify: () => {},
+        select: async () => selectDeferred.promise,
+        confirm: async () => undefined,
+        input: async () => undefined
+      }
+    });
+
+    await harness.controller.handleWebviewMessage({ type: 'refreshMetadata' });
+    client.emit({
+      type: 'extension_ui_request',
+      method: 'select',
+      id: 'select-1',
+      title: 'Allow command?',
+      options: ['Allow', 'Block']
+    });
+    await flushPromises();
+
+    client.disposed = true;
+    client.emitError('Pi RPC process exited with code 1.');
+    await flushPromises();
+
+    client.disposed = false;
+    selectDeferred.resolve('Allow');
+    await flushPromises();
+
+    assert.deepStrictEqual(client.extensionUiResponses, []);
+    harness.controller.dispose();
+  });
+
   test('unmatched failed responses are added to the transcript', async () => {
     const client = new FakePiClient();
     const harness = createControllerHarness([client]);
