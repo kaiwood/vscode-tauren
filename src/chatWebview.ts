@@ -19,6 +19,7 @@ export type WebviewMessage =
   | { type: 'showSessions' }
   | { type: 'hideSessions' }
   | { type: 'refreshSessions' }
+  | { type: 'showCurrentChanges' }
   | { type: 'selectSession'; sessionPath: string }
   | { type: 'deleteSession'; sessionPath: string }
   | { type: 'sessionItemCommand'; sessionPath: string; command: WebviewSessionItemCommand }
@@ -53,6 +54,8 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
       return { type: 'hideSessions' };
     case 'refreshSessions':
       return { type: 'refreshSessions' };
+    case 'showCurrentChanges':
+      return { type: 'showCurrentChanges' };
     case 'selectSession':
       return typeof value.sessionPath === 'string' && value.sessionPath
         ? { type: 'selectSession', sessionPath: value.sessionPath }
@@ -454,12 +457,12 @@ ${chatWebviewStyles}
       <div class="composer__context-badges" aria-label="Attached context" hidden></div>
       <textarea class="composer__input" rows="1" aria-label="Message" placeholder="Write your prompt…" aria-autocomplete="list" aria-controls="slash-command-list" aria-expanded="false"></textarea>
       <div class="composer__busy-submit" hidden aria-live="polite">
-        <span class="composer__diff-summary">
+        <button class="composer__diff-summary" type="button" aria-label="Show session changes">
           <span>Changes:</span>
           <span class="composer__diff-added">+0</span>
           <span aria-hidden="true">|</span>
           <span class="composer__diff-removed">-0</span>
-        </span>
+        </button>
         <span class="composer__busy-submit-modes" role="group" aria-label="Busy submit mode">
           <button class="composer__mode-button" type="button" data-streaming-behavior="steer">Steer</button>
           <button class="composer__mode-button" type="button" data-streaming-behavior="followUp">Follow-up</button>

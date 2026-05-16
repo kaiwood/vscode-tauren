@@ -280,6 +280,11 @@ export class PiChatController {
       return;
     }
 
+    if (message.type === 'showCurrentChanges') {
+      await this.showCurrentSessionChanges();
+      return;
+    }
+
     if (message.type === 'selectSession') {
       await this.switchSession(message.sessionPath);
       return;
@@ -1006,6 +1011,16 @@ export class PiChatController {
         this.postState();
       }
     }
+  }
+
+  private async showCurrentSessionChanges(): Promise<void> {
+    if (!this.currentSessionFile) {
+      this.options.showNotification('No persisted session changes are available yet.', 'info');
+      return;
+    }
+
+    const session = this.sessions.find((entry) => normalizeSessionPath(entry.path) === normalizeSessionPath(this.currentSessionFile));
+    await this.showSessionChanges(session ?? createFallbackSessionItem(this.currentSessionFile));
   }
 
   private async showSessionChanges(session: WebviewSessionItem): Promise<void> {

@@ -1165,9 +1165,26 @@ const composerStyles = /* css */ `    .composer {
       align-items: center;
       gap: 4px;
       overflow: hidden;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: left;
       text-overflow: ellipsis;
       white-space: nowrap;
+      cursor: pointer;
       font-variant-numeric: tabular-nums;
+    }
+
+    .composer__diff-summary:hover {
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    .composer__diff-summary:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 2px;
     }
 
     .composer__diff-added,

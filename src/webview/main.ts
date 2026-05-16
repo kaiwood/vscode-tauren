@@ -218,6 +218,7 @@ for (const button of streamingBehaviorButtonElements) {
 }
 
 newSessionButton?.addEventListener('click', startNewSession);
+diffSummaryElement?.addEventListener('click', showCurrentChanges);
 messagesElement?.addEventListener('click', handleMessageClick);
 sessionToggleButton?.addEventListener('click', toggleSessionView);
 toolbarTitleElement?.addEventListener('dblclick', startSessionNameEdit);
@@ -422,6 +423,11 @@ contextBadgesElement?.addEventListener('click', (event) => {
   vscode.postMessage({ type: 'removePromptContext', id });
   focusPromptInput();
 });
+
+function showCurrentChanges(): void {
+  vscode.postMessage({ type: 'showCurrentChanges' });
+  focusPromptInput();
+}
 
 function showToast(message: string): void {
   if (!toastElement) {
@@ -1667,7 +1673,7 @@ function syncDiffSummary(): void {
 
   updateDiffCounter(addedDiffCounter, addedLines);
   updateDiffCounter(removedDiffCounter, removedLines);
-  diffSummaryElement.title = `Changes: +${formatDiffLineCount(addedLines)} | -${formatDiffLineCount(removedLines)}`;
+  diffSummaryElement.title = `Show session changes: +${formatDiffLineCount(addedLines)} | -${formatDiffLineCount(removedLines)}`;
 }
 
 function createDiffCounter(element: HTMLElement, prefix: '+' | '-'): DiffCounterState {

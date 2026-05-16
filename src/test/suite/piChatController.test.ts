@@ -420,6 +420,22 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
+  test('show current changes opens active session diff without creating a Pi client', async () => {
+    const shownChanges: Array<{ path: string; name: string }> = [];
+    const harness = createControllerHarness([], {
+      initialSessionFile: '/sessions/current.jsonl',
+      showSessionChanges: async (path, name) => {
+        shownChanges.push({ path, name });
+      }
+    });
+
+    await harness.controller.handleWebviewMessage({ type: 'showCurrentChanges' });
+
+    assert.deepStrictEqual(shownChanges, [{ path: '/sessions/current.jsonl', name: 'current.jsonl' }]);
+    assert.strictEqual(harness.createCalls, 0);
+    harness.controller.dispose();
+  });
+
   test('session item show changes opens listed session diff without creating a Pi client', async () => {
     const shownChanges: Array<{ path: string; name: string }> = [];
     const harness = createControllerHarness([], {

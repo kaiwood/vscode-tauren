@@ -103,6 +103,7 @@ suite('Chat webview helpers', () => {
     assert.deepStrictEqual(parseWebviewMessage({ type: 'showSessions' }), { type: 'showSessions' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'hideSessions' }), { type: 'hideSessions' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'refreshSessions' }), { type: 'refreshSessions' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'showCurrentChanges' }), { type: 'showCurrentChanges' });
     assert.deepStrictEqual(
       parseWebviewMessage({ type: 'selectSession', sessionPath: '/sessions/current.jsonl' }),
       { type: 'selectSession', sessionPath: '/sessions/current.jsonl' }
@@ -256,7 +257,7 @@ suite('Chat webview helpers', () => {
     assert.ok(html.includes('class="composer__model-menu"'));
     assert.ok(html.includes('class="composer__slash-menu"'));
     assert.ok(html.includes('class="composer__busy-submit"'));
-    assert.ok(html.includes('class="composer__diff-summary"'));
+    assert.ok(html.includes('class="composer__diff-summary" type="button"'));
     assert.ok(html.includes('class="composer__diff-added"'));
     assert.ok(html.includes('class="composer__diff-removed"'));
     assert.ok(!html.includes('composer__busy-submit-hint'));

@@ -1302,6 +1302,7 @@
     });
   }
   newSessionButton?.addEventListener("click", startNewSession);
+  diffSummaryElement?.addEventListener("click", showCurrentChanges);
   messagesElement?.addEventListener("click", handleMessageClick);
   sessionToggleButton?.addEventListener("click", toggleSessionView);
   toolbarTitleElement?.addEventListener("dblclick", startSessionNameEdit);
@@ -1468,6 +1469,10 @@
     vscode.postMessage({ type: "removePromptContext", id });
     focusPromptInput();
   });
+  function showCurrentChanges() {
+    vscode.postMessage({ type: "showCurrentChanges" });
+    focusPromptInput();
+  }
   function showToast(message) {
     if (!toastElement) {
       return;
@@ -2429,7 +2434,7 @@
     const removedLines = normalizeDiffLineCount2(state.workspaceDiffStats.removedLines);
     updateDiffCounter(addedDiffCounter, addedLines);
     updateDiffCounter(removedDiffCounter, removedLines);
-    diffSummaryElement.title = `Changes: +${formatDiffLineCount(addedLines)} | -${formatDiffLineCount(removedLines)}`;
+    diffSummaryElement.title = `Show session changes: +${formatDiffLineCount(addedLines)} | -${formatDiffLineCount(removedLines)}`;
   }
   function createDiffCounter(element, prefix) {
     const value = parseDiffCounterValue(element.textContent, prefix);
