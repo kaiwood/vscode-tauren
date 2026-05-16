@@ -199,12 +199,12 @@ export class ShikiCodeRenderer implements vscode.Disposable {
 
   private renderWithState(state: RendererState, code: string, language: string): string {
     try {
-      return state.highlighter.codeToHtml(code, {
+      return normalizeInlineShikiLineBreaks(state.highlighter.codeToHtml(code, {
         lang: language,
         theme: state.themeId,
         structure: 'inline',
         mergeSameStyleTokens: true
-      });
+      }));
     } catch (error) {
       console.warn(`Tau failed to highlight ${language} with Shiki.`, error);
       throw error;
@@ -254,6 +254,10 @@ export class ShikiCodeRenderer implements vscode.Disposable {
       this.cache.delete(oldestKey);
     }
   }
+}
+
+function normalizeInlineShikiLineBreaks(html: string): string {
+  return html.replace(/<br\s*\/?>/g, '\n');
 }
 
 async function createFallbackState(shiki: ShikiModule): Promise<RendererState> {

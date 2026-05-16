@@ -16,4 +16,19 @@ suite('ShikiCodeRenderer', () => {
       renderer.dispose();
     }
   });
+
+  test('preserves line breaks as text newlines for highlighted code blocks', async () => {
+    const renderer = new ShikiCodeRenderer();
+
+    try {
+      const result = await renderer.highlightCode('const one = 1;\nconst two = 2;', 'ts');
+
+      assert.ok(result);
+      assert.match(result.html, /one/);
+      assert.match(result.html, /\n/);
+      assert.doesNotMatch(result.html, /<br\s*\/?>/);
+    } finally {
+      renderer.dispose();
+    }
+  });
 });

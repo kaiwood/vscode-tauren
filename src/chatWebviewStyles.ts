@@ -645,9 +645,11 @@ const messageStyles = /* css */ `    .message {
     }
 
     .message__body--markdown pre code {
+      display: block;
       padding: 0;
       background: transparent;
       border-radius: 0;
+      white-space: inherit;
     }
 
     .tau-shiki-pending {
