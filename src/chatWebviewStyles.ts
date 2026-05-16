@@ -1165,9 +1165,8 @@ const composerStyles = /* css */ `    .composer {
 
     .composer__diff-added,
     .composer__diff-removed {
-      display: inline-block;
-      transform-origin: 50% 70%;
-      backface-visibility: hidden;
+      display: inline-flex;
+      align-items: baseline;
       font-weight: 600;
     }
 
@@ -1179,14 +1178,27 @@ const composerStyles = /* css */ `    .composer {
       color: var(--vscode-gitDecoration-deletedResourceForeground, #f85149);
     }
 
-    .composer__diff-counter--rolling {
-      animation: composer-diff-counter-roll 180ms ease-out;
+    .composer__diff-sign,
+    .composer__diff-digit,
+    .composer__diff-separator {
+      display: inline-block;
     }
 
-    @keyframes composer-diff-counter-roll {
+    .composer__diff-digit {
+      min-width: 0.62em;
+      text-align: center;
+      transform-origin: 50% 70%;
+      backface-visibility: hidden;
+    }
+
+    .composer__diff-digit--rolling {
+      animation: composer-diff-digit-roll 150ms ease-out;
+    }
+
+    @keyframes composer-diff-digit-roll {
       0% {
-        opacity: 0.45;
-        transform: translateY(-0.35em) rotateX(72deg);
+        opacity: 0.5;
+        transform: translateY(-0.28em) rotateX(64deg);
       }
 
       100% {
@@ -1196,7 +1208,7 @@ const composerStyles = /* css */ `    .composer {
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .composer__diff-counter--rolling {
+      .composer__diff-digit--rolling {
         animation: none;
       }
     }

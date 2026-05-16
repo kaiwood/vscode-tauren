@@ -1222,6 +1222,8 @@
   var sessionListNameEditInitialValue = "";
   var sessionNameEditing = false;
   var sessionNameEditInitialValue = "";
+  var addedDiffCounter = createDiffCounter(diffAddedElement, "+");
+  var removedDiffCounter = createDiffCounter(diffRemovedElement, "-");
   var renderedMessageViews = [];
   window.addEventListener("message", (event) => {
     if (handleCodeHighlightMessage(event.data)) {
@@ -2403,20 +2405,108 @@
     }
   }
   function syncDiffSummary() {
-    const addedLines = formatDiffLineCount(state.workspaceDiffStats.addedLines);
-    const removedLines = formatDiffLineCount(state.workspaceDiffStats.removedLines);
-    setDiffCounterText(diffAddedElement, `+${addedLines}`);
-    setDiffCounterText(diffRemovedElement, `-${removedLines}`);
-    diffSummaryElement.title = `Changes: +${addedLines} | -${removedLines}`;
+    const addedLines = normalizeDiffLineCount2(state.workspaceDiffStats.addedLines);
+    const removedLines = normalizeDiffLineCount2(state.workspaceDiffStats.removedLines);
+    updateDiffCounter(addedDiffCounter, addedLines);
+    updateDiffCounter(removedDiffCounter, removedLines);
+    diffSummaryElement.title = `Changes: +${formatDiffLineCount(addedLines)} | -${formatDiffLineCount(removedLines)}`;
   }
-  function setDiffCounterText(element, text) {
-    if (element.textContent === text) {
+  function createDiffCounter(element, prefix) {
+    const value = parseDiffCounterValue(element.textContent, prefix);
+    const counter = {
+      element,
+      prefix,
+      value,
+      target: value,
+      startValue: value,
+      startTime: 0,
+      duration: 0,
+      lastText: "",
+      animationFrame: void 0
+    };
+    renderDiffCounter(counter, value);
+    return counter;
+  }
+  function updateDiffCounter(counter, targetValue) {
+    const target = normalizeDiffLineCount2(targetValue);
+    if (target === counter.target) {
       return;
     }
-    element.textContent = text;
-    element.classList.remove("composer__diff-counter--rolling");
-    void element.offsetWidth;
-    element.classList.add("composer__diff-counter--rolling");
+    const now = performance.now();
+    const currentValue = counter.animationFrame === void 0 ? counter.value : getInterpolatedDiffCounterValue(counter, now);
+    renderDiffCounter(counter, currentValue);
+    counter.target = target;
+    counter.startValue = currentValue;
+    counter.startTime = now;
+    counter.duration = getDiffCounterDuration(Math.abs(target - currentValue));
+    if (counter.animationFrame === void 0) {
+      counter.animationFrame = requestAnimationFrame((time) => tickDiffCounter(counter, time));
+    }
+  }
+  function tickDiffCounter(counter, time) {
+    const nextValue = getInterpolatedDiffCounterValue(counter, time);
+    renderDiffCounter(counter, nextValue);
+    if (nextValue === counter.target) {
+      counter.animationFrame = void 0;
+      return;
+    }
+    counter.animationFrame = requestAnimationFrame((nextTime) => tickDiffCounter(counter, nextTime));
+  }
+  function getInterpolatedDiffCounterValue(counter, time) {
+    if (counter.duration <= 0) {
+      return counter.target;
+    }
+    const progress = Math.min(1, Math.max(0, (time - counter.startTime) / counter.duration));
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const value = counter.startValue + (counter.target - counter.startValue) * eased;
+    if (progress >= 1) {
+      return counter.target;
+    }
+    return Math.round(value);
+  }
+  function renderDiffCounter(counter, value) {
+    const normalizedValue = normalizeDiffLineCount2(value);
+    const nextText = formatDiffLineCount(normalizedValue);
+    if (counter.lastText === nextText && counter.value === normalizedValue) {
+      return;
+    }
+    const previousText = counter.lastText;
+    const fragment = document.createDocumentFragment();
+    const sign = document.createElement("span");
+    sign.className = "composer__diff-sign";
+    sign.textContent = counter.prefix;
+    fragment.append(sign);
+    for (let index = 0; index < nextText.length; index += 1) {
+      const char = nextText[index];
+      const previousIndex = previousText.length - nextText.length + index;
+      const previousChar = previousIndex >= 0 ? previousText[previousIndex] : void 0;
+      const span = document.createElement("span");
+      const isDigit = /\d/.test(char);
+      span.className = isDigit ? "composer__diff-digit" : "composer__diff-separator";
+      span.textContent = char;
+      if (isDigit && previousChar !== void 0 && previousChar !== char) {
+        span.classList.add("composer__diff-digit--rolling");
+      }
+      fragment.append(span);
+    }
+    counter.element.replaceChildren(fragment);
+    counter.element.setAttribute("aria-label", `${counter.prefix}${nextText}`);
+    counter.value = normalizedValue;
+    counter.lastText = nextText;
+  }
+  function getDiffCounterDuration(delta) {
+    if (delta <= 0) {
+      return 0;
+    }
+    return Math.min(2400, Math.max(600, 450 + Math.log10(delta + 1) * 650));
+  }
+  function parseDiffCounterValue(text, prefix) {
+    const normalized = (text ?? "").trim().replace(prefix, "").replace(/,/g, "");
+    const value = Number(normalized);
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+  }
+  function normalizeDiffLineCount2(value) {
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
   }
   function hasWorkspaceDiffChanges() {
     return state.workspaceDiffStats.addedLines > 0 || state.workspaceDiffStats.removedLines > 0;

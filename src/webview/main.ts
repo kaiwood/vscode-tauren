@@ -96,6 +96,20 @@ let sessionListNameEditInitialValue = '';
 let sessionNameEditing = false;
 let sessionNameEditInitialValue = '';
 
+type DiffCounterState = {
+  element: HTMLElement;
+  prefix: '+' | '-';
+  value: number;
+  target: number;
+  startValue: number;
+  startTime: number;
+  duration: number;
+  lastText: string;
+  animationFrame: number | undefined;
+};
+
+const addedDiffCounter = createDiffCounter(diffAddedElement, '+');
+const removedDiffCounter = createDiffCounter(diffRemovedElement, '-');
 
 type RenderedMessageView = {
   element: HTMLElement;
@@ -1626,23 +1640,137 @@ function syncBusySubmitMode() {
 }
 
 function syncDiffSummary(): void {
-  const addedLines = formatDiffLineCount(state.workspaceDiffStats.addedLines);
-  const removedLines = formatDiffLineCount(state.workspaceDiffStats.removedLines);
+  const addedLines = normalizeDiffLineCount(state.workspaceDiffStats.addedLines);
+  const removedLines = normalizeDiffLineCount(state.workspaceDiffStats.removedLines);
 
-  setDiffCounterText(diffAddedElement, `+${addedLines}`);
-  setDiffCounterText(diffRemovedElement, `-${removedLines}`);
-  diffSummaryElement.title = `Changes: +${addedLines} | -${removedLines}`;
+  updateDiffCounter(addedDiffCounter, addedLines);
+  updateDiffCounter(removedDiffCounter, removedLines);
+  diffSummaryElement.title = `Changes: +${formatDiffLineCount(addedLines)} | -${formatDiffLineCount(removedLines)}`;
 }
 
-function setDiffCounterText(element: HTMLElement, text: string): void {
-  if (element.textContent === text) {
+function createDiffCounter(element: HTMLElement, prefix: '+' | '-'): DiffCounterState {
+  const value = parseDiffCounterValue(element.textContent, prefix);
+  const counter: DiffCounterState = {
+    element,
+    prefix,
+    value,
+    target: value,
+    startValue: value,
+    startTime: 0,
+    duration: 0,
+    lastText: '',
+    animationFrame: undefined
+  };
+
+  renderDiffCounter(counter, value);
+  return counter;
+}
+
+function updateDiffCounter(counter: DiffCounterState, targetValue: number): void {
+  const target = normalizeDiffLineCount(targetValue);
+
+  if (target === counter.target) {
     return;
   }
 
-  element.textContent = text;
-  element.classList.remove('composer__diff-counter--rolling');
-  void element.offsetWidth;
-  element.classList.add('composer__diff-counter--rolling');
+  const now = performance.now();
+  const currentValue = counter.animationFrame === undefined
+    ? counter.value
+    : getInterpolatedDiffCounterValue(counter, now);
+
+  renderDiffCounter(counter, currentValue);
+  counter.target = target;
+  counter.startValue = currentValue;
+  counter.startTime = now;
+  counter.duration = getDiffCounterDuration(Math.abs(target - currentValue));
+
+  if (counter.animationFrame === undefined) {
+    counter.animationFrame = requestAnimationFrame((time) => tickDiffCounter(counter, time));
+  }
+}
+
+function tickDiffCounter(counter: DiffCounterState, time: number): void {
+  const nextValue = getInterpolatedDiffCounterValue(counter, time);
+  renderDiffCounter(counter, nextValue);
+
+  if (nextValue === counter.target) {
+    counter.animationFrame = undefined;
+    return;
+  }
+
+  counter.animationFrame = requestAnimationFrame((nextTime) => tickDiffCounter(counter, nextTime));
+}
+
+function getInterpolatedDiffCounterValue(counter: DiffCounterState, time: number): number {
+  if (counter.duration <= 0) {
+    return counter.target;
+  }
+
+  const progress = Math.min(1, Math.max(0, (time - counter.startTime) / counter.duration));
+  const eased = 1 - Math.pow(1 - progress, 3);
+  const value = counter.startValue + ((counter.target - counter.startValue) * eased);
+
+  if (progress >= 1) {
+    return counter.target;
+  }
+
+  return Math.round(value);
+}
+
+function renderDiffCounter(counter: DiffCounterState, value: number): void {
+  const normalizedValue = normalizeDiffLineCount(value);
+  const nextText = formatDiffLineCount(normalizedValue);
+
+  if (counter.lastText === nextText && counter.value === normalizedValue) {
+    return;
+  }
+
+  const previousText = counter.lastText;
+  const fragment = document.createDocumentFragment();
+  const sign = document.createElement('span');
+  sign.className = 'composer__diff-sign';
+  sign.textContent = counter.prefix;
+  fragment.append(sign);
+
+  for (let index = 0; index < nextText.length; index += 1) {
+    const char = nextText[index];
+    const previousIndex = previousText.length - nextText.length + index;
+    const previousChar = previousIndex >= 0 ? previousText[previousIndex] : undefined;
+    const span = document.createElement('span');
+    const isDigit = /\d/.test(char);
+    span.className = isDigit ? 'composer__diff-digit' : 'composer__diff-separator';
+    span.textContent = char;
+
+    if (isDigit && previousChar !== undefined && previousChar !== char) {
+      span.classList.add('composer__diff-digit--rolling');
+    }
+
+    fragment.append(span);
+  }
+
+  counter.element.replaceChildren(fragment);
+  counter.element.setAttribute('aria-label', `${counter.prefix}${nextText}`);
+  counter.value = normalizedValue;
+  counter.lastText = nextText;
+}
+
+function getDiffCounterDuration(delta: number): number {
+  if (delta <= 0) {
+    return 0;
+  }
+
+  return Math.min(2400, Math.max(600, 450 + Math.log10(delta + 1) * 650));
+}
+
+function parseDiffCounterValue(text: string | null, prefix: '+' | '-'): number {
+  const normalized = (text ?? '').trim().replace(prefix, '').replace(/,/g, '');
+  const value = Number(normalized);
+
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+function normalizeDiffLineCount(value: number): number {
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
 
 function hasWorkspaceDiffChanges(): boolean {
