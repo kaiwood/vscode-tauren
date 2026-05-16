@@ -54,7 +54,7 @@ import {
   type SessionDiffSnapshot,
   type SessionDiffStats,
   type ToolExecutionInput
-} from './sessionDiffTracker';
+} from './diff/sessionDiffTracker';
 
 export type PiRpcClientLike = Pick<
   PiRpcClient,

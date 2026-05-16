@@ -13,13 +13,13 @@ import {
   type PiRpcClientFactory
 } from './piChatController';
 import { PiRpcClient } from './piRpcClient';
-import { getSessionDiffDocumentContext, SessionDiffViewer } from './sessionDiffViewer';
+import { getSessionDiffDocumentContext, SessionDiffViewer } from './diff/sessionDiffViewer';
 import { ShikiCodeRenderer } from './shikiCodeRenderer';
 import { TauSessionManager } from './tauSessionManager';
 import { listPiSessions } from './piSessionList';
 import { runReadyScript } from './readyScript';
 import type { WebviewModelOption } from './chatWebview';
-import type { SessionDiffSnapshot } from './sessionDiffTracker';
+import type { SessionDiffSnapshot } from './diff/sessionDiffTracker';
 
 export const chatViewType = 'tau.chatView';
 export type { PiRpcClientLike } from './piChatController';

@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
-import { getToolExecutionDiffStats, parseSessionBestEffortFileDiffsFromFile, parseSessionDiffStats, parseSessionFileDiffsFromFile, SessionDiffTracker } from '../../sessionDiffTracker';
+import { getToolExecutionDiffStats, parseSessionBestEffortFileDiffsFromFile, parseSessionDiffStats, parseSessionFileDiffsFromFile, SessionDiffTracker } from '../../diff/sessionDiffTracker';
 
 suite('SessionDiffTracker', () => {
   test('counts actual changed edit lines and write tool content lines', () => {
