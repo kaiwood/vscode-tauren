@@ -35,6 +35,7 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - `src/piRpcClient.ts` owns the `pi --mode rpc` subprocess, strict JSONL parsing, request/response tracking, stderr collection, and process cleanup.
 - Third-party webview browser bundles are vendored in `resources/vendor`; generated first-party webview bundles live in `resources/webview`; keep browser-only libraries out of runtime `dependencies` unless extension-host code imports them.
 - Shiki and `vscode-shiki-bridge` are runtime dependencies because syntax highlighting runs in the extension host, not as a vendored webview browser bundle.
+- `.vscodeignore` must not exclude runtime `dependencies`; installed VSIX builds do not have the workspace `node_modules` available. Let `vsce` include production dependencies such as Shiki and its transitive packages.
 - The extension host still compiles with direct `tsc`; browser-side webview code is bundled separately with esbuild through `npm run compile:webview`.
 
 ## Pi Integration

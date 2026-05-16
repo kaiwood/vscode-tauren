@@ -22,6 +22,3 @@ plan/**
 
 # Build metadata
 out/**/*.map
-
-# Runtime webview assets are kept under resources/.
-node_modules/**
