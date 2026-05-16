@@ -3,36 +3,8 @@ import { readdir, readFile, stat } from 'fs/promises';
 import { homedir } from 'os';
 import { dirname, isAbsolute, join, resolve } from 'path';
 import { extractPiMessageText } from '../piMessageContent';
-
-export type PiSessionListItem = {
-  path: string;
-  id: string;
-  cwd: string;
-  name?: string;
-  parentSessionPath?: string;
-  created: string;
-  modified: string;
-  messageCount: number;
-  firstMessage: string;
-  depth: number;
-  isLast: boolean;
-  ancestorContinues: boolean[];
-  current: boolean;
-};
-
-export type ListPiSessionsOptions = {
-  cwd?: string;
-  sessionDir?: string;
-  currentSessionFile?: string;
-  env?: NodeJS.ProcessEnv;
-};
-
-type RawSessionInfo = Omit<PiSessionListItem, 'depth' | 'isLast' | 'ancestorContinues' | 'current'>;
-
-type SessionTreeNode = {
-  session: RawSessionInfo;
-  children: SessionTreeNode[];
-};
+import type { ListPiSessionsOptions, PiSessionListItem, RawSessionInfo, SessionTreeNode } from './types';
+export type { ListPiSessionsOptions, PiSessionListItem } from './types';
 
 const piSessionDirEnvName = 'PI_CODING_AGENT_SESSION_DIR';
 

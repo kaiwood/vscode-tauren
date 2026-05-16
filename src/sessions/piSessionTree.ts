@@ -1,23 +1,7 @@
 import { readFile } from 'fs/promises';
 import { extractPiMessageText } from '../piMessageContent';
-
-export type PiSessionTreeItem = {
-  entryId: string;
-  role: string;
-  text: string;
-  current: boolean;
-};
-
-type RawEntry = Record<string, unknown> & {
-  id?: string;
-  parentId?: string | null;
-  type?: string;
-};
-
-type TreeNode = {
-  entry: RawEntry;
-  children: TreeNode[];
-};
+import type { PiSessionTreeItem, RawEntry, TreeNode } from './types';
+export type { PiSessionTreeItem } from './types';
 
 export async function listPiSessionTree(sessionFile: string | undefined): Promise<PiSessionTreeItem[]> {
   if (!sessionFile) {

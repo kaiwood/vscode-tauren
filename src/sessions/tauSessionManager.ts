@@ -1,24 +1,11 @@
 import {
   PiChatController,
-  type PiChatControllerOptions,
   type PiChatSessionMetaSnapshot,
   type PiPromptContextInput
 } from '../piChatController';
 import type { WebviewMessage, WebviewSessionItem, WebviewStateMessage } from '../chatWebview';
-
-export type TauSessionManagerOptions = PiChatControllerOptions;
-
-type OpenSessionStatus = 'idle' | 'running' | 'done' | 'error';
-
-type OpenSession = {
-  id: string;
-  controller: PiChatController;
-  state: WebviewStateMessage | undefined;
-  sessionFile: string | undefined;
-  status: OpenSessionStatus;
-  unread: boolean;
-  title: string;
-};
+import type { OpenSession, OpenSessionStatus, TauSessionManagerOptions } from './types';
+export type { TauSessionManagerOptions } from './types';
 
 export class TauSessionManager {
   private readonly sessions: OpenSession[] = [];
