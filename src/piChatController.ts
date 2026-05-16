@@ -41,6 +41,7 @@ import type {
   PiSessionStats,
   RpcEvent
 } from './piRpcClient';
+import { extractPiMessageText } from './piMessageContent';
 import {
   isBuiltinSlashCommand,
   isSupportedBuiltinSlashCommand
@@ -2548,12 +2549,12 @@ function formatAgentMessages(messages: PiAgentMessage[] | undefined): ChatMessag
     }
 
     if (message.role === 'user') {
-      const text = stripTauPromptMetadata(extractMessageText(message.content));
+      const text = stripTauPromptMetadata(extractPiMessageText(message.content, { includeImages: true }));
       return text.trim() ? [{ role: 'user', text }] : [];
     }
 
     if (message.role === 'assistant') {
-      const text = extractMessageText(message.content);
+      const text = extractPiMessageText(message.content, { includeImages: true });
       const errorMessage = typeof message.errorMessage === 'string' ? message.errorMessage : '';
       const displayText = text || errorMessage;
       return displayText.trim()
@@ -2578,38 +2579,12 @@ function formatAgentMessages(messages: PiAgentMessage[] | undefined): ChatMessag
     if (message.role === 'custom') {
       const displayText = typeof message.display === 'string'
         ? message.display
-        : extractMessageText(message.content);
+        : extractPiMessageText(message.content, { includeImages: true });
       return displayText.trim() ? [{ role: 'system', text: displayText }] : [];
     }
 
     return [];
   });
-}
-
-function extractMessageText(content: unknown): string {
-  if (typeof content === 'string') {
-    return content;
-  }
-
-  if (!Array.isArray(content)) {
-    return '';
-  }
-
-  return content.flatMap((item) => {
-    if (!isRecord(item)) {
-      return [];
-    }
-
-    if (item.type === 'text' && typeof item.text === 'string') {
-      return [item.text];
-    }
-
-    if (item.type === 'image') {
-      return ['[Image]'];
-    }
-
-    return [];
-  }).join('\n\n');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

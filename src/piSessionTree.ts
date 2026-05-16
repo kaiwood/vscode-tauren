@@ -1,4 +1,5 @@
 import { readFile } from 'fs/promises';
+import { extractPiMessageText } from './piMessageContent';
 
 export type PiSessionTreeItem = {
   entryId: string;
@@ -151,37 +152,15 @@ function formatEntry(entry: RawEntry): { role: string; text: string } {
 
 function summarizeMessage(message: Record<string, unknown>): string {
   if (message.role === 'assistant' && Array.isArray(message.content)) {
-    const text = message.content.flatMap((item) => {
-      if (!isRecord(item)) {
-        return [];
-      }
-
-      if (item.type === 'text' && typeof item.text === 'string') {
-        return [item.text];
-      }
-
-      if (item.type === 'toolCall' && typeof item.name === 'string') {
-        return [`${item.name}()`];
-      }
-
-      return [];
-    }).join(' ');
+    const text = extractPiMessageText(message.content, { separator: ' ', includeToolCalls: true });
     return truncate(text || '(no text)');
   }
 
-  return truncate(summarizeText(message.content));
+  return summarizeText(message.content);
 }
 
 function summarizeText(value: unknown): string {
-  if (typeof value === 'string') {
-    return truncate(value);
-  }
-
-  if (Array.isArray(value)) {
-    return truncate(value.flatMap((item) => isRecord(item) && typeof item.text === 'string' ? [item.text] : []).join(' '));
-  }
-
-  return '';
+  return truncate(extractPiMessageText(value, { separator: ' ' }));
 }
 
 function truncate(value: string): string {

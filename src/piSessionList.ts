@@ -2,6 +2,7 @@ import { existsSync } from 'fs';
 import { readdir, readFile, stat } from 'fs/promises';
 import { homedir } from 'os';
 import { dirname, isAbsolute, join, resolve } from 'path';
+import { extractPiMessageText } from './piMessageContent';
 import { stripTauPromptMetadata } from './tauPromptMetadata';
 
 export type PiSessionListItem = {
@@ -219,7 +220,7 @@ async function buildSessionInfo(filePath: string): Promise<RawSessionInfo | unde
       }
 
       if (role === 'user' && !firstMessage) {
-        firstMessage = stripTauPromptMetadata(extractTextContent(entry.message.content)).trim();
+        firstMessage = stripTauPromptMetadata(extractPiMessageText(entry.message.content, { separator: ' ' })).trim();
       }
     }
 
@@ -280,24 +281,6 @@ function parseDate(value: unknown, fallback: Date): Date {
 
   const time = new Date(value).getTime();
   return Number.isNaN(time) ? fallback : new Date(time);
-}
-
-function extractTextContent(content: unknown): string {
-  if (typeof content === 'string') {
-    return content;
-  }
-
-  if (!Array.isArray(content)) {
-    return '';
-  }
-
-  return content.flatMap((item) => {
-    if (!isRecord(item)) {
-      return [];
-    }
-
-    return item.type === 'text' && typeof item.text === 'string' ? [item.text] : [];
-  }).join(' ');
 }
 
 function buildSessionTree(sessions: RawSessionInfo[]): SessionTreeNode[] {
