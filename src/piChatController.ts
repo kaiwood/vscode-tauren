@@ -42,6 +42,7 @@ import type {
   RpcEvent
 } from './piRpcClient';
 import { extractPiMessageText } from './piMessageContent';
+import { formatPromptForPi as formatPromptForPiMessage } from './piPromptFormatting';
 import {
   isBuiltinSlashCommand,
   isSupportedBuiltinSlashCommand
@@ -1526,10 +1527,7 @@ export class PiChatController {
   }
 
   private formatPromptForPi(userText: string, context: PiPromptContextAttachment[]): string {
-    return formatPromptWithVisibleSystemPrompt(
-      formatPromptWithIdeContext(userText, context),
-      this.options.getSystemPrompt?.()
-    );
+    return formatPromptForPiMessage(userText, context, this.options.getSystemPrompt?.());
   }
 
   private async queuePromptWhileBusy(
@@ -2355,9 +2353,6 @@ function getSessionDisplayName(session: WebviewSessionItem | undefined, fallback
   return fileName || 'session';
 }
 
-const ideContextStartMarker = '<!-- tau:ide-context:start -->';
-const ideContextEndMarker = '<!-- tau:ide-context:end -->';
-
 function normalizeLineNumber(value: number | undefined): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
     ? Math.floor(value)
@@ -2395,113 +2390,6 @@ function getPathBasename(path: string): string {
   const normalizedPath = path.replace(/\\/g, '/');
   const lastSlashIndex = normalizedPath.lastIndexOf('/');
   return lastSlashIndex === -1 ? normalizedPath : normalizedPath.slice(lastSlashIndex + 1);
-}
-
-function formatPromptWithIdeContext(
-  userText: string,
-  context: PiPromptContextAttachment[]
-): string {
-  if (context.length === 0) {
-    return userText;
-  }
-
-  const contextBody = context.flatMap((attachment) => {
-    const formatted = formatPromptContextAttachment(attachment);
-    return formatted ? [formatted] : [];
-  }).join('\n\n');
-
-  if (!contextBody) {
-    return userText;
-  }
-
-  return [
-    ideContextStartMarker,
-    '<ide_context source="vscode-tau">',
-    'The user explicitly attached this IDE context. Use it as relevant. File-only entries identify relevant files; inspect or read them if content is needed.',
-    '',
-    contextBody,
-    '</ide_context>',
-    ideContextEndMarker,
-    '',
-    userText
-  ].join('\n');
-}
-
-function formatPromptWithVisibleSystemPrompt(userText: string, systemPrompt: string | undefined): string {
-  const trimmedPrompt = systemPrompt?.trim();
-
-  if (!trimmedPrompt) {
-    return userText;
-  }
-
-  return [
-    '<!-- tau:visible-system-prompt:start -->',
-    '<system_prompt source="vscode-tau-settings" visibility="user-editable">',
-    trimmedPrompt,
-    '</system_prompt>',
-    '<!-- tau:visible-system-prompt:end -->',
-    '',
-    userText
-  ].join('\n');
-}
-
-function formatPromptContextAttachment(attachment: PiPromptContextAttachment): string | undefined {
-  if (attachment.kind === 'file') {
-    return `<file path="${escapeXmlAttribute(attachment.path)}" />`;
-  }
-
-  const text = attachment.text ?? '';
-
-  if (!text.trim()) {
-    return undefined;
-  }
-
-  const attributes = [
-    `path="${escapeXmlAttribute(attachment.path)}"`,
-    ...(attachment.startLine ? [`start_line="${attachment.startLine}"`] : []),
-    ...(attachment.endLine ? [`end_line="${attachment.endLine}"`] : []),
-    ...(attachment.languageId ? [`language="${escapeXmlAttribute(attachment.languageId)}"`] : [])
-  ];
-  const fence = getMarkdownFence(text);
-  const language = sanitizeFenceLanguage(attachment.languageId);
-
-  return [
-    `<selection ${attributes.join(' ')}>`,
-    `${fence}${language}`,
-    text,
-    fence,
-    '</selection>'
-  ].join('\n');
-}
-
-function escapeXmlAttribute(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-function getMarkdownFence(text: string): string {
-  return '`'.repeat(Math.max(3, getLongestBacktickRun(text) + 1));
-}
-
-function getLongestBacktickRun(text: string): number {
-  let longest = 0;
-
-  for (const match of text.matchAll(/`+/g)) {
-    longest = Math.max(longest, match[0].length);
-  }
-
-  return longest;
-}
-
-function sanitizeFenceLanguage(languageId: string | undefined): string {
-  if (!languageId || !/^[A-Za-z0-9_#+.-]+$/.test(languageId)) {
-    return '';
-  }
-
-  return languageId;
 }
 
 type ForkMessageOption = {
