@@ -27,6 +27,10 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - `src/sidebar/chatWebviewStyles.ts` owns the static sidebar CSS string.
 - `src/shikiCodeRenderer.ts` owns extension-host Shiki syntax rendering, VS Code theme/language registration resolution, fallback bundled Shiki themes/languages, and highlight-result caching.
 - Browser-side sidebar logic lives under `src/webview` and is bundled by esbuild to `resources/webview/chat.js`; keep generated webview assets in `resources/webview`.
+- `src/webview/main.ts` is only the browser-side composition entrypoint for shared state, top-level events, and the ready message.
+- `src/webview/composer/` owns browser-side composer UI state: textarea sizing, submit/stop controls, model/thinking picker, prompt context badges, slash menu, and diff summary controls.
+- `src/webview/messages/` owns browser-side message-list orchestration: incremental message rendering, message scrolling, busy status, and message click handling.
+- `src/webview/sessions/` owns browser-side session list/tree UI, session-list command menus, top session title/menu, and related keyboard navigation.
 - `src/webview/codeHighlighting.ts` owns browser-side asynchronous code-highlight requests/results for markdown code fences and read-tool code boxes; reuse it for future code/diff panes where practical.
 - `src/webview/diffCounter.ts` owns browser-side session diff counter formatting and animation.
 - `src/sidebar/nonce.ts` owns nonce generation for CSP-protected inline scripts.

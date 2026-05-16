@@ -306,6 +306,699 @@
     return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
   }
 
+  // src/slashCommands.ts
+  var localSlashCommandDefinitions = [
+    { name: "model", description: "Select model", source: "builtin", supported: true },
+    { name: "name", description: "Set or clear session name", source: "builtin", supported: true },
+    { name: "session", description: "Show session info and stats", source: "builtin", supported: true },
+    { name: "compact", description: "Manually compact context", source: "builtin", supported: true },
+    { name: "copy", description: "Copy last Pi response", source: "builtin", supported: true },
+    { name: "export", description: "Export session to HTML", source: "builtin", supported: true },
+    { name: "new", description: "Start a new session", source: "builtin", supported: true },
+    { name: "settings", description: "Terminal-only: use VS Code settings instead", source: "unsupported", supported: false },
+    { name: "scoped-models", description: "Terminal-only: scoped model cycling is not supported here yet", source: "unsupported", supported: false },
+    { name: "import", description: "Terminal-only: session import is not supported here yet", source: "unsupported", supported: false },
+    { name: "share", description: "Not supported here yet", source: "unsupported", supported: false },
+    { name: "changelog", description: "Not supported here yet", source: "unsupported", supported: false },
+    { name: "hotkeys", description: "Terminal-only: use VS Code keybindings instead", source: "unsupported", supported: false },
+    { name: "fork", description: "Fork from a previous user message", source: "builtin", supported: true },
+    { name: "clone", description: "Duplicate the current session", source: "builtin", supported: true },
+    { name: "tree", description: "Navigate session tree", source: "builtin", supported: true },
+    { name: "login", description: "Terminal-only: run pi in a terminal to authenticate", source: "unsupported", supported: false },
+    { name: "logout", description: "Terminal-only: run pi in a terminal to manage auth", source: "unsupported", supported: false },
+    { name: "resume", description: "Resume a different session", source: "builtin", supported: true },
+    { name: "reload", description: "Reload keybindings, extensions, skills, prompts, and themes", source: "builtin", supported: true },
+    { name: "quit", description: "Not supported here", source: "unsupported", supported: false }
+  ];
+  var builtinSlashCommandNames = new Set(localSlashCommandDefinitions.map((command) => command.name));
+  var supportedBuiltinSlashCommandNames = new Set(
+    localSlashCommandDefinitions.filter((command) => command.supported).map((command) => command.name)
+  );
+  var localSlashCommands = localSlashCommandDefinitions.map(({ supported: _supported, ...command }) => command);
+  var localSlashMenuCommands = localSlashCommandDefinitions.filter((command) => command.supported).map(({ supported: _supported, ...command }) => command);
+
+  // src/webview/constants.ts
+  var localSlashCommands2 = localSlashMenuCommands.map((command) => ({ ...command }));
+  var messagesBottomThreshold = 4;
+  var maxTextareaHeight = 180;
+  var minTextareaHeight = 22;
+
+  // src/webview/composer/composer.ts
+  var ComposerController = class {
+    constructor(options) {
+      this.options = options;
+      this.addedDiffCounter = createDiffCounter(options.diffAddedElement, "+");
+      this.removedDiffCounter = createDiffCounter(options.diffRemovedElement, "-");
+    }
+    options;
+    appliedComposerTextRevision = 0;
+    slashMenuOpen = false;
+    slashMenuActiveIndex = 0;
+    slashMenuItems = [];
+    slashMenuQuery = "";
+    slashMenuDismissedQuery;
+    slashCommandsRefreshRequested = false;
+    streamingBehavior = "steer";
+    busySubmitHideTimeout;
+    addedDiffCounter;
+    removedDiffCounter;
+    attachEventListeners() {
+      this.options.form.addEventListener("submit", (event) => this.handleSubmit(event));
+      this.options.submitButton.addEventListener("click", (event) => this.handleSubmitButtonClick(event));
+      for (const button of this.options.streamingBehaviorButtonElements) {
+        button.addEventListener("click", () => this.selectStreamingBehavior(button));
+      }
+      this.options.modelElement.addEventListener("click", () => this.toggleModelMenu());
+      this.options.modelSelectElement.addEventListener("change", () => this.selectModel());
+      this.options.thinkingSelectElement.addEventListener("change", () => this.selectThinkingLevel());
+      this.options.textarea.addEventListener("keydown", (event) => {
+        if (this.handleSlashMenuKeydown(event)) {
+          return;
+        }
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          this.options.form.requestSubmit();
+        }
+      });
+      this.options.textarea.addEventListener("input", () => {
+        this.slashMenuDismissedQuery = void 0;
+        this.syncComposer({ preserveBottom: true });
+        this.syncSlashMenu();
+      });
+      this.options.textarea.addEventListener("click", () => this.syncSlashMenu());
+      this.options.textarea.addEventListener("blur", () => this.closeSlashMenu());
+      this.options.textarea.addEventListener("keyup", (event) => {
+        if (["ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"].includes(event.key)) {
+          this.syncSlashMenu();
+        }
+      });
+      this.options.slashMenuElement?.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+      });
+      this.options.slashMenuElement?.addEventListener("click", (event) => {
+        const item = eventTargetElement(event)?.closest(".composer__slash-item");
+        if (!item) {
+          return;
+        }
+        const index = Number(item.getAttribute("data-index"));
+        const command = this.slashMenuItems[index];
+        if (command) {
+          this.acceptSlashCommand(command);
+        }
+      });
+      this.options.contextBadgesElement?.addEventListener("mousedown", (event) => {
+        if (eventTargetElement(event)?.closest(".composer__context-remove")) {
+          event.preventDefault();
+        }
+      });
+      this.options.contextBadgesElement?.addEventListener("click", (event) => {
+        const removeButton = eventTargetElement(event)?.closest(".composer__context-remove");
+        if (!removeButton) {
+          return;
+        }
+        const id = removeButton.getAttribute("data-context-id");
+        if (!id) {
+          return;
+        }
+        this.options.postMessage({ type: "removePromptContext", id });
+        this.options.focusPromptInput();
+      });
+    }
+    handleWindowClick(target) {
+      if (this.options.modelMenuElement?.hasAttribute("open")) {
+        if (!this.options.modelMenuElement.contains(target) && !this.options.modelElement.contains(target)) {
+          this.closeModelMenu();
+        }
+      }
+      if (this.slashMenuOpen) {
+        if (!this.options.slashMenuElement?.contains(target) && target !== this.options.textarea) {
+          this.closeSlashMenu();
+        }
+      }
+    }
+    hasSlashMenuOpen() {
+      return this.slashMenuOpen;
+    }
+    hasModelMenuOpen() {
+      return this.options.modelMenuElement?.hasAttribute("open") ?? false;
+    }
+    dismissSlashMenu() {
+      this.slashMenuDismissedQuery = this.getSlashCommandQuery();
+      this.closeSlashMenu();
+    }
+    closeSlashMenu() {
+      this.slashMenuOpen = false;
+      this.slashCommandsRefreshRequested = false;
+      this.slashMenuItems = [];
+      this.slashMenuActiveIndex = 0;
+      this.slashMenuQuery = "";
+      this.options.slashMenuElement?.removeAttribute("open");
+      this.options.textarea.setAttribute("aria-expanded", "false");
+      this.options.textarea.removeAttribute("aria-activedescendant");
+    }
+    closeModelMenu() {
+      this.options.modelMenuElement?.removeAttribute("open");
+      this.options.modelElement.setAttribute("aria-expanded", "false");
+    }
+    syncPromptContextBadges() {
+      if (!this.options.contextBadgesElement) {
+        return;
+      }
+      const state2 = this.options.getState();
+      const attachments = Array.isArray(state2.promptContext) ? state2.promptContext.filter(isPromptContextAttachment) : [];
+      this.options.form.classList.toggle("composer--has-context", attachments.length > 0);
+      this.options.contextBadgesElement.hidden = attachments.length === 0;
+      this.options.contextBadgesElement.replaceChildren();
+      for (const attachment of attachments) {
+        const badge = document.createElement("span");
+        badge.className = "composer__context-badge";
+        badge.title = attachment.title || attachment.label;
+        const label = document.createElement("span");
+        label.className = "composer__context-label";
+        label.textContent = attachment.label;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "composer__context-remove";
+        remove.setAttribute("data-context-id", attachment.id);
+        remove.setAttribute("aria-label", "Remove context " + attachment.label);
+        remove.title = "Remove context";
+        remove.textContent = "\xD7";
+        badge.append(label, remove);
+        this.options.contextBadgesElement.append(badge);
+      }
+    }
+    syncModelLabel() {
+      const state2 = this.options.getState();
+      this.options.contextValueElement.textContent = state2.contextUsageLabel;
+      this.options.contextTooltipElement.textContent = state2.contextUsageTitle;
+      this.options.contextElement.title = state2.contextUsageTitle;
+      this.options.contextElement.className = "composer__context" + (state2.contextUsageLevel ? " composer__context--" + state2.contextUsageLevel : "");
+      this.options.contextElement.hidden = state2.contextUsageLabel.length === 0;
+      const label = state2.modelLabel || "Select model";
+      this.options.modelElement.textContent = label;
+      this.options.modelElement.className = "composer__model";
+      this.options.modelElement.title = state2.metadataRefreshing ? label + " (refreshing...)" : state2.modelOptions.length === 0 && !state2.busy ? "Load model settings" : label;
+      this.options.modelElement.disabled = state2.busy;
+      this.options.modelElement.setAttribute("aria-busy", state2.metadataRefreshing ? "true" : "false");
+      this.options.modelMenuElement?.setAttribute("aria-busy", state2.metadataRefreshing ? "true" : "false");
+      this.syncModelSelect();
+      this.syncThinkingSelect();
+    }
+    applyComposerTextFromState() {
+      const state2 = this.options.getState();
+      if (state2.composerTextRevision <= this.appliedComposerTextRevision) {
+        return;
+      }
+      this.appliedComposerTextRevision = state2.composerTextRevision;
+      this.options.textarea.value = state2.composerText;
+      this.closeSlashMenu();
+      this.syncComposer({ preserveBottom: true });
+      this.options.focusPromptInput();
+    }
+    syncComposer(options = {}) {
+      const shouldPreserveBottom = Boolean(options.preserveBottom) && this.options.isMessagesAtBottom();
+      this.syncSubmit();
+      this.syncBusySubmitMode();
+      this.syncTextareaHeight();
+      if (shouldPreserveBottom) {
+        this.options.scrollMessagesToBottom();
+      }
+    }
+    syncSlashMenu() {
+      const state2 = this.options.getState();
+      if (!this.shouldShowSlashMenu()) {
+        this.closeSlashMenu();
+        return;
+      }
+      this.closeModelMenu();
+      this.options.cancelSessionNameEdit();
+      if (state2.slashCommands.length === 0 && !state2.slashCommandsRefreshing && !this.slashCommandsRefreshRequested) {
+        this.slashCommandsRefreshRequested = true;
+        this.options.postMessage({ type: "refreshSlashCommands" });
+      }
+      const query = this.getSlashCommandQuery();
+      if (query === this.slashMenuDismissedQuery) {
+        this.closeSlashMenu();
+        return;
+      }
+      if (query !== this.slashMenuQuery) {
+        this.slashMenuQuery = query;
+        this.slashMenuActiveIndex = 0;
+        if (this.options.slashMenuElement) {
+          this.options.slashMenuElement.scrollTop = 0;
+        }
+      }
+      this.slashMenuItems = this.getFilteredSlashCommands(query);
+      this.slashMenuActiveIndex = Math.min(this.slashMenuActiveIndex, Math.max(0, this.slashMenuItems.length - 1));
+      this.renderSlashMenu(query);
+      this.openSlashMenu();
+    }
+    runSessionSlashCommand(command) {
+      const state2 = this.options.getState();
+      if (state2.busy) {
+        return;
+      }
+      this.closeSlashMenu();
+      this.options.cancelSessionNameEdit();
+      this.options.postMessage({ type: "submit", text: "/" + command });
+      this.options.focusPromptInput();
+    }
+    isStopSubmitMode() {
+      return this.options.getState().busy && this.options.textarea.value.length === 0;
+    }
+    handleSubmit(event) {
+      const state2 = this.options.getState();
+      event.preventDefault();
+      const text = this.options.textarea.value.trim();
+      if (!text) {
+        return;
+      }
+      this.closeSlashMenu();
+      this.options.cancelSessionNameEdit();
+      this.options.postMessage(state2.busy ? { type: "submit", text, streamingBehavior: this.streamingBehavior } : { type: "submit", text });
+      this.options.textarea.value = "";
+      this.syncComposer({ preserveBottom: true });
+      this.options.focusPromptInput();
+    }
+    handleSubmitButtonClick(event) {
+      if (!this.isStopSubmitMode()) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      this.options.postMessage({ type: "abort" });
+      this.options.focusPromptInput();
+    }
+    selectStreamingBehavior(button) {
+      const nextBehavior = button.getAttribute("data-streaming-behavior");
+      if (nextBehavior === "steer" || nextBehavior === "followUp") {
+        this.streamingBehavior = nextBehavior;
+        this.syncComposer({ preserveBottom: true });
+        this.options.focusPromptInput();
+      }
+    }
+    syncSubmit() {
+      const state2 = this.options.getState();
+      const isStopMode = this.isStopSubmitMode();
+      const hasInput = this.options.textarea.value.length > 0;
+      const hasSendableText = this.options.textarea.value.trim().length > 0;
+      const label = this.getSubmitLabel(isStopMode);
+      this.options.submitButton.disabled = state2.busy ? hasInput && !hasSendableText : !hasSendableText;
+      this.options.newSessionButton.disabled = false;
+      this.options.submitButton.classList.toggle("composer__submit--stop", isStopMode);
+      this.options.submitButton.setAttribute("aria-label", label);
+      this.options.submitButton.title = label;
+    }
+    getSubmitLabel(isStopMode) {
+      if (isStopMode) {
+        return "Stop current response";
+      }
+      if (this.options.getState().busy) {
+        return this.streamingBehavior === "followUp" ? "Queue follow-up" : "Steer current run";
+      }
+      return "Send message";
+    }
+    syncBusySubmitMode() {
+      const state2 = this.options.getState();
+      if (!this.options.busySubmitElement) {
+        return;
+      }
+      const showDiffSummary = state2.busy || this.hasWorkspaceDiffChanges();
+      this.setBusySubmitVisible(showDiffSummary);
+      this.syncDiffSummary();
+      const streamingModesElement = this.options.streamingBehaviorButtonElements[0]?.parentElement;
+      if (streamingModesElement) {
+        streamingModesElement.hidden = !state2.busy;
+      }
+      if (!state2.busy) {
+        return;
+      }
+      for (const button of this.options.streamingBehaviorButtonElements) {
+        const isActive = button.getAttribute("data-streaming-behavior") === this.streamingBehavior;
+        button.classList.toggle("composer__mode-button--active", isActive);
+        button.setAttribute("aria-pressed", isActive ? "true" : "false");
+      }
+    }
+    syncDiffSummary() {
+      const state2 = this.options.getState();
+      const addedLines = normalizeDiffLineCount(state2.workspaceDiffStats.addedLines);
+      const removedLines = normalizeDiffLineCount(state2.workspaceDiffStats.removedLines);
+      updateDiffCounter(this.addedDiffCounter, addedLines);
+      updateDiffCounter(this.removedDiffCounter, removedLines);
+      this.options.diffSummaryElement.title = `Show session changes: +${formatDiffLineCount(addedLines)} | -${formatDiffLineCount(removedLines)}`;
+    }
+    hasWorkspaceDiffChanges() {
+      const state2 = this.options.getState();
+      return state2.workspaceDiffStats.addedLines > 0 || state2.workspaceDiffStats.removedLines > 0;
+    }
+    setBusySubmitVisible(visible) {
+      const busySubmitElement2 = this.options.busySubmitElement;
+      if (!busySubmitElement2) {
+        return;
+      }
+      if (this.busySubmitHideTimeout) {
+        clearTimeout(this.busySubmitHideTimeout);
+        this.busySubmitHideTimeout = void 0;
+      }
+      if (visible) {
+        busySubmitElement2.hidden = false;
+        requestAnimationFrame(() => {
+          busySubmitElement2.classList.add("composer__busy-submit--visible");
+        });
+        return;
+      }
+      busySubmitElement2.classList.remove("composer__busy-submit--visible");
+      this.busySubmitHideTimeout = setTimeout(() => {
+        if (!this.options.getState().busy) {
+          busySubmitElement2.hidden = true;
+        }
+      }, 160);
+    }
+    syncModelSelect() {
+      const state2 = this.options.getState();
+      const selectedValue = modelKey(state2.modelProvider, state2.modelId);
+      const currentValue = this.options.modelSelectElement.value;
+      const modelOptions = this.getDisplayModelOptions();
+      this.options.modelSelectElement.replaceChildren();
+      for (const model of modelOptions) {
+        if (!model || typeof model.provider !== "string" || typeof model.id !== "string") {
+          continue;
+        }
+        const option = document.createElement("option");
+        option.value = modelKey(model.provider, model.id);
+        option.textContent = model.name && model.name !== model.id ? model.name + " (" + model.provider + "/" + model.id + ")" : model.provider + "/" + model.id;
+        this.options.modelSelectElement.append(option);
+      }
+      this.options.modelSelectElement.value = selectedValue || currentValue;
+      this.options.modelSelectElement.disabled = state2.busy || modelOptions.length === 0;
+    }
+    getDisplayModelOptions() {
+      const state2 = this.options.getState();
+      if (state2.modelOptions.length > 0) {
+        return state2.modelOptions;
+      }
+      if (!state2.modelProvider || !state2.modelId) {
+        return [];
+      }
+      return [{
+        provider: state2.modelProvider,
+        id: state2.modelId,
+        name: state2.modelLabel || state2.modelId,
+        reasoning: state2.modelReasoning
+      }];
+    }
+    syncThinkingSelect() {
+      const state2 = this.options.getState();
+      this.options.thinkingSelectElement.value = state2.thinkingLevel || "medium";
+      this.options.thinkingSelectElement.disabled = state2.busy || !state2.modelReasoning;
+      this.options.thinkingSelectElement.title = state2.modelReasoning ? "Thinking mode" : "The selected model does not advertise thinking support.";
+    }
+    toggleModelMenu() {
+      const state2 = this.options.getState();
+      if (this.options.modelElement.disabled) {
+        return;
+      }
+      if (state2.modelOptions.length === 0 && !state2.metadataRefreshing) {
+        this.options.refreshMetadata();
+      }
+      this.options.cancelSessionNameEdit();
+      const open = !this.options.modelMenuElement?.hasAttribute("open");
+      this.options.modelMenuElement?.toggleAttribute("open", open);
+      this.options.modelElement.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+    selectModel() {
+      const state2 = this.options.getState();
+      const [provider, modelId] = splitModelKey(this.options.modelSelectElement.value);
+      if (!provider || !modelId || state2.busy) {
+        return;
+      }
+      this.closeModelMenu();
+      this.options.postMessage({ type: "setModel", provider, modelId });
+    }
+    selectThinkingLevel() {
+      const state2 = this.options.getState();
+      const level = this.options.thinkingSelectElement.value;
+      if (!level || state2.busy || !state2.modelReasoning) {
+        return;
+      }
+      this.closeModelMenu();
+      this.options.postMessage({ type: "setThinkingLevel", level });
+    }
+    handleSlashMenuKeydown(event) {
+      if (!this.slashMenuOpen) {
+        if (event.key === "Escape") {
+          this.dismissSlashMenu();
+        }
+        return false;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        this.moveSlashMenuSelection(1);
+        return true;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        this.moveSlashMenuSelection(-1);
+        return true;
+      }
+      if (event.key === "Tab") {
+        event.preventDefault();
+        this.acceptActiveSlashCommand();
+        return true;
+      }
+      if (event.key === "Enter" && !event.shiftKey && this.slashMenuItems.length > 0) {
+        event.preventDefault();
+        this.acceptActiveSlashCommand();
+        return true;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.dismissSlashMenu();
+        return true;
+      }
+      return false;
+    }
+    shouldShowSlashMenu() {
+      const state2 = this.options.getState();
+      if (state2.busy || document.activeElement !== this.options.textarea) {
+        return false;
+      }
+      const cursor = this.options.textarea.selectionStart;
+      if (cursor !== this.options.textarea.selectionEnd) {
+        return false;
+      }
+      const beforeCursor = this.options.textarea.value.slice(0, cursor);
+      return beforeCursor.startsWith("/") && !Array.from(beforeCursor).some((character) => character.trim().length === 0);
+    }
+    getSlashCommandQuery() {
+      return this.options.textarea.value.slice(1, this.options.textarea.selectionStart).toLowerCase();
+    }
+    getFilteredSlashCommands(query) {
+      const commands = this.getAllSlashCommands();
+      const scored = [];
+      for (const command of commands) {
+        if (!command || typeof command.name !== "string") {
+          continue;
+        }
+        const name = command.name.toLowerCase();
+        const description = typeof command.description === "string" ? command.description.toLowerCase() : "";
+        const namePrefix = name.startsWith(query);
+        const nameMatch = name.includes(query);
+        const descriptionMatch = description.includes(query);
+        if (!nameMatch && !descriptionMatch) {
+          continue;
+        }
+        scored.push({
+          command,
+          score: namePrefix ? 0 : nameMatch ? 1 : 2
+        });
+      }
+      return scored.sort((left, right) => left.score - right.score || getSlashCommandSourceRank(left.command.source) - getSlashCommandSourceRank(right.command.source) || left.command.name.localeCompare(right.command.name)).slice(0, 8).map((item) => item.command);
+    }
+    getAllSlashCommands() {
+      const state2 = this.options.getState();
+      const commands = [...localSlashCommands2];
+      const names = new Set(commands.map((command) => command.name));
+      if (Array.isArray(state2.slashCommands)) {
+        for (const command of state2.slashCommands) {
+          if (!command || typeof command.name !== "string" || names.has(command.name)) {
+            continue;
+          }
+          names.add(command.name);
+          commands.push(command);
+        }
+      }
+      return commands;
+    }
+    renderSlashMenu(query) {
+      const slashMenuElement2 = this.options.slashMenuElement;
+      if (!slashMenuElement2) {
+        return;
+      }
+      const state2 = this.options.getState();
+      slashMenuElement2.replaceChildren();
+      if (state2.slashCommandsRefreshing && this.slashMenuItems.length === 0) {
+        slashMenuElement2.append(createSlashMenuEmptyElement("Loading commands..."));
+        return;
+      }
+      if (this.slashMenuItems.length === 0) {
+        slashMenuElement2.append(createSlashMenuEmptyElement(query ? "No matching slash commands" : "No slash commands available"));
+        return;
+      }
+      for (let index = 0; index < this.slashMenuItems.length; index += 1) {
+        slashMenuElement2.append(this.createSlashMenuItemElement(this.slashMenuItems[index], index));
+      }
+      this.syncSlashMenuActiveDescendant();
+    }
+    createSlashMenuItemElement(command, index) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.id = "slash-command-" + index;
+      item.className = "composer__slash-item" + (index === this.slashMenuActiveIndex ? " composer__slash-item--active" : "");
+      item.setAttribute("role", "option");
+      item.setAttribute("aria-selected", index === this.slashMenuActiveIndex ? "true" : "false");
+      item.setAttribute("data-index", String(index));
+      const label = document.createElement("span");
+      label.className = "composer__slash-label";
+      label.textContent = "/" + command.name;
+      item.append(label);
+      const meta = formatSlashCommandMeta(command);
+      if (meta) {
+        const source = document.createElement("span");
+        source.className = "composer__slash-source";
+        source.textContent = meta;
+        item.append(source);
+      }
+      if (command.description) {
+        const description = document.createElement("span");
+        description.className = "composer__slash-description";
+        description.textContent = command.description;
+        item.append(description);
+      }
+      return item;
+    }
+    openSlashMenu() {
+      if (!this.options.slashMenuElement) {
+        return;
+      }
+      this.slashMenuOpen = true;
+      this.options.slashMenuElement.setAttribute("open", "");
+      this.options.textarea.setAttribute("aria-expanded", "true");
+      this.syncSlashMenuActiveDescendant();
+    }
+    moveSlashMenuSelection(delta) {
+      if (this.slashMenuItems.length === 0) {
+        return;
+      }
+      this.slashMenuActiveIndex = (this.slashMenuActiveIndex + delta + this.slashMenuItems.length) % this.slashMenuItems.length;
+      this.renderSlashMenu(this.getSlashCommandQuery());
+    }
+    syncSlashMenuActiveDescendant() {
+      if (!this.slashMenuOpen || this.slashMenuItems.length === 0) {
+        this.options.textarea.removeAttribute("aria-activedescendant");
+        return;
+      }
+      this.options.textarea.setAttribute("aria-activedescendant", "slash-command-" + this.slashMenuActiveIndex);
+      this.options.slashMenuElement?.querySelector(".composer__slash-item--active")?.scrollIntoView({ block: "nearest" });
+    }
+    acceptActiveSlashCommand() {
+      const command = this.slashMenuItems[this.slashMenuActiveIndex];
+      if (command) {
+        this.acceptSlashCommand(command);
+      }
+    }
+    acceptSlashCommand(command) {
+      const cursor = this.options.textarea.selectionStart;
+      const after = this.options.textarea.value.slice(cursor).trimStart();
+      const value = "/" + command.name + " " + after;
+      const nextCursor = command.name.length + 2;
+      this.options.textarea.value = value;
+      this.options.textarea.setSelectionRange(nextCursor, nextCursor);
+      this.closeSlashMenu();
+      this.syncComposer({ preserveBottom: true });
+      this.options.focusPromptInput();
+    }
+    syncTextareaHeight() {
+      this.options.textarea.style.height = "auto";
+      const maxHeight = this.getMaxTextareaHeight();
+      const nextHeight = Math.max(minTextareaHeight, Math.min(this.options.textarea.scrollHeight, maxHeight));
+      this.options.textarea.style.height = nextHeight + "px";
+      this.options.textarea.style.overflowY = this.options.textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+    }
+    getMaxTextareaHeight() {
+      const reservedMessagesHeight = getReservedMessagesHeight();
+      const composerChromeHeight = this.getComposerChromeHeight();
+      const availableHeight = window.innerHeight - reservedMessagesHeight - composerChromeHeight;
+      return Math.max(minTextareaHeight, Math.min(maxTextareaHeight, availableHeight));
+    }
+    getComposerChromeHeight() {
+      const composerStyles = getComputedStyle(this.options.form);
+      const composerMarginHeight = parseCssPixelValue(composerStyles.marginTop) + parseCssPixelValue(composerStyles.marginBottom);
+      const composerHeight = this.options.form.getBoundingClientRect().height + composerMarginHeight;
+      const textareaHeight = this.options.textarea.getBoundingClientRect().height;
+      return Math.max(0, composerHeight - textareaHeight);
+    }
+  };
+  function isPromptContextAttachment(value) {
+    if (!value || typeof value !== "object") {
+      return false;
+    }
+    const attachment = value;
+    return typeof attachment.id === "string" && typeof attachment.label === "string" && typeof attachment.title === "string";
+  }
+  function modelKey(provider, id) {
+    return provider + "/" + id;
+  }
+  function splitModelKey(value) {
+    const slashIndex = value.indexOf("/");
+    if (slashIndex <= 0) {
+      return ["", ""];
+    }
+    return [value.slice(0, slashIndex), value.slice(slashIndex + 1)];
+  }
+  function getSlashCommandSourceRank(source) {
+    if (source === "builtin") {
+      return 0;
+    }
+    if (source === "extension") {
+      return 1;
+    }
+    if (source === "prompt") {
+      return 2;
+    }
+    if (source === "skill") {
+      return 3;
+    }
+    if (source === "unsupported") {
+      return 4;
+    }
+    return 5;
+  }
+  function createSlashMenuEmptyElement(text) {
+    const empty = document.createElement("div");
+    empty.className = "composer__slash-empty";
+    empty.textContent = text;
+    return empty;
+  }
+  function formatSlashCommandMeta(command) {
+    const source = typeof command.source === "string" ? command.source : "";
+    const location = typeof command.location === "string" ? command.location : "";
+    if (source && location) {
+      return source + " \xB7 " + location;
+    }
+    return source || location;
+  }
+  function getReservedMessagesHeight() {
+    return Math.min(72, Math.max(40, Math.floor(window.innerHeight * 0.18)));
+  }
+  function parseCssPixelValue(value) {
+    return Number.parseFloat(value) || 0;
+  }
+  function eventTargetElement(event) {
+    return event.target instanceof Element ? event.target : null;
+  }
+
   // src/webview/dom.ts
   function getWebviewDom() {
     return {
@@ -1033,6 +1726,254 @@
     return "Info";
   }
 
+  // src/webview/messages/messageList.ts
+  var MessageListController = class {
+    constructor(options) {
+      this.options = options;
+    }
+    options;
+    renderedMessageViews = [];
+    renderMessageList() {
+      const state2 = this.options.getState();
+      if (state2.messages.length === 0) {
+        this.renderedMessageViews = [];
+        this.options.messagesContentElement.replaceChildren(this.createEmptyStateElement());
+        return;
+      }
+      if (this.options.messagesContentElement.querySelector(".empty-state")) {
+        this.options.messagesContentElement.replaceChildren();
+      }
+      let previousMessageRole;
+      for (const [index, message] of state2.messages.entries()) {
+        const showRole = message.role !== previousMessageRole;
+        const view = this.renderMessageAtIndex(index, message, showRole);
+        const currentNode = this.options.messagesContentElement.children[index];
+        if (currentNode !== view.element) {
+          this.options.messagesContentElement.insertBefore(view.element, currentNode ?? null);
+        }
+        previousMessageRole = message.role;
+      }
+      for (let index = this.renderedMessageViews.length - 1; index >= state2.messages.length; index -= 1) {
+        this.renderedMessageViews[index]?.element.remove();
+      }
+      this.renderedMessageViews.length = state2.messages.length;
+      requestCodeHighlightsIn(this.options.messagesContentElement);
+    }
+    syncBusyStatus() {
+      const state2 = this.options.getState();
+      this.options.busyStatusElement.hidden = !state2.busy;
+      if (!state2.busy) {
+        return;
+      }
+      const nextText = this.getBusyStatusText();
+      if (this.options.busyStatusTextElement.textContent !== nextText) {
+        this.options.busyStatusTextElement.textContent = nextText;
+      }
+    }
+    handleChatPageScroll(event) {
+      const state2 = this.options.getState();
+      if (state2.viewMode !== "chat" || event.key !== "PageUp" && event.key !== "PageDown") {
+        return false;
+      }
+      if (event.altKey || event.metaKey || event.shiftKey) {
+        return false;
+      }
+      const target = eventTargetElement2(event);
+      if (target instanceof HTMLSelectElement || target instanceof HTMLInputElement) {
+        return false;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const direction = event.key === "PageUp" ? -1 : 1;
+      const amount = event.ctrlKey ? this.getTranscriptLineScrollAmount() : Math.max(80, Math.floor(this.options.messagesElement.clientHeight * 0.85));
+      this.options.messagesElement.scrollBy({ top: direction * amount, behavior: "auto" });
+      return true;
+    }
+    isMessagesAtBottom() {
+      const distanceFromBottom = this.options.messagesElement.scrollHeight - this.options.messagesElement.scrollTop - this.options.messagesElement.clientHeight;
+      return distanceFromBottom <= messagesBottomThreshold;
+    }
+    scrollMessagesToBottom() {
+      this.options.messagesElement.scrollTop = this.options.messagesElement.scrollHeight;
+    }
+    scheduleMessagesToBottom() {
+      this.scrollMessagesToBottomIfChat();
+      requestAnimationFrame(() => {
+        this.scrollMessagesToBottomIfChat();
+        requestAnimationFrame(() => this.scrollMessagesToBottomIfChat());
+      });
+      setTimeout(() => this.scrollMessagesToBottomIfChat(), 80);
+      setTimeout(() => this.scrollMessagesToBottomIfChat(), 220);
+    }
+    handleMessageClick(event) {
+      const state2 = this.options.getState();
+      const target = eventTargetElement2(event);
+      const copyButton = target?.closest(".message__copy");
+      if (copyButton instanceof HTMLElement) {
+        const index = Number(copyButton.dataset.copyMessageIndex);
+        const text = Number.isInteger(index) ? state2.messages[index]?.text : "";
+        if (text) {
+          event.preventDefault();
+          this.options.postMessage({ type: "copyText", text });
+        }
+        return;
+      }
+      const link = target?.closest(".tau-file-link");
+      if (!(link instanceof HTMLElement)) {
+        return;
+      }
+      const filePath = link.dataset.filePath;
+      if (!filePath) {
+        return;
+      }
+      event.preventDefault();
+      this.options.postMessage({
+        type: "openFile",
+        path: filePath,
+        ...parseDatasetPositiveInteger(link.dataset.line, "line"),
+        ...parseDatasetPositiveInteger(link.dataset.column, "column")
+      });
+    }
+    createEmptyStateElement() {
+      const state2 = this.options.getState();
+      const empty = document.createElement("p");
+      empty.className = "empty-state";
+      if (!state2.sessionLoading) {
+        empty.textContent = "Ask Pi about this workspace.";
+        return empty;
+      }
+      empty.classList.add("empty-state--loading");
+      const spinner = document.createElement("span");
+      spinner.className = "status__spinner";
+      spinner.setAttribute("aria-hidden", "true");
+      const text = document.createElement("span");
+      text.textContent = "Loading session\u2026";
+      empty.append(spinner, text);
+      return empty;
+    }
+    renderMessageAtIndex(index, message, showRole) {
+      const state2 = this.options.getState();
+      const existingView = this.renderedMessageViews[index];
+      const activitiesSignature = this.getActivitiesSignature(message);
+      const copyable = canCopyAssistantMessage2(message);
+      const animateFromText = this.getStreamingAnimationStartText(existingView, message, index);
+      if (existingView && canReuseMessageElement(existingView, message, showRole, activitiesSignature, copyable)) {
+        if ((existingView.message.text || "") !== (message.text || "")) {
+          updateMessageBodyElement(
+            existingView.element,
+            message,
+            {
+              ...animateFromText === void 0 ? {} : { animateFromText },
+              outputColors: state2.outputColors
+            }
+          );
+        }
+        existingView.message = message;
+        existingView.showRole = showRole;
+        existingView.activitiesSignature = activitiesSignature;
+        existingView.copyable = copyable;
+        return existingView;
+      }
+      const nextView = {
+        element: createMessageElement(
+          message,
+          showRole,
+          index,
+          {
+            ...animateFromText === void 0 ? {} : { animateFromText },
+            outputColors: state2.outputColors
+          }
+        ),
+        message,
+        showRole,
+        activitiesSignature,
+        copyable
+      };
+      existingView?.element.replaceWith(nextView.element);
+      this.renderedMessageViews[index] = nextView;
+      return nextView;
+    }
+    getStreamingAnimationStartText(existingView, message, index) {
+      if (!existingView || !this.shouldAnimateStreamingAppend(existingView.message, message, index)) {
+        return void 0;
+      }
+      return getMessageBodyVisibleText(existingView.element);
+    }
+    shouldAnimateStreamingAppend(previous, next, index) {
+      const state2 = this.options.getState();
+      const previousText = previous.text || "";
+      const nextText = next.text || "";
+      return state2.busy && index === state2.messages.length - 1 && previous.role === "assistant" && next.role === "assistant" && !previous.error && !next.error && previous.variant !== "thinking" && next.variant !== "thinking" && nextText.length > previousText.length && nextText.startsWith(previousText);
+    }
+    getActivitiesSignature(message) {
+      const state2 = this.options.getState();
+      if (!Array.isArray(message.activities) || message.activities.length === 0) {
+        return "";
+      }
+      return JSON.stringify({ outputColors: state2.outputColors, activities: message.activities });
+    }
+    getBusyStatusText() {
+      const activity = this.getLatestRunningActivity();
+      if (!activity) {
+        return "Pi is working...";
+      }
+      const title = typeof activity.title === "string" && activity.title ? activity.title : "Pi is working";
+      const summary = typeof activity.summary === "string" && activity.summary ? ": " + activity.summary : "";
+      return title + summary;
+    }
+    getLatestRunningActivity() {
+      const state2 = this.options.getState();
+      for (let messageIndex = state2.messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+        const message = state2.messages[messageIndex];
+        const activities = Array.isArray(message.activities) ? message.activities : [];
+        for (let activityIndex = activities.length - 1; activityIndex >= 0; activityIndex -= 1) {
+          if (activities[activityIndex]?.status === "running") {
+            return activities[activityIndex];
+          }
+        }
+      }
+      return void 0;
+    }
+    getTranscriptLineScrollAmount() {
+      return parseCssPixelValue2(getComputedStyle(this.options.messagesContentElement).lineHeight) || parseCssPixelValue2(getComputedStyle(this.options.messagesElement).lineHeight) || 20;
+    }
+    scrollMessagesToBottomIfChat() {
+      if (this.options.getState().viewMode === "chat") {
+        this.scrollMessagesToBottom();
+      }
+    }
+  };
+  function canReuseMessageElement(view, message, showRole, activitiesSignature, copyable) {
+    return view.message.role === message.role && Boolean(view.message.error) === Boolean(message.error) && (view.message.variant || "") === (message.variant || "") && view.showRole === showRole && view.activitiesSignature === activitiesSignature && view.copyable === copyable;
+  }
+  function getMessageBodyVisibleText(article) {
+    for (const child of Array.from(article.children)) {
+      if (child instanceof HTMLElement && child.classList.contains("message__body")) {
+        return child.textContent ?? "";
+      }
+    }
+    return "";
+  }
+  function canCopyAssistantMessage2(message) {
+    return message.role === "assistant" && !message.error && message.variant !== "thinking" && Boolean(message.text);
+  }
+  function parseDatasetPositiveInteger(value, key) {
+    if (!value) {
+      return {};
+    }
+    const numberValue = Number(value);
+    if (!Number.isInteger(numberValue) || numberValue <= 0) {
+      return {};
+    }
+    return key === "line" ? { line: numberValue } : { column: numberValue };
+  }
+  function parseCssPixelValue2(value) {
+    return Number.parseFloat(value) || 0;
+  }
+  function eventTargetElement2(event) {
+    return event.target instanceof Element ? event.target : null;
+  }
+
   // src/webview/sessionFormat.ts
   function getSessionDisplayName(session) {
     const name = sanitizeSessionTitle(session.name);
@@ -1139,6 +2080,850 @@
     return sessionItemCommandIcons[command];
   }
 
+  // src/webview/sessions/sessionView.ts
+  var SessionViewController = class {
+    constructor(options) {
+      this.options = options;
+    }
+    options;
+    sessionListSelectedIndex = 0;
+    treeListSelectedIndex = 0;
+    sessionPointerHoverEnabled = false;
+    openSessionListMenuIndex;
+    openSessionListMenuCommandIndex = 0;
+    sessionListNameEditPath;
+    sessionListNameEditInitialValue = "";
+    sessionNameEditing = false;
+    sessionNameEditInitialValue = "";
+    attachEventListeners() {
+      this.options.sessionToggleButton.addEventListener("click", () => this.toggleSessionView());
+      this.options.toolbarTitleElement.addEventListener("dblclick", (event) => this.startSessionNameEdit(event));
+      this.options.sessionMenuButton.addEventListener("click", (event) => this.toggleSessionCommandMenu(event));
+      for (const item of this.options.sessionMenuItemElements) {
+        item.addEventListener("click", () => this.runSessionMenuCommand(item.getAttribute("data-session-command")));
+        item.addEventListener("pointerenter", () => this.setSessionMenuItemHover(item, true));
+        item.addEventListener("pointerleave", () => this.setSessionMenuItemHover(item, false));
+        item.addEventListener("focus", () => this.setSessionMenuItemHover(item, true));
+        item.addEventListener("blur", () => this.setSessionMenuItemHover(item, false));
+      }
+      this.options.sessionNameInputElement.addEventListener("blur", () => this.cancelSessionNameEdit());
+      this.options.sessionsElement.addEventListener("keydown", (event) => this.handleSessionListKeydown(event));
+      this.options.sessionsElement.addEventListener("pointermove", () => this.enableSessionPointerHover());
+      this.options.sessionsElement.addEventListener("click", (event) => this.handleSessionsClick(event));
+    }
+    handleWindowClick(target, eventTarget) {
+      if (!this.options.sessionMenuWrapElement.contains(target)) {
+        this.closeSessionCommandMenu();
+      }
+      if (!target || !this.options.sessionsElement.contains(target) || !eventTarget?.closest(".sessions__menu-wrap")) {
+        this.closeSessionItemMenus();
+      }
+    }
+    handleGlobalKeydown(event) {
+      if (this.sessionNameEditing && event.target === this.options.sessionNameInputElement) {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          event.stopPropagation();
+          this.commitSessionNameEdit();
+          return true;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          this.cancelSessionNameEdit({ focusPrompt: true });
+          return true;
+        }
+        return true;
+      }
+      const sessionListNameInput = eventTargetElement3(event)?.closest(".sessions__name-input");
+      if (sessionListNameInput instanceof HTMLInputElement) {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          event.stopPropagation();
+          this.commitSessionListNameEdit(sessionListNameInput.value);
+          return true;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          this.cancelSessionListNameEdit({ focusList: true });
+          return true;
+        }
+        event.stopPropagation();
+        return true;
+      }
+      const state2 = this.options.getState();
+      return (state2.viewMode === "sessions" || state2.viewMode === "tree") && this.handleSessionListKeydown(event);
+    }
+    syncForRender(isListView) {
+      const state2 = this.options.getState();
+      if (state2.viewMode !== "sessions") {
+        this.openSessionListMenuIndex = void 0;
+        this.openSessionListMenuCommandIndex = 0;
+        this.stopSessionListNameEdit();
+      }
+      const toolbarTitle = state2.viewMode === "sessions" ? "Sessions" : state2.viewMode === "tree" ? "Session tree" : this.getCurrentSessionTitle();
+      if ((isListView || state2.busy) && this.sessionNameEditing) {
+        this.cancelSessionNameEdit();
+      }
+      this.options.toolbarTitleTextElement.textContent = toolbarTitle;
+      this.options.toolbarTitleElement.title = toolbarTitle;
+      this.options.toolbarTitleElement.classList.toggle("pi-toolbar__title--editing", this.sessionNameEditing);
+      this.options.toolbarTitleTextElement.hidden = this.sessionNameEditing;
+      this.options.sessionNameInputElement.hidden = !this.sessionNameEditing;
+      this.options.sessionMenuWrapElement.hidden = isListView;
+      this.options.sessionMenuButton.disabled = state2.busy || this.sessionNameEditing;
+      this.syncSessionCommandMenuItems();
+      if (isListView || state2.busy || this.sessionNameEditing) {
+        this.closeSessionCommandMenu();
+      }
+      this.options.sessionToggleButton.title = isListView ? "Back to chat" : "Show sessions";
+      this.options.sessionToggleButton.setAttribute("aria-label", this.options.sessionToggleButton.title);
+      this.options.sessionToggleButton.classList.toggle("pi-toolbar__sessions--back", isListView);
+    }
+    renderSessions() {
+      const state2 = this.options.getState();
+      this.options.sessionsElement.replaceChildren();
+      this.sessionListSelectedIndex = this.clampSessionIndex(this.sessionListSelectedIndex);
+      const header = document.createElement("div");
+      header.className = "sessions__header";
+      const count = Array.isArray(state2.sessions) ? state2.sessions.length : 0;
+      if (this.openSessionListMenuIndex !== void 0 && this.openSessionListMenuIndex >= count) {
+        this.openSessionListMenuIndex = void 0;
+      }
+      header.textContent = state2.sessionsRefreshing ? "Loading sessions..." : count === 1 ? "1 session" : count + " sessions";
+      this.options.sessionsElement.append(header);
+      if (state2.sessionsError) {
+        const error = document.createElement("div");
+        error.className = "sessions__error";
+        error.textContent = state2.sessionsError;
+        this.options.sessionsElement.append(error);
+      }
+      if (state2.sessionsRefreshing && count === 0) {
+        this.options.sessionsElement.append(createSessionEmptyElement("Loading sessions..."));
+        return;
+      }
+      if (count === 0) {
+        this.options.sessionsElement.append(createSessionEmptyElement("No sessions found for this workspace."));
+        return;
+      }
+      for (let index = 0; index < state2.sessions.length; index += 1) {
+        this.options.sessionsElement.append(this.createSessionItemElement(state2.sessions[index], index));
+      }
+      if (this.sessionListNameEditPath) {
+        requestAnimationFrame(() => this.focusSessionListNameInput());
+      }
+    }
+    renderTree() {
+      const state2 = this.options.getState();
+      this.options.sessionsElement.replaceChildren();
+      this.treeListSelectedIndex = this.clampTreeIndex(this.treeListSelectedIndex);
+      const header = document.createElement("div");
+      header.className = "sessions__header";
+      const count = Array.isArray(state2.treeItems) ? state2.treeItems.length : 0;
+      header.textContent = state2.treeRefreshing ? "Loading session tree..." : count === 1 ? "1 tree entry" : count + " tree entries";
+      this.options.sessionsElement.append(header);
+      if (state2.treeError) {
+        const error = document.createElement("div");
+        error.className = "sessions__error";
+        error.textContent = state2.treeError;
+        this.options.sessionsElement.append(error);
+      }
+      if (state2.treeRefreshing && count === 0) {
+        this.options.sessionsElement.append(createSessionEmptyElement("Loading session tree..."));
+        return;
+      }
+      if (count === 0) {
+        this.options.sessionsElement.append(createSessionEmptyElement("No persisted tree entries found for this session."));
+        return;
+      }
+      for (let index = 0; index < state2.treeItems.length; index += 1) {
+        this.options.sessionsElement.append(this.createTreeItemElement(state2.treeItems[index], index));
+      }
+    }
+    selectCurrentTreeEntry() {
+      const state2 = this.options.getState();
+      const currentIndex = Array.isArray(state2.treeItems) ? state2.treeItems.findIndex((item) => item.current) : -1;
+      this.treeListSelectedIndex = currentIndex >= 0 ? currentIndex : 0;
+    }
+    selectCurrentSession() {
+      const state2 = this.options.getState();
+      const currentIndex = Array.isArray(state2.sessions) ? state2.sessions.findIndex((session) => session.current || session.path === state2.currentSessionFile) : -1;
+      this.sessionListSelectedIndex = currentIndex >= 0 ? currentIndex : 0;
+    }
+    disableSessionPointerHover() {
+      this.sessionPointerHoverEnabled = false;
+      this.options.sessionsElement.classList.remove("sessions--pointer-hover");
+    }
+    stopSessionListNameEdit() {
+      this.sessionListNameEditPath = void 0;
+      this.sessionListNameEditInitialValue = "";
+    }
+    isSessionListNameEditing() {
+      return Boolean(this.sessionListNameEditPath);
+    }
+    isSessionListNameEditingMissing() {
+      const state2 = this.options.getState();
+      return Boolean(this.sessionListNameEditPath && !state2.sessions.some((session) => session.path === this.sessionListNameEditPath));
+    }
+    hasSlashOrSessionUiOpen() {
+      return {
+        sessionCommandMenu: !this.options.sessionMenuElement.hidden,
+        sessionNameEditing: this.sessionNameEditing
+      };
+    }
+    cancelSessionNameEdit(options = {}) {
+      if (!this.sessionNameEditing) {
+        return;
+      }
+      this.stopSessionNameEdit();
+      if (options.focusPrompt) {
+        this.options.focusPromptInput();
+      }
+    }
+    closeSessionCommandMenu() {
+      this.options.sessionMenuElement.hidden = true;
+      this.options.sessionMenuButton.setAttribute("aria-expanded", "false");
+      for (const item of this.options.sessionMenuItemElements) {
+        this.setSessionMenuItemHover(item, false);
+      }
+    }
+    closeSessionItemMenus() {
+      if (this.openSessionListMenuIndex === void 0) {
+        return;
+      }
+      this.openSessionListMenuIndex = void 0;
+      this.openSessionListMenuCommandIndex = 0;
+      for (const menu of this.options.sessionsElement.querySelectorAll(".sessions__menu")) {
+        menu.hidden = true;
+      }
+      for (const button of this.options.sessionsElement.querySelectorAll(".sessions__menu-button")) {
+        button.setAttribute("aria-expanded", "false");
+      }
+    }
+    handleSessionsClick(event) {
+      const state2 = this.options.getState();
+      const target = eventTargetElement3(event);
+      const sessionMenuButton2 = target?.closest(".sessions__menu-button");
+      if (sessionMenuButton2) {
+        event.preventDefault();
+        event.stopPropagation();
+        const item2 = sessionMenuButton2.closest(".sessions__item");
+        const index2 = Number(item2?.getAttribute("data-index"));
+        this.toggleSessionItemMenu(index2);
+        return;
+      }
+      const sessionMenuItem = target?.closest(".sessions__menu-item");
+      if (sessionMenuItem) {
+        event.preventDefault();
+        event.stopPropagation();
+        const item2 = sessionMenuItem.closest(".sessions__item");
+        const index2 = Number(item2?.getAttribute("data-index"));
+        this.runSessionItemMenuCommand(index2, sessionMenuItem.getAttribute("data-session-command"));
+        return;
+      }
+      const item = target?.closest(".sessions__item");
+      if (!item) {
+        this.closeSessionItemMenus();
+        return;
+      }
+      this.closeSessionItemMenus();
+      const index = Number(item.getAttribute("data-index"));
+      state2.viewMode === "tree" ? this.selectTreeIndex(index) : this.selectSessionIndex(index);
+    }
+    createSessionItemElement(session, index) {
+      const item = document.createElement("div");
+      item.id = "session-" + index;
+      item.className = "sessions__item" + (index === this.sessionListSelectedIndex ? " sessions__item--active" : "") + (session.current ? " sessions__item--current" : "") + (session.liveStatus ? " sessions__item--" + session.liveStatus : "") + (session.unread ? " sessions__item--unread" : "");
+      item.setAttribute("role", "option");
+      item.setAttribute("aria-selected", index === this.sessionListSelectedIndex ? "true" : "false");
+      item.setAttribute("data-index", String(index));
+      const prefix = document.createElement("span");
+      prefix.className = "sessions__prefix";
+      prefix.textContent = (session.liveStatus === "running" ? "\u25CF " : "") + buildSessionTreePrefix(session);
+      item.append(prefix);
+      const title = document.createElement("span");
+      title.className = "sessions__title";
+      if (this.sessionListNameEditPath === session.path) {
+        title.append(this.createSessionListNameInput(session));
+      } else {
+        const titleText = document.createElement("span");
+        titleText.className = "sessions__title-text";
+        titleText.textContent = getSessionDisplayName(session);
+        title.append(titleText);
+      }
+      item.append(title);
+      const meta = document.createElement("span");
+      meta.className = "sessions__meta";
+      meta.textContent = formatSessionMeta(session);
+      item.append(meta);
+      if (session.cwd) {
+        const cwd = document.createElement("span");
+        cwd.className = "sessions__cwd";
+        cwd.textContent = shortenPath(session.cwd);
+        item.append(cwd);
+      }
+      item.append(this.createSessionItemMenuElement(session, index));
+      return item;
+    }
+    createSessionListNameInput(session) {
+      const input = document.createElement("input");
+      input.className = "sessions__name-input";
+      input.type = "text";
+      input.value = this.sessionListNameEditInitialValue;
+      input.placeholder = getSessionDisplayName(session);
+      input.setAttribute("aria-label", "Session name");
+      input.addEventListener("click", (event) => event.stopPropagation());
+      input.addEventListener("blur", () => this.cancelSessionListNameEdit());
+      return input;
+    }
+    createSessionItemMenuElement(session, index) {
+      const wrap = document.createElement("span");
+      wrap.className = "sessions__menu-wrap";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "sessions__menu-button";
+      button.title = "Session commands";
+      button.setAttribute("aria-label", "Session commands");
+      button.setAttribute("aria-haspopup", "menu");
+      button.setAttribute("aria-expanded", this.openSessionListMenuIndex === index ? "true" : "false");
+      button.disabled = !this.canRunSessionItemCommand(session);
+      button.innerHTML = '<svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M5 8C5 8.55229 4.55228 9 4 9C3.44772 9 3 8.55229 3 8C3 7.44772 3.44772 7 4 7C4.55228 7 5 7.44772 5 8ZM9 8C9 8.55229 8.55229 9 8 9C7.44772 9 7 8.55229 7 8C7 7.44772 7.44772 7 8 7C8.55229 7 9 7.44772 9 8ZM12 9C12.5523 9 13 8.55229 13 8C13 7.44772 12.5523 7 12 7C11.4477 7 11 7.44772 11 8C11 8.55229 11.4477 9 12 9Z"/></svg>';
+      wrap.append(button);
+      const menu = document.createElement("span");
+      menu.className = "sessions__menu";
+      menu.setAttribute("role", "menu");
+      menu.hidden = this.openSessionListMenuIndex !== index;
+      for (let commandIndex = 0; commandIndex < sessionItemMenuCommands.length; commandIndex += 1) {
+        const command = sessionItemMenuCommands[commandIndex];
+        if (command === "showChanges") {
+          const separator = document.createElement("span");
+          separator.className = "pi-toolbar__menu-separator";
+          separator.setAttribute("role", "separator");
+          menu.append(separator);
+        }
+        menu.append(this.createSessionItemMenuButton(command, session, commandIndex));
+      }
+      wrap.append(menu);
+      return wrap;
+    }
+    createSessionItemMenuButton(command, session, commandIndex) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "pi-toolbar__menu-item sessions__menu-item";
+      button.setAttribute("role", "menuitem");
+      button.setAttribute("data-session-command", command);
+      button.setAttribute("data-session-command-index", String(commandIndex));
+      button.disabled = !this.canRunSessionItemCommand(session, command);
+      button.innerHTML = '<span class="pi-toolbar__menu-label">' + getSessionItemCommandLabel(command) + "</span>" + getSessionItemCommandIcon(command);
+      button.addEventListener("pointerenter", () => {
+        this.openSessionListMenuCommandIndex = commandIndex;
+        this.setSessionMenuItemHover(button, true);
+      });
+      button.addEventListener("pointerleave", () => this.setSessionMenuItemHover(button, false));
+      button.addEventListener("focus", () => {
+        this.openSessionListMenuCommandIndex = commandIndex;
+        this.setSessionMenuItemHover(button, true);
+      });
+      button.addEventListener("blur", () => this.setSessionMenuItemHover(button, false));
+      return button;
+    }
+    createTreeItemElement(treeItem, index) {
+      const state2 = this.options.getState();
+      const item = document.createElement("button");
+      item.type = "button";
+      item.id = "tree-" + index;
+      item.className = "sessions__item" + (index === this.treeListSelectedIndex ? " sessions__item--active" : "") + (treeItem.current ? " sessions__item--current" : "");
+      item.setAttribute("role", "option");
+      item.setAttribute("aria-selected", index === this.treeListSelectedIndex ? "true" : "false");
+      item.setAttribute("data-index", String(index));
+      item.disabled = state2.busy || state2.treeRefreshing;
+      const title = document.createElement("span");
+      title.className = "sessions__title";
+      title.textContent = treeItem.role + ": " + (treeItem.text || "(empty)");
+      item.append(title);
+      return item;
+    }
+    getCurrentSessionTitle() {
+      const state2 = this.options.getState();
+      const session = this.getCurrentSession();
+      if (session) {
+        return getSessionDisplayName(session);
+      }
+      if (state2.currentSessionName) {
+        return state2.currentSessionName;
+      }
+      if (state2.currentSessionFile) {
+        return "Current session";
+      }
+      return state2.messages.length === 0 ? "New session" : "Current session";
+    }
+    getCurrentSession() {
+      const state2 = this.options.getState();
+      if (!Array.isArray(state2.sessions) || state2.sessions.length === 0) {
+        return void 0;
+      }
+      return (state2.currentSessionFile ? state2.sessions.find((session) => session.path === state2.currentSessionFile) : void 0) ?? state2.sessions.find((session) => session.current);
+    }
+    handleSessionListKeydown(event) {
+      const state2 = this.options.getState();
+      if (state2.viewMode !== "sessions" && state2.viewMode !== "tree") {
+        return false;
+      }
+      if (this.openSessionListMenuIndex !== void 0 && this.handleSessionItemMenuKeydown(event)) {
+        return true;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.options.postMessage({ type: "hideSessions" });
+        this.options.focusPromptInput();
+        return true;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.closeSessionItemMenus();
+        state2.viewMode === "tree" ? this.moveTreeSelection(1) : this.moveSessionSelection(1);
+        return true;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.closeSessionItemMenus();
+        state2.viewMode === "tree" ? this.moveTreeSelection(-1) : this.moveSessionSelection(-1);
+        return true;
+      }
+      if (state2.viewMode === "sessions" && event.key === "ArrowRight") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.openSessionItemMenu(this.sessionListSelectedIndex, { focusMenu: true });
+        return true;
+      }
+      if (state2.viewMode === "sessions" && this.handleSessionListCommandKey(event)) {
+        return true;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
+        state2.viewMode === "tree" ? this.selectTreeIndex(this.treeListSelectedIndex) : this.selectSessionIndex(this.sessionListSelectedIndex);
+        return true;
+      }
+      if (state2.viewMode === "sessions" && (event.key === "Delete" || event.key === "Backspace")) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.deleteSessionIndex(this.sessionListSelectedIndex);
+        return true;
+      }
+      return false;
+    }
+    enableSessionPointerHover() {
+      if (this.sessionPointerHoverEnabled) {
+        return;
+      }
+      this.sessionPointerHoverEnabled = true;
+      this.options.sessionsElement.classList.add("sessions--pointer-hover");
+    }
+    moveSessionSelection(delta) {
+      const state2 = this.options.getState();
+      if (!Array.isArray(state2.sessions) || state2.sessions.length === 0) {
+        return;
+      }
+      this.sessionListSelectedIndex = this.clampSessionIndex(this.sessionListSelectedIndex + delta);
+      this.renderSessions();
+      document.getElementById("session-" + this.sessionListSelectedIndex)?.scrollIntoView({ block: "nearest" });
+    }
+    selectSessionIndex(index) {
+      const state2 = this.options.getState();
+      const session = Array.isArray(state2.sessions) ? state2.sessions[index] : void 0;
+      if (!session?.path) {
+        return;
+      }
+      this.options.postMessage({ type: "selectSession", sessionPath: session.path });
+    }
+    deleteSessionIndex(index) {
+      const state2 = this.options.getState();
+      const session = Array.isArray(state2.sessions) ? state2.sessions[index] : void 0;
+      if (!session?.path || !this.canDeleteSession(session)) {
+        return;
+      }
+      this.options.postMessage({ type: "deleteSession", sessionPath: session.path });
+    }
+    toggleSessionItemMenu(index) {
+      if (this.openSessionListMenuIndex === index) {
+        this.closeSessionItemMenus();
+        return;
+      }
+      this.openSessionItemMenu(index, { focusMenu: true });
+    }
+    openSessionItemMenu(index, options = {}) {
+      const state2 = this.options.getState();
+      if (!Number.isInteger(index) || index < 0 || state2.viewMode !== "sessions") {
+        return;
+      }
+      const session = Array.isArray(state2.sessions) ? state2.sessions[index] : void 0;
+      if (!session || !this.canRunSessionItemCommand(session)) {
+        return;
+      }
+      this.sessionListSelectedIndex = this.clampSessionIndex(index);
+      this.openSessionListMenuIndex = this.sessionListSelectedIndex;
+      this.openSessionListMenuCommandIndex = this.getFirstEnabledSessionItemMenuCommandIndex(session);
+      this.renderSessions();
+      document.getElementById("session-" + this.sessionListSelectedIndex)?.scrollIntoView({ block: "nearest" });
+      if (options.focusMenu) {
+        requestAnimationFrame(() => this.focusSessionItemMenuCommand(this.openSessionListMenuIndex, this.openSessionListMenuCommandIndex));
+      }
+    }
+    handleSessionItemMenuKeydown(event) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.closeSessionItemMenus();
+        this.options.sessionsElement.focus({ preventScroll: true });
+        return true;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.moveSessionItemMenuSelection(1);
+        return true;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.moveSessionItemMenuSelection(-1);
+        return true;
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        event.stopPropagation();
+        return true;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
+        const focusedCommand = eventTargetElement3(event)?.closest(".sessions__menu-item")?.getAttribute("data-session-command");
+        this.runOpenSessionItemMenuCommand(focusedCommand ?? sessionItemMenuCommands[this.openSessionListMenuCommandIndex]);
+        return true;
+      }
+      return false;
+    }
+    moveSessionItemMenuSelection(delta) {
+      if (this.openSessionListMenuIndex === void 0) {
+        return;
+      }
+      const state2 = this.options.getState();
+      const session = Array.isArray(state2.sessions) ? state2.sessions[this.openSessionListMenuIndex] : void 0;
+      const enabledIndexes = this.getEnabledSessionItemMenuCommandIndexes(session);
+      if (enabledIndexes.length === 0) {
+        return;
+      }
+      const currentPosition = enabledIndexes.indexOf(this.openSessionListMenuCommandIndex);
+      const nextPosition = currentPosition >= 0 ? (currentPosition + delta + enabledIndexes.length) % enabledIndexes.length : delta > 0 ? 0 : enabledIndexes.length - 1;
+      this.openSessionListMenuCommandIndex = enabledIndexes[nextPosition];
+      this.focusSessionItemMenuCommand(this.openSessionListMenuIndex, this.openSessionListMenuCommandIndex);
+    }
+    focusSessionItemMenuCommand(sessionIndex, commandIndex) {
+      if (sessionIndex === void 0) {
+        return;
+      }
+      const item = document.getElementById("session-" + sessionIndex);
+      const commandButton = item?.querySelector('.sessions__menu-item[data-session-command-index="' + commandIndex + '"]:not(:disabled)') ?? item?.querySelector(".sessions__menu-item:not(:disabled)");
+      commandButton?.focus({ preventScroll: true });
+    }
+    runOpenSessionItemMenuCommand(command) {
+      if (this.openSessionListMenuIndex === void 0) {
+        return;
+      }
+      this.runSessionItemMenuCommand(this.openSessionListMenuIndex, typeof command === "string" ? command : null);
+    }
+    getFirstEnabledSessionItemMenuCommandIndex(session) {
+      return this.getEnabledSessionItemMenuCommandIndexes(session)[0] ?? 0;
+    }
+    getEnabledSessionItemMenuCommandIndexes(session) {
+      if (!session) {
+        return [];
+      }
+      const indexes = [];
+      for (let index = 0; index < sessionItemMenuCommands.length; index += 1) {
+        if (this.canRunSessionItemCommand(session, sessionItemMenuCommands[index])) {
+          indexes.push(index);
+        }
+      }
+      return indexes;
+    }
+    runSessionItemMenuCommand(index, command) {
+      const state2 = this.options.getState();
+      const parsedCommand = parseSessionItemCommand(command);
+      const session = Array.isArray(state2.sessions) ? state2.sessions[index] : void 0;
+      if (!parsedCommand || !session?.path || !this.canRunSessionItemCommand(session, parsedCommand)) {
+        return;
+      }
+      this.closeSessionItemMenus();
+      if (parsedCommand === "delete") {
+        this.options.postMessage({ type: "deleteSession", sessionPath: session.path });
+        return;
+      }
+      if (parsedCommand === "rename") {
+        this.startSessionListNameEdit(index);
+        return;
+      }
+      this.options.postMessage({ type: "sessionItemCommand", sessionPath: session.path, command: parsedCommand });
+    }
+    startSessionListNameEdit(index) {
+      const state2 = this.options.getState();
+      const session = Array.isArray(state2.sessions) ? state2.sessions[index] : void 0;
+      if (!session?.path || !this.canRunSessionItemCommand(session, "rename")) {
+        return;
+      }
+      this.sessionListSelectedIndex = this.clampSessionIndex(index);
+      this.sessionListNameEditPath = session.path;
+      this.sessionListNameEditInitialValue = session.name?.trim() ?? "";
+      this.closeSessionItemMenus();
+      this.renderSessions();
+    }
+    commitSessionListNameEdit(name) {
+      const sessionPath = this.sessionListNameEditPath;
+      if (!sessionPath) {
+        return;
+      }
+      const nextName = name.trim();
+      const previousName = this.sessionListNameEditInitialValue.trim();
+      this.stopSessionListNameEdit();
+      this.renderSessions();
+      if (nextName === previousName) {
+        return;
+      }
+      this.options.postMessage({ type: "setSessionItemName", sessionPath, name: nextName });
+    }
+    cancelSessionListNameEdit(options = {}) {
+      if (!this.sessionListNameEditPath) {
+        return;
+      }
+      this.stopSessionListNameEdit();
+      this.renderSessions();
+      if (options.focusList) {
+        requestAnimationFrame(() => this.options.sessionsElement.focus({ preventScroll: true }));
+      }
+    }
+    focusSessionListNameInput() {
+      const input = this.options.sessionsElement.querySelector(".sessions__name-input");
+      input?.focus({ preventScroll: true });
+      input?.select();
+    }
+    handleSessionListCommandKey(event) {
+      if (event.altKey || event.ctrlKey || event.metaKey) {
+        return false;
+      }
+      const command = getSessionListCommandForKey(event.key);
+      if (!command) {
+        return false;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      this.runSessionItemMenuCommand(this.sessionListSelectedIndex, command);
+      return true;
+    }
+    canRunSessionItemCommand(session, command) {
+      const state2 = this.options.getState();
+      if (command === "delete") {
+        return this.canDeleteSession(session);
+      }
+      return session.liveStatus !== "running" && !(session.current && state2.busy);
+    }
+    canDeleteSession(session) {
+      const state2 = this.options.getState();
+      return session.liveStatus !== "running" && !(session.current && state2.busy);
+    }
+    clampSessionIndex(index) {
+      const state2 = this.options.getState();
+      const count = Array.isArray(state2.sessions) ? state2.sessions.length : 0;
+      if (count === 0) {
+        return 0;
+      }
+      return Math.max(0, Math.min(index, count - 1));
+    }
+    moveTreeSelection(delta) {
+      const state2 = this.options.getState();
+      if (!Array.isArray(state2.treeItems) || state2.treeItems.length === 0) {
+        return;
+      }
+      this.treeListSelectedIndex = this.clampTreeIndex(this.treeListSelectedIndex + delta);
+      this.renderTree();
+      document.getElementById("tree-" + this.treeListSelectedIndex)?.scrollIntoView({ block: "nearest" });
+    }
+    selectTreeIndex(index) {
+      const state2 = this.options.getState();
+      const treeItem = Array.isArray(state2.treeItems) ? state2.treeItems[index] : void 0;
+      if (!treeItem?.entryId || state2.busy || state2.treeRefreshing) {
+        return;
+      }
+      this.options.postMessage({ type: "selectTreeEntry", entryId: treeItem.entryId });
+    }
+    clampTreeIndex(index) {
+      const state2 = this.options.getState();
+      const count = Array.isArray(state2.treeItems) ? state2.treeItems.length : 0;
+      if (count === 0) {
+        return 0;
+      }
+      return Math.max(0, Math.min(index, count - 1));
+    }
+    startSessionNameEdit(event) {
+      const state2 = this.options.getState();
+      event?.preventDefault();
+      event?.stopPropagation();
+      if (state2.viewMode === "sessions" || state2.viewMode === "tree" || state2.busy) {
+        return;
+      }
+      this.options.closeSlashMenu();
+      this.options.closeModelMenu();
+      this.closeSessionCommandMenu();
+      const initialName = this.getCurrentSessionName();
+      this.sessionNameEditing = true;
+      this.sessionNameEditInitialValue = initialName;
+      this.options.sessionNameInputElement.value = initialName;
+      this.options.sessionNameInputElement.placeholder = initialName ? "" : this.getCurrentSessionTitle();
+      this.syncSessionNameEditor();
+      requestAnimationFrame(() => {
+        this.options.sessionNameInputElement.focus({ preventScroll: true });
+        this.options.sessionNameInputElement.select();
+      });
+    }
+    commitSessionNameEdit() {
+      if (!this.sessionNameEditing) {
+        return;
+      }
+      const nextName = this.options.sessionNameInputElement.value.trim();
+      const previousName = this.sessionNameEditInitialValue;
+      this.stopSessionNameEdit();
+      if (nextName !== previousName) {
+        this.options.postMessage({ type: "setSessionName", name: nextName });
+      }
+      this.options.focusPromptInput();
+    }
+    stopSessionNameEdit() {
+      this.sessionNameEditing = false;
+      this.sessionNameEditInitialValue = "";
+      this.options.sessionNameInputElement.value = "";
+      this.options.sessionNameInputElement.placeholder = "";
+      this.syncSessionNameEditor();
+    }
+    syncSessionNameEditor() {
+      const state2 = this.options.getState();
+      this.options.toolbarTitleElement.classList.toggle("pi-toolbar__title--editing", this.sessionNameEditing);
+      this.options.toolbarTitleTextElement.hidden = this.sessionNameEditing;
+      this.options.sessionNameInputElement.hidden = !this.sessionNameEditing;
+      this.options.sessionMenuButton.disabled = state2.busy || this.sessionNameEditing;
+    }
+    toggleSessionCommandMenu(event) {
+      const state2 = this.options.getState();
+      event?.preventDefault();
+      event?.stopPropagation();
+      if (state2.viewMode === "sessions" || state2.viewMode === "tree" || state2.busy || this.sessionNameEditing) {
+        return;
+      }
+      this.options.closeSlashMenu();
+      this.options.closeModelMenu();
+      const isOpen = !this.options.sessionMenuElement.hidden;
+      this.options.sessionMenuElement.hidden = isOpen;
+      this.options.sessionMenuButton.setAttribute("aria-expanded", isOpen ? "false" : "true");
+    }
+    syncSessionCommandMenuItems() {
+      const state2 = this.options.getState();
+      for (const item of this.options.sessionMenuItemElements) {
+        const command = item.getAttribute("data-session-command");
+        item.disabled = state2.busy || this.sessionNameEditing || (command === "delete" || command === "showChanges") && !this.getCurrentSessionPath();
+      }
+    }
+    setSessionMenuItemHover(item, hovered) {
+      item.classList.toggle("pi-toolbar__menu-item--hover", hovered);
+    }
+    runSessionMenuCommand(command) {
+      if (command === "rename") {
+        this.closeSessionCommandMenu();
+        this.startSessionNameEdit();
+        return;
+      }
+      if (command === "showChanges") {
+        const sessionPath = this.getCurrentSessionPath();
+        if (!sessionPath) {
+          return;
+        }
+        this.closeSessionCommandMenu();
+        this.options.postMessage({ type: "sessionItemCommand", sessionPath, command });
+        this.options.focusPromptInput();
+        return;
+      }
+      if (command === "fork" || command === "clone") {
+        this.closeSessionCommandMenu();
+        this.options.runSessionSlashCommand(command);
+        return;
+      }
+      if (command === "delete") {
+        this.closeSessionCommandMenu();
+        this.deleteCurrentSession();
+        return;
+      }
+      if (command !== "reload" && command !== "compact" && command !== "export") {
+        return;
+      }
+      this.closeSessionCommandMenu();
+      this.options.postMessage({ type: "submit", text: "/" + command });
+      this.options.focusPromptInput();
+    }
+    getCurrentSessionName() {
+      const state2 = this.options.getState();
+      return (this.getCurrentSession()?.name ?? state2.currentSessionName ?? "").trim();
+    }
+    getCurrentSessionPath() {
+      const state2 = this.options.getState();
+      return (this.getCurrentSession()?.path ?? state2.currentSessionFile ?? "").trim();
+    }
+    deleteCurrentSession() {
+      const sessionPath = this.getCurrentSessionPath();
+      if (!sessionPath) {
+        return;
+      }
+      this.options.postMessage({ type: "deleteSession", sessionPath });
+      this.options.focusPromptInput();
+    }
+    toggleSessionView() {
+      const state2 = this.options.getState();
+      this.cancelSessionNameEdit();
+      if (state2.viewMode === "sessions" || state2.viewMode === "tree") {
+        this.options.postMessage({ type: "hideSessions" });
+        this.options.focusPromptInput();
+        return;
+      }
+      this.options.postMessage({ type: "showSessions" });
+    }
+  };
+  function createSessionEmptyElement(text) {
+    const empty = document.createElement("div");
+    empty.className = "sessions__empty";
+    empty.textContent = text;
+    return empty;
+  }
+  function getSessionListCommandForKey(key) {
+    switch (key.toLowerCase()) {
+      case "r":
+        return "rename";
+      case "f":
+        return "fork";
+      case "c":
+        return "clone";
+      case "z":
+        return "compact";
+      case "e":
+        return "export";
+      default:
+        return void 0;
+    }
+  }
+  function eventTargetElement3(event) {
+    return event.target instanceof Element ? event.target : null;
+  }
+
   // src/webview/state.ts
   var initialWebviewState = {
     messages: [],
@@ -1221,43 +3006,6 @@
     return typeof value === "object" && value !== null;
   }
 
-  // src/slashCommands.ts
-  var localSlashCommandDefinitions = [
-    { name: "model", description: "Select model", source: "builtin", supported: true },
-    { name: "name", description: "Set or clear session name", source: "builtin", supported: true },
-    { name: "session", description: "Show session info and stats", source: "builtin", supported: true },
-    { name: "compact", description: "Manually compact context", source: "builtin", supported: true },
-    { name: "copy", description: "Copy last Pi response", source: "builtin", supported: true },
-    { name: "export", description: "Export session to HTML", source: "builtin", supported: true },
-    { name: "new", description: "Start a new session", source: "builtin", supported: true },
-    { name: "settings", description: "Terminal-only: use VS Code settings instead", source: "unsupported", supported: false },
-    { name: "scoped-models", description: "Terminal-only: scoped model cycling is not supported here yet", source: "unsupported", supported: false },
-    { name: "import", description: "Terminal-only: session import is not supported here yet", source: "unsupported", supported: false },
-    { name: "share", description: "Not supported here yet", source: "unsupported", supported: false },
-    { name: "changelog", description: "Not supported here yet", source: "unsupported", supported: false },
-    { name: "hotkeys", description: "Terminal-only: use VS Code keybindings instead", source: "unsupported", supported: false },
-    { name: "fork", description: "Fork from a previous user message", source: "builtin", supported: true },
-    { name: "clone", description: "Duplicate the current session", source: "builtin", supported: true },
-    { name: "tree", description: "Navigate session tree", source: "builtin", supported: true },
-    { name: "login", description: "Terminal-only: run pi in a terminal to authenticate", source: "unsupported", supported: false },
-    { name: "logout", description: "Terminal-only: run pi in a terminal to manage auth", source: "unsupported", supported: false },
-    { name: "resume", description: "Resume a different session", source: "builtin", supported: true },
-    { name: "reload", description: "Reload keybindings, extensions, skills, prompts, and themes", source: "builtin", supported: true },
-    { name: "quit", description: "Not supported here", source: "unsupported", supported: false }
-  ];
-  var builtinSlashCommandNames = new Set(localSlashCommandDefinitions.map((command) => command.name));
-  var supportedBuiltinSlashCommandNames = new Set(
-    localSlashCommandDefinitions.filter((command) => command.supported).map((command) => command.name)
-  );
-  var localSlashCommands = localSlashCommandDefinitions.map(({ supported: _supported, ...command }) => command);
-  var localSlashMenuCommands = localSlashCommandDefinitions.filter((command) => command.supported).map(({ supported: _supported, ...command }) => command);
-
-  // src/webview/constants.ts
-  var localSlashCommands2 = localSlashMenuCommands.map((command) => ({ ...command }));
-  var messagesBottomThreshold = 4;
-  var maxTextareaHeight = 180;
-  var minTextareaHeight = 22;
-
   // src/webview/main.ts
   var vscode = acquireVsCodeApi();
   configureCodeHighlighting((message) => vscode.postMessage(message));
@@ -1308,28 +3056,66 @@
   messagesElement.append(messagesContentElement, busyStatusElement);
   var isMac = navigator.platform.toUpperCase().includes("MAC");
   var state = { ...initialWebviewState };
-  var appliedComposerTextRevision = 0;
-  var slashMenuOpen = false;
-  var slashMenuActiveIndex = 0;
-  var slashMenuItems = [];
-  var slashMenuQuery = "";
-  var slashMenuDismissedQuery;
-  var slashCommandsRefreshRequested = false;
-  var streamingBehavior = "steer";
-  var busySubmitHideTimeout;
   var toastHideTimeout;
-  var sessionListSelectedIndex = 0;
-  var treeListSelectedIndex = 0;
-  var sessionPointerHoverEnabled = false;
-  var openSessionListMenuIndex;
-  var openSessionListMenuCommandIndex = 0;
-  var sessionListNameEditPath;
-  var sessionListNameEditInitialValue = "";
-  var sessionNameEditing = false;
-  var sessionNameEditInitialValue = "";
-  var addedDiffCounter = createDiffCounter(diffAddedElement, "+");
-  var removedDiffCounter = createDiffCounter(diffRemovedElement, "-");
-  var renderedMessageViews = [];
+  var sessionsController;
+  var messagesController = new MessageListController({
+    getState: () => state,
+    postMessage: (message) => vscode.postMessage(message),
+    messagesElement,
+    messagesContentElement,
+    busyStatusElement,
+    busyStatusTextElement
+  });
+  var composerController = new ComposerController({
+    getState: () => state,
+    postMessage: (message) => vscode.postMessage(message),
+    refreshMetadata,
+    form,
+    textarea,
+    submitButton,
+    newSessionButton,
+    busySubmitElement,
+    diffSummaryElement,
+    diffAddedElement,
+    diffRemovedElement,
+    streamingBehaviorButtonElements,
+    slashMenuElement,
+    contextBadgesElement,
+    contextElement,
+    contextValueElement,
+    contextTooltipElement,
+    modelElement,
+    modelMenuElement,
+    modelSelectElement,
+    thinkingSelectElement,
+    focusPromptInput,
+    cancelSessionNameEdit: () => sessionsController.cancelSessionNameEdit(),
+    closeSessionCommandMenu: () => sessionsController.closeSessionCommandMenu(),
+    isMessagesAtBottom: () => messagesController.isMessagesAtBottom(),
+    scrollMessagesToBottom: () => messagesController.scrollMessagesToBottom()
+  });
+  sessionsController = new SessionViewController({
+    getState: () => state,
+    postMessage: (message) => vscode.postMessage(message),
+    sessionsElement,
+    toolbarTitleElement,
+    toolbarTitleTextElement,
+    sessionNameInputElement,
+    sessionToggleButton,
+    sessionMenuWrapElement,
+    sessionMenuButton,
+    sessionMenuElement,
+    sessionMenuItemElements,
+    focusPromptInput,
+    closeSlashMenu: () => composerController.closeSlashMenu(),
+    closeModelMenu: () => composerController.closeModelMenu(),
+    runSessionSlashCommand: (command) => composerController.runSessionSlashCommand(command)
+  });
+  composerController.attachEventListeners();
+  sessionsController.attachEventListeners();
+  newSessionButton.addEventListener("click", startNewSession);
+  diffSummaryElement.addEventListener("click", showCurrentChanges);
+  messagesElement.addEventListener("click", (event) => messagesController.handleMessageClick(event));
   window.addEventListener("message", (event) => {
     if (handleCodeHighlightMessage(event.data)) {
       return;
@@ -1353,163 +3139,37 @@
     const wasListView = previousViewMode === "sessions" || previousViewMode === "tree";
     const isListView = state.viewMode === "sessions" || state.viewMode === "tree";
     if (!wasListView && isListView) {
-      disableSessionPointerHover();
+      sessionsController.disableSessionPointerHover();
     }
     if (state.viewMode === "sessions" && (previousViewMode !== "sessions" || previousCurrentSessionFile !== state.currentSessionFile || previousSessionCount === 0)) {
-      selectCurrentSession();
+      sessionsController.selectCurrentSession();
     }
     if (state.viewMode === "tree" && (previousViewMode !== "tree" || previousTreeCount === 0)) {
-      selectCurrentTreeEntry();
+      sessionsController.selectCurrentTreeEntry();
     }
-    if (sessionListNameEditPath && !state.sessions.some((session) => session.path === sessionListNameEditPath)) {
-      stopSessionListNameEdit();
+    if (sessionsController.isSessionListNameEditingMissing()) {
+      sessionsController.stopSessionListNameEdit();
     }
     render();
-    applyComposerTextFromState();
+    composerController.applyComposerTextFromState();
     if (wasListView && state.viewMode === "chat") {
-      scheduleMessagesToBottom();
+      messagesController.scheduleMessagesToBottom();
       focusPromptInput();
     }
   });
-  form?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const text = textarea.value.trim();
-    if (!text) {
-      return;
-    }
-    closeSlashMenu();
-    cancelSessionNameEdit();
-    vscode.postMessage(state.busy ? { type: "submit", text, streamingBehavior } : { type: "submit", text });
-    textarea.value = "";
-    syncComposer({ preserveBottom: true });
-    focusPromptInput();
-  });
-  submitButton?.addEventListener("click", (event) => {
-    if (!isStopSubmitMode()) {
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    vscode.postMessage({ type: "abort" });
-    focusPromptInput();
-  });
-  for (const button of streamingBehaviorButtonElements) {
-    button.addEventListener("click", () => {
-      const nextBehavior = button.getAttribute("data-streaming-behavior");
-      if (nextBehavior === "steer" || nextBehavior === "followUp") {
-        streamingBehavior = nextBehavior;
-        syncComposer({ preserveBottom: true });
-        focusPromptInput();
-      }
-    });
-  }
-  newSessionButton?.addEventListener("click", startNewSession);
-  diffSummaryElement?.addEventListener("click", showCurrentChanges);
-  messagesElement?.addEventListener("click", handleMessageClick);
-  sessionToggleButton?.addEventListener("click", toggleSessionView);
-  toolbarTitleElement?.addEventListener("dblclick", startSessionNameEdit);
-  sessionMenuButton?.addEventListener("click", toggleSessionCommandMenu);
-  for (const item of sessionMenuItemElements) {
-    item.addEventListener("click", () => runSessionMenuCommand(item.getAttribute("data-session-command")));
-    item.addEventListener("pointerenter", () => setSessionMenuItemHover(item, true));
-    item.addEventListener("pointerleave", () => setSessionMenuItemHover(item, false));
-    item.addEventListener("focus", () => setSessionMenuItemHover(item, true));
-    item.addEventListener("blur", () => setSessionMenuItemHover(item, false));
-  }
-  sessionNameInputElement?.addEventListener("blur", () => cancelSessionNameEdit());
-  sessionsElement?.addEventListener("keydown", handleSessionListKeydown);
-  sessionsElement?.addEventListener("pointermove", enableSessionPointerHover);
-  sessionsElement?.addEventListener("click", (event) => {
-    const target = eventTargetElement(event);
-    const sessionMenuButton2 = target?.closest(".sessions__menu-button");
-    if (sessionMenuButton2) {
-      event.preventDefault();
-      event.stopPropagation();
-      const item2 = sessionMenuButton2.closest(".sessions__item");
-      const index2 = Number(item2?.getAttribute("data-index"));
-      toggleSessionItemMenu(index2);
-      return;
-    }
-    const sessionMenuItem = target?.closest(".sessions__menu-item");
-    if (sessionMenuItem) {
-      event.preventDefault();
-      event.stopPropagation();
-      const item2 = sessionMenuItem.closest(".sessions__item");
-      const index2 = Number(item2?.getAttribute("data-index"));
-      runSessionItemMenuCommand(index2, sessionMenuItem.getAttribute("data-session-command"));
-      return;
-    }
-    const item = target?.closest(".sessions__item");
-    if (!item) {
-      closeSessionItemMenus();
-      return;
-    }
-    closeSessionItemMenus();
-    const index = Number(item.getAttribute("data-index"));
-    state.viewMode === "tree" ? selectTreeIndex(index) : selectSessionIndex(index);
-  });
-  modelElement?.addEventListener("click", toggleModelMenu);
-  modelSelectElement?.addEventListener("change", selectModel);
-  thinkingSelectElement?.addEventListener("change", selectThinkingLevel);
   window.addEventListener("click", (event) => {
     const target = eventTargetNode(event);
-    if (modelMenuElement?.hasAttribute("open")) {
-      if (!modelMenuElement.contains(target) && !modelElement?.contains(target)) {
-        closeModelMenu();
-      }
-    }
-    if (!sessionMenuWrapElement.contains(target)) {
-      closeSessionCommandMenu();
-    }
-    if (!target || !(target instanceof Node) || !sessionsElement.contains(target) || !eventTargetElement(event)?.closest(".sessions__menu-wrap")) {
-      closeSessionItemMenus();
-    }
-    if (slashMenuOpen) {
-      if (!slashMenuElement?.contains(target) && target !== textarea) {
-        closeSlashMenu();
-      }
-    }
+    composerController.handleWindowClick(target);
+    sessionsController.handleWindowClick(target, eventTargetElement4(event));
   });
   window.addEventListener("keydown", (event) => {
-    if (sessionNameEditing && event.target === sessionNameInputElement) {
-      if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        event.stopPropagation();
-        commitSessionNameEdit();
-        return;
-      }
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        cancelSessionNameEdit({ focusPrompt: true });
-        return;
-      }
-      return;
-    }
-    const sessionListNameInput = eventTargetElement(event)?.closest(".sessions__name-input");
-    if (sessionListNameInput instanceof HTMLInputElement) {
-      if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        event.stopPropagation();
-        commitSessionListNameEdit(sessionListNameInput.value);
-        return;
-      }
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        cancelSessionListNameEdit({ focusList: true });
-        return;
-      }
-      event.stopPropagation();
-      return;
-    }
-    if ((state.viewMode === "sessions" || state.viewMode === "tree") && handleSessionListKeydown(event)) {
+    if (sessionsController.handleGlobalKeydown(event)) {
       return;
     }
     if (event.key === "Escape" && handleChatEscape(event)) {
       return;
     }
-    if (handleChatPageScroll(event)) {
+    if (messagesController.handleChatPageScroll(event)) {
       return;
     }
     if (!isNewSessionShortcut(event)) {
@@ -1519,66 +3179,18 @@
     event.stopPropagation();
     startNewSession();
   }, true);
-  textarea?.addEventListener("keydown", (event) => {
-    if (handleSlashMenuKeydown(event)) {
-      return;
-    }
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      form?.requestSubmit();
-    }
-  });
-  textarea?.addEventListener("input", () => {
-    slashMenuDismissedQuery = void 0;
-    syncComposer({ preserveBottom: true });
-    syncSlashMenu();
-  });
-  textarea?.addEventListener("click", syncSlashMenu);
-  textarea?.addEventListener("blur", closeSlashMenu);
-  textarea?.addEventListener("keyup", (event) => {
-    if (["ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"].includes(event.key)) {
-      syncSlashMenu();
-    }
-  });
-  slashMenuElement?.addEventListener("mousedown", (event) => {
-    event.preventDefault();
-  });
-  slashMenuElement?.addEventListener("click", (event) => {
-    const item = eventTargetElement(event)?.closest(".composer__slash-item");
-    if (!item) {
-      return;
-    }
-    const index = Number(item.getAttribute("data-index"));
-    const command = slashMenuItems[index];
-    if (command) {
-      acceptSlashCommand(command);
-    }
-  });
-  contextBadgesElement?.addEventListener("mousedown", (event) => {
-    if (eventTargetElement(event)?.closest(".composer__context-remove")) {
-      event.preventDefault();
-    }
-  });
-  contextBadgesElement?.addEventListener("click", (event) => {
-    const removeButton = eventTargetElement(event)?.closest(".composer__context-remove");
-    if (!removeButton) {
-      return;
-    }
-    const id = removeButton.getAttribute("data-context-id");
-    if (!id) {
-      return;
-    }
-    vscode.postMessage({ type: "removePromptContext", id });
-    focusPromptInput();
+  window.addEventListener("resize", () => {
+    render();
+    composerController.syncComposer({ preserveBottom: true });
   });
   function showCurrentChanges() {
     vscode.postMessage({ type: "showCurrentChanges" });
     focusPromptInput();
   }
+  function refreshMetadata() {
+    vscode.postMessage({ type: "refreshMetadata" });
+  }
   function showToast(message) {
-    if (!toastElement) {
-      return;
-    }
     if (toastHideTimeout) {
       clearTimeout(toastHideTimeout);
     }
@@ -1593,12 +3205,7 @@
   }
   function render() {
     const isListView = state.viewMode === "sessions" || state.viewMode === "tree";
-    const shouldStickToBottom = !isListView && isMessagesAtBottom();
-    if (state.viewMode !== "sessions") {
-      openSessionListMenuIndex = void 0;
-      openSessionListMenuCommandIndex = 0;
-      stopSessionListNameEdit();
-    }
+    const shouldStickToBottom = !isListView && messagesController.isMessagesAtBottom();
     viewElement.classList.toggle("pi-view--list", isListView);
     viewElement.classList.toggle("pi-view--chat", !isListView);
     messagesElement.hidden = false;
@@ -1611,372 +3218,46 @@
     form.classList.toggle("composer--list-hidden", isListView);
     form.setAttribute("aria-hidden", isListView ? "true" : "false");
     form.inert = isListView;
-    const toolbarTitle = state.viewMode === "sessions" ? "Sessions" : state.viewMode === "tree" ? "Session tree" : getCurrentSessionTitle();
-    if ((isListView || state.busy) && sessionNameEditing) {
-      cancelSessionNameEdit();
-    }
-    toolbarTitleTextElement.textContent = toolbarTitle;
-    toolbarTitleElement.title = toolbarTitle;
-    toolbarTitleElement.classList.toggle("pi-toolbar__title--editing", sessionNameEditing);
-    toolbarTitleTextElement.hidden = sessionNameEditing;
-    sessionNameInputElement.hidden = !sessionNameEditing;
-    sessionMenuWrapElement.hidden = isListView;
-    sessionMenuButton.disabled = state.busy || sessionNameEditing;
-    syncSessionCommandMenuItems();
-    if (isListView || state.busy || sessionNameEditing) {
-      closeSessionCommandMenu();
-    }
-    sessionToggleButton.title = isListView ? "Back to chat" : "Show sessions";
-    sessionToggleButton.setAttribute("aria-label", sessionToggleButton.title);
-    sessionToggleButton.classList.toggle("pi-toolbar__sessions--back", isListView);
+    sessionsController.syncForRender(isListView);
     if (isListView) {
       busyStatusElement.hidden = true;
-      state.viewMode === "tree" ? renderTree() : renderSessions();
-      closeSlashMenu();
-      closeModelMenu();
-      closeSessionCommandMenu();
-      cancelSessionNameEdit();
-      if (!sessionListNameEditPath) {
-        requestAnimationFrame(() => sessionsElement?.focus({ preventScroll: true }));
+      state.viewMode === "tree" ? sessionsController.renderTree() : sessionsController.renderSessions();
+      composerController.closeSlashMenu();
+      composerController.closeModelMenu();
+      sessionsController.closeSessionCommandMenu();
+      sessionsController.cancelSessionNameEdit();
+      if (!sessionsController.isSessionListNameEditing()) {
+        requestAnimationFrame(() => sessionsElement.focus({ preventScroll: true }));
       }
       return;
     }
-    renderMessageList();
-    syncBusyStatus();
-    syncModelLabel();
-    syncPromptContextBadges();
-    syncComposer();
-    syncSlashMenu();
+    messagesController.renderMessageList();
+    messagesController.syncBusyStatus();
+    composerController.syncModelLabel();
+    composerController.syncPromptContextBadges();
+    composerController.syncComposer();
+    composerController.syncSlashMenu();
     if (shouldStickToBottom) {
-      scrollMessagesToBottom();
+      messagesController.scrollMessagesToBottom();
     }
-  }
-  function renderMessageList() {
-    if (state.messages.length === 0) {
-      renderedMessageViews = [];
-      messagesContentElement.replaceChildren(createEmptyStateElement());
-      return;
-    }
-    if (messagesContentElement.querySelector(".empty-state")) {
-      messagesContentElement.replaceChildren();
-    }
-    let previousMessageRole;
-    for (const [index, message] of state.messages.entries()) {
-      const showRole = message.role !== previousMessageRole;
-      const view = renderMessageAtIndex(index, message, showRole);
-      const currentNode = messagesContentElement.children[index];
-      if (currentNode !== view.element) {
-        messagesContentElement.insertBefore(view.element, currentNode ?? null);
-      }
-      previousMessageRole = message.role;
-    }
-    for (let index = renderedMessageViews.length - 1; index >= state.messages.length; index -= 1) {
-      renderedMessageViews[index]?.element.remove();
-    }
-    renderedMessageViews.length = state.messages.length;
-    requestCodeHighlightsIn(messagesContentElement);
-  }
-  function createEmptyStateElement() {
-    const empty = document.createElement("p");
-    empty.className = "empty-state";
-    if (!state.sessionLoading) {
-      empty.textContent = "Ask Pi about this workspace.";
-      return empty;
-    }
-    empty.classList.add("empty-state--loading");
-    const spinner = document.createElement("span");
-    spinner.className = "status__spinner";
-    spinner.setAttribute("aria-hidden", "true");
-    const text = document.createElement("span");
-    text.textContent = "Loading session\u2026";
-    empty.append(spinner, text);
-    return empty;
-  }
-  function renderMessageAtIndex(index, message, showRole) {
-    const existingView = renderedMessageViews[index];
-    const activitiesSignature = getActivitiesSignature(message);
-    const copyable = canCopyAssistantMessage2(message);
-    const animateFromText = getStreamingAnimationStartText(existingView, message, index);
-    if (existingView && canReuseMessageElement(existingView, message, showRole, activitiesSignature, copyable)) {
-      if ((existingView.message.text || "") !== (message.text || "")) {
-        updateMessageBodyElement(
-          existingView.element,
-          message,
-          {
-            ...animateFromText === void 0 ? {} : { animateFromText },
-            outputColors: state.outputColors
-          }
-        );
-      }
-      existingView.message = message;
-      existingView.showRole = showRole;
-      existingView.activitiesSignature = activitiesSignature;
-      existingView.copyable = copyable;
-      return existingView;
-    }
-    const nextView = {
-      element: createMessageElement(
-        message,
-        showRole,
-        index,
-        {
-          ...animateFromText === void 0 ? {} : { animateFromText },
-          outputColors: state.outputColors
-        }
-      ),
-      message,
-      showRole,
-      activitiesSignature,
-      copyable
-    };
-    existingView?.element.replaceWith(nextView.element);
-    renderedMessageViews[index] = nextView;
-    return nextView;
-  }
-  function canReuseMessageElement(view, message, showRole, activitiesSignature, copyable) {
-    return view.message.role === message.role && Boolean(view.message.error) === Boolean(message.error) && (view.message.variant || "") === (message.variant || "") && view.showRole === showRole && view.activitiesSignature === activitiesSignature && view.copyable === copyable;
-  }
-  function getStreamingAnimationStartText(existingView, message, index) {
-    if (!existingView || !shouldAnimateStreamingAppend(existingView.message, message, index)) {
-      return void 0;
-    }
-    return getMessageBodyVisibleText(existingView.element);
-  }
-  function shouldAnimateStreamingAppend(previous, next, index) {
-    const previousText = previous.text || "";
-    const nextText = next.text || "";
-    return state.busy && index === state.messages.length - 1 && previous.role === "assistant" && next.role === "assistant" && !previous.error && !next.error && previous.variant !== "thinking" && next.variant !== "thinking" && nextText.length > previousText.length && nextText.startsWith(previousText);
-  }
-  function getMessageBodyVisibleText(article) {
-    for (const child of Array.from(article.children)) {
-      if (child instanceof HTMLElement && child.classList.contains("message__body")) {
-        return child.textContent ?? "";
-      }
-    }
-    return "";
-  }
-  function canCopyAssistantMessage2(message) {
-    return message.role === "assistant" && !message.error && message.variant !== "thinking" && Boolean(message.text);
-  }
-  function getActivitiesSignature(message) {
-    if (!Array.isArray(message.activities) || message.activities.length === 0) {
-      return "";
-    }
-    return JSON.stringify({ outputColors: state.outputColors, activities: message.activities });
-  }
-  function renderSessions() {
-    sessionsElement.replaceChildren();
-    sessionListSelectedIndex = clampSessionIndex(sessionListSelectedIndex);
-    const header = document.createElement("div");
-    header.className = "sessions__header";
-    const count = Array.isArray(state.sessions) ? state.sessions.length : 0;
-    if (openSessionListMenuIndex !== void 0 && openSessionListMenuIndex >= count) {
-      openSessionListMenuIndex = void 0;
-    }
-    header.textContent = state.sessionsRefreshing ? "Loading sessions..." : count === 1 ? "1 session" : count + " sessions";
-    sessionsElement.append(header);
-    if (state.sessionsError) {
-      const error = document.createElement("div");
-      error.className = "sessions__error";
-      error.textContent = state.sessionsError;
-      sessionsElement.append(error);
-    }
-    if (state.sessionsRefreshing && count === 0) {
-      sessionsElement.append(createSessionEmptyElement("Loading sessions..."));
-      return;
-    }
-    if (count === 0) {
-      sessionsElement.append(createSessionEmptyElement("No sessions found for this workspace."));
-      return;
-    }
-    for (let index = 0; index < state.sessions.length; index += 1) {
-      sessionsElement.append(createSessionItemElement(state.sessions[index], index));
-    }
-    if (sessionListNameEditPath) {
-      requestAnimationFrame(focusSessionListNameInput);
-    }
-  }
-  function createSessionEmptyElement(text) {
-    const empty = document.createElement("div");
-    empty.className = "sessions__empty";
-    empty.textContent = text;
-    return empty;
-  }
-  function createSessionItemElement(session, index) {
-    const item = document.createElement("div");
-    item.id = "session-" + index;
-    item.className = "sessions__item" + (index === sessionListSelectedIndex ? " sessions__item--active" : "") + (session.current ? " sessions__item--current" : "") + (session.liveStatus ? " sessions__item--" + session.liveStatus : "") + (session.unread ? " sessions__item--unread" : "");
-    item.setAttribute("role", "option");
-    item.setAttribute("aria-selected", index === sessionListSelectedIndex ? "true" : "false");
-    item.setAttribute("data-index", String(index));
-    const prefix = document.createElement("span");
-    prefix.className = "sessions__prefix";
-    prefix.textContent = (session.liveStatus === "running" ? "\u25CF " : "") + buildSessionTreePrefix(session);
-    item.append(prefix);
-    const title = document.createElement("span");
-    title.className = "sessions__title";
-    if (sessionListNameEditPath === session.path) {
-      title.append(createSessionListNameInput(session));
-    } else {
-      const titleText = document.createElement("span");
-      titleText.className = "sessions__title-text";
-      titleText.textContent = getSessionDisplayName(session);
-      title.append(titleText);
-    }
-    item.append(title);
-    const meta = document.createElement("span");
-    meta.className = "sessions__meta";
-    meta.textContent = formatSessionMeta(session);
-    item.append(meta);
-    if (session.cwd) {
-      const cwd = document.createElement("span");
-      cwd.className = "sessions__cwd";
-      cwd.textContent = shortenPath(session.cwd);
-      item.append(cwd);
-    }
-    item.append(createSessionItemMenuElement(session, index));
-    return item;
-  }
-  function createSessionListNameInput(session) {
-    const input = document.createElement("input");
-    input.className = "sessions__name-input";
-    input.type = "text";
-    input.value = sessionListNameEditInitialValue;
-    input.placeholder = getSessionDisplayName(session);
-    input.setAttribute("aria-label", "Session name");
-    input.addEventListener("click", (event) => event.stopPropagation());
-    input.addEventListener("blur", () => cancelSessionListNameEdit());
-    return input;
-  }
-  function createSessionItemMenuElement(session, index) {
-    const wrap = document.createElement("span");
-    wrap.className = "sessions__menu-wrap";
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "sessions__menu-button";
-    button.title = "Session commands";
-    button.setAttribute("aria-label", "Session commands");
-    button.setAttribute("aria-haspopup", "menu");
-    button.setAttribute("aria-expanded", openSessionListMenuIndex === index ? "true" : "false");
-    button.disabled = !canRunSessionItemCommand(session);
-    button.innerHTML = '<svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M5 8C5 8.55229 4.55228 9 4 9C3.44772 9 3 8.55229 3 8C3 7.44772 3.44772 7 4 7C4.55228 7 5 7.44772 5 8ZM9 8C9 8.55229 8.55229 9 8 9C7.44772 9 7 8.55229 7 8C7 7.44772 7.44772 7 8 7C8.55229 7 9 7.44772 9 8ZM12 9C12.5523 9 13 8.55229 13 8C13 7.44772 12.5523 7 12 7C11.4477 7 11 7.44772 11 8C11 8.55229 11.4477 9 12 9Z"/></svg>';
-    wrap.append(button);
-    const menu = document.createElement("span");
-    menu.className = "sessions__menu";
-    menu.setAttribute("role", "menu");
-    menu.hidden = openSessionListMenuIndex !== index;
-    for (let commandIndex = 0; commandIndex < sessionItemMenuCommands.length; commandIndex += 1) {
-      const command = sessionItemMenuCommands[commandIndex];
-      if (command === "showChanges") {
-        const separator = document.createElement("span");
-        separator.className = "pi-toolbar__menu-separator";
-        separator.setAttribute("role", "separator");
-        menu.append(separator);
-      }
-      menu.append(createSessionItemMenuButton(command, session, commandIndex));
-    }
-    wrap.append(menu);
-    return wrap;
-  }
-  function createSessionItemMenuButton(command, session, commandIndex) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "pi-toolbar__menu-item sessions__menu-item";
-    button.setAttribute("role", "menuitem");
-    button.setAttribute("data-session-command", command);
-    button.setAttribute("data-session-command-index", String(commandIndex));
-    button.disabled = !canRunSessionItemCommand(session, command);
-    button.innerHTML = '<span class="pi-toolbar__menu-label">' + getSessionItemCommandLabel(command) + "</span>" + getSessionItemCommandIcon(command);
-    button.addEventListener("pointerenter", () => {
-      openSessionListMenuCommandIndex = commandIndex;
-      setSessionMenuItemHover(button, true);
-    });
-    button.addEventListener("pointerleave", () => setSessionMenuItemHover(button, false));
-    button.addEventListener("focus", () => {
-      openSessionListMenuCommandIndex = commandIndex;
-      setSessionMenuItemHover(button, true);
-    });
-    button.addEventListener("blur", () => setSessionMenuItemHover(button, false));
-    return button;
-  }
-  function renderTree() {
-    sessionsElement.replaceChildren();
-    treeListSelectedIndex = clampTreeIndex(treeListSelectedIndex);
-    const header = document.createElement("div");
-    header.className = "sessions__header";
-    const count = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
-    header.textContent = state.treeRefreshing ? "Loading session tree..." : count === 1 ? "1 tree entry" : count + " tree entries";
-    sessionsElement.append(header);
-    if (state.treeError) {
-      const error = document.createElement("div");
-      error.className = "sessions__error";
-      error.textContent = state.treeError;
-      sessionsElement.append(error);
-    }
-    if (state.treeRefreshing && count === 0) {
-      sessionsElement.append(createSessionEmptyElement("Loading session tree..."));
-      return;
-    }
-    if (count === 0) {
-      sessionsElement.append(createSessionEmptyElement("No persisted tree entries found for this session."));
-      return;
-    }
-    for (let index = 0; index < state.treeItems.length; index += 1) {
-      sessionsElement.append(createTreeItemElement(state.treeItems[index], index));
-    }
-  }
-  function createTreeItemElement(treeItem, index) {
-    const item = document.createElement("button");
-    item.type = "button";
-    item.id = "tree-" + index;
-    item.className = "sessions__item" + (index === treeListSelectedIndex ? " sessions__item--active" : "") + (treeItem.current ? " sessions__item--current" : "");
-    item.setAttribute("role", "option");
-    item.setAttribute("aria-selected", index === treeListSelectedIndex ? "true" : "false");
-    item.setAttribute("data-index", String(index));
-    item.disabled = state.busy || state.treeRefreshing;
-    const title = document.createElement("span");
-    title.className = "sessions__title";
-    title.textContent = treeItem.role + ": " + (treeItem.text || "(empty)");
-    item.append(title);
-    return item;
-  }
-  function getCurrentSessionTitle() {
-    const session = getCurrentSession();
-    if (session) {
-      return getSessionDisplayName(session);
-    }
-    if (state.currentSessionName) {
-      return state.currentSessionName;
-    }
-    if (state.currentSessionFile) {
-      return "Current session";
-    }
-    return state.messages.length === 0 ? "New session" : "Current session";
-  }
-  function getCurrentSession() {
-    if (!Array.isArray(state.sessions) || state.sessions.length === 0) {
-      return void 0;
-    }
-    return (state.currentSessionFile ? state.sessions.find((session) => session.path === state.currentSessionFile) : void 0) ?? state.sessions.find((session) => session.current);
   }
   function handleChatEscape(event) {
-    const hadSlashMenu = slashMenuOpen;
-    const hadModelMenu = modelMenuElement?.hasAttribute("open") ?? false;
-    const hadSessionCommandMenu = !sessionMenuElement.hidden;
-    const wasSessionNameEditing = sessionNameEditing;
+    const hadSlashMenu = composerController.hasSlashMenuOpen();
+    const hadModelMenu = composerController.hasModelMenuOpen();
+    const sessionUiState = sessionsController.hasSlashOrSessionUiOpen();
     if (hadSlashMenu) {
-      dismissSlashMenu();
+      composerController.dismissSlashMenu();
     }
     if (hadModelMenu) {
-      closeModelMenu();
+      composerController.closeModelMenu();
     }
-    if (hadSessionCommandMenu) {
-      closeSessionCommandMenu();
+    if (sessionUiState.sessionCommandMenu) {
+      sessionsController.closeSessionCommandMenu();
     }
-    if (wasSessionNameEditing) {
-      cancelSessionNameEdit();
+    if (sessionUiState.sessionNameEditing) {
+      sessionsController.cancelSessionNameEdit();
     }
-    if (hadSlashMenu || hadModelMenu || hadSessionCommandMenu || wasSessionNameEditing) {
+    if (hadSlashMenu || hadModelMenu || sessionUiState.sessionCommandMenu || sessionUiState.sessionNameEditing) {
       event.preventDefault();
       event.stopPropagation();
       return true;
@@ -1989,1058 +3270,9 @@
     }
     return false;
   }
-  function handleSessionListKeydown(event) {
-    if (state.viewMode !== "sessions" && state.viewMode !== "tree") {
-      return false;
-    }
-    if (openSessionListMenuIndex !== void 0 && handleSessionItemMenuKeydown(event)) {
-      return true;
-    }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      vscode.postMessage({ type: "hideSessions" });
-      focusPromptInput();
-      return true;
-    }
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      event.stopPropagation();
-      closeSessionItemMenus();
-      state.viewMode === "tree" ? moveTreeSelection(1) : moveSessionSelection(1);
-      return true;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      event.stopPropagation();
-      closeSessionItemMenus();
-      state.viewMode === "tree" ? moveTreeSelection(-1) : moveSessionSelection(-1);
-      return true;
-    }
-    if (state.viewMode === "sessions" && event.key === "ArrowRight") {
-      event.preventDefault();
-      event.stopPropagation();
-      openSessionItemMenu(sessionListSelectedIndex, { focusMenu: true });
-      return true;
-    }
-    if (state.viewMode === "sessions" && handleSessionListCommandKey(event)) {
-      return true;
-    }
-    if (event.key === "Enter") {
-      event.preventDefault();
-      event.stopPropagation();
-      state.viewMode === "tree" ? selectTreeIndex(treeListSelectedIndex) : selectSessionIndex(sessionListSelectedIndex);
-      return true;
-    }
-    if (state.viewMode === "sessions" && (event.key === "Delete" || event.key === "Backspace")) {
-      event.preventDefault();
-      event.stopPropagation();
-      deleteSessionIndex(sessionListSelectedIndex);
-      return true;
-    }
-    return false;
-  }
-  function enableSessionPointerHover() {
-    if (sessionPointerHoverEnabled) {
-      return;
-    }
-    sessionPointerHoverEnabled = true;
-    sessionsElement.classList.add("sessions--pointer-hover");
-  }
-  function disableSessionPointerHover() {
-    sessionPointerHoverEnabled = false;
-    sessionsElement.classList.remove("sessions--pointer-hover");
-  }
-  function moveSessionSelection(delta) {
-    if (!Array.isArray(state.sessions) || state.sessions.length === 0) {
-      return;
-    }
-    sessionListSelectedIndex = clampSessionIndex(sessionListSelectedIndex + delta);
-    renderSessions();
-    document.getElementById("session-" + sessionListSelectedIndex)?.scrollIntoView({ block: "nearest" });
-  }
-  function selectSessionIndex(index) {
-    const session = Array.isArray(state.sessions) ? state.sessions[index] : void 0;
-    if (!session?.path) {
-      return;
-    }
-    selectSessionByPath(session.path);
-  }
-  function selectSessionByPath(sessionPath) {
-    if (!sessionPath) {
-      return;
-    }
-    vscode.postMessage({ type: "selectSession", sessionPath });
-  }
-  function deleteSessionIndex(index) {
-    const session = Array.isArray(state.sessions) ? state.sessions[index] : void 0;
-    if (!session?.path || !canDeleteSession(session)) {
-      return;
-    }
-    vscode.postMessage({ type: "deleteSession", sessionPath: session.path });
-  }
-  function toggleSessionItemMenu(index) {
-    if (openSessionListMenuIndex === index) {
-      closeSessionItemMenus();
-      return;
-    }
-    openSessionItemMenu(index, { focusMenu: true });
-  }
-  function openSessionItemMenu(index, options = {}) {
-    if (!Number.isInteger(index) || index < 0 || state.viewMode !== "sessions") {
-      return;
-    }
-    const session = Array.isArray(state.sessions) ? state.sessions[index] : void 0;
-    if (!session || !canRunSessionItemCommand(session)) {
-      return;
-    }
-    sessionListSelectedIndex = clampSessionIndex(index);
-    openSessionListMenuIndex = sessionListSelectedIndex;
-    openSessionListMenuCommandIndex = getFirstEnabledSessionItemMenuCommandIndex(session);
-    renderSessions();
-    document.getElementById("session-" + sessionListSelectedIndex)?.scrollIntoView({ block: "nearest" });
-    if (options.focusMenu) {
-      requestAnimationFrame(() => focusSessionItemMenuCommand(openSessionListMenuIndex, openSessionListMenuCommandIndex));
-    }
-  }
-  function closeSessionItemMenus() {
-    if (openSessionListMenuIndex === void 0) {
-      return;
-    }
-    openSessionListMenuIndex = void 0;
-    openSessionListMenuCommandIndex = 0;
-    for (const menu of sessionsElement.querySelectorAll(".sessions__menu")) {
-      menu.hidden = true;
-    }
-    for (const button of sessionsElement.querySelectorAll(".sessions__menu-button")) {
-      button.setAttribute("aria-expanded", "false");
-    }
-  }
-  function handleSessionItemMenuKeydown(event) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      closeSessionItemMenus();
-      sessionsElement.focus({ preventScroll: true });
-      return true;
-    }
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      event.stopPropagation();
-      moveSessionItemMenuSelection(1);
-      return true;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      event.stopPropagation();
-      moveSessionItemMenuSelection(-1);
-      return true;
-    }
-    if (event.key === "ArrowRight") {
-      event.preventDefault();
-      event.stopPropagation();
-      return true;
-    }
-    if (event.key === "Enter") {
-      event.preventDefault();
-      event.stopPropagation();
-      const focusedCommand = eventTargetElement(event)?.closest(".sessions__menu-item")?.getAttribute("data-session-command");
-      runOpenSessionItemMenuCommand(focusedCommand ?? sessionItemMenuCommands[openSessionListMenuCommandIndex]);
-      return true;
-    }
-    return false;
-  }
-  function moveSessionItemMenuSelection(delta) {
-    if (openSessionListMenuIndex === void 0) {
-      return;
-    }
-    const session = Array.isArray(state.sessions) ? state.sessions[openSessionListMenuIndex] : void 0;
-    const enabledIndexes = getEnabledSessionItemMenuCommandIndexes(session);
-    if (enabledIndexes.length === 0) {
-      return;
-    }
-    const currentPosition = enabledIndexes.indexOf(openSessionListMenuCommandIndex);
-    const nextPosition = currentPosition >= 0 ? (currentPosition + delta + enabledIndexes.length) % enabledIndexes.length : delta > 0 ? 0 : enabledIndexes.length - 1;
-    openSessionListMenuCommandIndex = enabledIndexes[nextPosition];
-    focusSessionItemMenuCommand(openSessionListMenuIndex, openSessionListMenuCommandIndex);
-  }
-  function focusSessionItemMenuCommand(sessionIndex, commandIndex) {
-    if (sessionIndex === void 0) {
-      return;
-    }
-    const item = document.getElementById("session-" + sessionIndex);
-    const commandButton = item?.querySelector('.sessions__menu-item[data-session-command-index="' + commandIndex + '"]:not(:disabled)') ?? item?.querySelector(".sessions__menu-item:not(:disabled)");
-    commandButton?.focus({ preventScroll: true });
-  }
-  function runOpenSessionItemMenuCommand(command) {
-    if (openSessionListMenuIndex === void 0) {
-      return;
-    }
-    runSessionItemMenuCommand(openSessionListMenuIndex, typeof command === "string" ? command : null);
-  }
-  function getFirstEnabledSessionItemMenuCommandIndex(session) {
-    return getEnabledSessionItemMenuCommandIndexes(session)[0] ?? 0;
-  }
-  function getEnabledSessionItemMenuCommandIndexes(session) {
-    if (!session) {
-      return [];
-    }
-    const indexes = [];
-    for (let index = 0; index < sessionItemMenuCommands.length; index += 1) {
-      if (canRunSessionItemCommand(session, sessionItemMenuCommands[index])) {
-        indexes.push(index);
-      }
-    }
-    return indexes;
-  }
-  function runSessionItemMenuCommand(index, command) {
-    const parsedCommand = parseSessionItemCommand(command);
-    const session = Array.isArray(state.sessions) ? state.sessions[index] : void 0;
-    if (!parsedCommand || !session?.path || !canRunSessionItemCommand(session, parsedCommand)) {
-      return;
-    }
-    closeSessionItemMenus();
-    if (parsedCommand === "delete") {
-      vscode.postMessage({ type: "deleteSession", sessionPath: session.path });
-      return;
-    }
-    if (parsedCommand === "rename") {
-      startSessionListNameEdit(index);
-      return;
-    }
-    vscode.postMessage({ type: "sessionItemCommand", sessionPath: session.path, command: parsedCommand });
-  }
-  function startSessionListNameEdit(index) {
-    const session = Array.isArray(state.sessions) ? state.sessions[index] : void 0;
-    if (!session?.path || !canRunSessionItemCommand(session, "rename")) {
-      return;
-    }
-    sessionListSelectedIndex = clampSessionIndex(index);
-    sessionListNameEditPath = session.path;
-    sessionListNameEditInitialValue = session.name?.trim() ?? "";
-    closeSessionItemMenus();
-    renderSessions();
-  }
-  function commitSessionListNameEdit(name) {
-    const sessionPath = sessionListNameEditPath;
-    if (!sessionPath) {
-      return;
-    }
-    const nextName = name.trim();
-    const previousName = sessionListNameEditInitialValue.trim();
-    stopSessionListNameEdit();
-    renderSessions();
-    if (nextName === previousName) {
-      return;
-    }
-    vscode.postMessage({ type: "setSessionItemName", sessionPath, name: nextName });
-  }
-  function cancelSessionListNameEdit(options = {}) {
-    if (!sessionListNameEditPath) {
-      return;
-    }
-    stopSessionListNameEdit();
-    renderSessions();
-    if (options.focusList) {
-      requestAnimationFrame(() => sessionsElement.focus({ preventScroll: true }));
-    }
-  }
-  function stopSessionListNameEdit() {
-    sessionListNameEditPath = void 0;
-    sessionListNameEditInitialValue = "";
-  }
-  function focusSessionListNameInput() {
-    const input = sessionsElement.querySelector(".sessions__name-input");
-    input?.focus({ preventScroll: true });
-    input?.select();
-  }
-  function handleSessionListCommandKey(event) {
-    if (event.altKey || event.ctrlKey || event.metaKey) {
-      return false;
-    }
-    const command = getSessionListCommandForKey(event.key);
-    if (!command) {
-      return false;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    runSessionItemMenuCommand(sessionListSelectedIndex, command);
-    return true;
-  }
-  function getSessionListCommandForKey(key) {
-    switch (key.toLowerCase()) {
-      case "r":
-        return "rename";
-      case "f":
-        return "fork";
-      case "c":
-        return "clone";
-      case "z":
-        return "compact";
-      case "e":
-        return "export";
-      default:
-        return void 0;
-    }
-  }
-  function canRunSessionItemCommand(session, command) {
-    if (command === "delete") {
-      return canDeleteSession(session);
-    }
-    return session.liveStatus !== "running" && !(session.current && state.busy);
-  }
-  function canDeleteSession(session) {
-    return session.liveStatus !== "running" && !(session.current && state.busy);
-  }
-  function clampSessionIndex(index) {
-    const count = Array.isArray(state.sessions) ? state.sessions.length : 0;
-    if (count === 0) {
-      return 0;
-    }
-    return Math.max(0, Math.min(index, count - 1));
-  }
-  function moveTreeSelection(delta) {
-    if (!Array.isArray(state.treeItems) || state.treeItems.length === 0) {
-      return;
-    }
-    treeListSelectedIndex = clampTreeIndex(treeListSelectedIndex + delta);
-    renderTree();
-    document.getElementById("tree-" + treeListSelectedIndex)?.scrollIntoView({ block: "nearest" });
-  }
-  function selectTreeIndex(index) {
-    const treeItem = Array.isArray(state.treeItems) ? state.treeItems[index] : void 0;
-    if (!treeItem?.entryId || state.busy || state.treeRefreshing) {
-      return;
-    }
-    vscode.postMessage({ type: "selectTreeEntry", entryId: treeItem.entryId });
-  }
-  function handleChatPageScroll(event) {
-    if (state.viewMode !== "chat" || event.key !== "PageUp" && event.key !== "PageDown") {
-      return false;
-    }
-    if (event.altKey || event.metaKey || event.shiftKey) {
-      return false;
-    }
-    const target = eventTargetElement(event);
-    if (target instanceof HTMLSelectElement || target instanceof HTMLInputElement) {
-      return false;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    const direction = event.key === "PageUp" ? -1 : 1;
-    const amount = event.ctrlKey ? getTranscriptLineScrollAmount() : Math.max(80, Math.floor(messagesElement.clientHeight * 0.85));
-    messagesElement.scrollBy({ top: direction * amount, behavior: "auto" });
-    return true;
-  }
-  function getTranscriptLineScrollAmount() {
-    return parseCssPixelValue(getComputedStyle(messagesContentElement).lineHeight) || parseCssPixelValue(getComputedStyle(messagesElement).lineHeight) || 20;
-  }
-  function clampTreeIndex(index) {
-    const count = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
-    if (count === 0) {
-      return 0;
-    }
-    return Math.max(0, Math.min(index, count - 1));
-  }
-  function selectCurrentTreeEntry() {
-    const currentIndex = Array.isArray(state.treeItems) ? state.treeItems.findIndex((item) => item.current) : -1;
-    treeListSelectedIndex = currentIndex >= 0 ? currentIndex : 0;
-  }
-  function selectCurrentSession() {
-    const currentIndex = Array.isArray(state.sessions) ? state.sessions.findIndex((session) => session.current || session.path === state.currentSessionFile) : -1;
-    sessionListSelectedIndex = currentIndex >= 0 ? currentIndex : 0;
-  }
-  function startSessionNameEdit(event) {
-    event?.preventDefault();
-    event?.stopPropagation();
-    if (state.viewMode === "sessions" || state.viewMode === "tree" || state.busy) {
-      return;
-    }
-    closeSlashMenu();
-    closeModelMenu();
-    closeSessionCommandMenu();
-    const initialName = getCurrentSessionName();
-    sessionNameEditing = true;
-    sessionNameEditInitialValue = initialName;
-    sessionNameInputElement.value = initialName;
-    sessionNameInputElement.placeholder = initialName ? "" : getCurrentSessionTitle();
-    syncSessionNameEditor();
-    requestAnimationFrame(() => {
-      sessionNameInputElement.focus({ preventScroll: true });
-      sessionNameInputElement.select();
-    });
-  }
-  function commitSessionNameEdit() {
-    if (!sessionNameEditing) {
-      return;
-    }
-    const nextName = sessionNameInputElement.value.trim();
-    const previousName = sessionNameEditInitialValue;
-    stopSessionNameEdit();
-    if (nextName !== previousName) {
-      vscode.postMessage({ type: "setSessionName", name: nextName });
-    }
-    focusPromptInput();
-  }
-  function cancelSessionNameEdit(options = {}) {
-    if (!sessionNameEditing) {
-      return;
-    }
-    stopSessionNameEdit();
-    if (options.focusPrompt) {
-      focusPromptInput();
-    }
-  }
-  function stopSessionNameEdit() {
-    sessionNameEditing = false;
-    sessionNameEditInitialValue = "";
-    sessionNameInputElement.value = "";
-    sessionNameInputElement.placeholder = "";
-    syncSessionNameEditor();
-  }
-  function syncSessionNameEditor() {
-    toolbarTitleElement.classList.toggle("pi-toolbar__title--editing", sessionNameEditing);
-    toolbarTitleTextElement.hidden = sessionNameEditing;
-    sessionNameInputElement.hidden = !sessionNameEditing;
-    sessionMenuButton.disabled = state.busy || sessionNameEditing;
-  }
-  function toggleSessionCommandMenu(event) {
-    event?.preventDefault();
-    event?.stopPropagation();
-    if (state.viewMode === "sessions" || state.viewMode === "tree" || state.busy || sessionNameEditing) {
-      return;
-    }
-    closeSlashMenu();
-    closeModelMenu();
-    const isOpen = !sessionMenuElement.hidden;
-    sessionMenuElement.hidden = isOpen;
-    sessionMenuButton.setAttribute("aria-expanded", isOpen ? "false" : "true");
-  }
-  function closeSessionCommandMenu() {
-    sessionMenuElement.hidden = true;
-    sessionMenuButton.setAttribute("aria-expanded", "false");
-    for (const item of sessionMenuItemElements) {
-      setSessionMenuItemHover(item, false);
-    }
-  }
-  function syncSessionCommandMenuItems() {
-    for (const item of sessionMenuItemElements) {
-      const command = item.getAttribute("data-session-command");
-      item.disabled = state.busy || sessionNameEditing || (command === "delete" || command === "showChanges") && !getCurrentSessionPath();
-    }
-  }
-  function setSessionMenuItemHover(item, hovered) {
-    item.classList.toggle("pi-toolbar__menu-item--hover", hovered);
-  }
-  function runSessionMenuCommand(command) {
-    if (command === "rename") {
-      closeSessionCommandMenu();
-      startSessionNameEdit();
-      return;
-    }
-    if (command === "showChanges") {
-      const sessionPath = getCurrentSessionPath();
-      if (!sessionPath) {
-        return;
-      }
-      closeSessionCommandMenu();
-      vscode.postMessage({ type: "sessionItemCommand", sessionPath, command });
-      focusPromptInput();
-      return;
-    }
-    if (command === "fork" || command === "clone") {
-      closeSessionCommandMenu();
-      runSessionSlashCommand(command);
-      return;
-    }
-    if (command === "delete") {
-      closeSessionCommandMenu();
-      deleteCurrentSession();
-      return;
-    }
-    if (command !== "reload" && command !== "compact" && command !== "export") {
-      return;
-    }
-    closeSessionCommandMenu();
-    vscode.postMessage({ type: "submit", text: "/" + command });
-    focusPromptInput();
-  }
-  function getCurrentSessionName() {
-    return (getCurrentSession()?.name ?? state.currentSessionName ?? "").trim();
-  }
-  function getCurrentSessionPath() {
-    return (getCurrentSession()?.path ?? state.currentSessionFile ?? "").trim();
-  }
-  function deleteCurrentSession() {
-    const sessionPath = getCurrentSessionPath();
-    if (!sessionPath) {
-      return;
-    }
-    vscode.postMessage({ type: "deleteSession", sessionPath });
-    focusPromptInput();
-  }
-  function toggleSessionView() {
-    cancelSessionNameEdit();
-    if (state.viewMode === "sessions" || state.viewMode === "tree") {
-      vscode.postMessage({ type: "hideSessions" });
-      focusPromptInput();
-      return;
-    }
-    vscode.postMessage({ type: "showSessions" });
-  }
-  function syncSubmit() {
-    const isStopMode = isStopSubmitMode();
-    const hasInput = textarea.value.length > 0;
-    const hasSendableText = textarea.value.trim().length > 0;
-    const label = getSubmitLabel(isStopMode);
-    submitButton.disabled = state.busy ? hasInput && !hasSendableText : !hasSendableText;
-    newSessionButton.disabled = false;
-    submitButton.classList.toggle("composer__submit--stop", isStopMode);
-    submitButton.setAttribute("aria-label", label);
-    submitButton.title = label;
-  }
-  function getSubmitLabel(isStopMode) {
-    if (isStopMode) {
-      return "Stop current response";
-    }
-    if (state.busy) {
-      return streamingBehavior === "followUp" ? "Queue follow-up" : "Steer current run";
-    }
-    return "Send message";
-  }
-  function isStopSubmitMode() {
-    return state.busy && textarea.value.length === 0;
-  }
-  function syncBusySubmitMode() {
-    if (!busySubmitElement) {
-      return;
-    }
-    const showDiffSummary = state.busy || hasWorkspaceDiffChanges();
-    setBusySubmitVisible(showDiffSummary);
-    syncDiffSummary();
-    const streamingModesElement = streamingBehaviorButtonElements[0]?.parentElement;
-    if (streamingModesElement) {
-      streamingModesElement.hidden = !state.busy;
-    }
-    if (!state.busy) {
-      return;
-    }
-    for (const button of streamingBehaviorButtonElements) {
-      const isActive = button.getAttribute("data-streaming-behavior") === streamingBehavior;
-      button.classList.toggle("composer__mode-button--active", isActive);
-      button.setAttribute("aria-pressed", isActive ? "true" : "false");
-    }
-  }
-  function syncDiffSummary() {
-    const addedLines = normalizeDiffLineCount(state.workspaceDiffStats.addedLines);
-    const removedLines = normalizeDiffLineCount(state.workspaceDiffStats.removedLines);
-    updateDiffCounter(addedDiffCounter, addedLines);
-    updateDiffCounter(removedDiffCounter, removedLines);
-    diffSummaryElement.title = `Show session changes: +${formatDiffLineCount(addedLines)} | -${formatDiffLineCount(removedLines)}`;
-  }
-  function hasWorkspaceDiffChanges() {
-    return state.workspaceDiffStats.addedLines > 0 || state.workspaceDiffStats.removedLines > 0;
-  }
-  function setBusySubmitVisible(visible) {
-    if (!busySubmitElement) {
-      return;
-    }
-    if (busySubmitHideTimeout) {
-      clearTimeout(busySubmitHideTimeout);
-      busySubmitHideTimeout = void 0;
-    }
-    if (visible) {
-      busySubmitElement.hidden = false;
-      requestAnimationFrame(() => {
-        busySubmitElement.classList.add("composer__busy-submit--visible");
-      });
-      return;
-    }
-    busySubmitElement.classList.remove("composer__busy-submit--visible");
-    busySubmitHideTimeout = setTimeout(() => {
-      if (!state.busy) {
-        busySubmitElement.hidden = true;
-      }
-    }, 160);
-  }
-  function syncBusyStatus() {
-    busyStatusElement.hidden = !state.busy;
-    if (!state.busy) {
-      return;
-    }
-    const nextText = getBusyStatusText();
-    if (busyStatusTextElement.textContent !== nextText) {
-      busyStatusTextElement.textContent = nextText;
-    }
-  }
-  function getBusyStatusText() {
-    const activity = getLatestRunningActivity();
-    if (!activity) {
-      return "Pi is working...";
-    }
-    const title = typeof activity.title === "string" && activity.title ? activity.title : "Pi is working";
-    const summary = typeof activity.summary === "string" && activity.summary ? ": " + activity.summary : "";
-    return title + summary;
-  }
-  function getLatestRunningActivity() {
-    for (let messageIndex = state.messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
-      const message = state.messages[messageIndex];
-      const activities = Array.isArray(message.activities) ? message.activities : [];
-      for (let activityIndex = activities.length - 1; activityIndex >= 0; activityIndex -= 1) {
-        if (activities[activityIndex]?.status === "running") {
-          return activities[activityIndex];
-        }
-      }
-    }
-    return void 0;
-  }
-  function syncPromptContextBadges() {
-    if (!contextBadgesElement) {
-      return;
-    }
-    const attachments = Array.isArray(state.promptContext) ? state.promptContext.filter(isPromptContextAttachment) : [];
-    form?.classList.toggle("composer--has-context", attachments.length > 0);
-    contextBadgesElement.hidden = attachments.length === 0;
-    contextBadgesElement.replaceChildren();
-    for (const attachment of attachments) {
-      const badge = document.createElement("span");
-      badge.className = "composer__context-badge";
-      badge.title = attachment.title || attachment.label;
-      const label = document.createElement("span");
-      label.className = "composer__context-label";
-      label.textContent = attachment.label;
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "composer__context-remove";
-      remove.setAttribute("data-context-id", attachment.id);
-      remove.setAttribute("aria-label", "Remove context " + attachment.label);
-      remove.title = "Remove context";
-      remove.textContent = "\xD7";
-      badge.append(label, remove);
-      contextBadgesElement.append(badge);
-    }
-  }
-  function isPromptContextAttachment(value) {
-    if (!value || typeof value !== "object") {
-      return false;
-    }
-    const attachment = value;
-    return typeof attachment.id === "string" && typeof attachment.label === "string" && typeof attachment.title === "string";
-  }
-  function syncModelLabel() {
-    contextValueElement.textContent = state.contextUsageLabel;
-    contextTooltipElement.textContent = state.contextUsageTitle;
-    contextElement.title = state.contextUsageTitle;
-    contextElement.className = "composer__context" + (state.contextUsageLevel ? " composer__context--" + state.contextUsageLevel : "");
-    contextElement.hidden = state.contextUsageLabel.length === 0;
-    const label = state.modelLabel || "Select model";
-    modelElement.textContent = label;
-    modelElement.className = "composer__model";
-    modelElement.title = state.metadataRefreshing ? label + " (refreshing...)" : state.modelOptions.length === 0 && !state.busy ? "Load model settings" : label;
-    modelElement.disabled = state.busy;
-    modelElement.setAttribute("aria-busy", state.metadataRefreshing ? "true" : "false");
-    modelMenuElement?.setAttribute("aria-busy", state.metadataRefreshing ? "true" : "false");
-    syncModelSelect();
-    syncThinkingSelect();
-  }
-  function syncModelSelect() {
-    const selectedValue = modelKey(state.modelProvider, state.modelId);
-    const currentValue = modelSelectElement.value;
-    const modelOptions = getDisplayModelOptions();
-    modelSelectElement.replaceChildren();
-    for (const model of modelOptions) {
-      if (!model || typeof model.provider !== "string" || typeof model.id !== "string") {
-        continue;
-      }
-      const option = document.createElement("option");
-      option.value = modelKey(model.provider, model.id);
-      option.textContent = model.name && model.name !== model.id ? model.name + " (" + model.provider + "/" + model.id + ")" : model.provider + "/" + model.id;
-      modelSelectElement.append(option);
-    }
-    modelSelectElement.value = selectedValue || currentValue;
-    modelSelectElement.disabled = state.busy || modelOptions.length === 0;
-  }
-  function getDisplayModelOptions() {
-    if (state.modelOptions.length > 0) {
-      return state.modelOptions;
-    }
-    if (!state.modelProvider || !state.modelId) {
-      return [];
-    }
-    return [{
-      provider: state.modelProvider,
-      id: state.modelId,
-      name: state.modelLabel || state.modelId,
-      reasoning: state.modelReasoning
-    }];
-  }
-  function syncThinkingSelect() {
-    thinkingSelectElement.value = state.thinkingLevel || "medium";
-    thinkingSelectElement.disabled = state.busy || !state.modelReasoning;
-    thinkingSelectElement.title = state.modelReasoning ? "Thinking mode" : "The selected model does not advertise thinking support.";
-  }
-  function toggleModelMenu() {
-    if (modelElement.disabled) {
-      return;
-    }
-    if (state.modelOptions.length === 0 && !state.metadataRefreshing) {
-      vscode.postMessage({ type: "refreshMetadata" });
-    }
-    cancelSessionNameEdit();
-    const open = !modelMenuElement.hasAttribute("open");
-    modelMenuElement.toggleAttribute("open", open);
-    modelElement.setAttribute("aria-expanded", open ? "true" : "false");
-  }
-  function closeModelMenu() {
-    modelMenuElement?.removeAttribute("open");
-    modelElement?.setAttribute("aria-expanded", "false");
-  }
-  function selectModel() {
-    const [provider, modelId] = splitModelKey(modelSelectElement.value);
-    if (!provider || !modelId || state.busy) {
-      return;
-    }
-    closeModelMenu();
-    vscode.postMessage({ type: "setModel", provider, modelId });
-  }
-  function selectThinkingLevel() {
-    const level = thinkingSelectElement.value;
-    if (!level || state.busy || !state.modelReasoning) {
-      return;
-    }
-    closeModelMenu();
-    vscode.postMessage({ type: "setThinkingLevel", level });
-  }
-  function handleSlashMenuKeydown(event) {
-    if (!slashMenuOpen) {
-      if (event.key === "Escape") {
-        dismissSlashMenu();
-      }
-      return false;
-    }
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      moveSlashMenuSelection(1);
-      return true;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      moveSlashMenuSelection(-1);
-      return true;
-    }
-    if (event.key === "Tab") {
-      event.preventDefault();
-      acceptActiveSlashCommand();
-      return true;
-    }
-    if (event.key === "Enter" && !event.shiftKey && slashMenuItems.length > 0) {
-      event.preventDefault();
-      acceptActiveSlashCommand();
-      return true;
-    }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      dismissSlashMenu();
-      return true;
-    }
-    return false;
-  }
-  function syncSlashMenu() {
-    if (!shouldShowSlashMenu()) {
-      closeSlashMenu();
-      return;
-    }
-    closeModelMenu();
-    cancelSessionNameEdit();
-    if (state.slashCommands.length === 0 && !state.slashCommandsRefreshing && !slashCommandsRefreshRequested) {
-      slashCommandsRefreshRequested = true;
-      vscode.postMessage({ type: "refreshSlashCommands" });
-    }
-    const query = getSlashCommandQuery();
-    if (query === slashMenuDismissedQuery) {
-      closeSlashMenu();
-      return;
-    }
-    if (query !== slashMenuQuery) {
-      slashMenuQuery = query;
-      slashMenuActiveIndex = 0;
-      if (slashMenuElement) {
-        slashMenuElement.scrollTop = 0;
-      }
-    }
-    slashMenuItems = getFilteredSlashCommands(query);
-    slashMenuActiveIndex = Math.min(slashMenuActiveIndex, Math.max(0, slashMenuItems.length - 1));
-    renderSlashMenu(query);
-    openSlashMenu();
-  }
-  function shouldShowSlashMenu() {
-    if (!textarea || state.busy || document.activeElement !== textarea) {
-      return false;
-    }
-    const cursor = textarea.selectionStart;
-    if (cursor !== textarea.selectionEnd) {
-      return false;
-    }
-    const beforeCursor = textarea.value.slice(0, cursor);
-    return beforeCursor.startsWith("/") && !Array.from(beforeCursor).some((character) => character.trim().length === 0);
-  }
-  function getSlashCommandQuery() {
-    return textarea.value.slice(1, textarea.selectionStart).toLowerCase();
-  }
-  function getFilteredSlashCommands(query) {
-    const commands = getAllSlashCommands();
-    const scored = [];
-    for (const command of commands) {
-      if (!command || typeof command.name !== "string") {
-        continue;
-      }
-      const name = command.name.toLowerCase();
-      const description = typeof command.description === "string" ? command.description.toLowerCase() : "";
-      const namePrefix = name.startsWith(query);
-      const nameMatch = name.includes(query);
-      const descriptionMatch = description.includes(query);
-      if (!nameMatch && !descriptionMatch) {
-        continue;
-      }
-      scored.push({
-        command,
-        score: namePrefix ? 0 : nameMatch ? 1 : 2
-      });
-    }
-    return scored.sort((left, right) => left.score - right.score || getSlashCommandSourceRank(left.command.source) - getSlashCommandSourceRank(right.command.source) || left.command.name.localeCompare(right.command.name)).slice(0, 8).map((item) => item.command);
-  }
-  function getAllSlashCommands() {
-    const commands = [...localSlashCommands2];
-    const names = new Set(commands.map((command) => command.name));
-    if (Array.isArray(state.slashCommands)) {
-      for (const command of state.slashCommands) {
-        if (!command || typeof command.name !== "string" || names.has(command.name)) {
-          continue;
-        }
-        names.add(command.name);
-        commands.push(command);
-      }
-    }
-    return commands;
-  }
-  function getSlashCommandSourceRank(source) {
-    if (source === "builtin") {
-      return 0;
-    }
-    if (source === "extension") {
-      return 1;
-    }
-    if (source === "prompt") {
-      return 2;
-    }
-    if (source === "skill") {
-      return 3;
-    }
-    if (source === "unsupported") {
-      return 4;
-    }
-    return 5;
-  }
-  function renderSlashMenu(query) {
-    slashMenuElement.replaceChildren();
-    if (state.slashCommandsRefreshing && slashMenuItems.length === 0) {
-      slashMenuElement.append(createSlashMenuEmptyElement("Loading commands..."));
-      return;
-    }
-    if (slashMenuItems.length === 0) {
-      slashMenuElement.append(createSlashMenuEmptyElement(query ? "No matching slash commands" : "No slash commands available"));
-      return;
-    }
-    for (let index = 0; index < slashMenuItems.length; index += 1) {
-      slashMenuElement.append(createSlashMenuItemElement(slashMenuItems[index], index));
-    }
-    syncSlashMenuActiveDescendant();
-  }
-  function createSlashMenuEmptyElement(text) {
-    const empty = document.createElement("div");
-    empty.className = "composer__slash-empty";
-    empty.textContent = text;
-    return empty;
-  }
-  function createSlashMenuItemElement(command, index) {
-    const item = document.createElement("button");
-    item.type = "button";
-    item.id = "slash-command-" + index;
-    item.className = "composer__slash-item" + (index === slashMenuActiveIndex ? " composer__slash-item--active" : "");
-    item.setAttribute("role", "option");
-    item.setAttribute("aria-selected", index === slashMenuActiveIndex ? "true" : "false");
-    item.setAttribute("data-index", String(index));
-    const label = document.createElement("span");
-    label.className = "composer__slash-label";
-    label.textContent = "/" + command.name;
-    item.append(label);
-    const meta = formatSlashCommandMeta(command);
-    if (meta) {
-      const source = document.createElement("span");
-      source.className = "composer__slash-source";
-      source.textContent = meta;
-      item.append(source);
-    }
-    if (command.description) {
-      const description = document.createElement("span");
-      description.className = "composer__slash-description";
-      description.textContent = command.description;
-      item.append(description);
-    }
-    return item;
-  }
-  function formatSlashCommandMeta(command) {
-    const source = typeof command.source === "string" ? command.source : "";
-    const location = typeof command.location === "string" ? command.location : "";
-    if (source && location) {
-      return source + " \xB7 " + location;
-    }
-    return source || location;
-  }
-  function openSlashMenu() {
-    if (!slashMenuElement) {
-      return;
-    }
-    slashMenuOpen = true;
-    slashMenuElement.setAttribute("open", "");
-    textarea?.setAttribute("aria-expanded", "true");
-    syncSlashMenuActiveDescendant();
-  }
-  function dismissSlashMenu() {
-    slashMenuDismissedQuery = textarea ? getSlashCommandQuery() : void 0;
-    closeSlashMenu();
-  }
-  function closeSlashMenu() {
-    slashMenuOpen = false;
-    slashCommandsRefreshRequested = false;
-    slashMenuItems = [];
-    slashMenuActiveIndex = 0;
-    slashMenuQuery = "";
-    slashMenuElement?.removeAttribute("open");
-    textarea?.setAttribute("aria-expanded", "false");
-    textarea?.removeAttribute("aria-activedescendant");
-  }
-  function moveSlashMenuSelection(delta) {
-    if (slashMenuItems.length === 0) {
-      return;
-    }
-    slashMenuActiveIndex = (slashMenuActiveIndex + delta + slashMenuItems.length) % slashMenuItems.length;
-    renderSlashMenu(getSlashCommandQuery());
-  }
-  function syncSlashMenuActiveDescendant() {
-    if (!slashMenuOpen || slashMenuItems.length === 0) {
-      textarea?.removeAttribute("aria-activedescendant");
-      return;
-    }
-    textarea?.setAttribute("aria-activedescendant", "slash-command-" + slashMenuActiveIndex);
-    slashMenuElement?.querySelector(".composer__slash-item--active")?.scrollIntoView({ block: "nearest" });
-  }
-  function acceptActiveSlashCommand() {
-    const command = slashMenuItems[slashMenuActiveIndex];
-    if (command) {
-      acceptSlashCommand(command);
-    }
-  }
-  function acceptSlashCommand(command) {
-    const cursor = textarea.selectionStart;
-    const after = textarea.value.slice(cursor).trimStart();
-    const value = "/" + command.name + " " + after;
-    const nextCursor = command.name.length + 2;
-    textarea.value = value;
-    textarea.setSelectionRange(nextCursor, nextCursor);
-    closeSlashMenu();
-    syncComposer({ preserveBottom: true });
-    focusPromptInput();
-  }
-  function modelKey(provider, id) {
-    return provider + "/" + id;
-  }
-  function splitModelKey(value) {
-    const slashIndex = value.indexOf("/");
-    if (slashIndex <= 0) {
-      return ["", ""];
-    }
-    return [value.slice(0, slashIndex), value.slice(slashIndex + 1)];
-  }
-  function isMessagesAtBottom() {
-    const distanceFromBottom = messagesElement.scrollHeight - messagesElement.scrollTop - messagesElement.clientHeight;
-    return distanceFromBottom <= messagesBottomThreshold;
-  }
-  function scrollMessagesToBottom() {
-    messagesElement.scrollTop = messagesElement.scrollHeight;
-  }
-  function scheduleMessagesToBottom() {
-    scrollMessagesToBottomIfChat();
-    requestAnimationFrame(() => {
-      scrollMessagesToBottomIfChat();
-      requestAnimationFrame(scrollMessagesToBottomIfChat);
-    });
-    setTimeout(scrollMessagesToBottomIfChat, 80);
-    setTimeout(scrollMessagesToBottomIfChat, 220);
-  }
-  function scrollMessagesToBottomIfChat() {
-    if (state.viewMode === "chat") {
-      scrollMessagesToBottom();
-    }
-  }
-  function syncTextareaHeight() {
-    textarea.style.height = "auto";
-    const maxHeight = getMaxTextareaHeight();
-    const nextHeight = Math.max(minTextareaHeight, Math.min(textarea.scrollHeight, maxHeight));
-    textarea.style.height = nextHeight + "px";
-    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
-  }
-  function getMaxTextareaHeight() {
-    const reservedMessagesHeight = getReservedMessagesHeight();
-    const composerChromeHeight = getComposerChromeHeight();
-    const availableHeight = window.innerHeight - reservedMessagesHeight - composerChromeHeight;
-    return Math.max(minTextareaHeight, Math.min(maxTextareaHeight, availableHeight));
-  }
-  function getReservedMessagesHeight() {
-    return Math.min(72, Math.max(40, Math.floor(window.innerHeight * 0.18)));
-  }
-  function getComposerChromeHeight() {
-    const composerStyles = getComputedStyle(form);
-    const composerMarginHeight = parseCssPixelValue(composerStyles.marginTop) + parseCssPixelValue(composerStyles.marginBottom);
-    const composerHeight = form.getBoundingClientRect().height + composerMarginHeight;
-    const textareaHeight = textarea.getBoundingClientRect().height;
-    return Math.max(0, composerHeight - textareaHeight);
-  }
-  function parseCssPixelValue(value) {
-    return Number.parseFloat(value) || 0;
-  }
-  function applyComposerTextFromState() {
-    if (!textarea || state.composerTextRevision <= appliedComposerTextRevision) {
-      return;
-    }
-    appliedComposerTextRevision = state.composerTextRevision;
-    textarea.value = state.composerText;
-    closeSlashMenu();
-    syncComposer({ preserveBottom: true });
-    focusPromptInput();
-  }
-  function syncComposer(options = {}) {
-    const shouldPreserveBottom = Boolean(options.preserveBottom) && isMessagesAtBottom();
-    syncSubmit();
-    syncBusySubmitMode();
-    syncTextareaHeight();
-    if (shouldPreserveBottom) {
-      scrollMessagesToBottom();
-    }
-  }
   function startNewSession() {
-    cancelSessionNameEdit();
+    sessionsController.cancelSessionNameEdit();
     vscode.postMessage({ type: "newSession" });
-    focusPromptInput();
-  }
-  function runSessionSlashCommand(command) {
-    if (state.busy) {
-      return;
-    }
-    closeSlashMenu();
-    cancelSessionNameEdit();
-    vscode.postMessage({ type: "submit", text: "/" + command });
     focusPromptInput();
   }
   function isNewSessionShortcut(event) {
@@ -3057,51 +3289,12 @@
       textarea.focus({ preventScroll: true });
     });
   }
-  function handleMessageClick(event) {
-    const target = eventTargetElement(event);
-    const copyButton = target?.closest(".message__copy");
-    if (copyButton instanceof HTMLElement) {
-      const index = Number(copyButton.dataset.copyMessageIndex);
-      const text = Number.isInteger(index) ? state.messages[index]?.text : "";
-      if (text) {
-        event.preventDefault();
-        vscode.postMessage({ type: "copyText", text });
-      }
-      return;
-    }
-    const link = target?.closest(".tau-file-link");
-    if (!(link instanceof HTMLElement)) {
-      return;
-    }
-    const filePath = link.dataset.filePath;
-    if (!filePath) {
-      return;
-    }
-    event.preventDefault();
-    vscode.postMessage({
-      type: "openFile",
-      path: filePath,
-      ...parseDatasetPositiveInteger(link.dataset.line, "line"),
-      ...parseDatasetPositiveInteger(link.dataset.column, "column")
-    });
-  }
-  function parseDatasetPositiveInteger(value, key) {
-    if (!value) {
-      return {};
-    }
-    const numberValue = Number(value);
-    return Number.isInteger(numberValue) && numberValue > 0 ? { [key]: numberValue } : {};
-  }
-  function eventTargetElement(event) {
+  function eventTargetElement4(event) {
     return event.target instanceof Element ? event.target : null;
   }
   function eventTargetNode(event) {
     return event.target instanceof Node ? event.target : null;
   }
   vscode.postMessage({ type: "ready" });
-  window.addEventListener("resize", () => {
-    render();
-    syncComposer({ preserveBottom: true });
-  });
   render();
 })();
