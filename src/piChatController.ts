@@ -15,15 +15,6 @@ import {
   ExtensionUiRequestHandler,
   type ExtensionUiRequestUi
 } from './extensionUiRequestHandler';
-import {
-  formatExtensionError,
-  getFailedResponseError,
-  mapMessageUpdate,
-  mapRpcActivity,
-  type ActivityAddAction,
-  type ActivityRemoveAction,
-  type ActivityUpdateAction
-} from './piEventMapper';
 import type { PiRpcClientFactory, PiRpcClientLike } from './rpc/clientTypes';
 import type {
   PiPromptStreamingBehavior,
@@ -45,9 +36,7 @@ import { SessionDiffController } from './diff/sessionDiffController';
 import type { SessionDiffSnapshot } from './diff/types';
 import {
   getErrorMessage,
-  isAbortMessage,
   isClientLifecycleError,
-  isMessageUpdateStart,
   isUnsupportedReloadCommandError
 } from './controller/errors';
 import { filterModelOptions, formatModelOptionLabel } from './controller/modelFormatting';
@@ -59,9 +48,9 @@ import {
   getSessionFile
 } from './controller/sessionFormatting';
 import { PiClientManager } from './controller/piClientManager';
+import { PiRpcEventHandler } from './controller/piRpcEventHandler';
 import { SessionViewController } from './controller/sessionViewController';
-import { formatAgentMessages, type RestoredToolCall } from './controller/transcriptFormatting';
-import { getRecordString, isRecord } from './controller/typeGuards';
+import { formatAgentMessages } from './controller/transcriptFormatting';
 
 export type { PiChatContextUsage, PiChatModelMeta, PiChatSessionMetaSnapshot } from './sessionMetadata';
 
@@ -94,7 +83,6 @@ export type PiChatControllerOptions = {
 };
 
 export class PiChatController {
-  private assistantStreamId = 0;
   private readonly promptContext = new PromptContextStore();
   private readonly sessionMetadata: SessionMetadataState;
   private readonly sessionMetadataRefresh: SessionMetadataRefreshController;
@@ -108,8 +96,8 @@ export class PiChatController {
   private abortNoticeAdded = false;
   private compacting = false;
   private readonly sessionDiffController: SessionDiffController;
+  private readonly rpcEventHandler: PiRpcEventHandler;
   private readonly readyScriptState = new ReadyScriptState();
-  private readonly liveToolCallsById = new Map<string, RestoredToolCall>();
   private readonly session = new ChatSession();
   private readonly statePublisher: StatePublisher<WebviewStateMessage>;
   private readonly extensionUiRequestHandler: ExtensionUiRequestHandler;
@@ -161,6 +149,24 @@ export class PiChatController {
       getSessionGeneration: () => this.session.generation,
       onEvent: (event) => this.handleRpcEvent(event),
       onError: (message) => this.handleClientError(message)
+    });
+    this.rpcEventHandler = new PiRpcEventHandler({
+      session: this.session,
+      postState: () => this.postState(),
+      scheduleState: () => this.statePublisher.schedule(),
+      refreshSessionDiffStats: () => void this.refreshSessionDiffStats(),
+      addToolExecution: (event) => this.sessionDiffController.addToolExecution(event),
+      armQueuedReadyScriptRun: () => this.armQueuedReadyScriptRun(),
+      runReadyScriptAfterAgentEnd: () => {
+        if (this.readyScriptState.consumeCurrentRun()) {
+          this.runReadyScript();
+        }
+      },
+      refreshMetadataAfterAgentEnd: () => this.refreshSessionMetaAfterAgentEnd(),
+      isAbortRequested: () => this.abortRequested,
+      appendAbortNoticeIfNeeded: () => this.appendAbortNoticeIfNeeded(),
+      resetAbortState: () => this.resetAbortState(),
+      handleExtensionUiRequest: (event) => this.handleExtensionUiRequest(event)
     });
 
     this.sessionMetadata = new SessionMetadataState({
@@ -352,8 +358,7 @@ export class PiChatController {
     }
 
     this.extensionUiRequestHandler.startNewGeneration();
-    this.assistantStreamId = 0;
-    this.liveToolCallsById.clear();
+    this.rpcEventHandler.reset();
     this.resetAbortState();
     this.session.startNewSession();
     this.sessionView.startNewSession(options.viewMode ?? 'chat');
@@ -457,8 +462,7 @@ export class PiChatController {
     const client = this.getClient();
 
     this.extensionUiRequestHandler.startNewGeneration();
-    this.assistantStreamId = 0;
-    this.liveToolCallsById.clear();
+    this.rpcEventHandler.reset();
     this.resetAbortState();
     this.sessionMetadataRefresh.invalidate();
     this.shouldRestoreInitialSessionHistory = false;
@@ -484,7 +488,7 @@ export class PiChatController {
       : options.fallbackSessionFile;
     this.applyCurrentSessionFile(sessionFile);
     this.applyCurrentSessionName(stateResult?.sessionName);
-    this.liveToolCallsById.clear();
+    this.rpcEventHandler.clearLiveToolCalls();
     this.session.replaceMessages(formatAgentMessages(messagesResult.messages));
     this.sessionHistoryLoading = false;
     this.sessionView.showChat({ clearSessionsError: true });
@@ -531,7 +535,7 @@ export class PiChatController {
       const messages = formatAgentMessages(result.messages);
 
       if (messages.length > 0) {
-        this.liveToolCallsById.clear();
+        this.rpcEventHandler.clearLiveToolCalls();
         this.session.replaceMessages(messages);
       }
     }
@@ -866,45 +870,33 @@ export class PiChatController {
   private async handleCompactSlashCommand(customInstructions: string): Promise<void> {
     this.compacting = true;
     this.session.setBusy(true);
-    this.applyActivityAction({
-      type: 'activity_update',
-      sourceId: 'compaction',
-      activity: {
-        kind: 'compaction',
-        title: 'Compacting context…',
-        status: 'running'
-      }
+    this.session.upsertActivity('compaction', {
+      kind: 'compaction',
+      title: 'Compacting context…',
+      status: 'running'
     });
     this.postState();
 
     try {
       const result = await this.getClient().compact(customInstructions || undefined);
       const summary = typeof result.summary === 'string' ? result.summary.trim() : '';
-      this.applyActivityAction({
-        type: 'activity_update',
-        sourceId: 'compaction',
-        activity: {
-          kind: 'compaction',
-          title: 'Compacting context…',
-          status: 'completed',
-          summary: 'Completed',
-          ...(summary ? { body: summary } : {})
-        }
+      this.session.upsertActivity('compaction', {
+        kind: 'compaction',
+        title: 'Compacting context…',
+        status: 'completed',
+        summary: 'Completed',
+        ...(summary ? { body: summary } : {})
       });
       this.session.handleAgentEnd();
       this.compacting = false;
       this.postState();
       void this.refreshSessionMeta({ startClient: true, force: true });
     } catch (error) {
-      this.applyActivityAction({
-        type: 'activity_update',
-        sourceId: 'compaction',
-        activity: {
-          kind: 'compaction',
-          title: 'Compacting context…',
-          status: 'error',
-          summary: getErrorMessage(error)
-        }
+      this.session.upsertActivity('compaction', {
+        kind: 'compaction',
+        title: 'Compacting context…',
+        status: 'error',
+        summary: getErrorMessage(error)
       });
       this.session.handleAgentEnd();
       this.compacting = false;
@@ -1083,241 +1075,18 @@ export class PiChatController {
   }
 
   private handleRpcEvent(event: RpcEvent): void {
-    switch (event.type) {
-      case 'agent_start':
-        this.armQueuedReadyScriptRun();
-        this.session.handleAgentStart();
-        void this.refreshSessionDiffStats();
-        this.applyRpcActivity(event);
-        this.postState();
-        break;
-      case 'message_update':
-        this.handleMessageUpdate(event);
-        break;
-      case 'agent_end':
-        this.applyRpcActivity(event);
-        this.appendAbortNoticeIfNeeded();
-        this.session.handleAgentEnd();
-        this.resetAbortState();
-        if (this.readyScriptState.consumeCurrentRun()) {
-          this.runReadyScript();
-        }
-        void this.refreshSessionDiffStats();
-        this.postState();
-        void this.refreshSessionMeta().then(
-          () => this.restartClientForConfigurationChangeIfIdle(),
-          () => this.restartClientForConfigurationChangeIfIdle()
-        );
-        break;
-      case 'turn_start':
-      case 'turn_end':
-      case 'message_start':
-      case 'message_end':
-      case 'tool_execution_start':
-        this.applyRpcActivity(event);
-        this.postState();
-        break;
-      case 'tool_execution_update':
-        this.applyRpcActivity(event);
-        this.postState();
-        break;
-      case 'tool_execution_end':
-        this.applyRpcActivity(event);
-        this.updateSessionDiffForToolExecution(event);
-        this.postState();
-        break;
-      case 'queue_update':
-      case 'compaction_start':
-      case 'compaction_end':
-      case 'auto_retry_start':
-      case 'auto_retry_end':
-        this.applyRpcActivity(event);
-        this.postState();
-        break;
-      case 'extension_ui_request':
-        this.applyRpcActivity(event);
-        this.handleExtensionUiRequest(event);
-        this.postState();
-        break;
-      case 'extension_error':
-        this.applyRpcActivity(event);
-        this.session.addErrorMessage(formatExtensionError(event));
-        this.postState();
-        break;
-      case 'response':
-        this.handleUnmatchedResponse(event);
-        break;
-      default:
-        this.applyRpcActivity(event);
-        this.postState();
-        break;
-    }
+    this.rpcEventHandler.handleEvent(event);
   }
 
-  private handleMessageUpdate(event: RpcEvent): void {
-    this.rememberLiveToolCall(event);
-
-    const action = mapMessageUpdate(event, this.getMessageUpdateStreamId(event), {
-      fullCommunication: false
-    });
-
-    if (action.type === 'text_delta') {
-      if (this.session.appendAssistantDelta(action.delta)) {
-        this.scheduleState();
-      }
-
-      return;
-    }
-
-    if (action.type === 'thinking_start') {
-      if (this.session.startThinking(action.sourceId)) {
-        this.postState();
-      }
-
-      return;
-    }
-
-    if (action.type === 'thinking_delta') {
-      if (this.session.appendThinkingDelta(action.sourceId, action.delta)) {
-        this.scheduleState();
-      }
-
-      return;
-    }
-
-    if (action.type === 'thinking_end') {
-      if (this.session.finishThinking(action.sourceId, action.content)) {
-        this.postState();
-      }
-
-      return;
-    }
-
-    if (action.type === 'assistant_error') {
-      if (this.abortRequested && isAbortMessage(action.message)) {
-        this.appendAbortNoticeIfNeeded();
-      } else {
-        this.session.markActiveAssistantError(action.message);
-      }
-
-      this.postState();
-      return;
-    }
-
-    if (action.type === 'activity_update' || action.type === 'activity_add' || action.type === 'activity_remove') {
-      this.applyActivityAction(action);
-
-      if (action.type === 'activity_update' && action.bodyMode === 'append') {
-        this.scheduleState();
-      } else {
-        this.postState();
-      }
-    }
-  }
-
-  private scheduleState(): void {
-    this.statePublisher.schedule();
-  }
-
-  private applyRpcActivity(event: RpcEvent): void {
-    if (!this.session.isBusy && event.type !== 'agent_start') {
-      return;
-    }
-
-    const action = mapRpcActivity(this.enrichLiveToolExecutionEvent(event), {
-      fullCommunication: false
-    });
-
-    if (action.type === 'activity_update' || action.type === 'activity_add' || action.type === 'activity_remove') {
-      this.applyActivityAction(action);
-    }
-  }
-
-  private updateSessionDiffForToolExecution(event: RpcEvent): void {
-    this.sessionDiffController.addToolExecution(this.enrichLiveToolExecutionEvent(event));
-  }
-
-  private applyActivityAction(action: ActivityUpdateAction | ActivityAddAction | ActivityRemoveAction): void {
-    if (action.type === 'activity_update') {
-      this.session.upsertActivity(action.sourceId, action.activity, action.bodyMode);
-      return;
-    }
-
-    if (action.type === 'activity_remove') {
-      this.session.removeActivity(action.sourceId);
-      return;
-    }
-
-    this.session.addActivity(action.activity);
-  }
-
-  private rememberLiveToolCall(event: RpcEvent): void {
-    const assistantMessageEvent = event.assistantMessageEvent;
-
-    if (!isRecord(assistantMessageEvent) || assistantMessageEvent.type !== 'toolcall_end') {
-      return;
-    }
-
-    const toolCall = isRecord(assistantMessageEvent.toolCall) ? assistantMessageEvent.toolCall : undefined;
-    const id = toolCall
-      ? getRecordString(toolCall, 'id') ?? getRecordString(toolCall, 'toolCallId')
-      : undefined;
-
-    if (!id) {
-      return;
-    }
-
-    this.liveToolCallsById.set(id, {
-      id,
-      name: toolCall ? getRecordString(toolCall, 'name') : undefined,
-      args: toolCall?.arguments ?? toolCall?.args
-    });
-  }
-
-  private enrichLiveToolExecutionEvent(event: RpcEvent): RpcEvent {
-    if (
-      event.type !== 'tool_execution_start'
-      && event.type !== 'tool_execution_update'
-      && event.type !== 'tool_execution_end'
-    ) {
-      return event;
-    }
-
-    const toolCallId = getRecordString(event, 'toolCallId');
-    const toolCall = toolCallId ? this.liveToolCallsById.get(toolCallId) : undefined;
-
-    if (!toolCall) {
-      return event;
-    }
-
-    return {
-      ...event,
-      toolName: getRecordString(event, 'toolName') ?? toolCall.name,
-      args: event.args ?? toolCall.args
-    };
-  }
-
-  private getMessageUpdateStreamId(event: RpcEvent): number {
-    if (isMessageUpdateStart(event)) {
-      this.assistantStreamId += 1;
-    }
-
-    return this.assistantStreamId;
+  private refreshSessionMetaAfterAgentEnd(): void {
+    void this.refreshSessionMeta().then(
+      () => this.restartClientForConfigurationChangeIfIdle(),
+      () => this.restartClientForConfigurationChangeIfIdle()
+    );
   }
 
   private handleExtensionUiRequest(event: RpcEvent): void {
     void this.extensionUiRequestHandler.handle(event);
-  }
-
-  private handleUnmatchedResponse(event: RpcEvent): void {
-    const error = getFailedResponseError(event);
-
-    if (!error) {
-      return;
-    }
-
-    this.session.addErrorMessage(error);
-    this.postState();
   }
 
   private handleClientError(message: string): void {
