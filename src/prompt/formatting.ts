@@ -1,12 +1,4 @@
-export type PiPromptFormattingContextAttachment = {
-  kind: 'file' | 'selection';
-  path: string;
-  languageId?: string;
-  startLine?: number;
-  endLine?: number;
-  note?: string;
-  text?: string;
-};
+import type { PiPromptFormattingContextAttachment } from './types';
 
 const ideContextStartMarker = '<!-- tau:ide-context:start -->';
 const ideContextEndMarker = '<!-- tau:ide-context:end -->';

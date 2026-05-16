@@ -1,8 +1,8 @@
 import {
   PiChatController,
-  type PiChatSessionMetaSnapshot,
-  type PiPromptContextInput
+  type PiChatSessionMetaSnapshot
 } from '../piChatController';
+import type { PiPromptContextInput } from '../prompt/types';
 import type { WebviewMessage, WebviewSessionItem, WebviewStateMessage } from '../chatWebview';
 import type { OpenSession, OpenSessionStatus, TauSessionManagerOptions } from './types';
 export type { TauSessionManagerOptions } from './types';

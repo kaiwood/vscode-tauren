@@ -1,22 +1,5 @@
-import type { WebviewPromptContextAttachment } from './chatWebview';
-
-export type PiPromptContextInput = {
-  kind: 'file' | 'selection';
-  path: string;
-  label?: string;
-  title?: string;
-  languageId?: string;
-  startLine?: number;
-  endLine?: number;
-  note?: string;
-  text?: string;
-};
-
-export type PiPromptContextAttachment = PiPromptContextInput & {
-  id: string;
-  label: string;
-  title: string;
-};
+import type { WebviewPromptContextAttachment } from '../chatWebview';
+import type { PiPromptContextAttachment, PiPromptContextInput } from './types';
 
 export class PromptContextStore {
   private sequence = 0;

@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { PromptContextStore } from '../../promptContext';
+import { PromptContextStore } from '../../prompt/contextStore';
 
 suite('PromptContextStore', () => {
   test('adds file and selection context for the webview', () => {

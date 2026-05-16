@@ -39,12 +39,9 @@ import type {
   RpcEvent
 } from './rpc/types';
 import { extractPiMessageText } from './piMessageContent';
-import { formatPromptForPi as formatPromptForPiMessage } from './piPromptFormatting';
-import {
-  PromptContextStore,
-  type PiPromptContextAttachment,
-  type PiPromptContextInput
-} from './promptContext';
+import { formatPromptForPi as formatPromptForPiMessage } from './prompt/formatting';
+import { PromptContextStore } from './prompt/contextStore';
+import type { PiPromptContextAttachment, PiPromptContextInput } from './prompt/types';
 import {
   isBuiltinSlashCommand,
   isSupportedBuiltinSlashCommand
@@ -98,7 +95,7 @@ type RestoredToolCall = {
 
 export type { PiChatContextUsage, PiChatModelMeta, PiChatSessionMetaSnapshot } from './sessionMetadata';
 
-export type { PiPromptContextAttachment, PiPromptContextInput } from './promptContext';
+export type { PiPromptContextAttachment, PiPromptContextInput } from './prompt/types';
 
 export type PiChatControllerOptions = {
   createClient: PiRpcClientFactory;

@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import {
   formatPromptForPi,
   formatPromptWithIdeContext
-} from '../../piPromptFormatting';
+} from '../../prompt/formatting';
 
 suite('Pi prompt formatting helpers', () => {
   test('returns the user prompt unchanged without context', () => {
