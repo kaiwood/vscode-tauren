@@ -28,6 +28,23 @@ type ShikiModule = {
   }): Promise<ShikiHighlighter>;
 };
 
+const fallbackLanguages = [
+  'bash',
+  'css',
+  'diff',
+  'html',
+  'javascript',
+  'json',
+  'jsx',
+  'markdown',
+  'python',
+  'shellscript',
+  'text',
+  'tsx',
+  'typescript',
+  'yaml'
+];
+
 type BridgeLanguagesResult = {
   langs: unknown[];
   get(languageId: string): unknown | undefined;
@@ -35,9 +52,24 @@ type BridgeLanguagesResult = {
   resolveExtension(extension: string): string;
 };
 
-type BridgeModule = {
-  getUserTheme(): Promise<[id: string, themes: unknown[]]>;
-  getLanguages(languageIds?: string[]): Promise<BridgeLanguagesResult>;
+type BridgeInternalsModule = {
+  ExtensionFileReader: new (vscodeApi: typeof vscode) => unknown;
+  LanguageRegistrationCollectionBuilder: new (registry: BridgeLanguageRegistry, fileReader: unknown) => {
+    build(languageIds: string[]): Promise<unknown[]>;
+  };
+  LanguageRegistry: new (extensions: readonly vscode.Extension<unknown>[]) => BridgeLanguageRegistry;
+  ThemeRegistry: new (extensions: readonly vscode.Extension<unknown>[]) => BridgeThemeRegistry;
+  buildThemeRegistration(contribution: unknown, registry: BridgeThemeRegistry, fileReader: unknown, uri: typeof vscode.Uri): Promise<unknown>;
+};
+
+type BridgeLanguageRegistry = {
+  getLanguageIds(): string[];
+  resolveAliasToLanguageId(languageId: string): string;
+};
+
+type BridgeThemeRegistry = {
+  themes: Map<string, unknown>;
+  resolveLabelToId(themeName: string): string;
 };
 
 type RendererState = {
@@ -90,12 +122,7 @@ export class ShikiCodeRenderer implements vscode.Disposable {
         return cached;
       }
 
-      const html = state.highlighter.codeToHtml(code, {
-        lang: language,
-        theme: state.themeId,
-        structure: 'inline',
-        mergeSameStyleTokens: true
-      });
+      const html = this.renderWithState(state, code, language);
       const result = { html, language };
       this.remember(cacheKey, result);
       return result;
@@ -130,26 +157,45 @@ export class ShikiCodeRenderer implements vscode.Disposable {
   }
 
   private async createState(): Promise<RendererState> {
-    const [{ createHighlighter }, { getLanguages, getUserTheme }] = await Promise.all([
-      importEsm<ShikiModule>('shiki'),
-      importEsm<BridgeModule>('vscode-shiki-bridge')
-    ]);
-    const [[themeId, themes], languages] = await Promise.all([
-      getUserTheme(),
-      getLanguages()
-    ]);
-    const highlighter = await createHighlighter({
-      themes,
-      langs: languages.langs,
-      warnings: false
-    });
+    const shiki = await importEsm<ShikiModule>('shiki');
 
-    this.state = {
-      highlighter,
-      themeId,
-      languages
-    };
-    return this.state;
+    try {
+      const bridgeInternals = await importEsm<BridgeInternalsModule>('vscode-shiki-bridge/internals');
+      const [{ themeId, themes }, languages] = await Promise.all([
+        getCurrentTheme(bridgeInternals),
+        getLanguages(bridgeInternals)
+      ]);
+      const highlighter = await shiki.createHighlighter({
+        themes,
+        langs: languages.langs,
+        warnings: false
+      });
+
+      this.state = {
+        highlighter,
+        themeId,
+        languages
+      };
+      return this.state;
+    } catch (error) {
+      console.warn('Tau failed to initialize Shiki with the active VS Code theme. Falling back to the bundled Shiki theme.', error);
+      this.state = await createFallbackState(shiki);
+      return this.state;
+    }
+  }
+
+  private renderWithState(state: RendererState, code: string, language: string): string {
+    try {
+      return state.highlighter.codeToHtml(code, {
+        lang: language,
+        theme: state.themeId,
+        structure: 'inline',
+        mergeSameStyleTokens: true
+      });
+    } catch (error) {
+      console.warn(`Tau failed to highlight ${language} with Shiki.`, error);
+      throw error;
+    }
   }
 
   private resolveLanguage(languageHint: string, languages: BridgeLanguagesResult): string | undefined {
@@ -195,6 +241,120 @@ export class ShikiCodeRenderer implements vscode.Disposable {
       this.cache.delete(oldestKey);
     }
   }
+}
+
+async function createFallbackState(shiki: ShikiModule): Promise<RendererState> {
+  const themeId = isLightTheme() ? 'light-plus' : 'dark-plus';
+  const highlighter = await shiki.createHighlighter({
+    themes: [themeId],
+    langs: fallbackLanguages,
+    warnings: false
+  });
+
+  return {
+    highlighter,
+    themeId,
+    languages: createFallbackLanguages()
+  };
+}
+
+function createFallbackLanguages(): BridgeLanguagesResult {
+  return {
+    langs: fallbackLanguages,
+    get(languageId) {
+      return fallbackLanguages.includes(toFallbackLanguageId(languageId)) ? { name: toFallbackLanguageId(languageId) } : undefined;
+    },
+    resolveAlias(languageId) {
+      return toFallbackLanguageId(languageId);
+    },
+    resolveExtension(extension) {
+      return toFallbackLanguageId(extension.replace(/^\./, ''));
+    }
+  };
+}
+
+function toFallbackLanguageId(languageId: string): string {
+  const normalized = normalizeLanguageHint(languageId);
+  const fallbackAliases: Record<string, string> = {
+    javascriptreact: 'jsx',
+    jsx: 'jsx',
+    typescriptreact: 'tsx',
+    tsx: 'tsx',
+    shell: 'shellscript',
+    sh: 'shellscript',
+    yml: 'yaml'
+  };
+
+  return fallbackAliases[normalized] ?? languageAliases[normalized] ?? normalized;
+}
+
+function isLightTheme(): boolean {
+  return vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Light
+    || vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.HighContrastLight;
+}
+
+async function getCurrentTheme(bridge: BridgeInternalsModule): Promise<{ themeId: string; themes: unknown[] }> {
+  const registry = new bridge.ThemeRegistry(vscode.extensions.all);
+  const fileReader = new bridge.ExtensionFileReader(vscode);
+  const themeName = vscode.workspace.getConfiguration('workbench').get<string>('colorTheme', '');
+  const themeId = registry.resolveLabelToId(themeName);
+  const contribution = registry.themes.get(themeId);
+
+  if (!contribution) {
+    throw new Error(`No VS Code theme contribution found for ${themeName || 'the active theme'}.`);
+  }
+
+  const theme = await bridge.buildThemeRegistration(contribution, registry, fileReader, vscode.Uri);
+  return { themeId, themes: [theme] };
+}
+
+async function getLanguages(bridge: BridgeInternalsModule): Promise<BridgeLanguagesResult> {
+  const registry = new bridge.LanguageRegistry(vscode.extensions.all);
+  const fileReader = new bridge.ExtensionFileReader(vscode);
+  const registeredLanguageIds = registry.getLanguageIds();
+  const builder = new bridge.LanguageRegistrationCollectionBuilder(registry, fileReader);
+  const langs = await builder.build(registeredLanguageIds);
+
+  return {
+    langs,
+    get(languageId) {
+      for (const language of langs) {
+        if (!isLanguageRecord(language)) {
+          continue;
+        }
+
+        if (language.name === languageId || language.aliases?.includes(languageId)) {
+          return language;
+        }
+      }
+
+      return undefined;
+    },
+    resolveAlias(languageId) {
+      return registry.resolveAliasToLanguageId(languageId);
+    },
+    resolveExtension(extension) {
+      for (const language of langs) {
+        if (isLanguageRecord(language) && language.extensions?.includes(extension)) {
+          return language.name;
+        }
+      }
+
+      return '';
+    }
+  };
+}
+
+type LanguageRecord = {
+  name: string;
+  aliases?: string[];
+  extensions?: string[];
+};
+
+function isLanguageRecord(value: unknown): value is LanguageRecord {
+  return typeof value === 'object'
+    && value !== null
+    && typeof (value as { name?: unknown }).name === 'string';
 }
 
 function normalizeLanguageHint(languageHint: string): string {

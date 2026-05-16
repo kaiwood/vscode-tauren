@@ -1,4 +1,4 @@
-import { configureCodeHighlighting, handleCodeHighlightMessage } from './codeHighlighting';
+import { configureCodeHighlighting, handleCodeHighlightMessage, requestCodeHighlightsIn } from './codeHighlighting';
 import { getWebviewDom } from './dom';
 import { createMessageElement, updateMessageBodyElement } from './renderMessages';
 import { buildSessionTreePrefix, formatSessionMeta, getSessionDisplayName, shortenPath } from './sessionFormat';
@@ -521,6 +521,7 @@ function renderMessageList(): void {
   }
 
   renderedMessageViews.length = state.messages.length;
+  requestCodeHighlightsIn(messagesContentElement);
 }
 
 function createEmptyStateElement(): HTMLElement {

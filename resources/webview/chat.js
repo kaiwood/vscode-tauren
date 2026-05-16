@@ -9,10 +9,13 @@
     postMessage = post;
   }
   function requestCodeHighlight(element, code, language) {
-    pruneDisconnectedHighlights();
     const normalizedLanguage = normalizeLanguage(language);
     if (!postMessage || !code || code.length > maxHighlightCodeLength || !normalizedLanguage) {
       return false;
+    }
+    const existing = highlightedElements.get(element);
+    if (existing?.code === code && existing.language === normalizedLanguage) {
+      return true;
     }
     const id = `highlight-${nextHighlightRequestId++}`;
     highlightedElements.set(element, {
@@ -31,7 +34,8 @@
     return true;
   }
   function requestCodeHighlightsIn(root) {
-    for (const codeElement of Array.from(root.querySelectorAll("pre code"))) {
+    const elements = Array.from(root.querySelectorAll("pre code, pre[data-shiki-language]"));
+    for (const codeElement of elements) {
       if (!(codeElement instanceof HTMLElement)) {
         continue;
       }
@@ -84,13 +88,6 @@
       requestCodeHighlight(element, info.code, info.language);
     }
   }
-  function pruneDisconnectedHighlights() {
-    for (const element of Array.from(highlightedElements.keys())) {
-      if (!element.isConnected) {
-        highlightedElements.delete(element);
-      }
-    }
-  }
   function findHighlightByRequestId(requestId) {
     for (const entry of highlightedElements.entries()) {
       if (entry[1].requestId === requestId) {
@@ -100,6 +97,9 @@
     return void 0;
   }
   function getCodeElementLanguage(codeElement) {
+    if (codeElement.dataset.shikiLanguage) {
+      return codeElement.dataset.shikiLanguage;
+    }
     for (const className of Array.from(codeElement.classList)) {
       const match = className.match(/^language-(.+)$/);
       if (match) {
@@ -200,6 +200,7 @@
     if (!language) {
       return false;
     }
+    element.dataset.shikiLanguage = language;
     element.textContent = code;
     return requestCodeHighlight(element, code, language);
   }
@@ -1468,6 +1469,7 @@
       renderedMessageViews[index]?.element.remove();
     }
     renderedMessageViews.length = state.messages.length;
+    requestCodeHighlightsIn(messagesContentElement);
   }
   function createEmptyStateElement() {
     const empty = document.createElement("p");

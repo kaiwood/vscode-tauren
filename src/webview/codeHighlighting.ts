@@ -16,11 +16,16 @@ export function configureCodeHighlighting(post: PostMessage): void {
 }
 
 export function requestCodeHighlight(element: HTMLElement, code: string, language: string | undefined): boolean {
-  pruneDisconnectedHighlights();
   const normalizedLanguage = normalizeLanguage(language);
 
   if (!postMessage || !code || code.length > maxHighlightCodeLength || !normalizedLanguage) {
     return false;
+  }
+
+  const existing = highlightedElements.get(element);
+
+  if (existing?.code === code && existing.language === normalizedLanguage) {
+    return true;
   }
 
   const id = `highlight-${nextHighlightRequestId++}`;
@@ -41,7 +46,9 @@ export function requestCodeHighlight(element: HTMLElement, code: string, languag
 }
 
 export function requestCodeHighlightsIn(root: HTMLElement): void {
-  for (const codeElement of Array.from(root.querySelectorAll('pre code'))) {
+  const elements = Array.from(root.querySelectorAll('pre code, pre[data-shiki-language]'));
+
+  for (const codeElement of elements) {
     if (!(codeElement instanceof HTMLElement)) {
       continue;
     }
@@ -110,14 +117,6 @@ function refreshConnectedHighlights(): void {
   }
 }
 
-function pruneDisconnectedHighlights(): void {
-  for (const element of Array.from(highlightedElements.keys())) {
-    if (!element.isConnected) {
-      highlightedElements.delete(element);
-    }
-  }
-}
-
 function findHighlightByRequestId(requestId: string): [HTMLElement, HighlightInfo] | undefined {
   for (const entry of highlightedElements.entries()) {
     if (entry[1].requestId === requestId) {
@@ -129,6 +128,10 @@ function findHighlightByRequestId(requestId: string): [HTMLElement, HighlightInf
 }
 
 function getCodeElementLanguage(codeElement: HTMLElement): string | undefined {
+  if (codeElement.dataset.shikiLanguage) {
+    return codeElement.dataset.shikiLanguage;
+  }
+
   for (const className of Array.from(codeElement.classList)) {
     const match = className.match(/^language-(.+)$/);
 

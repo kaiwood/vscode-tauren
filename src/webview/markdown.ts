@@ -38,6 +38,7 @@ export function renderHighlightedCodeInto(element: HTMLElement, code: string, fi
     return false;
   }
 
+  element.dataset.shikiLanguage = language;
   element.textContent = code;
   return requestCodeHighlight(element, code, language);
 }
