@@ -382,11 +382,8 @@ suite('Pi event mapper', () => {
         sourceId: 'tool:call-1',
         activity: {
           kind: 'tool_execution',
-          title: 'Running bash',
-          status: 'running',
-          summary: 'npm test',
-          body: '{\n  "command": "npm test"\n}',
-          code: true
+          title: '$ npm test',
+          status: 'running'
         }
       }
     );
@@ -404,9 +401,8 @@ suite('Pi event mapper', () => {
         sourceId: 'tool:call-1',
         activity: {
           kind: 'tool_execution',
-          title: 'Running bash',
+          title: '$ npm test',
           status: 'running',
-          summary: 'npm test',
           body: 'passing',
           code: true
         }
@@ -427,9 +423,8 @@ suite('Pi event mapper', () => {
         sourceId: 'tool:call-1',
         activity: {
           kind: 'tool_execution',
-          title: 'bash failed',
+          title: '$ npm test',
           status: 'error',
-          summary: 'npm test',
           body: 'failed',
           code: true
         }
@@ -437,15 +432,67 @@ suite('Pi event mapper', () => {
     );
   });
 
-  test('mapRpcActivity hides successful tool execution when full communication is disabled', () => {
+  test('mapRpcActivity formats common tools and previews long output', () => {
+    assert.deepStrictEqual(
+      mapRpcActivity({
+        type: 'tool_execution_end',
+        toolCallId: 'call-read',
+        toolName: 'read',
+        args: { path: 'package.json', offset: 1, limit: 120 },
+        result: { content: [{ type: 'text', text: '1\n2\n3\n4\n5\n6\n7\n8\n9\n10' }] }
+      }, { fullCommunication: false }),
+      {
+        type: 'activity_update',
+        sourceId: 'tool:call-read',
+        activity: {
+          kind: 'tool_execution',
+          title: 'read package.json:1-120',
+          status: 'completed',
+          body: '1\n2\n3\n4\n5\n6\n7\n8\n... (2 more lines)',
+          code: true
+        }
+      }
+    );
+
+    assert.deepStrictEqual(
+      mapRpcActivity({
+        type: 'tool_execution_end',
+        toolCallId: 'call-bash',
+        toolName: 'bash',
+        args: { command: 'npm run compile' },
+        result: { content: [{ type: 'text', text: '1\n2\n3\n4\n5\n6\n7\n8\n9\n10' }] }
+      }, { fullCommunication: false }),
+      {
+        type: 'activity_update',
+        sourceId: 'tool:call-bash',
+        activity: {
+          kind: 'tool_execution',
+          title: '$ npm run compile',
+          status: 'completed',
+          body: '... (2 earlier lines)\n3\n4\n5\n6\n7\n8\n9\n10',
+          code: true
+        }
+      }
+    );
+  });
+
+  test('mapRpcActivity keeps concise tool execution visible when full communication is disabled', () => {
     assert.deepStrictEqual(
       mapRpcActivity({
         type: 'tool_execution_start',
         toolCallId: 'call-1',
         toolName: 'bash',
-        args: { command: 'npm test' }
+        args: { command: 'npm test', timeout: 120 }
       }, { fullCommunication: false }),
-      { type: 'ignore' }
+      {
+        type: 'activity_update',
+        sourceId: 'tool:call-1',
+        activity: {
+          kind: 'tool_execution',
+          title: '$ npm test (timeout 120s)',
+          status: 'running'
+        }
+      }
     );
 
     assert.deepStrictEqual(
@@ -456,7 +503,17 @@ suite('Pi event mapper', () => {
         args: { command: 'npm test' },
         partialResult: 'running'
       }, { fullCommunication: false }),
-      { type: 'ignore' }
+      {
+        type: 'activity_update',
+        sourceId: 'tool:call-1',
+        activity: {
+          kind: 'tool_execution',
+          title: '$ npm test',
+          status: 'running',
+          body: 'running',
+          code: true
+        }
+      }
     );
 
     assert.deepStrictEqual(
@@ -466,7 +523,15 @@ suite('Pi event mapper', () => {
         toolName: 'bash',
         args: { command: 'npm test' }
       }, { fullCommunication: false }),
-      { type: 'ignore' }
+      {
+        type: 'activity_update',
+        sourceId: 'tool:call-1',
+        activity: {
+          kind: 'tool_execution',
+          title: '$ npm test',
+          status: 'completed'
+        }
+      }
     );
 
     assert.deepStrictEqual(
@@ -483,9 +548,10 @@ suite('Pi event mapper', () => {
         sourceId: 'tool:call-1',
         activity: {
           kind: 'tool_execution',
-          title: 'bash failed',
+          title: '$ npm test',
           status: 'error',
-          summary: 'npm test'
+          body: 'failed',
+          code: true
         }
       }
     );

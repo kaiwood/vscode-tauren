@@ -4,6 +4,9 @@ import type {
 } from './chatSession';
 import type { RpcEvent } from './piRpcClient';
 
+const toolResultPreviewMaxLines = 8;
+const toolResultPreviewMaxCharacters = 2400;
+
 export type MessageUpdateAction =
   | { type: 'text_delta'; delta: string }
   | { type: 'thinking_start'; sourceId: string }
@@ -41,6 +44,33 @@ export type RpcActivityAction =
 export type RpcMappingOptions = {
   fullCommunication?: boolean;
 };
+
+export type ToolExecutionActivityOptions = {
+  toolName?: string;
+  args?: unknown;
+  partialResult?: unknown;
+  result?: unknown;
+  status: 'running' | 'completed' | 'error';
+};
+
+export function formatToolExecutionActivity({
+  toolName,
+  args,
+  partialResult,
+  result,
+  status
+}: ToolExecutionActivityOptions): ChatActivityInput {
+  const display = formatToolExecutionDisplay({ toolName, args });
+  const body = formatToolResultPreview(status === 'running' ? partialResult : result, display.toolName);
+
+  return {
+    kind: 'tool_execution',
+    title: display.title,
+    status,
+    ...(display.summary ? { summary: display.summary } : {}),
+    ...(body ? { body, code: true } : {})
+  };
+}
 
 export function mapMessageUpdate(
   event: RpcEvent,
@@ -116,6 +146,10 @@ export function mapMessageUpdate(
       };
     }
     case 'toolcall_start':
+      if (!fullCommunication) {
+        return { type: 'ignore' };
+      }
+
       return updateActivity(`toolcall:${streamId}:${getContentIndex(assistantMessageEvent)}`, {
         kind: 'tool_call',
         title: 'Preparing tool call',
@@ -360,73 +394,51 @@ function mapToolCallEnd(
   assistantMessageEvent: Record<string, unknown>,
   streamId: number,
   fullCommunication: boolean
-): ActivityUpdateAction {
+): ActivityUpdateAction | { type: 'ignore' } {
+  if (!fullCommunication) {
+    return { type: 'ignore' };
+  }
+
   const toolCall = isRecord(assistantMessageEvent.toolCall) ? assistantMessageEvent.toolCall : {};
   const toolName = getRecordString(toolCall, 'name') ?? getRecordString(assistantMessageEvent, 'name');
   const toolArguments = toolCall.arguments ?? toolCall.args ?? assistantMessageEvent.arguments;
 
-  return updateActivity(`toolcall:${streamId}:${getContentIndex(assistantMessageEvent)}`, compactActivity({
+  return updateActivity(`toolcall:${streamId}:${getContentIndex(assistantMessageEvent)}`, {
     kind: 'tool_call',
     title: toolName ? `Prepared tool call: ${toolName}` : 'Prepared tool call',
     status: 'completed',
     summary: summarizeValue(toolArguments),
     body: formatBodyValue(toolArguments ?? toolCall),
     code: true
-  }, fullCommunication));
-}
-
-function mapToolExecutionStart(event: RpcEvent, fullCommunication: boolean): ActivityUpdateAction | { type: 'ignore' } {
-  if (!fullCommunication) {
-    return { type: 'ignore' };
-  }
-
-  const toolName = getToolName(event);
-  const args = event.args;
-
-  return updateActivity(getToolExecutionSourceId(event), {
-    kind: 'tool_execution',
-    title: `Running ${toolName}`,
-    status: 'running',
-    summary: summarizeToolArgs(args),
-    body: formatBodyValue(args),
-    code: true
   });
 }
 
-function mapToolExecutionUpdate(event: RpcEvent, fullCommunication: boolean): ActivityUpdateAction | { type: 'ignore' } {
-  if (!fullCommunication) {
-    return { type: 'ignore' };
-  }
-
-  const toolName = getToolName(event);
-
-  return updateActivity(getToolExecutionSourceId(event), {
-    kind: 'tool_execution',
-    title: `Running ${toolName}`,
-    status: 'running',
-    summary: summarizeToolArgs(event.args),
-    body: formatToolResult(event.partialResult),
-    code: true
-  });
+function mapToolExecutionStart(event: RpcEvent, _fullCommunication: boolean): ActivityUpdateAction | { type: 'ignore' } {
+  return updateActivity(getToolExecutionSourceId(event), formatToolExecutionActivity({
+    toolName: getToolName(event),
+    args: event.args,
+    status: 'running'
+  }));
 }
 
-function mapToolExecutionEnd(event: RpcEvent, fullCommunication: boolean): ActivityUpdateAction | { type: 'ignore' } {
-  const toolName = getToolName(event);
+function mapToolExecutionUpdate(event: RpcEvent, _fullCommunication: boolean): ActivityUpdateAction | { type: 'ignore' } {
+  return updateActivity(getToolExecutionSourceId(event), formatToolExecutionActivity({
+    toolName: getToolName(event),
+    args: event.args,
+    partialResult: event.partialResult,
+    status: 'running'
+  }));
+}
+
+function mapToolExecutionEnd(event: RpcEvent, _fullCommunication: boolean): ActivityUpdateAction | { type: 'ignore' } {
   const isError = event.isError === true;
-  const sourceId = getToolExecutionSourceId(event);
 
-  if (!fullCommunication && !isError) {
-    return { type: 'ignore' };
-  }
-
-  return updateActivity(sourceId, compactActivity({
-    kind: 'tool_execution',
-    title: isError ? `${toolName} failed` : `${toolName} completed`,
-    status: isError ? 'error' : 'completed',
-    summary: summarizeToolArgs(event.args),
-    body: formatToolResult(event.result),
-    code: true
-  }, fullCommunication));
+  return updateActivity(getToolExecutionSourceId(event), formatToolExecutionActivity({
+    toolName: getToolName(event),
+    args: event.args,
+    result: event.result,
+    status: isError ? 'error' : 'completed'
+  }));
 }
 
 function compactActivity(activity: ChatActivityInput, fullCommunication: boolean): ChatActivityInput {
@@ -511,6 +523,104 @@ function getToolExecutionSourceId(event: RpcEvent): string {
 
 function getToolName(event: RpcEvent): string {
   return getRecordString(event, 'toolName') ?? 'tool';
+}
+
+function formatToolExecutionDisplay(input: { toolName?: string; args?: unknown }): { toolName: string; title: string; summary?: string } {
+  const toolName = input.toolName || 'tool';
+  const args = isRecord(input.args) ? input.args : undefined;
+
+  if (toolName === 'bash') {
+    const command = args ? getRecordString(args, 'command') : undefined;
+    const timeout = args ? getPositiveNumber(args.timeout) : undefined;
+    const timeoutLabel = timeout === undefined ? '' : ` (timeout ${timeout}s)`;
+
+    return {
+      toolName,
+      title: command ? `$ ${compactOneLine(command, 140)}${timeoutLabel}` : '$ bash',
+      summary: command && command.includes('\n') ? compactOneLine(command, 180) : undefined
+    };
+  }
+
+  if (toolName === 'read') {
+    const path = args ? getRecordString(args, 'path') : undefined;
+    const range = args ? formatReadRange(args) : undefined;
+
+    return {
+      toolName,
+      title: path ? `read ${path}${range ?? ''}` : 'read',
+      summary: path ? undefined : summarizeToolArgs(input.args)
+    };
+  }
+
+  if (toolName === 'edit') {
+    const path = args ? getRecordString(args, 'path') : undefined;
+
+    return {
+      toolName,
+      title: path ? `edit ${path}` : 'edit',
+      summary: summarizeEditCount(args)
+    };
+  }
+
+  if (toolName === 'write') {
+    const path = args ? getRecordString(args, 'path') : undefined;
+
+    return {
+      toolName,
+      title: path ? `write ${path}` : 'write',
+      summary: path ? undefined : summarizeToolArgs(input.args)
+    };
+  }
+
+  const summary = summarizeToolArgs(input.args);
+
+  return {
+    toolName,
+    title: summary ? `${toolName} ${summary}` : toolName,
+    summary: undefined
+  };
+}
+
+function formatReadRange(args: Record<string, unknown>): string | undefined {
+  const offset = getPositiveNumber(args.offset);
+  const limit = getPositiveNumber(args.limit);
+
+  if (offset !== undefined && limit !== undefined) {
+    return `:${offset}-${offset + limit - 1}`;
+  }
+
+  if (offset !== undefined) {
+    return `:${offset}`;
+  }
+
+  if (limit !== undefined) {
+    return `:1-${limit}`;
+  }
+
+  return undefined;
+}
+
+function summarizeEditCount(args: Record<string, unknown> | undefined): string | undefined {
+  const edits = args?.edits;
+
+  if (!Array.isArray(edits)) {
+    return undefined;
+  }
+
+  return `${edits.length} replacement${edits.length === 1 ? '' : 's'}`;
+}
+
+function getPositiveNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return Math.floor(value);
+  }
+
+  if (typeof value === 'string' && /^\d+$/.test(value)) {
+    const parsed = Number(value);
+    return parsed > 0 ? parsed : undefined;
+  }
+
+  return undefined;
 }
 
 function formatDoneReason(reason: string | undefined): string | undefined {
@@ -598,6 +708,16 @@ function formatKnownEventBody(event: RpcEvent, omittedKeys: string[]): string | 
   return Object.keys(details).length > 0 ? formatJson(details) : undefined;
 }
 
+function formatToolResultPreview(value: unknown, toolName: string): string | undefined {
+  const result = formatToolResult(value);
+
+  if (!result) {
+    return undefined;
+  }
+
+  return previewToolText(result, toolName === 'bash' ? 'tail' : 'head');
+}
+
 function formatToolResult(value: unknown): string | undefined {
   if (!isRecord(value)) {
     return value === undefined ? undefined : formatBodyValue(value);
@@ -605,7 +725,7 @@ function formatToolResult(value: unknown): string | undefined {
 
   const content = formatContent(value.content);
 
-  if (content) {
+  if (content !== undefined) {
     return content;
   }
 
@@ -653,9 +773,42 @@ function formatJson(value: unknown): string {
   }
 }
 
+function previewToolText(value: string, mode: 'head' | 'tail'): string {
+  const linePreview = previewToolTextByLines(value, mode);
+
+  if (linePreview.length <= toolResultPreviewMaxCharacters) {
+    return linePreview;
+  }
+
+  if (mode === 'tail') {
+    return `... (output truncated)\n${linePreview.slice(linePreview.length - toolResultPreviewMaxCharacters)}`;
+  }
+
+  return `${linePreview.slice(0, toolResultPreviewMaxCharacters)}\n... (output truncated)`;
+}
+
+function previewToolTextByLines(value: string, mode: 'head' | 'tail'): string {
+  const lines = value.split('\n');
+
+  if (lines.length <= toolResultPreviewMaxLines) {
+    return value;
+  }
+
+  const hiddenLineCount = lines.length - toolResultPreviewMaxLines;
+
+  if (mode === 'tail') {
+    return `... (${hiddenLineCount} earlier lines)\n${lines.slice(-toolResultPreviewMaxLines).join('\n')}`;
+  }
+
+  return `${lines.slice(0, toolResultPreviewMaxLines).join('\n')}\n... (${hiddenLineCount} more lines)`;
+}
+
 function compactText(value: string): string {
+  return compactOneLine(value, 160);
+}
+
+function compactOneLine(value: string, maxLength: number): string {
   const compacted = value.replace(/\s+/g, ' ').trim();
-  const maxLength = 160;
 
   if (compacted.length <= maxLength) {
     return compacted;

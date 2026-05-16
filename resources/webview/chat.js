@@ -401,7 +401,7 @@
     return details;
   }
   function shouldKeepActivityOpen(activity) {
-    return activity.kind === "thinking" && typeof activity.body === "string" && activity.body.length > 0;
+    return typeof activity.body === "string" && activity.body.length > 0;
   }
   function roleLabel(role) {
     if (role === "user") {

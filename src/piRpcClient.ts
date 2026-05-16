@@ -116,6 +116,9 @@ export type PiAgentMessage = {
   errorMessage?: string;
   summary?: string;
   display?: unknown;
+  toolCallId?: string;
+  toolName?: string;
+  isError?: boolean;
 };
 
 export type PiMessagesResult = {

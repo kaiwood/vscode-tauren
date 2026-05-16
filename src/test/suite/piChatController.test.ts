@@ -105,8 +105,19 @@ suite('PiChatController', () => {
       },
       messages: [
         { role: 'user', content: 'Earlier question' },
-        { role: 'assistant', content: [{ type: 'text', text: 'Earlier answer' }] },
-        { role: 'toolResult', content: [{ type: 'text', text: 'hidden tool output' }] },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: 'Earlier answer' },
+            { type: 'toolCall', id: 'call-1', name: 'bash', arguments: { command: 'echo hidden' } }
+          ]
+        },
+        {
+          role: 'toolResult',
+          toolCallId: 'call-1',
+          toolName: 'bash',
+          content: [{ type: 'text', text: 'hidden tool output' }]
+        },
         { role: 'assistant', content: [], errorMessage: 'Earlier failure' }
       ]
     });
@@ -126,7 +137,20 @@ suite('PiChatController', () => {
     assert.strictEqual(client.messagesCalls, 1);
     assert.deepStrictEqual(lastState(harness).messages, [
       { role: 'user', text: 'Earlier question' },
-      { role: 'assistant', text: 'Earlier answer' },
+      {
+        role: 'assistant',
+        text: 'Earlier answer',
+        activities: [
+          {
+            id: 'restored-tool-1',
+            kind: 'tool_execution',
+            title: '$ echo hidden',
+            status: 'completed',
+            body: 'hidden tool output',
+            code: true
+          }
+        ]
+      },
       { role: 'assistant', text: 'Earlier failure', error: true }
     ]);
     harness.controller.dispose();
@@ -1306,6 +1330,28 @@ suite('PiChatController', () => {
     client.emit({ type: 'agent_end' });
 
     assert.strictEqual(lastState(harness).busy, false);
+    harness.controller.dispose();
+  });
+
+  test('live tool execution titles use streamed tool call arguments when execution events omit args', async () => {
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: 'status' });
+    client.emit({
+      type: 'message_update',
+      assistantMessageEvent: {
+        type: 'toolcall_end',
+        toolCall: {
+          id: 'call-1',
+          name: 'bash',
+          arguments: { command: 'git status --short', timeout: 10 }
+        }
+      }
+    });
+    client.emit({ type: 'tool_execution_start', toolCallId: 'call-1', toolName: 'bash' });
+
+    assert.strictEqual(lastState(harness).messages[1].activities?.[0]?.title, '$ git status --short (timeout 10s)');
     harness.controller.dispose();
   });
 

@@ -1,4 +1,4 @@
-import { ChatSession, type ChatMessage } from './chatSession';
+import { ChatSession, type ChatActivityInput, type ChatMessage } from './chatSession';
 import { listPiSessionTree } from './piSessionTree';
 import {
   createWebviewStateMessage,
@@ -22,6 +22,7 @@ import {
 } from './extensionUiRequestHandler';
 import {
   formatExtensionError,
+  formatToolExecutionActivity,
   getFailedResponseError,
   mapMessageUpdate,
   mapRpcActivity,
@@ -77,6 +78,12 @@ export type PiRpcClientLike = Pick<
 >;
 
 export type PiRpcClientFactory = (options: PiRpcClientOptions) => PiRpcClientLike;
+
+type RestoredToolCall = {
+  id: string;
+  name?: string;
+  args?: unknown;
+};
 
 export type PiChatModelMeta = {
   label: string;
@@ -180,6 +187,7 @@ export class PiChatController {
   private contextUsageRefreshInFlight: { generation: number; promise: Promise<void> } | undefined;
   private slashCommandsRefreshInFlight: { generation: number; promise: Promise<void> } | undefined;
   private compacting = false;
+  private readonly liveToolCallsById = new Map<string, RestoredToolCall>();
   private readonly session = new ChatSession();
   private readonly clientDisposables: DisposableLike[] = [];
   private readonly statePublisher: StatePublisher<WebviewStateMessage>;
@@ -386,6 +394,7 @@ export class PiChatController {
 
     this.extensionUiRequestHandler.startNewGeneration();
     this.assistantStreamId = 0;
+    this.liveToolCallsById.clear();
     this.resetAbortState();
     this.session.startNewSession();
     this.sessionViewMode = options.viewMode ?? 'chat';
@@ -1053,6 +1062,7 @@ export class PiChatController {
 
     this.extensionUiRequestHandler.startNewGeneration();
     this.assistantStreamId = 0;
+    this.liveToolCallsById.clear();
     this.resetAbortState();
     this.metadataRefreshSequence += 1;
     this.slashCommandsRefreshSequence += 1;
@@ -1079,6 +1089,7 @@ export class PiChatController {
       : options.fallbackSessionFile;
     this.applyCurrentSessionFile(sessionFile);
     this.applyCurrentSessionName(stateResult?.sessionName);
+    this.liveToolCallsById.clear();
     this.session.replaceMessages(formatAgentMessages(messagesResult.messages));
     this.sessionHistoryLoading = false;
     this.sessionViewMode = 'chat';
@@ -1173,6 +1184,7 @@ export class PiChatController {
       const messages = formatAgentMessages(result.messages);
 
       if (messages.length > 0) {
+        this.liveToolCallsById.clear();
         this.session.replaceMessages(messages);
       }
     }
@@ -2096,6 +2108,8 @@ export class PiChatController {
   }
 
   private handleMessageUpdate(event: RpcEvent): void {
+    this.rememberLiveToolCall(event);
+
     const action = mapMessageUpdate(event, this.getMessageUpdateStreamId(event), {
       fullCommunication: false
     });
@@ -2163,7 +2177,7 @@ export class PiChatController {
       return;
     }
 
-    const action = mapRpcActivity(event, {
+    const action = mapRpcActivity(this.enrichLiveToolExecutionEvent(event), {
       fullCommunication: false
     });
 
@@ -2184,6 +2198,52 @@ export class PiChatController {
     }
 
     this.session.addActivity(action.activity);
+  }
+
+  private rememberLiveToolCall(event: RpcEvent): void {
+    const assistantMessageEvent = event.assistantMessageEvent;
+
+    if (!isRecord(assistantMessageEvent) || assistantMessageEvent.type !== 'toolcall_end') {
+      return;
+    }
+
+    const toolCall = isRecord(assistantMessageEvent.toolCall) ? assistantMessageEvent.toolCall : undefined;
+    const id = toolCall
+      ? getRecordString(toolCall, 'id') ?? getRecordString(toolCall, 'toolCallId')
+      : undefined;
+
+    if (!id) {
+      return;
+    }
+
+    this.liveToolCallsById.set(id, {
+      id,
+      name: toolCall ? getRecordString(toolCall, 'name') : undefined,
+      args: toolCall?.arguments ?? toolCall?.args
+    });
+  }
+
+  private enrichLiveToolExecutionEvent(event: RpcEvent): RpcEvent {
+    if (
+      event.type !== 'tool_execution_start'
+      && event.type !== 'tool_execution_update'
+      && event.type !== 'tool_execution_end'
+    ) {
+      return event;
+    }
+
+    const toolCallId = getRecordString(event, 'toolCallId');
+    const toolCall = toolCallId ? this.liveToolCallsById.get(toolCallId) : undefined;
+
+    if (!toolCall) {
+      return event;
+    }
+
+    return {
+      ...event,
+      toolName: getRecordString(event, 'toolName') ?? toolCall.name,
+      args: event.args ?? toolCall.args
+    };
   }
 
   private getMessageUpdateStreamId(event: RpcEvent): number {
@@ -2418,52 +2478,168 @@ function formatAgentMessages(messages: PiAgentMessage[] | undefined): ChatMessag
     return [];
   }
 
-  return messages.flatMap((message): ChatMessage[] => {
+  const transcript: ChatMessage[] = [];
+  const toolCallsById = new Map<string, RestoredToolCall>();
+  let lastAssistant: ChatMessage | undefined;
+  let restoredActivitySequence = 0;
+
+  for (const message of messages) {
     if (!isRecord(message)) {
-      return [];
+      continue;
     }
 
     if (message.role === 'user') {
       const text = extractPiMessageText(message.content, { includeImages: true });
-      return text.trim() ? [{ role: 'user', text }] : [];
+
+      if (text.trim()) {
+        transcript.push({ role: 'user', text });
+      }
+
+      lastAssistant = undefined;
+      continue;
     }
 
     if (message.role === 'assistant') {
+      const toolCalls = extractRestoredToolCalls(message.content);
+
+      for (const toolCall of toolCalls) {
+        toolCallsById.set(toolCall.id, toolCall);
+      }
+
       const text = extractPiMessageText(message.content, { includeImages: true });
       const errorMessage = typeof message.errorMessage === 'string' ? message.errorMessage : '';
       const displayText = text || errorMessage;
-      return displayText.trim()
-        ? [{ role: 'assistant', text: displayText, ...(errorMessage ? { error: true } : {}) }]
-        : [];
+
+      if (displayText.trim() || toolCalls.length > 0) {
+        const chatMessage: ChatMessage = {
+          role: 'assistant',
+          text: displayText,
+          ...(errorMessage ? { error: true } : {})
+        };
+        transcript.push(chatMessage);
+        lastAssistant = chatMessage;
+      } else {
+        lastAssistant = undefined;
+      }
+
+      continue;
+    }
+
+    if (message.role === 'toolResult') {
+      const activity = formatRestoredToolResultActivity(message, toolCallsById);
+
+      if (activity) {
+        const target = lastAssistant ?? createRestoredToolAssistantMessage(transcript);
+        restoredActivitySequence += 1;
+        target.activities ??= [];
+        target.activities.push({
+          id: `restored-tool-${restoredActivitySequence}`,
+          ...activity
+        });
+        lastAssistant = target;
+      }
+
+      continue;
     }
 
     if (message.role === 'compactionSummary') {
       const summary = typeof message.summary === 'string' ? message.summary : '';
-      return summary.trim()
-        ? [{ role: 'system', text: `Compacted session context.\n\n${summary}` }]
-        : [];
+
+      if (summary.trim()) {
+        transcript.push({ role: 'system', text: `Compacted session context.\n\n${summary}` });
+      }
+
+      lastAssistant = undefined;
+      continue;
     }
 
     if (message.role === 'branchSummary') {
       const summary = typeof message.summary === 'string' ? message.summary : '';
-      return summary.trim()
-        ? [{ role: 'system', text: `Returned from branch.\n\n${summary}` }]
-        : [];
+
+      if (summary.trim()) {
+        transcript.push({ role: 'system', text: `Returned from branch.\n\n${summary}` });
+      }
+
+      lastAssistant = undefined;
+      continue;
     }
 
     if (message.role === 'custom') {
       const displayText = typeof message.display === 'string'
         ? message.display
         : extractPiMessageText(message.content, { includeImages: true });
-      return displayText.trim() ? [{ role: 'system', text: displayText }] : [];
+
+      if (displayText.trim()) {
+        transcript.push({ role: 'system', text: displayText });
+      }
+
+      lastAssistant = undefined;
+    }
+  }
+
+  return transcript;
+}
+
+function extractRestoredToolCalls(content: unknown): RestoredToolCall[] {
+  if (!Array.isArray(content)) {
+    return [];
+  }
+
+  return content.flatMap((item): RestoredToolCall[] => {
+    if (!isRecord(item) || item.type !== 'toolCall') {
+      return [];
     }
 
-    return [];
+    const id = typeof item.id === 'string' ? item.id : '';
+
+    if (!id) {
+      return [];
+    }
+
+    return [{
+      id,
+      name: typeof item.name === 'string' ? item.name : undefined,
+      args: item.arguments ?? item.args
+    }];
   });
+}
+
+function formatRestoredToolResultActivity(
+  message: PiAgentMessage,
+  toolCallsById: Map<string, RestoredToolCall>
+): ChatActivityInput | undefined {
+  const toolCallId = typeof message.toolCallId === 'string' ? message.toolCallId : '';
+  const restoredToolCall = toolCallId ? toolCallsById.get(toolCallId) : undefined;
+  const toolName = typeof message.toolName === 'string'
+    ? message.toolName
+    : restoredToolCall?.name;
+  const result = { content: message.content };
+
+  if (!toolName && message.content === undefined) {
+    return undefined;
+  }
+
+  return formatToolExecutionActivity({
+    toolName,
+    args: restoredToolCall?.args,
+    result,
+    status: message.isError === true ? 'error' : 'completed'
+  });
+}
+
+function createRestoredToolAssistantMessage(transcript: ChatMessage[]): ChatMessage {
+  const message: ChatMessage = { role: 'assistant', text: '' };
+  transcript.push(message);
+  return message;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function getRecordString(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key];
+  return typeof value === 'string' ? value : undefined;
 }
 
 function getModelMeta(state: PiSessionState): PiChatModelMeta {
