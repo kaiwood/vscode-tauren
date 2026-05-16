@@ -3,7 +3,6 @@ import { createWebviewStateMessage } from './sidebar/chatWebview';
 import type {
   WebviewMessage,
   WebviewSessionItem,
-  WebviewSessionItemCommand,
   WebviewStateMessage,
   WebviewTreeItem
 } from './sidebar/types';
@@ -203,7 +202,7 @@ export class PiChatController {
       restoreInitialSessionHistory: (client, sessionGeneration, isCurrent) => this.restoreInitialSessionHistory(client, sessionGeneration, isCurrent),
       applySessionState: (state) => this.applySessionStateIdentity(state),
       applySessionStatsIdentity: (stats) => this.applySessionStatsIdentity(stats),
-      refreshSessions: () => void this.refreshSessions(),
+      refreshSessions: () => void this.sessionView.refreshSessions(),
       postState: () => this.postState(),
       onMetadataStartError: (message) => {
         this.sessionHistoryLoading = false;
@@ -235,114 +234,80 @@ export class PiChatController {
   }
 
   public async handleWebviewMessage(message: WebviewMessage): Promise<void> {
-    if (message.type === 'ready') {
-      this.postState();
-      void this.refreshSessionDiffStats();
-      void this.refreshSessionMeta({ startClient: true });
-      void this.refreshSessions();
-      return;
+    switch (message.type) {
+      case 'ready':
+        this.postState();
+        void this.refreshSessionDiffStats();
+        void this.refreshSessionMeta({ startClient: true });
+        void this.sessionView.refreshSessions();
+        return;
+      case 'newSession':
+        this.startNewSession();
+        return;
+      case 'showSessions':
+        this.sessionView.showSessions();
+        return;
+      case 'hideSessions':
+        this.sessionView.hideSessions();
+        return;
+      case 'refreshSessions':
+        await this.sessionView.refreshSessions();
+        return;
+      case 'showCurrentChanges':
+        await this.sessionView.showCurrentSessionChanges();
+        return;
+      case 'selectSession':
+        await this.sessionView.switchSession(message.sessionPath);
+        return;
+      case 'deleteSession':
+        await this.sessionView.deleteSession(message.sessionPath);
+        return;
+      case 'sessionItemCommand':
+        await this.sessionView.runSessionItemCommand(message.sessionPath, message.command);
+        return;
+      case 'setSessionItemName':
+        await this.sessionView.setSessionItemName(message.sessionPath, message.name);
+        return;
+      case 'selectTreeEntry':
+        await this.sessionView.navigateTree(message.entryId);
+        return;
+      case 'setSessionName':
+        await this.setSessionNameFromWebview(message.name);
+        return;
+      case 'refreshMetadata':
+        if (!this.session.isBusy) {
+          await this.refreshSessionMeta({ startClient: true });
+        }
+        return;
+      case 'refreshSlashCommands':
+        if (!this.session.isBusy) {
+          await this.refreshSlashCommands({ startClient: true });
+        }
+        return;
+      case 'setModel':
+        await this.setModel(message.provider, message.modelId);
+        return;
+      case 'setThinkingLevel':
+        await this.setThinkingLevel(message.level);
+        return;
+      case 'removePromptContext':
+        this.removePromptContext(message.id);
+        return;
+      case 'abort':
+        await this.abortActivePrompt();
+        return;
+      case 'copyText':
+        await this.copyTextFromWebview(message.text);
+        return;
+      case 'submit':
+        await this.handleSubmitMessage(message);
+        return;
+      default:
+        return;
     }
+  }
 
-    if (message.type === 'newSession') {
-      this.startNewSession();
-      return;
-    }
-
-    if (message.type === 'showSessions') {
-      this.showSessions();
-      return;
-    }
-
-    if (message.type === 'hideSessions') {
-      this.hideSessions();
-      return;
-    }
-
-    if (message.type === 'refreshSessions') {
-      await this.refreshSessions();
-      return;
-    }
-
-    if (message.type === 'showCurrentChanges') {
-      await this.showCurrentSessionChanges();
-      return;
-    }
-
-    if (message.type === 'selectSession') {
-      await this.switchSession(message.sessionPath);
-      return;
-    }
-
-    if (message.type === 'deleteSession') {
-      await this.deleteSession(message.sessionPath);
-      return;
-    }
-
-    if (message.type === 'sessionItemCommand') {
-      await this.runSessionItemCommand(message.sessionPath, message.command);
-      return;
-    }
-
-    if (message.type === 'setSessionItemName') {
-      await this.setSessionItemName(message.sessionPath, message.name);
-      return;
-    }
-
-    if (message.type === 'selectTreeEntry') {
-      await this.navigateTree(message.entryId);
-      return;
-    }
-
-    if (message.type === 'setSessionName') {
-      await this.setSessionNameFromWebview(message.name);
-      return;
-    }
-
-    if (message.type === 'refreshMetadata') {
-      if (!this.session.isBusy) {
-        await this.refreshSessionMeta({ startClient: true });
-      }
-
-      return;
-    }
-
-    if (message.type === 'refreshSlashCommands') {
-      if (!this.session.isBusy) {
-        await this.refreshSlashCommands({ startClient: true });
-      }
-
-      return;
-    }
-
-    if (message.type === 'setModel') {
-      await this.setModel(message.provider, message.modelId);
-      return;
-    }
-
-    if (message.type === 'setThinkingLevel') {
-      await this.setThinkingLevel(message.level);
-      return;
-    }
-
-    if (message.type === 'removePromptContext') {
-      this.removePromptContext(message.id);
-      return;
-    }
-
-    if (message.type === 'abort') {
-      await this.abortActivePrompt();
-      return;
-    }
-
-    if (message.type === 'copyText') {
-      await this.copyTextFromWebview(message.text);
-      return;
-    }
-
-    if (message.type !== 'submit') {
-      return;
-    }
-
+  private async handleSubmitMessage(message: Extract<WebviewMessage, { type: 'submit' }>): Promise<void> {
     const localSlashCommand = parseLocalSlashCommand(message.text);
 
     if (this.session.isBusy) {
@@ -516,46 +481,6 @@ export class PiChatController {
     return this.sessionMetadataRefresh.refreshSlashCommands(options);
   }
 
-  private showSessions(): void {
-    this.sessionView.showSessions();
-  }
-
-  private showTree(): void {
-    this.sessionView.showTree();
-  }
-
-  private hideSessions(): void {
-    this.sessionView.hideSessions();
-  }
-
-  private refreshSessions(): Promise<void> {
-    return this.sessionView.refreshSessions();
-  }
-
-  private navigateTree(entryId: string): Promise<void> {
-    return this.sessionView.navigateTree(entryId);
-  }
-
-  private switchSession(sessionPath: string): Promise<void> {
-    return this.sessionView.switchSession(sessionPath);
-  }
-
-  private deleteSession(sessionPath: string): Promise<void> {
-    return this.sessionView.deleteSession(sessionPath);
-  }
-
-  private setSessionItemName(sessionPath: string, name: string): Promise<void> {
-    return this.sessionView.setSessionItemName(sessionPath, name);
-  }
-
-  private runSessionItemCommand(sessionPath: string, command: WebviewSessionItemCommand): Promise<void> {
-    return this.sessionView.runSessionItemCommand(sessionPath, command);
-  }
-
-  private showCurrentSessionChanges(): Promise<void> {
-    return this.sessionView.showCurrentSessionChanges();
-  }
-
   private async adoptReplacedSession(options: { fallbackSessionFile?: string; refreshSessions?: boolean } = {}): Promise<void> {
     const client = this.getClient();
 
@@ -597,7 +522,7 @@ export class PiChatController {
     void this.refreshSessionMeta({ startClient: true, force: true });
 
     if (options.refreshSessions) {
-      void this.refreshSessions();
+      void this.sessionView.refreshSessions();
     }
   }
 
@@ -764,10 +689,10 @@ export class PiChatController {
           await this.handleSessionSlashCommand();
           return;
         case 'tree':
-          this.showTree();
+          this.sessionView.showTree();
           return;
         case 'resume':
-          this.showSessions();
+          this.sessionView.showSessions();
           return;
         case 'fork':
           await this.handleForkSlashCommand();
@@ -864,7 +789,7 @@ export class PiChatController {
     void this.refreshSessionMeta({ startClient: true, force: true });
 
     if (this.sessionView.currentSessionFile || this.sessionView.sessionCount > 0) {
-      void this.refreshSessions();
+      void this.sessionView.refreshSessions();
     }
   }
 
