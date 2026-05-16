@@ -5,18 +5,29 @@ import * as path from 'path';
 import { getToolExecutionDiffStats, parseSessionDiffStats, SessionDiffTracker } from '../../sessionDiffTracker';
 
 suite('SessionDiffTracker', () => {
-  test('counts historical edit and write tool changes', () => {
+  test('counts actual changed edit lines and write tool content lines', () => {
     assert.deepStrictEqual(
       getToolExecutionDiffStats({
         toolName: 'edit',
         args: { edits: [{ oldText: 'one\ntwo\n', newText: 'one\nTWO\nthree\n' }] }
       }),
-      { addedLines: 3, removedLines: 2 }
+      { addedLines: 2, removedLines: 1 }
     );
 
     assert.deepStrictEqual(
       getToolExecutionDiffStats({ toolName: 'write', args: { content: 'a\nb\n' } }),
       { addedLines: 2, removedLines: 0 }
+    );
+  });
+
+  test('prefers edit result unified diff stats over replacement text size', () => {
+    assert.deepStrictEqual(
+      getToolExecutionDiffStats({
+        toolName: 'edit',
+        args: { edits: [{ oldText: 'one\ntwo\nthree\n', newText: 'one\nTWO\nthree\n' }] },
+        result: { details: { diff: '@@ -1,3 +1,3 @@\n one\n-two\n+TWO\n three\n' } }
+      }),
+      { addedLines: 1, removedLines: 1 }
     );
   });
 
@@ -79,5 +90,46 @@ suite('SessionDiffTracker', () => {
     const tracker = new SessionDiffTracker({ stats: { addedLines: 10, removedLines: 10 } });
 
     assert.deepStrictEqual(await tracker.restoreFromSessionFile(sessionFile), { addedLines: 2, removedLines: 1 });
+  });
+
+  test('restores net historical stats across repeated edits to the same file', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tau-session-diff-net-'));
+    const sessionFile = path.join(cwd, 'session.jsonl');
+    const editedFile = path.join(cwd, 'example.txt');
+
+    await fs.writeFile(editedFile, 'one\nTHREE\n');
+    await fs.writeFile(sessionFile, [
+      JSON.stringify({ type: 'session', cwd }),
+      JSON.stringify({
+        type: 'message',
+        message: {
+          role: 'assistant',
+          content: [
+            {
+              type: 'toolCall',
+              name: 'edit',
+              arguments: { path: 'example.txt', edits: [{ oldText: 'one\ntwo\n', newText: 'one\nTWO\n' }] }
+            }
+          ]
+        }
+      }),
+      JSON.stringify({
+        type: 'message',
+        message: {
+          role: 'assistant',
+          content: [
+            {
+              type: 'toolCall',
+              name: 'edit',
+              arguments: { path: 'example.txt', edits: [{ oldText: 'TWO\n', newText: 'THREE\n' }] }
+            }
+          ]
+        }
+      })
+    ].join('\n'));
+
+    const tracker = new SessionDiffTracker();
+
+    assert.deepStrictEqual(await tracker.restoreFromSessionFile(sessionFile), { addedLines: 1, removedLines: 1 });
   });
 });

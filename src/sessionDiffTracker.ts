@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs';
+import * as path from 'path';
 
 export type SessionDiffStats = {
   addedLines: number;
@@ -52,6 +53,7 @@ export class SessionDiffTracker {
 export type ToolExecutionInput = {
   toolName?: unknown;
   args?: unknown;
+  result?: unknown;
   isError?: unknown;
 };
 
@@ -60,16 +62,28 @@ export function emptySessionDiffStats(): SessionDiffStats {
 }
 
 export function getToolExecutionDiffStats(input: ToolExecutionInput): SessionDiffStats {
-  if (input.isError === true || typeof input.toolName !== 'string' || !isRecord(input.args)) {
+  if (input.isError === true || typeof input.toolName !== 'string') {
     return emptySessionDiffStats();
   }
 
   if (input.toolName === 'edit') {
-    return getEditDiffStats(input.args);
+    const resultStats = getToolResultDiffStats(input.result);
+
+    if (resultStats) {
+      return resultStats;
+    }
+
+    return isRecord(input.args) ? getEditDiffStats(input.args) : emptySessionDiffStats();
   }
 
   if (input.toolName === 'write') {
-    return getWriteDiffStats(input.args);
+    const resultStats = getToolResultDiffStats(input.result);
+
+    if (resultStats) {
+      return resultStats;
+    }
+
+    return isRecord(input.args) ? getWriteDiffStats(input.args) : emptySessionDiffStats();
   }
 
   return emptySessionDiffStats();
@@ -84,7 +98,7 @@ export async function parseSessionDiffStatsFromFile(sessionFile: string): Promis
     return undefined;
   }
 
-  return parseSessionDiffStats(content);
+  return await parseSessionNetDiffStats(content) ?? parseSessionDiffStats(content);
 }
 
 export function parseSessionDiffStats(content: string): SessionDiffStats {
@@ -145,6 +159,201 @@ function collectToolStats(value: unknown, toolExecutionStats: SessionDiffStats[]
   }
 }
 
+type FileMutation =
+  | { toolName: 'edit'; path: string; edits: Array<{ oldText: string; newText: string }> }
+  | { toolName: 'write'; path: string; content: string };
+
+async function parseSessionNetDiffStats(content: string): Promise<SessionDiffStats | undefined> {
+  const executionMutations: FileMutation[] = [];
+  const toolCallMutations: FileMutation[] = [];
+  let cwd: string | undefined;
+
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      continue;
+    }
+
+    try {
+      const record = JSON.parse(trimmed) as unknown;
+
+      if (isRecord(record) && record.type === 'session') {
+        cwd = getRecordString(record, 'cwd') ?? cwd;
+      }
+
+      collectToolMutations(record, executionMutations, toolCallMutations);
+    } catch {
+      // Ignore malformed session lines.
+    }
+  }
+
+  const mutations = executionMutations.length > 0 ? executionMutations : toolCallMutations;
+
+  if (!cwd || mutations.length === 0) {
+    return undefined;
+  }
+
+  return computeNetDiffStats(cwd, mutations);
+}
+
+function collectToolMutations(value: unknown, executionMutations: FileMutation[], toolCallMutations: FileMutation[]): void {
+  if (!isRecord(value)) {
+    return;
+  }
+
+  if (value.type === 'tool_execution_end') {
+    const mutation = getFileMutation(getRecordString(value, 'toolName'), value.args);
+
+    if (mutation) {
+      executionMutations.push(mutation);
+    }
+  }
+
+  const message = isRecord(value.message) ? value.message : undefined;
+  const content = message?.content ?? value.content;
+
+  if (!Array.isArray(content)) {
+    return;
+  }
+
+  for (const item of content) {
+    const toolCall = getToolCallRecord(item);
+
+    if (!toolCall) {
+      continue;
+    }
+
+    const mutation = getFileMutation(getRecordString(toolCall, 'name'), toolCall.arguments ?? toolCall.args);
+
+    if (mutation) {
+      toolCallMutations.push(mutation);
+    }
+  }
+}
+
+function getFileMutation(toolName: string | undefined, args: unknown): FileMutation | undefined {
+  if (!isRecord(args)) {
+    return undefined;
+  }
+
+  const filePath = getRecordString(args, 'path') ?? getRecordString(args, 'file_path');
+
+  if (!filePath) {
+    return undefined;
+  }
+
+  if (toolName === 'edit') {
+    const edits = getEditMutations(args.edits);
+    return edits.length > 0 ? { toolName, path: filePath, edits } : undefined;
+  }
+
+  if (toolName === 'write') {
+    const content = getRecordString(args, 'content') ?? getRecordString(args, 'text');
+    return content === undefined ? undefined : { toolName, path: filePath, content };
+  }
+
+  return undefined;
+}
+
+function getEditMutations(value: unknown): Array<{ oldText: string; newText: string }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const edits: Array<{ oldText: string; newText: string }> = [];
+
+  for (const edit of value) {
+    if (!isRecord(edit)) {
+      continue;
+    }
+
+    const oldText = getRecordString(edit, 'oldText');
+    const newText = getRecordString(edit, 'newText');
+
+    if (oldText !== undefined && newText !== undefined) {
+      edits.push({ oldText, newText });
+    }
+  }
+
+  return edits;
+}
+
+async function computeNetDiffStats(cwd: string, mutations: FileMutation[]): Promise<SessionDiffStats | undefined> {
+  const mutationsByPath = new Map<string, FileMutation[]>();
+
+  for (const mutation of mutations) {
+    const existing = mutationsByPath.get(mutation.path);
+
+    if (existing) {
+      existing.push(mutation);
+    } else {
+      mutationsByPath.set(mutation.path, [mutation]);
+    }
+  }
+
+  const fileStats: SessionDiffStats[] = [];
+
+  for (const [filePath, fileMutations] of mutationsByPath) {
+    const currentContent = await readCurrentFileContent(cwd, filePath);
+
+    if (currentContent === undefined) {
+      return undefined;
+    }
+
+    const baselineContent = reverseFileMutations(currentContent, fileMutations);
+
+    if (baselineContent === undefined) {
+      return undefined;
+    }
+
+    fileStats.push(getLineDiffStats(baselineContent, currentContent));
+  }
+
+  return sumStats(fileStats);
+}
+
+async function readCurrentFileContent(cwd: string, filePath: string): Promise<string | undefined> {
+  try {
+    return await fs.readFile(path.resolve(cwd, filePath), 'utf8');
+  } catch {
+    return undefined;
+  }
+}
+
+function reverseFileMutations(currentContent: string, mutations: FileMutation[]): string | undefined {
+  let content = currentContent;
+
+  for (const mutation of [...mutations].reverse()) {
+    if (mutation.toolName === 'write') {
+      content = '';
+      continue;
+    }
+
+    for (const edit of [...mutation.edits].reverse()) {
+      const replaced = replaceUnique(content, edit.newText, edit.oldText);
+
+      if (replaced === undefined) {
+        return undefined;
+      }
+
+      content = replaced;
+    }
+  }
+
+  return content;
+}
+
+function replaceUnique(value: string, oldText: string, newText: string): string | undefined {
+  const index = value.indexOf(oldText);
+
+  if (index === -1 || value.indexOf(oldText, index + oldText.length) !== -1) {
+    return undefined;
+  }
+
+  return `${value.slice(0, index)}${newText}${value.slice(index + oldText.length)}`;
+}
+
 function getToolCallRecord(value: unknown): Record<string, unknown> | undefined {
   if (!isRecord(value)) {
     return undefined;
@@ -179,13 +388,13 @@ function getEditDiffStats(args: Record<string, unknown>): SessionDiffStats {
     const oldText = getRecordString(edit, 'oldText');
     const newText = getRecordString(edit, 'newText');
 
-    if (oldText !== undefined) {
-      removedLines += countLines(oldText);
+    if (oldText === undefined || newText === undefined) {
+      continue;
     }
 
-    if (newText !== undefined) {
-      addedLines += countLines(newText);
-    }
+    const stats = getLineDiffStats(oldText, newText);
+    addedLines += stats.addedLines;
+    removedLines += stats.removedLines;
   }
 
   return { addedLines, removedLines };
@@ -198,13 +407,85 @@ function getWriteDiffStats(args: Record<string, unknown>): SessionDiffStats {
     : { addedLines: countLines(content), removedLines: 0 };
 }
 
-function countLines(value: string): number {
+function getToolResultDiffStats(result: unknown): SessionDiffStats | undefined {
+  if (!isRecord(result)) {
+    return undefined;
+  }
+
+  const details = isRecord(result.details) ? result.details : undefined;
+  const diff = getRecordString(details ?? result, 'diff');
+  return diff === undefined ? undefined : parseUnifiedDiffStats(diff);
+}
+
+function parseUnifiedDiffStats(diff: string): SessionDiffStats {
+  let addedLines = 0;
+  let removedLines = 0;
+
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('+++') || line.startsWith('---')) {
+      continue;
+    }
+
+    if (line.startsWith('+')) {
+      addedLines += 1;
+    } else if (line.startsWith('-')) {
+      removedLines += 1;
+    }
+  }
+
+  return { addedLines, removedLines };
+}
+
+function getLineDiffStats(oldText: string, newText: string): SessionDiffStats {
+  const oldLines = splitLinesForDiff(oldText);
+  const newLines = splitLinesForDiff(newText);
+  const commonLines = getLongestCommonSubsequenceLength(oldLines, newLines);
+
+  return {
+    addedLines: newLines.length - commonLines,
+    removedLines: oldLines.length - commonLines
+  };
+}
+
+function splitLinesForDiff(value: string): string[] {
   if (!value) {
+    return [];
+  }
+
+  const normalized = value.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = normalized.split('\n');
+
+  if (normalized.endsWith('\n')) {
+    lines.pop();
+  }
+
+  return lines;
+}
+
+function getLongestCommonSubsequenceLength(left: string[], right: string[]): number {
+  if (left.length === 0 || right.length === 0) {
     return 0;
   }
 
-  const lineBreaks = value.match(/\n/g)?.length ?? 0;
-  return value.endsWith('\n') ? lineBreaks : lineBreaks + 1;
+  let previous = new Array<number>(right.length + 1).fill(0);
+  let current = new Array<number>(right.length + 1).fill(0);
+
+  for (const leftLine of left) {
+    for (let column = 1; column <= right.length; column += 1) {
+      current[column] = leftLine === right[column - 1]
+        ? previous[column - 1] + 1
+        : Math.max(previous[column], current[column - 1]);
+    }
+
+    [previous, current] = [current, previous];
+    current.fill(0);
+  }
+
+  return previous[right.length];
+}
+
+function countLines(value: string): number {
+  return splitLinesForDiff(value).length;
 }
 
 function sumStats(stats: SessionDiffStats[]): SessionDiffStats {
