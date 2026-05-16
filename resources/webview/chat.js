@@ -1,5 +1,135 @@
 "use strict";
 (() => {
+  // src/webview/codeHighlighting.ts
+  var maxHighlightCodeLength = 2e5;
+  var highlightedElements = /* @__PURE__ */ new Map();
+  var postMessage;
+  var nextHighlightRequestId = 1;
+  function configureCodeHighlighting(post) {
+    postMessage = post;
+  }
+  function requestCodeHighlight(element, code, language) {
+    pruneDisconnectedHighlights();
+    const normalizedLanguage = normalizeLanguage(language);
+    if (!postMessage || !code || code.length > maxHighlightCodeLength || !normalizedLanguage) {
+      return false;
+    }
+    const id = `highlight-${nextHighlightRequestId++}`;
+    highlightedElements.set(element, {
+      code,
+      language: normalizedLanguage,
+      requestId: id
+    });
+    element.dataset.shikiHighlightId = id;
+    element.classList.add("tau-shiki-pending");
+    postMessage({
+      type: "highlightCode",
+      id,
+      code,
+      language: normalizedLanguage
+    });
+    return true;
+  }
+  function requestCodeHighlightsIn(root) {
+    for (const codeElement of Array.from(root.querySelectorAll("pre code"))) {
+      if (!(codeElement instanceof HTMLElement)) {
+        continue;
+      }
+      requestCodeHighlight(codeElement, codeElement.textContent ?? "", getCodeElementLanguage(codeElement));
+    }
+  }
+  function handleCodeHighlightMessage(message) {
+    if (!isRecord(message) || typeof message.type !== "string") {
+      return false;
+    }
+    if (message.type === "highlightCodeResult") {
+      applyCodeHighlightResult(message);
+      return true;
+    }
+    if (message.type === "codeThemeChanged") {
+      refreshConnectedHighlights();
+      return true;
+    }
+    return false;
+  }
+  function applyCodeHighlightResult(message) {
+    if (typeof message.id !== "string") {
+      return;
+    }
+    const entry = findHighlightByRequestId(message.id);
+    if (!entry) {
+      return;
+    }
+    const [element, info] = entry;
+    if (!element.isConnected || element.dataset.shikiHighlightId !== info.requestId) {
+      highlightedElements.delete(element);
+      return;
+    }
+    element.classList.remove("tau-shiki-pending");
+    if (typeof message.html !== "string" || message.html.length === 0 || !window.DOMPurify) {
+      return;
+    }
+    element.innerHTML = window.DOMPurify.sanitize(message.html, {
+      USE_PROFILES: { html: true },
+      ADD_ATTR: ["style"]
+    });
+  }
+  function refreshConnectedHighlights() {
+    for (const [element, info] of Array.from(highlightedElements.entries())) {
+      if (!element.isConnected) {
+        highlightedElements.delete(element);
+        continue;
+      }
+      element.textContent = info.code;
+      requestCodeHighlight(element, info.code, info.language);
+    }
+  }
+  function pruneDisconnectedHighlights() {
+    for (const element of Array.from(highlightedElements.keys())) {
+      if (!element.isConnected) {
+        highlightedElements.delete(element);
+      }
+    }
+  }
+  function findHighlightByRequestId(requestId) {
+    for (const entry of highlightedElements.entries()) {
+      if (entry[1].requestId === requestId) {
+        return entry;
+      }
+    }
+    return void 0;
+  }
+  function getCodeElementLanguage(codeElement) {
+    for (const className of Array.from(codeElement.classList)) {
+      const match = className.match(/^language-(.+)$/);
+      if (match) {
+        return match[1];
+      }
+    }
+    return void 0;
+  }
+  function normalizeLanguage(language) {
+    const normalized = language?.trim().toLowerCase();
+    if (!normalized) {
+      return void 0;
+    }
+    const aliases = {
+      cjs: "javascript",
+      js: "javascript",
+      jsx: "javascriptreact",
+      mjs: "javascript",
+      shell: "shellscript",
+      sh: "shellscript",
+      ts: "typescript",
+      tsx: "typescriptreact",
+      yml: "yaml"
+    };
+    return aliases[normalized] || normalized;
+  }
+  function isRecord(value) {
+    return typeof value === "object" && value !== null;
+  }
+
   // src/webview/dom.ts
   function getWebviewDom() {
     return {
@@ -48,8 +178,7 @@
   var markdownRenderer = window.markdownit ? window.markdownit({
     html: false,
     linkify: true,
-    breaks: false,
-    highlight: highlightCode
+    breaks: false
   }) : void 0;
   function renderMarkdownInto(element, text, options = {}) {
     if (!markdownRenderer || !window.DOMPurify) {
@@ -63,28 +192,16 @@
       USE_PROFILES: { html: true }
     });
     linkifyFileReferences(element);
+    requestCodeHighlightsIn(element);
     animateNewVisibleText(element, options.animateFromText);
   }
   function renderHighlightedCodeInto(element, code, filePath) {
-    if (!window.hljs || !window.DOMPurify) {
-      return false;
-    }
-    const language = getLanguageForPath(filePath, window.hljs);
+    const language = getPathLanguageHint(filePath);
     if (!language) {
       return false;
     }
-    try {
-      const highlighted = window.hljs.highlight(code, {
-        language,
-        ignoreIllegals: true
-      }).value;
-      element.innerHTML = window.DOMPurify.sanitize(highlighted, {
-        USE_PROFILES: { html: true }
-      });
-      return true;
-    } catch {
-      return false;
-    }
+    element.textContent = code;
+    return requestCodeHighlight(element, code, language);
   }
   function linkifyFileReferences(root) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
@@ -260,45 +377,6 @@
     }
     return wordIndex;
   }
-  function highlightCode(code, language) {
-    if (!window.hljs || typeof language !== "string" || language.length === 0) {
-      return escapeHtml(code);
-    }
-    const normalizedLanguage = normalizeCodeLanguage(language);
-    if (!window.hljs.getLanguage(normalizedLanguage)) {
-      return escapeHtml(code);
-    }
-    try {
-      return window.hljs.highlight(code, {
-        language: normalizedLanguage,
-        ignoreIllegals: true
-      }).value;
-    } catch {
-      return escapeHtml(code);
-    }
-  }
-  function normalizeCodeLanguage(language) {
-    const normalized = language.toLowerCase().trim();
-    const aliases = {
-      cjs: "javascript",
-      js: "javascript",
-      jsx: "javascript",
-      mjs: "javascript",
-      shell: "bash",
-      sh: "bash",
-      ts: "typescript",
-      tsx: "typescript",
-      yml: "yaml"
-    };
-    return aliases[normalized] || normalized;
-  }
-  function getLanguageForPath(filePath, hljs) {
-    const language = normalizeCodeLanguage(getPathLanguageHint(filePath));
-    if (!language || !hljs.getLanguage(language)) {
-      return void 0;
-    }
-    return language;
-  }
   function getPathLanguageHint(filePath) {
     const basename = filePath.replace(/\\/g, "/").split("/").pop()?.toLowerCase() ?? "";
     if (basename === "dockerfile") {
@@ -309,9 +387,6 @@
     }
     const extensionMatch = basename.match(/\.([a-z0-9]+)$/);
     return extensionMatch?.[1] ?? "";
-  }
-  function escapeHtml(value) {
-    return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
   // src/webview/renderMessages.ts
@@ -548,7 +623,11 @@
         }
         index += 2;
       } else if ((code === 38 || code === 48) && codes[index + 1] === 2 && codes[index + 2] !== void 0 && codes[index + 3] !== void 0 && codes[index + 4] !== void 0) {
-        const color = `rgb(${clampColor(codes[index + 2])}, ${clampColor(codes[index + 3])}, ${clampColor(codes[index + 4])})`;
+        const color = ansiRgbColor(
+          clampColor(codes[index + 2]),
+          clampColor(codes[index + 3]),
+          clampColor(codes[index + 4])
+        );
         if (code === 38) {
           next.foreground = color;
         } else {
@@ -571,7 +650,7 @@
     if (foreground) {
       element.style.color = foreground;
     } else if (style.inverse && background) {
-      element.style.color = "var(--vscode-sideBar-background)";
+      element.style.color = "var(--tau-code-background, var(--vscode-sideBar-background))";
     }
     if (background) {
       element.style.backgroundColor = background;
@@ -610,10 +689,37 @@
   function isBrightAnsiBackground(code) {
     return code >= 100 && code <= 107;
   }
+  var ANSI_COLOR_NAMES = ["Black", "Red", "Green", "Yellow", "Blue", "Magenta", "Cyan", "White"];
+  var ANSI_BRIGHT_COLOR_NAMES = ["BrightBlack", "BrightRed", "BrightGreen", "BrightYellow", "BrightBlue", "BrightMagenta", "BrightCyan", "BrightWhite"];
+  var ANSI_COLOR_FALLBACK_VARIABLES = [
+    "--tau-ansi-black-fallback",
+    "--tau-ansi-red-fallback",
+    "--tau-ansi-green-fallback",
+    "--tau-ansi-yellow-fallback",
+    "--tau-ansi-blue-fallback",
+    "--tau-ansi-magenta-fallback",
+    "--tau-ansi-cyan-fallback",
+    "--tau-ansi-white-fallback"
+  ];
+  var ANSI_BRIGHT_COLOR_FALLBACK_VARIABLES = [
+    "--tau-ansi-bright-black-fallback",
+    "--tau-ansi-bright-red-fallback",
+    "--tau-ansi-bright-green-fallback",
+    "--tau-ansi-bright-yellow-fallback",
+    "--tau-ansi-bright-blue-fallback",
+    "--tau-ansi-bright-magenta-fallback",
+    "--tau-ansi-bright-cyan-fallback",
+    "--tau-ansi-bright-white-fallback"
+  ];
+  var ANSI_COLOR_FALLBACKS = ["#000000", "#cd3131", "#0dbc79", "#e5e510", "#2472c8", "#bc3fbc", "#11a8cd", "#e5e5e5"];
+  var ANSI_BRIGHT_COLOR_FALLBACKS = ["#666666", "#f14c4c", "#23d18b", "#f5f543", "#3b8eea", "#d670d6", "#29b8db", "#e5e5e5"];
   function ansiBasicColor(index, bright) {
-    const names = bright ? ["BrightBlack", "BrightRed", "BrightGreen", "BrightYellow", "BrightBlue", "BrightMagenta", "BrightCyan", "BrightWhite"] : ["Black", "Red", "Green", "Yellow", "Blue", "Magenta", "Cyan", "White"];
-    const fallbacks = bright ? ["#666666", "#f14c4c", "#23d18b", "#f5f543", "#3b8eea", "#d670d6", "#29b8db", "#e5e5e5"] : ["#000000", "#cd3131", "#0dbc79", "#e5e510", "#2472c8", "#bc3fbc", "#11a8cd", "#e5e5e5"];
-    return `var(--vscode-terminal-ansi${names[index] ?? "White"}, ${fallbacks[index] ?? "#e5e5e5"})`;
+    const names = bright ? ANSI_BRIGHT_COLOR_NAMES : ANSI_COLOR_NAMES;
+    const fallbackVariables = bright ? ANSI_BRIGHT_COLOR_FALLBACK_VARIABLES : ANSI_COLOR_FALLBACK_VARIABLES;
+    const fallbacks = bright ? ANSI_BRIGHT_COLOR_FALLBACKS : ANSI_COLOR_FALLBACKS;
+    const fallbackVariable = fallbackVariables[index] ?? "--tau-ansi-white-fallback";
+    const fallback = fallbacks[index] ?? "#e5e5e5";
+    return `var(--vscode-terminal-ansi${names[index] ?? "White"}, var(${fallbackVariable}, ${fallback}))`;
   }
   function ansi256Color(value) {
     if (value < 0 || value > 255) {
@@ -633,10 +739,92 @@
     const red = Math.floor(offset / 36);
     const green = Math.floor(offset % 36 / 6);
     const blue = offset % 6;
+    const terminalColor = ansiCubeTerminalColor(red, green, blue);
+    if (terminalColor) {
+      return terminalColor;
+    }
     return `rgb(${ansi256Channel(red)}, ${ansi256Channel(green)}, ${ansi256Channel(blue)})`;
+  }
+  function ansiCubeTerminalColor(red, green, blue) {
+    if (red === 0 && green === 0 && blue === 0) {
+      return ansiBasicColor(0, false);
+    }
+    if (red > 0 && green === 0 && blue === 0) {
+      return ansiBasicColor(1, red >= 5);
+    }
+    if (red === 0 && green > 0 && blue === 0) {
+      return ansiBasicColor(2, green >= 5);
+    }
+    if (red > 0 && green > 0 && blue === 0 && Math.abs(red - green) <= 1) {
+      return ansiBasicColor(3, red >= 5 || green >= 5);
+    }
+    if (red === 0 && green === 0 && blue > 0) {
+      return ansiBasicColor(4, blue >= 5);
+    }
+    if (red > 0 && green === 0 && blue > 0 && Math.abs(red - blue) <= 1) {
+      return ansiBasicColor(5, red >= 5 || blue >= 5);
+    }
+    if (red === 0 && green > 0 && blue > 0 && Math.abs(green - blue) <= 1) {
+      return ansiBasicColor(6, green >= 5 || blue >= 5);
+    }
+    if (red === green && green === blue) {
+      if (red >= 5) {
+        return ansiBasicColor(7, true);
+      }
+      if (red >= 3) {
+        return ansiBasicColor(7, false);
+      }
+      return ansiBasicColor(0, true);
+    }
+    return void 0;
   }
   function ansi256Channel(value) {
     return value === 0 ? 0 : 55 + value * 40;
+  }
+  function ansiRgbColor(red, green, blue) {
+    const terminalColor = ansiRgbTerminalColor(red, green, blue);
+    if (terminalColor) {
+      return terminalColor;
+    }
+    return `rgb(${red}, ${green}, ${blue})`;
+  }
+  function ansiRgbTerminalColor(red, green, blue) {
+    const low = 32;
+    const high = 128;
+    const bright = 220;
+    if (red <= low && green <= low && blue <= low) {
+      return ansiBasicColor(0, false);
+    }
+    if (red >= high && green <= low && blue <= low) {
+      return ansiBasicColor(1, red >= bright);
+    }
+    if (red <= low && green >= high && blue <= low) {
+      return ansiBasicColor(2, green >= bright);
+    }
+    if (red >= high && green >= high && blue <= low && Math.abs(red - green) <= 80) {
+      return ansiBasicColor(3, red >= bright || green >= bright);
+    }
+    if (red <= low && green <= low && blue >= high) {
+      return ansiBasicColor(4, blue >= bright);
+    }
+    if (red >= high && green <= low && blue >= high && Math.abs(red - blue) <= 80) {
+      return ansiBasicColor(5, red >= bright || blue >= bright);
+    }
+    if (red <= low && green >= high && blue >= high && Math.abs(green - blue) <= 80) {
+      return ansiBasicColor(6, green >= bright || blue >= bright);
+    }
+    if (Math.abs(red - green) <= 16 && Math.abs(green - blue) <= 16) {
+      if (red >= 220) {
+        return ansiBasicColor(7, true);
+      }
+      if (red >= 160) {
+        return ansiBasicColor(7, false);
+      }
+      if (red >= 80) {
+        return ansiBasicColor(0, true);
+      }
+    }
+    return void 0;
   }
   function clampColor(value) {
     return Math.max(0, Math.min(255, value));
@@ -801,7 +989,7 @@
     sessionLoading: false
   };
   function parseWebviewStateMessage(data) {
-    const record = isRecord(data) ? data : {};
+    const record = isRecord2(data) ? data : {};
     return {
       messages: Array.isArray(record.messages) ? record.messages : [],
       busy: Boolean(record.busy),
@@ -833,7 +1021,7 @@
       sessionLoading: Boolean(record.sessionLoading)
     };
   }
-  function isRecord(value) {
+  function isRecord2(value) {
     return typeof value === "object" && value !== null;
   }
 
@@ -876,6 +1064,7 @@
 
   // src/webview/main.ts
   var vscode = acquireVsCodeApi();
+  configureCodeHighlighting((message) => vscode.postMessage(message));
   var {
     viewElement,
     toolbarTitleElement,
@@ -941,6 +1130,9 @@
   var sessionNameEditInitialValue = "";
   var renderedMessageViews = [];
   window.addEventListener("message", (event) => {
+    if (handleCodeHighlightMessage(event.data)) {
+      return;
+    }
     if (event.data?.type === "focusInput") {
       focusPromptInput();
       return;

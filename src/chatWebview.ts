@@ -31,6 +31,7 @@ export type WebviewMessage =
   | { type: 'abort' }
   | { type: 'copyText'; text: string }
   | { type: 'openFile'; path: string; line?: number; column?: number }
+  | { type: 'highlightCode'; id: string; code: string; language: string }
   | { type: 'submit'; text: string; streamingBehavior?: WebviewStreamingBehavior }
   | { type: 'setModel'; provider: string; modelId: string }
   | { type: 'setThinkingLevel'; level: string }
@@ -109,6 +110,12 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
         ...(column ? { column } : {})
       };
     }
+    case 'highlightCode':
+      return typeof value.id === 'string' && value.id
+        && typeof value.code === 'string' && value.code
+        && typeof value.language === 'string' && value.language
+        ? { type: 'highlightCode', id: value.id, code: value.code, language: value.language }
+        : { type: 'unknown' };
     case 'submit': {
       if (typeof value.text !== 'string') {
         return { type: 'unknown' };
@@ -312,7 +319,6 @@ export function createWebviewStateMessage({
 export type WebviewScriptUris = {
   markdownItScriptUri: string;
   domPurifyScriptUri: string;
-  highlightScriptUri: string;
   webviewScriptUri: string;
 };
 
@@ -459,7 +465,6 @@ ${chatWebviewStyles}
     </form>
   </main>
 
-  <script nonce="${nonce}" src="${scriptUris.highlightScriptUri}"></script>
   <script nonce="${nonce}" src="${scriptUris.markdownItScriptUri}"></script>
   <script nonce="${nonce}" src="${scriptUris.domPurifyScriptUri}"></script>
   <script nonce="${nonce}" src="${scriptUris.webviewScriptUri}"></script>

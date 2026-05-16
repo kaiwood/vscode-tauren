@@ -13,6 +13,7 @@ import {
   type PiRpcClientFactory
 } from './piChatController';
 import { PiRpcClient } from './piRpcClient';
+import { ShikiCodeRenderer } from './shikiCodeRenderer';
 import { TauSessionManager } from './tauSessionManager';
 import { listPiSessions } from './piSessionList';
 import type { WebviewModelOption } from './chatWebview';
@@ -30,6 +31,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   private pendingInputFocus = false;
   private webviewReady = false;
   private readonly controller: TauSessionManager;
+  private readonly codeRenderer = new ShikiCodeRenderer();
   private contextUsagePollTimer: NodeJS.Timeout | undefined;
   private readonly disposables: vscode.Disposable[] = [];
   private readonly webviewDisposables: vscode.Disposable[] = [];
@@ -81,7 +83,12 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
         if (event.affectsConfiguration('tau.outputColors')) {
           this.controller.postState();
         }
-      })
+
+        if (event.affectsConfiguration('editor.tokenColorCustomizations') || event.affectsConfiguration('editor.semanticTokenColorCustomizations')) {
+          this.resetCodeRenderer();
+        }
+      }),
+      vscode.window.onDidChangeActiveColorTheme(() => this.resetCodeRenderer())
     );
   }
 
@@ -93,6 +100,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       disposable.dispose();
     }
 
+    this.codeRenderer.dispose();
     this.controller.dispose();
   }
 
@@ -112,9 +120,6 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     const domPurifyUri = webviewView.webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, 'resources', 'vendor', 'purify.min.js')
     );
-    const highlightUri = webviewView.webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, 'resources', 'vendor', 'highlight.min.js')
-    );
     const webviewScriptUri = webviewView.webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, 'resources', 'webview', 'chat.js')
     );
@@ -122,7 +127,6 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     webviewView.webview.html = createWebviewHtml({
       markdownItScriptUri: markdownItUri.toString(),
       domPurifyScriptUri: domPurifyUri.toString(),
-      highlightScriptUri: highlightUri.toString(),
       webviewScriptUri: webviewScriptUri.toString()
     });
 
@@ -221,7 +225,27 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       return;
     }
 
+    if (message.type === 'highlightCode') {
+      await this.handleCodeHighlightRequest(message.id, message.code, message.language);
+      return;
+    }
+
     await this.controller.handleWebviewMessage(message);
+  }
+
+  private async handleCodeHighlightRequest(id: string, code: string, language: string): Promise<void> {
+    const result = await this.codeRenderer.highlightCode(code, language);
+    void this.webviewView?.webview.postMessage({
+      type: 'highlightCodeResult',
+      id,
+      html: result?.html,
+      language: result?.language
+    });
+  }
+
+  private resetCodeRenderer(): void {
+    this.codeRenderer.reset();
+    void this.webviewView?.webview.postMessage({ type: 'codeThemeChanged' });
   }
 
   private async openFileReference(filePath: string, line?: number, column?: number): Promise<void> {

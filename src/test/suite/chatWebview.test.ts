@@ -134,6 +134,10 @@ suite('Chat webview helpers', () => {
       { type: 'copyText', text: 'assistant output' }
     );
     assert.deepStrictEqual(
+      parseWebviewMessage({ type: 'highlightCode', id: 'highlight-1', code: 'const x = 1;', language: 'typescript' }),
+      { type: 'highlightCode', id: 'highlight-1', code: 'const x = 1;', language: 'typescript' }
+    );
+    assert.deepStrictEqual(
       parseWebviewMessage({ type: 'submit', text: 'hello' }),
       { type: 'submit', text: 'hello' }
     );
@@ -169,6 +173,9 @@ suite('Chat webview helpers', () => {
     assert.deepStrictEqual(parseWebviewMessage({ type: 'removePromptContext', id: '' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'copyText', text: '' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'copyText', text: 42 }), { type: 'unknown' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'highlightCode', id: '', code: 'const x = 1;', language: 'typescript' }), { type: 'unknown' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'highlightCode', id: 'highlight-1', code: '', language: 'typescript' }), { type: 'unknown' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'highlightCode', id: 'highlight-1', code: 'const x = 1;', language: '' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'submit', text: 'hello', streamingBehavior: 'later' }), { type: 'unknown' });
     assert.deepStrictEqual(
       parseWebviewMessage({ type: 'setModel', provider: 'openai' }),
@@ -190,7 +197,6 @@ suite('Chat webview helpers', () => {
     const html = createWebviewHtml({
       markdownItScriptUri: 'vscode-resource://markdown-it.js',
       domPurifyScriptUri: 'vscode-resource://dompurify.js',
-      highlightScriptUri: 'vscode-resource://highlight.js',
       webviewScriptUri: 'vscode-resource://chat.js'
     });
     const scriptMatch = html.match(/<script nonce="([A-Za-z0-9]{32})"/);
@@ -205,7 +211,7 @@ suite('Chat webview helpers', () => {
     );
     assert.ok(html.includes('    .pi-view {'));
     assert.ok(html.includes('      display: grid;'));
-    assert.ok(html.includes('<script nonce="' + nonce + '" src="vscode-resource://highlight.js"></script>'));
+    assert.ok(!html.includes('vscode-resource://highlight.js'));
     assert.ok(html.includes('<script nonce="' + nonce + '" src="vscode-resource://markdown-it.js"></script>'));
     assert.ok(html.includes('<script nonce="' + nonce + '" src="vscode-resource://dompurify.js"></script>'));
     assert.ok(html.includes('<script nonce="' + nonce + '" src="vscode-resource://chat.js"></script>'));

@@ -111,17 +111,10 @@ export type MarkdownItFactory = (options: {
   html: boolean;
   linkify: boolean;
   breaks: boolean;
-  highlight(code: string, language: string): string;
 }) => MarkdownRenderer;
 
 export type DomPurify = {
   sanitize(value: string, config?: unknown): string;
-};
-
-export type HighlightJs = {
-  getLanguage(language: string): unknown;
-  highlight(code: string, options: { language: string; ignoreIllegals: boolean }): { value: string };
-  highlightAuto(code: string): { value: string };
 };
 
 declare global {
@@ -130,6 +123,5 @@ declare global {
   interface Window {
     markdownit?: MarkdownItFactory;
     DOMPurify?: DomPurify;
-    hljs?: HighlightJs;
   }
 }

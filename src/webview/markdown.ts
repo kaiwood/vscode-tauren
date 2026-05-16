@@ -1,4 +1,5 @@
-import type { HighlightJs, MarkdownRenderer } from './types';
+import { requestCodeHighlight, requestCodeHighlightsIn } from './codeHighlighting';
+import type { MarkdownRenderer } from './types';
 
 export type RenderMarkdownOptions = {
   animateFromText?: string;
@@ -8,8 +9,7 @@ const markdownRenderer: MarkdownRenderer | undefined = window.markdownit
   ? window.markdownit({
     html: false,
     linkify: true,
-    breaks: false,
-    highlight: highlightCode
+    breaks: false
   })
   : undefined;
 
@@ -27,32 +27,19 @@ export function renderMarkdownInto(element: HTMLElement, text: string, options: 
     USE_PROFILES: { html: true }
   });
   linkifyFileReferences(element);
+  requestCodeHighlightsIn(element);
   animateNewVisibleText(element, options.animateFromText);
 }
 
 export function renderHighlightedCodeInto(element: HTMLElement, code: string, filePath: string): boolean {
-  if (!window.hljs || !window.DOMPurify) {
-    return false;
-  }
-
-  const language = getLanguageForPath(filePath, window.hljs);
+  const language = getPathLanguageHint(filePath);
 
   if (!language) {
     return false;
   }
 
-  try {
-    const highlighted = window.hljs.highlight(code, {
-      language,
-      ignoreIllegals: true
-    }).value;
-    element.innerHTML = window.DOMPurify.sanitize(highlighted, {
-      USE_PROFILES: { html: true }
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  element.textContent = code;
+  return requestCodeHighlight(element, code, language);
 }
 
 function linkifyFileReferences(root: HTMLElement): void {
@@ -284,54 +271,6 @@ function appendAnimatedText(fragment: DocumentFragment, text: string, initialWor
   return wordIndex;
 }
 
-function highlightCode(code: string, language: string): string {
-  if (!window.hljs || typeof language !== 'string' || language.length === 0) {
-    return escapeHtml(code);
-  }
-
-  const normalizedLanguage = normalizeCodeLanguage(language);
-
-  if (!window.hljs.getLanguage(normalizedLanguage)) {
-    return escapeHtml(code);
-  }
-
-  try {
-    return window.hljs.highlight(code, {
-      language: normalizedLanguage,
-      ignoreIllegals: true
-    }).value;
-  } catch {
-    return escapeHtml(code);
-  }
-}
-
-function normalizeCodeLanguage(language: string): string {
-  const normalized = language.toLowerCase().trim();
-  const aliases: Record<string, string> = {
-    cjs: 'javascript',
-    js: 'javascript',
-    jsx: 'javascript',
-    mjs: 'javascript',
-    shell: 'bash',
-    sh: 'bash',
-    ts: 'typescript',
-    tsx: 'typescript',
-    yml: 'yaml'
-  };
-
-  return aliases[normalized] || normalized;
-}
-
-function getLanguageForPath(filePath: string, hljs: HighlightJs): string | undefined {
-  const language = normalizeCodeLanguage(getPathLanguageHint(filePath));
-
-  if (!language || !hljs.getLanguage(language)) {
-    return undefined;
-  }
-
-  return language;
-}
-
 function getPathLanguageHint(filePath: string): string {
   const basename = filePath.replace(/\\/g, '/').split('/').pop()?.toLowerCase() ?? '';
 
@@ -345,12 +284,4 @@ function getPathLanguageHint(filePath: string): string {
 
   const extensionMatch = basename.match(/\.([a-z0-9]+)$/);
   return extensionMatch?.[1] ?? '';
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }

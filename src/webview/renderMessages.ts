@@ -330,7 +330,11 @@ function applyAnsiSgr(parameters: string, current: AnsiStyle): AnsiStyle {
       && codes[index + 3] !== undefined
       && codes[index + 4] !== undefined
     ) {
-      const color = `rgb(${clampColor(codes[index + 2])}, ${clampColor(codes[index + 3])}, ${clampColor(codes[index + 4])})`;
+      const color = ansiRgbColor(
+        clampColor(codes[index + 2]),
+        clampColor(codes[index + 3]),
+        clampColor(codes[index + 4])
+      );
 
       if (code === 38) {
         next.foreground = color;
@@ -363,7 +367,7 @@ function applyAnsiStyle(element: HTMLElement, style: AnsiStyle): void {
   if (foreground) {
     element.style.color = foreground;
   } else if (style.inverse && background) {
-    element.style.color = 'var(--vscode-sideBar-background)';
+    element.style.color = 'var(--tau-code-background, var(--vscode-sideBar-background))';
   }
 
   if (background) {
@@ -421,15 +425,39 @@ function isBrightAnsiBackground(code: number): boolean {
   return code >= 100 && code <= 107;
 }
 
-function ansiBasicColor(index: number, bright: boolean): string {
-  const names = bright
-    ? ['BrightBlack', 'BrightRed', 'BrightGreen', 'BrightYellow', 'BrightBlue', 'BrightMagenta', 'BrightCyan', 'BrightWhite']
-    : ['Black', 'Red', 'Green', 'Yellow', 'Blue', 'Magenta', 'Cyan', 'White'];
-  const fallbacks = bright
-    ? ['#666666', '#f14c4c', '#23d18b', '#f5f543', '#3b8eea', '#d670d6', '#29b8db', '#e5e5e5']
-    : ['#000000', '#cd3131', '#0dbc79', '#e5e510', '#2472c8', '#bc3fbc', '#11a8cd', '#e5e5e5'];
+const ANSI_COLOR_NAMES = ['Black', 'Red', 'Green', 'Yellow', 'Blue', 'Magenta', 'Cyan', 'White'];
+const ANSI_BRIGHT_COLOR_NAMES = ['BrightBlack', 'BrightRed', 'BrightGreen', 'BrightYellow', 'BrightBlue', 'BrightMagenta', 'BrightCyan', 'BrightWhite'];
+const ANSI_COLOR_FALLBACK_VARIABLES = [
+  '--tau-ansi-black-fallback',
+  '--tau-ansi-red-fallback',
+  '--tau-ansi-green-fallback',
+  '--tau-ansi-yellow-fallback',
+  '--tau-ansi-blue-fallback',
+  '--tau-ansi-magenta-fallback',
+  '--tau-ansi-cyan-fallback',
+  '--tau-ansi-white-fallback'
+];
+const ANSI_BRIGHT_COLOR_FALLBACK_VARIABLES = [
+  '--tau-ansi-bright-black-fallback',
+  '--tau-ansi-bright-red-fallback',
+  '--tau-ansi-bright-green-fallback',
+  '--tau-ansi-bright-yellow-fallback',
+  '--tau-ansi-bright-blue-fallback',
+  '--tau-ansi-bright-magenta-fallback',
+  '--tau-ansi-bright-cyan-fallback',
+  '--tau-ansi-bright-white-fallback'
+];
+const ANSI_COLOR_FALLBACKS = ['#000000', '#cd3131', '#0dbc79', '#e5e510', '#2472c8', '#bc3fbc', '#11a8cd', '#e5e5e5'];
+const ANSI_BRIGHT_COLOR_FALLBACKS = ['#666666', '#f14c4c', '#23d18b', '#f5f543', '#3b8eea', '#d670d6', '#29b8db', '#e5e5e5'];
 
-  return `var(--vscode-terminal-ansi${names[index] ?? 'White'}, ${fallbacks[index] ?? '#e5e5e5'})`;
+function ansiBasicColor(index: number, bright: boolean): string {
+  const names = bright ? ANSI_BRIGHT_COLOR_NAMES : ANSI_COLOR_NAMES;
+  const fallbackVariables = bright ? ANSI_BRIGHT_COLOR_FALLBACK_VARIABLES : ANSI_COLOR_FALLBACK_VARIABLES;
+  const fallbacks = bright ? ANSI_BRIGHT_COLOR_FALLBACKS : ANSI_COLOR_FALLBACKS;
+  const fallbackVariable = fallbackVariables[index] ?? '--tau-ansi-white-fallback';
+  const fallback = fallbacks[index] ?? '#e5e5e5';
+
+  return `var(--vscode-terminal-ansi${names[index] ?? 'White'}, var(${fallbackVariable}, ${fallback}))`;
 }
 
 function ansi256Color(value: number): string | undefined {
@@ -454,12 +482,121 @@ function ansi256Color(value: number): string | undefined {
   const red = Math.floor(offset / 36);
   const green = Math.floor((offset % 36) / 6);
   const blue = offset % 6;
+  const terminalColor = ansiCubeTerminalColor(red, green, blue);
+
+  if (terminalColor) {
+    return terminalColor;
+  }
 
   return `rgb(${ansi256Channel(red)}, ${ansi256Channel(green)}, ${ansi256Channel(blue)})`;
 }
 
+function ansiCubeTerminalColor(red: number, green: number, blue: number): string | undefined {
+  if (red === 0 && green === 0 && blue === 0) {
+    return ansiBasicColor(0, false);
+  }
+
+  if (red > 0 && green === 0 && blue === 0) {
+    return ansiBasicColor(1, red >= 5);
+  }
+
+  if (red === 0 && green > 0 && blue === 0) {
+    return ansiBasicColor(2, green >= 5);
+  }
+
+  if (red > 0 && green > 0 && blue === 0 && Math.abs(red - green) <= 1) {
+    return ansiBasicColor(3, red >= 5 || green >= 5);
+  }
+
+  if (red === 0 && green === 0 && blue > 0) {
+    return ansiBasicColor(4, blue >= 5);
+  }
+
+  if (red > 0 && green === 0 && blue > 0 && Math.abs(red - blue) <= 1) {
+    return ansiBasicColor(5, red >= 5 || blue >= 5);
+  }
+
+  if (red === 0 && green > 0 && blue > 0 && Math.abs(green - blue) <= 1) {
+    return ansiBasicColor(6, green >= 5 || blue >= 5);
+  }
+
+  if (red === green && green === blue) {
+    if (red >= 5) {
+      return ansiBasicColor(7, true);
+    }
+
+    if (red >= 3) {
+      return ansiBasicColor(7, false);
+    }
+
+    return ansiBasicColor(0, true);
+  }
+
+  return undefined;
+}
+
 function ansi256Channel(value: number): number {
   return value === 0 ? 0 : 55 + (value * 40);
+}
+
+function ansiRgbColor(red: number, green: number, blue: number): string {
+  const terminalColor = ansiRgbTerminalColor(red, green, blue);
+
+  if (terminalColor) {
+    return terminalColor;
+  }
+
+  return `rgb(${red}, ${green}, ${blue})`;
+}
+
+function ansiRgbTerminalColor(red: number, green: number, blue: number): string | undefined {
+  const low = 32;
+  const high = 128;
+  const bright = 220;
+
+  if (red <= low && green <= low && blue <= low) {
+    return ansiBasicColor(0, false);
+  }
+
+  if (red >= high && green <= low && blue <= low) {
+    return ansiBasicColor(1, red >= bright);
+  }
+
+  if (red <= low && green >= high && blue <= low) {
+    return ansiBasicColor(2, green >= bright);
+  }
+
+  if (red >= high && green >= high && blue <= low && Math.abs(red - green) <= 80) {
+    return ansiBasicColor(3, red >= bright || green >= bright);
+  }
+
+  if (red <= low && green <= low && blue >= high) {
+    return ansiBasicColor(4, blue >= bright);
+  }
+
+  if (red >= high && green <= low && blue >= high && Math.abs(red - blue) <= 80) {
+    return ansiBasicColor(5, red >= bright || blue >= bright);
+  }
+
+  if (red <= low && green >= high && blue >= high && Math.abs(green - blue) <= 80) {
+    return ansiBasicColor(6, green >= bright || blue >= bright);
+  }
+
+  if (Math.abs(red - green) <= 16 && Math.abs(green - blue) <= 16) {
+    if (red >= 220) {
+      return ansiBasicColor(7, true);
+    }
+
+    if (red >= 160) {
+      return ansiBasicColor(7, false);
+    }
+
+    if (red >= 80) {
+      return ansiBasicColor(0, true);
+    }
+  }
+
+  return undefined;
 }
 
 function clampColor(value: number): number {

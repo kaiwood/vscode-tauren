@@ -1,3 +1,4 @@
+import { configureCodeHighlighting, handleCodeHighlightMessage } from './codeHighlighting';
 import { getWebviewDom } from './dom';
 import { createMessageElement, updateMessageBodyElement } from './renderMessages';
 import { buildSessionTreePrefix, formatSessionMeta, getSessionDisplayName, shortenPath } from './sessionFormat';
@@ -27,6 +28,7 @@ import type {
 } from './types';
 
 const vscode = acquireVsCodeApi();
+configureCodeHighlighting((message) => vscode.postMessage(message));
 const {
   viewElement,
   toolbarTitleElement,
@@ -102,6 +104,10 @@ type RenderedMessageView = {
 
 let renderedMessageViews: RenderedMessageView[] = [];
 window.addEventListener('message', (event) => {
+  if (handleCodeHighlightMessage(event.data)) {
+    return;
+  }
+
   if (event.data?.type === 'focusInput') {
     focusPromptInput();
     return;

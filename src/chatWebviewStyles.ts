@@ -1,5 +1,24 @@
 const baseStyles = /* css */ `    :root {
       color-scheme: light dark;
+      --tau-code-foreground: var(--vscode-editor-foreground, var(--vscode-foreground));
+      --tau-code-background: var(--vscode-textCodeBlock-background, color-mix(in srgb, var(--vscode-foreground) 8%, transparent));
+      --tau-code-inline-background: var(--vscode-textPreformat-background, color-mix(in srgb, var(--vscode-foreground) 10%, transparent));
+      --tau-ansi-black-fallback: #000000;
+      --tau-ansi-red-fallback: #cd3131;
+      --tau-ansi-green-fallback: #0dbc79;
+      --tau-ansi-yellow-fallback: #e5e510;
+      --tau-ansi-blue-fallback: #2472c8;
+      --tau-ansi-magenta-fallback: #bc3fbc;
+      --tau-ansi-cyan-fallback: #11a8cd;
+      --tau-ansi-white-fallback: #e5e5e5;
+      --tau-ansi-bright-black-fallback: #666666;
+      --tau-ansi-bright-red-fallback: #f14c4c;
+      --tau-ansi-bright-green-fallback: #23d18b;
+      --tau-ansi-bright-yellow-fallback: #f5f543;
+      --tau-ansi-bright-blue-fallback: #3b8eea;
+      --tau-ansi-bright-magenta-fallback: #d670d6;
+      --tau-ansi-bright-cyan-fallback: #29b8db;
+      --tau-ansi-bright-white-fallback: #e5e5e5;
     }
 
     * {
@@ -29,6 +48,14 @@ const baseStyles = /* css */ `    :root {
       background: var(--vscode-sideBar-background);
       font-family: var(--vscode-font-family);
       font-size: var(--vscode-font-size);
+    }
+
+    body.vscode-light {
+      --tau-ansi-yellow-fallback: #949800;
+      --tau-ansi-blue-fallback: #0451a5;
+      --tau-ansi-white-fallback: #555555;
+      --tau-ansi-bright-yellow-fallback: #795e26;
+      --tau-ansi-bright-white-fallback: #222222;
     }
 
     .pi-view {
@@ -600,9 +627,10 @@ const messageStyles = /* css */ `    .message {
 
     .message__body--markdown code {
       padding: 1px 3px;
+      color: var(--tau-code-foreground);
       font-family: var(--vscode-editor-font-family, monospace);
       font-size: 0.92em;
-      background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+      background: var(--tau-code-inline-background);
       border-radius: 3px;
     }
 
@@ -610,7 +638,8 @@ const messageStyles = /* css */ `    .message {
       max-width: 100%;
       padding: 8px;
       overflow: auto;
-      background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+      color: var(--tau-code-foreground);
+      background: var(--tau-code-background);
       border-radius: 6px;
       white-space: pre;
     }
@@ -621,84 +650,8 @@ const messageStyles = /* css */ `    .message {
       border-radius: 0;
     }
 
-    .message__body--markdown .hljs-comment,
-    .message__body--markdown .hljs-quote,
-    .activity__body--code .hljs-comment,
-    .activity__body--code .hljs-quote {
-      color: var(--vscode-descriptionForeground);
-    }
-
-    .message__body--markdown .hljs-keyword,
-    .message__body--markdown .hljs-selector-tag,
-    .message__body--markdown .hljs-subst,
-    .activity__body--code .hljs-keyword,
-    .activity__body--code .hljs-selector-tag,
-    .activity__body--code .hljs-subst {
-      color: var(--vscode-symbolIcon-keywordForeground, #569cd6);
-    }
-
-    .message__body--markdown .hljs-literal,
-    .message__body--markdown .hljs-number,
-    .message__body--markdown .hljs-doctag,
-    .activity__body--code .hljs-literal,
-    .activity__body--code .hljs-number,
-    .activity__body--code .hljs-doctag {
-      color: var(--vscode-symbolIcon-numberForeground, #b5cea8);
-    }
-
-    .message__body--markdown .hljs-string,
-    .message__body--markdown .hljs-regexp,
-    .message__body--markdown .hljs-addition,
-    .activity__body--code .hljs-string,
-    .activity__body--code .hljs-regexp,
-    .activity__body--code .hljs-addition {
-      color: var(--vscode-symbolIcon-stringForeground, #ce9178);
-    }
-
-    .message__body--markdown .hljs-title,
-    .message__body--markdown .hljs-section,
-    .message__body--markdown .hljs-selector-id,
-    .activity__body--code .hljs-title,
-    .activity__body--code .hljs-section,
-    .activity__body--code .hljs-selector-id {
-      color: var(--vscode-symbolIcon-functionForeground, #dcdcaa);
-    }
-
-    .message__body--markdown .hljs-class .hljs-title,
-    .message__body--markdown .hljs-type,
-    .message__body--markdown .hljs-built_in,
-    .activity__body--code .hljs-class .hljs-title,
-    .activity__body--code .hljs-type,
-    .activity__body--code .hljs-built_in {
-      color: var(--vscode-symbolIcon-classForeground, #4ec9b0);
-    }
-
-    .message__body--markdown .hljs-attr,
-    .message__body--markdown .hljs-variable,
-    .message__body--markdown .hljs-template-variable,
-    .message__body--markdown .hljs-attribute,
-    .activity__body--code .hljs-attr,
-    .activity__body--code .hljs-variable,
-    .activity__body--code .hljs-template-variable,
-    .activity__body--code .hljs-attribute {
-      color: var(--vscode-symbolIcon-variableForeground, #9cdcfe);
-    }
-
-    .message__body--markdown .hljs-deletion,
-    .message__body--markdown .hljs-meta,
-    .activity__body--code .hljs-deletion,
-    .activity__body--code .hljs-meta {
-      color: var(--vscode-errorForeground, #f44747);
-    }
-
-    .message__body--markdown .hljs-emphasis,
-    .activity__body--code .hljs-emphasis {
-      font-style: italic;
-    }
-
-    .message__body--markdown .hljs-strong,
-    .activity__body--code .hljs-strong {
-      font-weight: 600;
+    .tau-shiki-pending {
+      color: var(--tau-code-foreground);
     }
 
     .message__body--markdown blockquote {
@@ -902,6 +855,8 @@ const activityStyles = /* css */ `    .activity-list {
     }
 
     .activity__body--code {
+      color: var(--tau-code-foreground);
+      background: var(--tau-code-background);
       font-family: var(--vscode-editor-font-family, monospace);
       font-size: 11px;
     }

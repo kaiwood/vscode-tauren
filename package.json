@@ -104,7 +104,6 @@
     "watch": "npm run compile:webview && tsc -watch -p ./"
   },
   "devDependencies": {
-    "@highlightjs/cdn-assets": "^11.11.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "^24.0.0",
     "@types/vscode": "^1.118.0",
@@ -115,5 +114,9 @@
     "markdown-it": "^14.1.1",
     "mocha": "^11.7.5",
     "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "shiki": "^3.23.0",
+    "vscode-shiki-bridge": "^0.5.2"
   }
 }
