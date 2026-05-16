@@ -5,7 +5,7 @@ import {
   parseWebviewMessage
 } from './sidebar/chatWebview';
 import type { WebviewMessage } from './sidebar/types';
-import { type PiRpcClientFactory } from './piChatController';
+import { type PiRpcClientFactory } from './rpc/clientTypes';
 import { PiRpcClient } from './rpc/client';
 import { createSessionDiffStatsFileWatcher, readSessionDiffSnapshot, writeSessionDiffSnapshot } from './diff/sessionDiffStorage';
 import { SessionDiffViewer } from './diff/sessionDiffViewer';
@@ -17,7 +17,7 @@ import { createPromptContextFromEditor } from './prompt/editorContext';
 import { readCachedSessionMeta, writeCachedSessionMeta } from './metadata/cache';
 
 export const chatViewType = 'tau.chatView';
-export type { PiRpcClientLike } from './piChatController';
+export type { PiRpcClientLike } from './rpc/clientTypes';
 
 const currentSessionFileStorageKey = 'tau.currentSessionFile';
 const contextUsagePollingIntervalMs = 2000;

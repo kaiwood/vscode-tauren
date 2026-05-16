@@ -24,7 +24,7 @@ import {
   type ActivityRemoveAction,
   type ActivityUpdateAction
 } from './piEventMapper';
-import type { PiRpcClient } from './rpc/client';
+import type { PiRpcClientFactory, PiRpcClientLike } from './rpc/clientTypes';
 import type {
   PiPromptStreamingBehavior,
   PiRpcClientOptions,
@@ -62,36 +62,6 @@ import {
 import { SessionViewController } from './controller/sessionViewController';
 import { formatAgentMessages, type RestoredToolCall } from './controller/transcriptFormatting';
 import { getRecordString, isRecord } from './controller/typeGuards';
-
-export type PiRpcClientLike = Pick<
-  PiRpcClient,
-  | 'onEvent'
-  | 'onError'
-  | 'prompt'
-  | 'abort'
-  | 'reload'
-  | 'isRunning'
-  | 'getState'
-  | 'getSessionStats'
-  | 'getAvailableModels'
-  | 'getCommands'
-  | 'setModel'
-  | 'setThinkingLevel'
-  | 'setSessionName'
-  | 'compact'
-  | 'exportHtml'
-  | 'getLastAssistantText'
-  | 'getMessages'
-  | 'switchSession'
-  | 'navigateTree'
-  | 'getForkMessages'
-  | 'fork'
-  | 'clone'
-  | 'respondExtensionUiRequest'
-  | 'dispose'
->;
-
-export type PiRpcClientFactory = (options: PiRpcClientOptions) => PiRpcClientLike;
 
 export type { PiChatContextUsage, PiChatModelMeta, PiChatSessionMetaSnapshot } from './sessionMetadata';
 

@@ -3,7 +3,7 @@ import {
   ExtensionUiRequestHandler,
   type ExtensionUiRequestUi
 } from '../extensionUiRequestHandler';
-import type { PiRpcClientFactory, PiRpcClientLike } from '../piChatController';
+import type { PiRpcClientFactory, PiRpcClientLike } from '../rpc/clientTypes';
 import type { PiRpcClientOptions } from '../rpc/types';
 import { formatForkMessageLabel, formatForkMessages } from './sessionFormatting';
 

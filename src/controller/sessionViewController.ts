@@ -4,7 +4,8 @@ import type {
   WebviewSessionItemCommand,
   WebviewTreeItem
 } from '../sidebar/types';
-import type { PiChatControllerOptions, PiRpcClientLike } from '../piChatController';
+import type { PiChatControllerOptions } from '../piChatController';
+import type { PiRpcClientLike } from '../rpc/clientTypes';
 import { getErrorMessage } from './errors';
 import {
   cloneSessionWithClient,

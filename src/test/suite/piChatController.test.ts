@@ -5,9 +5,9 @@ import * as path from 'path';
 import {
   PiChatController,
   type PiChatControllerOptions,
-  type PiChatSessionMetaSnapshot,
-  type PiRpcClientLike
+  type PiChatSessionMetaSnapshot
 } from '../../piChatController';
+import type { PiRpcClientLike } from '../../rpc/clientTypes';
 import type { WebviewSessionItem, WebviewStateMessage, WebviewTreeItem } from '../../sidebar/types';
 import type { StatePublisherScheduler } from '../../statePublisher';
 import type {
