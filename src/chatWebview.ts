@@ -198,6 +198,11 @@ export type WebviewTreeItem = {
   current: boolean;
 };
 
+export type WebviewWorkspaceDiffStats = {
+  addedLines: number;
+  removedLines: number;
+};
+
 export type WebviewStateMessage = ChatState & {
   type: 'state';
   modelLabel: string;
@@ -210,6 +215,7 @@ export type WebviewStateMessage = ChatState & {
   contextUsageTitle: string;
   contextUsageLevel: string;
   metadataRefreshing: boolean;
+  workspaceDiffStats: WebviewWorkspaceDiffStats;
   slashCommands: WebviewSlashCommand[];
   slashCommandsRefreshing: boolean;
   outputColors: boolean;
@@ -244,6 +250,7 @@ type CreateWebviewStateMessageOptions = {
     level?: string;
   };
   metadataRefreshing?: boolean;
+  workspaceDiffStats?: WebviewWorkspaceDiffStats;
   slashCommands?: WebviewSlashCommand[];
   slashCommandsRefreshing?: boolean;
   outputColors?: boolean;
@@ -271,6 +278,7 @@ export function createWebviewStateMessage({
   model = {},
   contextUsage = {},
   metadataRefreshing = false,
+  workspaceDiffStats = { addedLines: 0, removedLines: 0 },
   slashCommands = [],
   slashCommandsRefreshing = false,
   outputColors = true,
@@ -292,6 +300,10 @@ export function createWebviewStateMessage({
     contextUsageTitle: contextUsage.title ?? '',
     contextUsageLevel: contextUsage.level ?? '',
     metadataRefreshing,
+    workspaceDiffStats: {
+      addedLines: normalizeDiffLineCount(workspaceDiffStats.addedLines),
+      removedLines: normalizeDiffLineCount(workspaceDiffStats.removedLines)
+    },
     slashCommands,
     slashCommandsRefreshing,
     outputColors
@@ -432,7 +444,12 @@ ${chatWebviewStyles}
       <div class="composer__context-badges" aria-label="Attached context" hidden></div>
       <textarea class="composer__input" rows="1" aria-label="Message" placeholder="Write your prompt…" aria-autocomplete="list" aria-controls="slash-command-list" aria-expanded="false"></textarea>
       <div class="composer__busy-submit" hidden aria-live="polite">
-        <span class="composer__busy-submit-hint"></span>
+        <span class="composer__diff-summary">
+          <span>Changes:</span>
+          <span class="composer__diff-added">+0</span>
+          <span aria-hidden="true">|</span>
+          <span class="composer__diff-removed">-0</span>
+        </span>
         <span class="composer__busy-submit-modes" role="group" aria-label="Busy submit mode">
           <button class="composer__mode-button" type="button" data-streaming-behavior="steer">Steer</button>
           <button class="composer__mode-button" type="button" data-streaming-behavior="followUp">Follow-up</button>
@@ -486,6 +503,10 @@ ${chatWebviewStyles}
 
 function parseStreamingBehavior(value: unknown): WebviewStreamingBehavior | undefined {
   return value === 'steer' || value === 'followUp' ? value : undefined;
+}
+
+function normalizeDiffLineCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
 
 function isWebviewSessionItemCommand(command: unknown): command is WebviewSessionItemCommand {

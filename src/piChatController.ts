@@ -48,6 +48,11 @@ import {
   isBuiltinSlashCommand,
   isSupportedBuiltinSlashCommand
 } from './slashCommands';
+import {
+  emptyWorkspaceDiffStats,
+  getWorkspaceDiffStats,
+  type WorkspaceDiffStats
+} from './workspaceDiffStats';
 
 export type PiRpcClientLike = Pick<
   PiRpcClient,
@@ -140,6 +145,7 @@ export type PiChatControllerOptions = {
   listSessions?: (cwd: string | undefined, currentSessionFile: string | undefined) => Promise<WebviewSessionItem[]>;
   listSessionTree?: (sessionFile: string | undefined) => Promise<WebviewTreeItem[]>;
   deleteSession?: (sessionPath: string, displayName: string) => Promise<boolean>;
+  getWorkspaceDiffStats?: (cwd: string | undefined) => Promise<WorkspaceDiffStats>;
 };
 
 type DisposableLike = {
@@ -188,6 +194,10 @@ export class PiChatController {
   private contextUsageRefreshInFlight: { generation: number; promise: Promise<void> } | undefined;
   private slashCommandsRefreshInFlight: { generation: number; promise: Promise<void> } | undefined;
   private compacting = false;
+  private workspaceDiffStats = emptyWorkspaceDiffStats();
+  private workspaceDiffStatsPollTimeout: ReturnType<typeof setTimeout> | undefined;
+  private workspaceDiffStatsRefreshInFlight: Promise<void> | undefined;
+  private workspaceDiffStatsDisposed = false;
   private readonly liveToolCallsById = new Map<string, RestoredToolCall>();
   private readonly session = new ChatSession();
   private readonly clientDisposables: DisposableLike[] = [];
@@ -219,6 +229,8 @@ export class PiChatController {
   }
 
   public dispose(): void {
+    this.workspaceDiffStatsDisposed = true;
+    this.stopWorkspaceDiffStatsPolling();
     this.extensionUiRequestHandler.dispose();
     this.statePublisher.dispose();
     this.disposeClient();
@@ -227,6 +239,7 @@ export class PiChatController {
   public async handleWebviewMessage(message: WebviewMessage): Promise<void> {
     if (message.type === 'ready') {
       this.postState();
+      void this.refreshWorkspaceDiffStats();
       void this.refreshSessionMeta({ startClient: true });
       void this.refreshSessions();
       return;
@@ -363,6 +376,7 @@ export class PiChatController {
     const promptText = this.formatPromptForPi(submittedPrompt.text, promptContext);
 
     this.resetAbortState();
+    this.startWorkspaceDiffStatsPolling();
     this.postState();
 
     try {
@@ -374,6 +388,7 @@ export class PiChatController {
 
       this.restorePromptContext(promptContext);
       this.session.failActivePrompt(getErrorMessage(error));
+      this.stopWorkspaceDiffStatsPolling();
       this.postState();
     }
   }
@@ -497,6 +512,7 @@ export class PiChatController {
         level: this.contextUsageLevel
       },
       metadataRefreshing: this.metadataRefreshing,
+      workspaceDiffStats: this.workspaceDiffStats,
       sessionView: this.shouldPublishSessionView()
         ? {
           viewMode: this.sessionViewMode === 'sessions' || this.sessionViewMode === 'tree' ? this.sessionViewMode : undefined,
@@ -1096,6 +1112,7 @@ export class PiChatController {
     this.sessionHistoryLoading = false;
     this.sessionViewMode = 'chat';
     this.sessionsError = '';
+    void this.refreshWorkspaceDiffStats();
     this.postState();
 
     void this.refreshSessionMeta({ startClient: true, force: true });
@@ -1946,6 +1963,77 @@ export class PiChatController {
     }
   }
 
+  private startWorkspaceDiffStatsPolling(): void {
+    if (this.workspaceDiffStatsDisposed || this.workspaceDiffStatsPollTimeout || !this.options.getCwd?.()) {
+      return;
+    }
+
+    void this.refreshWorkspaceDiffStats();
+    this.scheduleNextWorkspaceDiffStatsPoll();
+  }
+
+  private stopWorkspaceDiffStatsPolling(): void {
+    if (!this.workspaceDiffStatsPollTimeout) {
+      return;
+    }
+
+    clearTimeout(this.workspaceDiffStatsPollTimeout);
+    this.workspaceDiffStatsPollTimeout = undefined;
+  }
+
+  private scheduleNextWorkspaceDiffStatsPoll(): void {
+    this.workspaceDiffStatsPollTimeout = setTimeout(() => {
+      this.workspaceDiffStatsPollTimeout = undefined;
+
+      if (!this.workspaceDiffStatsDisposed && this.session.isBusy) {
+        void this.refreshWorkspaceDiffStats().finally(() => this.scheduleNextWorkspaceDiffStatsPollIfBusy());
+      }
+    }, 1000);
+  }
+
+  private scheduleNextWorkspaceDiffStatsPollIfBusy(): void {
+    if (!this.workspaceDiffStatsDisposed && this.session.isBusy && !this.workspaceDiffStatsPollTimeout) {
+      this.scheduleNextWorkspaceDiffStatsPoll();
+    }
+  }
+
+  private async refreshWorkspaceDiffStats(): Promise<void> {
+    if (this.workspaceDiffStatsRefreshInFlight) {
+      return this.workspaceDiffStatsRefreshInFlight;
+    }
+
+    const sessionGeneration = this.session.generation;
+    const refresh = (this.options.getWorkspaceDiffStats ?? getWorkspaceDiffStats)(this.options.getCwd?.())
+      .catch(() => emptyWorkspaceDiffStats())
+      .then((stats) => {
+        if (this.workspaceDiffStatsDisposed || sessionGeneration !== this.session.generation) {
+          return;
+        }
+
+        this.applyWorkspaceDiffStats(stats);
+      })
+      .finally(() => {
+        if (this.workspaceDiffStatsRefreshInFlight === refresh) {
+          this.workspaceDiffStatsRefreshInFlight = undefined;
+        }
+      });
+
+    this.workspaceDiffStatsRefreshInFlight = refresh;
+    return refresh;
+  }
+
+  private applyWorkspaceDiffStats(stats: WorkspaceDiffStats): void {
+    const addedLines = normalizeDiffLineCount(stats.addedLines);
+    const removedLines = normalizeDiffLineCount(stats.removedLines);
+
+    if (addedLines === this.workspaceDiffStats.addedLines && removedLines === this.workspaceDiffStats.removedLines) {
+      return;
+    }
+
+    this.workspaceDiffStats = { addedLines, removedLines };
+    this.postState();
+  }
+
   private async abortActivePrompt(): Promise<void> {
     if (!this.session.isBusy) {
       return;
@@ -2057,6 +2145,7 @@ export class PiChatController {
     switch (event.type) {
       case 'agent_start':
         this.session.handleAgentStart();
+        this.startWorkspaceDiffStatsPolling();
         this.applyRpcActivity(event);
         this.postState();
         break;
@@ -2067,7 +2156,9 @@ export class PiChatController {
         this.applyRpcActivity(event);
         this.appendAbortNoticeIfNeeded();
         this.session.handleAgentEnd();
+        this.stopWorkspaceDiffStatsPolling();
         this.resetAbortState();
+        void this.refreshWorkspaceDiffStats();
         this.postState();
         void this.refreshSessionMeta().then(
           () => this.restartClientForConfigurationChangeIfIdle(),
@@ -2081,6 +2172,12 @@ export class PiChatController {
       case 'tool_execution_start':
       case 'tool_execution_update':
       case 'tool_execution_end':
+        this.applyRpcActivity(event);
+        if (event.type === 'tool_execution_end') {
+          void this.refreshWorkspaceDiffStats();
+        }
+        this.postState();
+        break;
       case 'queue_update':
       case 'compaction_start':
       case 'compaction_end':
@@ -2278,6 +2375,7 @@ export class PiChatController {
 
     this.session.addErrorMessage(message);
     this.session.setBusy(false);
+    this.stopWorkspaceDiffStatsPolling();
     this.compacting = false;
     this.metadataRefreshing = false;
     this.slashCommandsRefreshing = false;
@@ -2851,6 +2949,10 @@ function getErrorMessage(error: unknown): string {
   }
 
   return String(error);
+}
+
+function normalizeDiffLineCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
 
 function isUnsupportedReloadCommandError(error: unknown): boolean {

@@ -52,6 +52,7 @@ suite('Chat webview helpers', () => {
         contextUsageTitle: '60,000 / 200,000 context tokens',
         contextUsageLevel: 'low',
         metadataRefreshing: false,
+        workspaceDiffStats: { addedLines: 0, removedLines: 0 },
         slashCommands: [],
         slashCommandsRefreshing: false,
         outputColors: true
@@ -76,6 +77,7 @@ suite('Chat webview helpers', () => {
         contextUsageTitle: '',
         contextUsageLevel: '',
         metadataRefreshing: false,
+        workspaceDiffStats: { addedLines: 0, removedLines: 0 },
         slashCommands: [],
         slashCommandsRefreshing: false,
         outputColors: true
@@ -246,6 +248,10 @@ suite('Chat webview helpers', () => {
     assert.ok(html.includes('class="composer__model-menu"'));
     assert.ok(html.includes('class="composer__slash-menu"'));
     assert.ok(html.includes('class="composer__busy-submit"'));
+    assert.ok(html.includes('class="composer__diff-summary"'));
+    assert.ok(html.includes('class="composer__diff-added"'));
+    assert.ok(html.includes('class="composer__diff-removed"'));
+    assert.ok(!html.includes('composer__busy-submit-hint'));
     assert.ok(html.includes('data-streaming-behavior="steer"'));
     assert.ok(html.includes('data-streaming-behavior="followUp"'));
     assert.ok(html.includes('aria-autocomplete="list"'));

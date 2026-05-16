@@ -48,7 +48,9 @@ const {
   slashMenuElement,
   contextBadgesElement,
   busySubmitElement,
-  busySubmitHintElement,
+  diffSummaryElement,
+  diffAddedElement,
+  diffRemovedElement,
   streamingBehaviorButtonElements,
   newSessionButton,
   contextElement,
@@ -1599,28 +1601,45 @@ function isStopSubmitMode() {
 }
 
 function syncBusySubmitMode() {
-  if (!busySubmitElement || !busySubmitHintElement) {
+  if (!busySubmitElement) {
     return;
   }
 
-  setBusySubmitVisible(state.busy);
+  const showDiffSummary = state.busy || hasWorkspaceDiffChanges();
+  setBusySubmitVisible(showDiffSummary);
+  syncDiffSummary();
+
+  const streamingModesElement = streamingBehaviorButtonElements[0]?.parentElement as HTMLElement | undefined;
+  if (streamingModesElement) {
+    streamingModesElement.hidden = !state.busy;
+  }
 
   if (!state.busy) {
     return;
   }
-
-  const hasSendableText = textarea.value.trim().length > 0;
-  busySubmitHintElement.textContent = hasSendableText
-    ? streamingBehavior === 'followUp'
-      ? 'This will run after Pi finishes the current task.'
-      : "This will steer the current run before Pi's next LLM call."
-    : 'Type to steer Pi, or leave empty to stop.';
 
   for (const button of streamingBehaviorButtonElements) {
     const isActive = button.getAttribute('data-streaming-behavior') === streamingBehavior;
     button.classList.toggle('composer__mode-button--active', isActive);
     button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
   }
+}
+
+function syncDiffSummary(): void {
+  const addedLines = formatDiffLineCount(state.workspaceDiffStats.addedLines);
+  const removedLines = formatDiffLineCount(state.workspaceDiffStats.removedLines);
+
+  diffAddedElement.textContent = `+${addedLines}`;
+  diffRemovedElement.textContent = `-${removedLines}`;
+  diffSummaryElement.title = `Changes: +${addedLines} | -${removedLines}`;
+}
+
+function hasWorkspaceDiffChanges(): boolean {
+  return state.workspaceDiffStats.addedLines > 0 || state.workspaceDiffStats.removedLines > 0;
+}
+
+function formatDiffLineCount(value: number): string {
+  return Math.max(0, Math.floor(value)).toLocaleString();
 }
 
 function setBusySubmitVisible(visible: boolean): void {

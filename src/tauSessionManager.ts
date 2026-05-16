@@ -261,6 +261,7 @@ function createEmptyState(): WebviewStateMessage {
     contextUsageTitle: '',
     contextUsageLevel: '',
     metadataRefreshing: false,
+    workspaceDiffStats: { addedLines: 0, removedLines: 0 },
     slashCommands: [],
     slashCommandsRefreshing: false,
     outputColors: true,

@@ -71,6 +71,11 @@ export type ChatMessage = {
   activities?: Activity[];
 };
 
+export type WorkspaceDiffStats = {
+  addedLines: number;
+  removedLines: number;
+};
+
 export type WebviewState = {
   messages: ChatMessage[];
   busy: boolean;
@@ -84,6 +89,7 @@ export type WebviewState = {
   contextUsageTitle: string;
   contextUsageLevel: string;
   metadataRefreshing: boolean;
+  workspaceDiffStats: WorkspaceDiffStats;
   slashCommands: SlashCommand[];
   slashCommandsRefreshing: boolean;
   outputColors: boolean;

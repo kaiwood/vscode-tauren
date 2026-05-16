@@ -1152,11 +1152,25 @@ const composerStyles = /* css */ `    .composer {
       display: none;
     }
 
-    .composer__busy-submit-hint {
+    .composer__diff-summary {
+      display: inline-flex;
       min-width: 0;
+      align-items: center;
+      gap: 4px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .composer__diff-added {
+      color: var(--vscode-gitDecoration-addedResourceForeground, #3fb950);
+      font-weight: 600;
+    }
+
+    .composer__diff-removed {
+      color: var(--vscode-gitDecoration-deletedResourceForeground, #f85149);
+      font-weight: 600;
     }
 
     .composer__busy-submit-modes {

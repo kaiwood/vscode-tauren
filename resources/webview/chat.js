@@ -224,7 +224,9 @@
       slashMenuElement: queryRequired(".composer__slash-menu"),
       contextBadgesElement: queryRequired(".composer__context-badges"),
       busySubmitElement: queryRequired(".composer__busy-submit"),
-      busySubmitHintElement: queryRequired(".composer__busy-submit-hint"),
+      diffSummaryElement: queryRequired(".composer__diff-summary"),
+      diffAddedElement: queryRequired(".composer__diff-added"),
+      diffRemovedElement: queryRequired(".composer__diff-removed"),
       streamingBehaviorButtonElements: queryAll(".composer__mode-button"),
       newSessionButton: queryRequired(".composer__add"),
       contextElement: queryRequired(".composer__context"),
@@ -1046,6 +1048,7 @@
     contextUsageTitle: "",
     contextUsageLevel: "",
     metadataRefreshing: false,
+    workspaceDiffStats: { addedLines: 0, removedLines: 0 },
     slashCommands: [],
     slashCommandsRefreshing: false,
     outputColors: true,
@@ -1078,6 +1081,7 @@
       contextUsageTitle: typeof record.contextUsageTitle === "string" ? record.contextUsageTitle : "",
       contextUsageLevel: typeof record.contextUsageLevel === "string" ? record.contextUsageLevel : "",
       metadataRefreshing: Boolean(record.metadataRefreshing),
+      workspaceDiffStats: parseWorkspaceDiffStats(record.workspaceDiffStats),
       slashCommands: Array.isArray(record.slashCommands) ? record.slashCommands : [],
       slashCommandsRefreshing: Boolean(record.slashCommandsRefreshing),
       outputColors: typeof record.outputColors === "boolean" ? record.outputColors : true,
@@ -1095,6 +1099,18 @@
       treeError: typeof record.treeError === "string" ? record.treeError : "",
       sessionLoading: Boolean(record.sessionLoading)
     };
+  }
+  function parseWorkspaceDiffStats(value) {
+    if (!isRecord2(value)) {
+      return { addedLines: 0, removedLines: 0 };
+    }
+    return {
+      addedLines: normalizeDiffLineCount(value.addedLines),
+      removedLines: normalizeDiffLineCount(value.removedLines)
+    };
+  }
+  function normalizeDiffLineCount(value) {
+    return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
   }
   function isRecord2(value) {
     return typeof value === "object" && value !== null;
@@ -1159,7 +1175,9 @@
     slashMenuElement,
     contextBadgesElement,
     busySubmitElement,
-    busySubmitHintElement,
+    diffSummaryElement,
+    diffAddedElement,
+    diffRemovedElement,
     streamingBehaviorButtonElements,
     newSessionButton,
     contextElement,
@@ -2365,20 +2383,37 @@
     return state.busy && textarea.value.length === 0;
   }
   function syncBusySubmitMode() {
-    if (!busySubmitElement || !busySubmitHintElement) {
+    if (!busySubmitElement) {
       return;
     }
-    setBusySubmitVisible(state.busy);
+    const showDiffSummary = state.busy || hasWorkspaceDiffChanges();
+    setBusySubmitVisible(showDiffSummary);
+    syncDiffSummary();
+    const streamingModesElement = streamingBehaviorButtonElements[0]?.parentElement;
+    if (streamingModesElement) {
+      streamingModesElement.hidden = !state.busy;
+    }
     if (!state.busy) {
       return;
     }
-    const hasSendableText = textarea.value.trim().length > 0;
-    busySubmitHintElement.textContent = hasSendableText ? streamingBehavior === "followUp" ? "This will run after Pi finishes the current task." : "This will steer the current run before Pi's next LLM call." : "Type to steer Pi, or leave empty to stop.";
     for (const button of streamingBehaviorButtonElements) {
       const isActive = button.getAttribute("data-streaming-behavior") === streamingBehavior;
       button.classList.toggle("composer__mode-button--active", isActive);
       button.setAttribute("aria-pressed", isActive ? "true" : "false");
     }
+  }
+  function syncDiffSummary() {
+    const addedLines = formatDiffLineCount(state.workspaceDiffStats.addedLines);
+    const removedLines = formatDiffLineCount(state.workspaceDiffStats.removedLines);
+    diffAddedElement.textContent = `+${addedLines}`;
+    diffRemovedElement.textContent = `-${removedLines}`;
+    diffSummaryElement.title = `Changes: +${addedLines} | -${removedLines}`;
+  }
+  function hasWorkspaceDiffChanges() {
+    return state.workspaceDiffStats.addedLines > 0 || state.workspaceDiffStats.removedLines > 0;
+  }
+  function formatDiffLineCount(value) {
+    return Math.max(0, Math.floor(value)).toLocaleString();
   }
   function setBusySubmitVisible(visible) {
     if (!busySubmitElement) {

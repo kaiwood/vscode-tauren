@@ -16,7 +16,9 @@ export type WebviewDom = {
   slashMenuElement: HTMLElement;
   contextBadgesElement: HTMLElement;
   busySubmitElement: HTMLElement;
-  busySubmitHintElement: HTMLElement;
+  diffSummaryElement: HTMLElement;
+  diffAddedElement: HTMLElement;
+  diffRemovedElement: HTMLElement;
   streamingBehaviorButtonElements: HTMLButtonElement[];
   newSessionButton: HTMLButtonElement;
   contextElement: HTMLElement;
@@ -48,7 +50,9 @@ export function getWebviewDom(): WebviewDom {
     slashMenuElement: queryRequired<HTMLElement>('.composer__slash-menu'),
     contextBadgesElement: queryRequired<HTMLElement>('.composer__context-badges'),
     busySubmitElement: queryRequired<HTMLElement>('.composer__busy-submit'),
-    busySubmitHintElement: queryRequired<HTMLElement>('.composer__busy-submit-hint'),
+    diffSummaryElement: queryRequired<HTMLElement>('.composer__diff-summary'),
+    diffAddedElement: queryRequired<HTMLElement>('.composer__diff-added'),
+    diffRemovedElement: queryRequired<HTMLElement>('.composer__diff-removed'),
     streamingBehaviorButtonElements: queryAll<HTMLButtonElement>('.composer__mode-button'),
     newSessionButton: queryRequired<HTMLButtonElement>('.composer__add'),
     contextElement: queryRequired<HTMLElement>('.composer__context'),

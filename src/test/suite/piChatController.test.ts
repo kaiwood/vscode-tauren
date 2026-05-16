@@ -545,10 +545,34 @@ suite('PiChatController', () => {
       contextUsageTitle: '',
       contextUsageLevel: '',
       metadataRefreshing: false,
+      workspaceDiffStats: { addedLines: 0, removedLines: 0 },
       slashCommands: [],
       slashCommandsRefreshing: false,
       outputColors: true
     });
+    harness.controller.dispose();
+  });
+
+  test('publishes live workspace diff stats while busy', async () => {
+    const client = new FakePiClient();
+    const stats = [
+      { addedLines: 10, removedLines: 4 },
+      { addedLines: 12, removedLines: 5 }
+    ];
+    const harness = createControllerHarness([client], {
+      cwd: '/workspace',
+      getWorkspaceDiffStats: async () => stats.shift() ?? { addedLines: 12, removedLines: 5 }
+    });
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: 'change files' });
+    await flushPromises();
+
+    assert.deepStrictEqual(lastState(harness).workspaceDiffStats, { addedLines: 10, removedLines: 4 });
+
+    client.emit({ type: 'tool_execution_end' });
+    await flushPromises();
+
+    assert.deepStrictEqual(lastState(harness).workspaceDiffStats, { addedLines: 12, removedLines: 5 });
     harness.controller.dispose();
   });
 
@@ -1712,6 +1736,7 @@ type ControllerHarnessOptions = {
   listSessions?: (cwd: string | undefined, currentSessionFile: string | undefined) => Promise<WebviewSessionItem[]>;
   listSessionTree?: (sessionFile: string | undefined) => Promise<WebviewTreeItem[]>;
   deleteSession?: (sessionPath: string, displayName: string) => Promise<boolean>;
+  getWorkspaceDiffStats?: PiChatControllerOptions['getWorkspaceDiffStats'];
 };
 
 function createControllerHarness(
@@ -1752,7 +1777,8 @@ function createControllerHarness(
     onSessionFileChange: options.onSessionFileChange,
     listSessions: options.listSessions,
     listSessionTree: options.listSessionTree,
-    deleteSession: options.deleteSession
+    deleteSession: options.deleteSession,
+    getWorkspaceDiffStats: options.getWorkspaceDiffStats
   };
 
   const controller = new PiChatController(controllerOptions);

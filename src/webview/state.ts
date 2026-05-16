@@ -13,6 +13,7 @@ export const initialWebviewState: WebviewState = {
   contextUsageTitle: '',
   contextUsageLevel: '',
   metadataRefreshing: false,
+  workspaceDiffStats: { addedLines: 0, removedLines: 0 },
   slashCommands: [],
   slashCommandsRefreshing: false,
   outputColors: true,
@@ -47,6 +48,7 @@ export function parseWebviewStateMessage(data: unknown): WebviewState {
     contextUsageTitle: typeof record.contextUsageTitle === 'string' ? record.contextUsageTitle : '',
     contextUsageLevel: typeof record.contextUsageLevel === 'string' ? record.contextUsageLevel : '',
     metadataRefreshing: Boolean(record.metadataRefreshing),
+    workspaceDiffStats: parseWorkspaceDiffStats(record.workspaceDiffStats),
     slashCommands: Array.isArray(record.slashCommands) ? record.slashCommands : [],
     slashCommandsRefreshing: Boolean(record.slashCommandsRefreshing),
     outputColors: typeof record.outputColors === 'boolean' ? record.outputColors : true,
@@ -64,6 +66,21 @@ export function parseWebviewStateMessage(data: unknown): WebviewState {
     treeError: typeof record.treeError === 'string' ? record.treeError : '',
     sessionLoading: Boolean(record.sessionLoading)
   };
+}
+
+function parseWorkspaceDiffStats(value: unknown): { addedLines: number; removedLines: number } {
+  if (!isRecord(value)) {
+    return { addedLines: 0, removedLines: 0 };
+  }
+
+  return {
+    addedLines: normalizeDiffLineCount(value.addedLines),
+    removedLines: normalizeDiffLineCount(value.removedLines)
+  };
+}
+
+function normalizeDiffLineCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
