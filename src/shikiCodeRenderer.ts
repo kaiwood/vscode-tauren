@@ -98,8 +98,22 @@ const languageAliases: Record<string, string> = {
 export class ShikiCodeRenderer implements vscode.Disposable {
   private statePromise: Promise<RendererState> | undefined;
   private state: RendererState | undefined;
+  private stateGeneration = 0;
   private themeIdHint: string | undefined;
   private readonly cache = new Map<string, ShikiHighlightResult>();
+
+  public warmup(themeIdHint?: string): void {
+    try {
+      this.setThemeIdHint(themeIdHint);
+      void this.getState().catch((error) => {
+        this.statePromise = undefined;
+        console.warn('Tau failed to warm up Shiki.', error);
+      });
+    } catch (error) {
+      this.statePromise = undefined;
+      console.warn('Tau failed to warm up Shiki.', error);
+    }
+  }
 
   public async highlightCode(code: string, languageHint: string, themeIdHint?: string): Promise<ShikiHighlightResult | undefined> {
     if (!code || code.length > maxHighlightedCodeLength) {
@@ -136,6 +150,7 @@ export class ShikiCodeRenderer implements vscode.Disposable {
   }
 
   public reset(): void {
+    this.stateGeneration += 1;
     this.cache.clear();
     this.statePromise = undefined;
 
@@ -157,6 +172,16 @@ export class ShikiCodeRenderer implements vscode.Disposable {
       return;
     }
 
+    if (this.themeIdHint === undefined && this.statePromise && !this.state) {
+      this.themeIdHint = normalized;
+      return;
+    }
+
+    if (this.themeIdHint === undefined && this.state && normalized === this.state.themeId) {
+      this.themeIdHint = normalized;
+      return;
+    }
+
     this.themeIdHint = normalized;
     this.reset();
   }
@@ -170,6 +195,7 @@ export class ShikiCodeRenderer implements vscode.Disposable {
   }
 
   private async createState(): Promise<RendererState> {
+    const generation = this.stateGeneration;
     const shiki = await importEsm<ShikiModule>('shiki');
 
     try {
@@ -184,16 +210,26 @@ export class ShikiCodeRenderer implements vscode.Disposable {
         warnings: false
       });
 
-      this.state = {
+      const state = {
         highlighter,
         themeId,
         languages
       };
-      return this.state;
+
+      if (generation === this.stateGeneration) {
+        this.state = state;
+      }
+
+      return state;
     } catch (error) {
       console.warn('Tau failed to initialize Shiki with the active VS Code theme. Falling back to the bundled Shiki theme.', error);
-      this.state = await createFallbackState(shiki);
-      return this.state;
+      const state = await createFallbackState(shiki);
+
+      if (generation === this.stateGeneration) {
+        this.state = state;
+      }
+
+      return state;
     }
   }
 

@@ -7,8 +7,15 @@ type HighlightInfo = {
   requestId: string;
 };
 
+type HighlightCacheEntry = {
+  html: string;
+};
+
 const maxHighlightCodeLength = 200_000;
+const maxCachedHighlights = 150;
 const highlightedElements = new Map<HTMLElement, HighlightInfo>();
+const pendingHighlights = new Map<string, HighlightInfo>();
+const highlightHtmlCache = new Map<string, HighlightCacheEntry>();
 let postMessage: PostMessage | undefined;
 let nextHighlightRequestId = 1;
 
@@ -30,13 +37,24 @@ export function requestCodeHighlight(element: HTMLElement, code: string, languag
     return true;
   }
 
+  const cacheKey = getHighlightCacheKey(code, normalizedLanguage, themeId);
+  const cached = highlightHtmlCache.get(cacheKey);
+
+  if (cached) {
+    applyCachedHighlight(element, code, normalizedLanguage, themeId, cached);
+    return true;
+  }
+
   const id = `highlight-${nextHighlightRequestId++}`;
-  highlightedElements.set(element, {
+  const info = {
     code,
     language: normalizedLanguage,
     themeId,
     requestId: id
-  });
+  };
+
+  highlightedElements.set(element, info);
+  pendingHighlights.set(id, info);
   element.dataset.shikiHighlightId = id;
   element.classList.add('tau-shiki-pending');
   postMessage({
@@ -103,13 +121,26 @@ function applyCodeHighlightResult(message: Record<string, unknown>): void {
     return;
   }
 
+  const info = pendingHighlights.get(message.id);
+  pendingHighlights.delete(message.id);
+
+  if (!info) {
+    return;
+  }
+
+  const sanitizedHtml = sanitizeHighlightHtml(message.html);
+
+  if (sanitizedHtml) {
+    rememberHighlightHtml(getHighlightCacheKey(info.code, info.language, info.themeId), sanitizedHtml);
+  }
+
   const entry = findHighlightByRequestId(message.id);
 
   if (!entry) {
     return;
   }
 
-  const [element, info] = entry;
+  const [element] = entry;
 
   if (!element.isConnected || element.dataset.shikiHighlightId !== info.requestId) {
     highlightedElements.delete(element);
@@ -118,14 +149,11 @@ function applyCodeHighlightResult(message: Record<string, unknown>): void {
 
   element.classList.remove('tau-shiki-pending');
 
-  if (typeof message.html !== 'string' || message.html.length === 0 || !window.DOMPurify) {
+  if (!sanitizedHtml) {
     return;
   }
 
-  element.innerHTML = window.DOMPurify.sanitize(message.html, {
-    USE_PROFILES: { html: true },
-    ADD_ATTR: ['style']
-  });
+  element.innerHTML = sanitizedHtml;
 }
 
 function refreshConnectedHighlights(): void {
@@ -138,6 +166,51 @@ function refreshConnectedHighlights(): void {
     element.textContent = info.code;
     requestCodeHighlight(element, info.code, info.language, { force: true });
   }
+}
+
+function applyCachedHighlight(element: HTMLElement, code: string, language: string, themeId: string, cached: HighlightCacheEntry): void {
+  highlightedElements.set(element, {
+    code,
+    language,
+    themeId,
+    requestId: ''
+  });
+  delete element.dataset.shikiHighlightId;
+  element.classList.remove('tau-shiki-pending');
+  element.innerHTML = cached.html;
+}
+
+function sanitizeHighlightHtml(value: unknown): string | undefined {
+  if (typeof value !== 'string' || value.length === 0 || !window.DOMPurify) {
+    return undefined;
+  }
+
+  return window.DOMPurify.sanitize(value, {
+    USE_PROFILES: { html: true },
+    ADD_ATTR: ['style']
+  });
+}
+
+function rememberHighlightHtml(cacheKey: string, html: string): void {
+  if (highlightHtmlCache.has(cacheKey)) {
+    highlightHtmlCache.delete(cacheKey);
+  }
+
+  highlightHtmlCache.set(cacheKey, { html });
+
+  if (highlightHtmlCache.size <= maxCachedHighlights) {
+    return;
+  }
+
+  const oldestKey = highlightHtmlCache.keys().next().value;
+
+  if (typeof oldestKey === 'string') {
+    highlightHtmlCache.delete(oldestKey);
+  }
+}
+
+function getHighlightCacheKey(code: string, language: string, themeId: string): string {
+  return `${themeId}\0${language}\0${code}`;
 }
 
 function findHighlightByRequestId(requestId: string): [HTMLElement, HighlightInfo] | undefined {

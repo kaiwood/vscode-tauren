@@ -220,6 +220,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
     if (message.type === 'ready') {
       this.webviewReady = true;
+      this.codeRenderer.warmup();
       await this.controller.handleWebviewMessage(message);
       this.postInputFocusSoon();
       return;
