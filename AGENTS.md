@@ -49,6 +49,7 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - `src/diff/sessionDiffController.ts` owns `PiChatController`'s session diff lifecycle: current session file binding, snapshot restore/save, refresh deduping, and state-post callbacks.
 - `src/diff/sessionDiffTracker.ts` owns per-session changed-line baselines, net line diff stats, reconstructed per-file snapshot diffs, and recorded-edit fallback diffs for files modified through Pi edit/write tool executions; do not replace this with git diff for the sidebar counter or session changes view.
 - `src/diff/sessionDiffViewer.ts` owns the first native session changes viewer: read-only virtual snapshot documents plus the VS Code multi-file diff adapter. Keep the adapter isolated so a future custom annotated diff UI can replace it.
+- `src/diff/sessionDiffUri.ts` owns Tau session diff URI scheme/context helpers shared by the diff viewer and prompt-context extraction.
 - `src/diff/sessionDiffStorage.ts` owns VS Code storage and file-watcher helpers for session diff snapshots/stat refresh.
 - `src/slashCommands.ts` owns shared local slash command metadata used by both the extension host and browser webview.
 - `src/rpc/client.ts` owns the `pi --mode rpc` subprocess, request/response tracking, stderr collection, and process cleanup; `src/rpc/protocol.ts` owns strict JSONL parsing/serialization; `src/rpc/types.ts` owns shared RPC and Pi result types.

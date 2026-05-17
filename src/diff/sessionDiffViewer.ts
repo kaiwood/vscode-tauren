@@ -1,9 +1,8 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { parseSessionBestEffortFileDiffsFromFile } from './sessionDiffTracker';
-import type { SessionDiffDocument, SessionDiffDocumentContext, SessionFileDiff } from './types';
-
-export const sessionDiffScheme = 'tau-session-diff';
+import { sessionDiffScheme } from './sessionDiffUri';
+import type { SessionDiffDocument, SessionFileDiff } from './types';
 
 export class SessionDiffViewer implements vscode.TextDocumentContentProvider, vscode.Disposable {
   private readonly documents = new Map<string, string>();
@@ -87,23 +86,6 @@ export class SessionDiffViewer implements vscode.TextDocumentContentProvider, vs
       modified: { uri: modifiedUri, content: diff.modifiedContent }
     };
   }
-}
-
-export function getSessionDiffDocumentContext(uri: vscode.Uri): SessionDiffDocumentContext | undefined {
-  if (uri.scheme !== sessionDiffScheme || (uri.authority !== 'original' && uri.authority !== 'modified')) {
-    return undefined;
-  }
-
-  const pathParts = uri.path.replace(/^\/+/, '').split('/').filter(Boolean);
-
-  if (pathParts.length < 2) {
-    return undefined;
-  }
-
-  return {
-    path: pathParts.slice(1).join('/'),
-    side: uri.authority
-  };
 }
 
 function normalizeDiffPath(filePath: string): string {

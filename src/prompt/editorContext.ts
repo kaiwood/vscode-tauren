@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { getSessionDiffDocumentContext } from '../diff/sessionDiffViewer';
+import { getSessionDiffDocumentContext } from '../diff/sessionDiffUri';
 import type { PiPromptContextInput } from './types';
 
 export function createPromptContextFromEditor(editor: vscode.TextEditor): PiPromptContextInput[] {
