@@ -1,5 +1,6 @@
 import { readFile } from 'fs/promises';
 import { extractPiMessageText } from '../piMessageContent';
+import { parseSessionJsonlRecords } from './sessionJsonl';
 import type { PiSessionTreeItem, RawEntry, TreeNode } from './types';
 export type { PiSessionTreeItem } from './types';
 
@@ -16,19 +17,7 @@ function parseTreeEntries(content: string): RawEntry[] {
   const entries: RawEntry[] = [];
   const labels = new Map<string, string>();
 
-  for (const line of content.split('\n')) {
-    if (!line.trim()) {
-      continue;
-    }
-
-    let parsed: unknown;
-
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      continue;
-    }
-
+  for (const parsed of parseSessionJsonlRecords(content)) {
     if (!isRecord(parsed) || typeof parsed.type !== 'string') {
       continue;
     }

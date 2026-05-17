@@ -45,6 +45,7 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - `src/extensionUi/requestHandler.ts` owns extension UI request routing through an injected VS Code UI adapter, safe cancellation, and stale request cleanup.
 - `src/sessions/piSessionList.ts` owns extension-side discovery/parsing of persisted Pi session JSONL files for the sidebar session switcher.
 - `src/sessions/piSessionTree.ts` owns extension-side parsing of persisted Pi session JSONL files for the in-session tree view.
+- `src/sessions/sessionJsonl.ts` owns tolerant JSONL record parsing shared by session-list, session-tree, and diff-history readers.
 - `src/diff/sessionDiffController.ts` owns `PiChatController`'s session diff lifecycle: current session file binding, snapshot restore/save, refresh deduping, and state-post callbacks.
 - `src/diff/sessionDiffTracker.ts` owns per-session changed-line baselines, net line diff stats, reconstructed per-file snapshot diffs, and recorded-edit fallback diffs for files modified through Pi edit/write tool executions; do not replace this with git diff for the sidebar counter or session changes view.
 - `src/diff/sessionDiffViewer.ts` owns the first native session changes viewer: read-only virtual snapshot documents plus the VS Code multi-file diff adapter. Keep the adapter isolated so a future custom annotated diff UI can replace it.

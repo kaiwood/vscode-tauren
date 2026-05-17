@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { parseSessionJsonlRecords } from '../sessions/sessionJsonl';
 import type {
   FileMutation,
   SessionDiffSnapshot,
@@ -127,19 +128,8 @@ export function parseSessionDiffStats(content: string): SessionDiffStats {
   const toolExecutionStats: SessionDiffStats[] = [];
   const toolCallStats: SessionDiffStats[] = [];
 
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim();
-
-    if (!trimmed) {
-      continue;
-    }
-
-    try {
-      const record = JSON.parse(trimmed) as unknown;
-      collectToolStats(record, toolExecutionStats, toolCallStats);
-    } catch {
-      // Ignore malformed session lines.
-    }
+  for (const record of parseSessionJsonlRecords(content)) {
+    collectToolStats(record, toolExecutionStats, toolCallStats);
   }
 
   return sumStats(toolExecutionStats.length > 0 ? toolExecutionStats : toolCallStats);
@@ -216,24 +206,12 @@ function parseSessionMutationHistory(content: string): { cwd: string | undefined
   const toolCallMutations: FileMutation[] = [];
   let cwd: string | undefined;
 
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim();
-
-    if (!trimmed) {
-      continue;
+  for (const record of parseSessionJsonlRecords(content)) {
+    if (isRecord(record) && record.type === 'session') {
+      cwd = getRecordString(record, 'cwd') ?? cwd;
     }
 
-    try {
-      const record = JSON.parse(trimmed) as unknown;
-
-      if (isRecord(record) && record.type === 'session') {
-        cwd = getRecordString(record, 'cwd') ?? cwd;
-      }
-
-      collectToolMutations(record, executionMutations, toolCallMutations);
-    } catch {
-      // Ignore malformed session lines.
-    }
+    collectToolMutations(record, executionMutations, toolCallMutations);
   }
 
   return {

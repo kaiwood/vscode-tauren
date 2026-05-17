@@ -3,6 +3,7 @@ import { readdir, readFile, stat } from 'fs/promises';
 import { homedir } from 'os';
 import { dirname, isAbsolute, join, resolve } from 'path';
 import { extractPiMessageText } from '../piMessageContent';
+import { parseSessionJsonlRecords } from './sessionJsonl';
 import type { ListPiSessionsOptions, PiSessionListItem, RawSessionInfo, SessionTreeNode } from './types';
 export type { ListPiSessionsOptions, PiSessionListItem } from './types';
 
@@ -212,21 +213,7 @@ async function buildSessionInfo(filePath: string): Promise<RawSessionInfo | unde
 }
 
 function parseSessionEntries(content: string): unknown[] {
-  const entries: unknown[] = [];
-
-  for (const line of content.split('\n')) {
-    if (!line.trim()) {
-      continue;
-    }
-
-    try {
-      entries.push(JSON.parse(line));
-    } catch {
-      // Skip malformed lines, matching Pi's tolerant session listing behavior.
-    }
-  }
-
-  return entries;
+  return parseSessionJsonlRecords(content);
 }
 
 function getMessageActivityTime(entry: Record<string, unknown>, message: Record<string, unknown>): number | undefined {
