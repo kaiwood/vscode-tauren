@@ -1,5 +1,10 @@
 import { createSessionItemElement } from './sessionElements';
 import { getSessionDisplayName } from './sessionFormat';
+import {
+  ensureVisibleSessionSelection,
+  getVisibleSessionIndexes,
+  moveVisibleSessionSelection
+} from './sessionSearch';
 import { SessionTreeController } from './sessionTreeController';
 import {
   parseSessionItemCommand,
@@ -31,6 +36,7 @@ export type SessionViewControllerOptions = {
 
 export class SessionViewController {
   private sessionListSelectedIndex = 0;
+  private sessionSearchQuery = '';
   private sessionPointerHoverEnabled = false;
   private openSessionListMenuIndex: number | undefined;
   private openSessionListMenuCommandIndex = 0;
@@ -88,7 +94,15 @@ export class SessionViewController {
       return true;
     }
 
-    const sessionListNameInput = eventTargetElement(event)?.closest('.sessions__name-input');
+    const state = this.options.getState();
+    const target = eventTargetElement(event);
+    const sessionSearchInput = target?.closest('.sessions__search-input');
+
+    if (sessionSearchInput instanceof HTMLInputElement && state.viewMode === 'sessions') {
+      return this.handleSessionSearchKeydown(event, sessionSearchInput);
+    }
+
+    const sessionListNameInput = target?.closest('.sessions__name-input');
 
     if (sessionListNameInput instanceof HTMLInputElement) {
       if (event.key === 'Enter' && !event.shiftKey) {
@@ -109,7 +123,6 @@ export class SessionViewController {
       return true;
     }
 
-    const state = this.options.getState();
     return (state.viewMode === 'sessions' || state.viewMode === 'tree') && this.handleSessionListKeydown(event);
   }
 
@@ -117,6 +130,7 @@ export class SessionViewController {
     const state = this.options.getState();
 
     if (state.viewMode !== 'sessions') {
+      this.sessionSearchQuery = '';
       this.openSessionListMenuIndex = undefined;
       this.openSessionListMenuCommandIndex = 0;
       this.stopSessionListNameEdit();
@@ -127,17 +141,27 @@ export class SessionViewController {
 
   public renderSessions(): void {
     const state = this.options.getState();
+    const searchInput = this.isSessionSearchFocused() ? document.activeElement as HTMLInputElement : undefined;
+    const selectedIndex = searchInput ? -1 : this.sessionListSelectedIndex;
+    const searchSelectionStart = searchInput?.selectionStart ?? null;
+    const searchSelectionEnd = searchInput?.selectionEnd ?? null;
+    const count = Array.isArray(state.sessions) ? state.sessions.length : 0;
+    const visibleIndexes = this.getVisibleSessionIndexes();
+    this.sessionListSelectedIndex = ensureVisibleSessionSelection(this.sessionListSelectedIndex, visibleIndexes);
     this.options.sessionsElement.replaceChildren();
-    this.sessionListSelectedIndex = this.clampSessionIndex(this.sessionListSelectedIndex);
+
+    const search = this.createSessionSearchElement();
+    this.options.sessionsElement.append(search);
 
     const header = document.createElement('div');
     header.className = 'sessions__header';
-    const count = Array.isArray(state.sessions) ? state.sessions.length : 0;
-    if (this.openSessionListMenuIndex !== undefined && this.openSessionListMenuIndex >= count) {
+    if (this.openSessionListMenuIndex !== undefined && !visibleIndexes.includes(this.openSessionListMenuIndex)) {
       this.openSessionListMenuIndex = undefined;
     }
     header.textContent = state.sessionsRefreshing
       ? 'Loading sessions...'
+      : this.sessionSearchQuery.trim() && visibleIndexes.length !== count
+      ? visibleIndexes.length + ' of ' + count + ' sessions'
       : count === 1
       ? '1 session'
       : count + ' sessions';
@@ -152,34 +176,34 @@ export class SessionViewController {
 
     if (state.sessionsRefreshing && count === 0) {
       this.options.sessionsElement.append(createSessionEmptyElement('Loading sessions...'));
-      return;
-    }
-
-    if (count === 0) {
+    } else if (count === 0) {
       this.options.sessionsElement.append(createSessionEmptyElement('No sessions found for this workspace.'));
-      return;
-    }
-
-    for (let index = 0; index < state.sessions.length; index += 1) {
-      this.options.sessionsElement.append(createSessionItemElement({
-        session: state.sessions[index],
-        index,
-        selectedIndex: this.sessionListSelectedIndex,
-        nameEditPath: this.sessionListNameEditPath,
-        nameEditInitialValue: this.sessionListNameEditInitialValue,
-        openMenuIndex: this.openSessionListMenuIndex,
-        canRunSessionItemCommand: (session, command) => this.canRunSessionItemCommand(session, command),
-        onNameInputBlur: () => this.cancelSessionListNameEdit(),
-        onCommandActivate: (commandIndex, button) => {
-          this.openSessionListMenuCommandIndex = commandIndex;
-          this.setSessionMenuItemHover(button, true);
-        },
-        onCommandHover: (button, hovered) => this.setSessionMenuItemHover(button, hovered)
-      }));
+    } else if (visibleIndexes.length === 0) {
+      this.options.sessionsElement.append(createSessionEmptyElement('No sessions match your search.'));
+    } else {
+      for (const index of visibleIndexes) {
+        this.options.sessionsElement.append(createSessionItemElement({
+          session: state.sessions[index],
+          index,
+          selectedIndex,
+          nameEditPath: this.sessionListNameEditPath,
+          nameEditInitialValue: this.sessionListNameEditInitialValue,
+          openMenuIndex: this.openSessionListMenuIndex,
+          canRunSessionItemCommand: (session, command) => this.canRunSessionItemCommand(session, command),
+          onNameInputBlur: () => this.cancelSessionListNameEdit(),
+          onCommandActivate: (commandIndex, button) => {
+            this.openSessionListMenuCommandIndex = commandIndex;
+            this.setSessionMenuItemHover(button, true);
+          },
+          onCommandHover: (button, hovered) => this.setSessionMenuItemHover(button, hovered)
+        }));
+      }
     }
 
     if (this.sessionListNameEditPath) {
       requestAnimationFrame(() => this.focusSessionListNameInput());
+    } else if (searchInput) {
+      this.focusSessionSearchInput({ select: false, selectionStart: searchSelectionStart, selectionEnd: searchSelectionEnd });
     }
   }
 
@@ -191,12 +215,8 @@ export class SessionViewController {
     this.treeController.selectCurrent();
   }
 
-  public selectCurrentSession(): void {
-    const state = this.options.getState();
-    const currentIndex = Array.isArray(state.sessions)
-      ? state.sessions.findIndex((session) => session.current || session.path === state.currentSessionFile)
-      : -1;
-    this.sessionListSelectedIndex = currentIndex >= 0 ? currentIndex : 0;
+  public selectFirstVisibleSession(): void {
+    this.sessionListSelectedIndex = this.getVisibleSessionIndexes()[0] ?? 0;
   }
 
   public disableSessionPointerHover(): void {
@@ -211,6 +231,11 @@ export class SessionViewController {
 
   public isSessionListNameEditing(): boolean {
     return Boolean(this.sessionListNameEditPath);
+  }
+
+  public isSessionSearchFocused(): boolean {
+    return document.activeElement instanceof HTMLInputElement
+      && document.activeElement.classList.contains('sessions__search-input');
   }
 
   public isSessionListNameEditingMissing(): boolean {
@@ -348,7 +373,7 @@ export class SessionViewController {
       event.preventDefault();
       event.stopPropagation();
       this.closeSessionItemMenus();
-      state.viewMode === 'tree' ? this.treeController.moveSelection(-1) : this.moveSessionSelection(-1);
+      state.viewMode === 'tree' ? this.treeController.moveSelection(-1) : this.moveSessionSelectionUpOrFocusSearch();
       return true;
     }
 
@@ -390,22 +415,39 @@ export class SessionViewController {
   }
 
   private moveSessionSelection(delta: number): void {
-    const state = this.options.getState();
+    const visibleIndexes = this.getVisibleSessionIndexes();
 
-    if (!Array.isArray(state.sessions) || state.sessions.length === 0) {
+    if (visibleIndexes.length === 0) {
       return;
     }
 
-    this.sessionListSelectedIndex = this.clampSessionIndex(this.sessionListSelectedIndex + delta);
+    const nextIndex = moveVisibleSessionSelection(this.sessionListSelectedIndex, visibleIndexes, delta);
+
+    if (nextIndex === undefined) {
+      return;
+    }
+
+    this.sessionListSelectedIndex = nextIndex;
     this.renderSessions();
     document.getElementById('session-' + this.sessionListSelectedIndex)?.scrollIntoView({ block: 'nearest' });
+  }
+
+  private moveSessionSelectionUpOrFocusSearch(): void {
+    const visibleIndexes = this.getVisibleSessionIndexes();
+
+    if (visibleIndexes.length === 0 || this.sessionListSelectedIndex === visibleIndexes[0]) {
+      this.focusSessionSearchInput();
+      return;
+    }
+
+    this.moveSessionSelection(-1);
   }
 
   private selectSessionIndex(index: number): void {
     const state = this.options.getState();
     const session = Array.isArray(state.sessions) ? state.sessions[index] : undefined;
 
-    if (!session?.path) {
+    if (!session?.path || !this.isSessionIndexVisible(index)) {
       return;
     }
 
@@ -416,7 +458,7 @@ export class SessionViewController {
     const state = this.options.getState();
     const session = Array.isArray(state.sessions) ? state.sessions[index] : undefined;
 
-    if (!session?.path || !this.canDeleteSession(session)) {
+    if (!session?.path || !this.isSessionIndexVisible(index) || !this.canDeleteSession(session)) {
       return;
     }
 
@@ -435,7 +477,7 @@ export class SessionViewController {
   private openSessionItemMenu(index: number, options: { focusMenu?: boolean } = {}): void {
     const state = this.options.getState();
 
-    if (!Number.isInteger(index) || index < 0 || state.viewMode !== 'sessions') {
+    if (!Number.isInteger(index) || index < 0 || state.viewMode !== 'sessions' || !this.isSessionIndexVisible(index)) {
       return;
     }
 
@@ -561,7 +603,7 @@ export class SessionViewController {
     const parsedCommand = parseSessionItemCommand(command);
     const session = Array.isArray(state.sessions) ? state.sessions[index] : undefined;
 
-    if (!parsedCommand || !session?.path || !this.canRunSessionItemCommand(session, parsedCommand)) {
+    if (!parsedCommand || !session?.path || !this.isSessionIndexVisible(index) || !this.canRunSessionItemCommand(session, parsedCommand)) {
       return;
     }
 
@@ -633,6 +675,122 @@ export class SessionViewController {
     input?.select();
   }
 
+  private createSessionSearchElement(): HTMLElement {
+    const wrap = document.createElement('div');
+    wrap.className = 'sessions__search';
+
+    const input = document.createElement('input');
+    input.className = 'sessions__search-input';
+    input.type = 'search';
+    input.value = this.sessionSearchQuery;
+    input.placeholder = 'Search sessions';
+    input.spellcheck = false;
+    input.setAttribute('aria-label', 'Search sessions');
+    input.addEventListener('input', () => this.updateSessionSearchQuery(input.value, input.selectionStart, input.selectionEnd));
+    input.addEventListener('focus', () => this.handleSessionSearchFocus());
+    input.addEventListener('blur', () => this.handleSessionSearchBlur());
+    input.addEventListener('click', (event) => event.stopPropagation());
+    wrap.append(input);
+
+    return wrap;
+  }
+
+  private handleSessionSearchFocus(): void {
+    this.disableSessionPointerHover();
+    this.setSessionListHighlightEnabled(false);
+  }
+
+  private handleSessionSearchBlur(): void {
+    this.setSessionListHighlightEnabled(true);
+  }
+
+  private setSessionListHighlightEnabled(enabled: boolean): void {
+    const activeItem = document.getElementById('session-' + this.sessionListSelectedIndex);
+
+    for (const item of this.options.sessionsElement.querySelectorAll<HTMLElement>('.sessions__item')) {
+      const isActive = enabled && item === activeItem;
+      item.classList.toggle('sessions__item--active', isActive);
+      item.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    }
+  }
+
+  private updateSessionSearchQuery(value: string, selectionStart: number | null, selectionEnd: number | null): void {
+    if (value === this.sessionSearchQuery) {
+      return;
+    }
+
+    this.sessionSearchQuery = value;
+    this.closeSessionItemMenus();
+    this.renderSessions();
+    requestAnimationFrame(() => {
+      const input = this.options.sessionsElement.querySelector<HTMLInputElement>('.sessions__search-input');
+      input?.focus({ preventScroll: true });
+
+      if (input && selectionStart !== null) {
+        input.setSelectionRange(selectionStart, selectionEnd ?? selectionStart);
+      }
+    });
+  }
+
+  private handleSessionSearchKeydown(event: KeyboardEvent, input: HTMLInputElement): boolean {
+    if (event.key === 'ArrowDown' || (event.key === 'Enter' && !event.shiftKey)) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.focusFirstVisibleSession();
+      return true;
+    }
+
+    if (event.key === 'Escape' && this.sessionSearchQuery.trim()) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.updateSessionSearchQuery('', 0, 0);
+      return true;
+    }
+
+    if (event.key !== 'Escape') {
+      event.stopPropagation();
+      this.sessionSearchQuery = input.value;
+      return true;
+    }
+
+    return false;
+  }
+
+  private focusFirstVisibleSession(): void {
+    const firstVisibleIndex = this.getVisibleSessionIndexes()[0];
+
+    if (firstVisibleIndex === undefined) {
+      return;
+    }
+
+    this.sessionListSelectedIndex = firstVisibleIndex;
+    this.closeSessionItemMenus();
+    this.renderSessions();
+    requestAnimationFrame(() => {
+      this.options.sessionsElement.focus({ preventScroll: true });
+      this.setSessionListHighlightEnabled(true);
+      document.getElementById('session-' + firstVisibleIndex)?.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  private focusSessionSearchInput(options: { select?: boolean; selectionStart?: number | null; selectionEnd?: number | null } = {}): void {
+    const input = this.options.sessionsElement.querySelector<HTMLInputElement>('.sessions__search-input');
+    input?.focus({ preventScroll: true });
+
+    if (!input) {
+      return;
+    }
+
+    if (options.select ?? true) {
+      input.select();
+      return;
+    }
+
+    if (options.selectionStart !== null && options.selectionStart !== undefined) {
+      input.setSelectionRange(options.selectionStart, options.selectionEnd ?? options.selectionStart);
+    }
+  }
+
   private handleSessionListCommandKey(event: KeyboardEvent): boolean {
     if (event.altKey || event.ctrlKey || event.metaKey) {
       return false;
@@ -663,6 +821,16 @@ export class SessionViewController {
   private canDeleteSession(session: SessionItem): boolean {
     const state = this.options.getState();
     return session.liveStatus !== 'running' && !(session.current && state.busy);
+  }
+
+  private getVisibleSessionIndexes(): number[] {
+    const state = this.options.getState();
+
+    return getVisibleSessionIndexes(Array.isArray(state.sessions) ? state.sessions : [], this.sessionSearchQuery);
+  }
+
+  private isSessionIndexVisible(index: number): boolean {
+    return this.getVisibleSessionIndexes().includes(index);
   }
 
   private clampSessionIndex(index: number): number {

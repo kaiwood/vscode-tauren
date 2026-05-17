@@ -392,7 +392,33 @@ const viewLayoutStyles = /* css */ `    .messages,
 
 `;
 
-const sessionListStyles = /* css */ `    .sessions__header,
+const sessionListStyles = /* css */ `    .sessions__search {
+      padding: 4px 4px 6px;
+    }
+
+    .sessions__search-input {
+      width: 100%;
+      min-width: 0;
+      height: 26px;
+      padding: 3px 7px;
+      color: var(--vscode-input-foreground);
+      background: var(--vscode-input-background);
+      border: 1px solid var(--vscode-input-border, transparent);
+      border-radius: 4px;
+      font: inherit;
+      font-size: 12px;
+      outline: none;
+    }
+
+    .sessions__search-input:focus {
+      border-color: var(--vscode-focusBorder, var(--vscode-input-border, transparent));
+    }
+
+    .sessions__search-input::placeholder {
+      color: var(--vscode-input-placeholderForeground, var(--vscode-descriptionForeground));
+    }
+
+    .sessions__header,
     .sessions__empty,
     .sessions__error {
       padding: 6px 4px;

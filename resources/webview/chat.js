@@ -2182,6 +2182,38 @@
     return button;
   }
 
+  // src/webview/sessions/sessionSearch.ts
+  function getVisibleSessionIndexes(sessions, query) {
+    if (sessions.length === 0) {
+      return [];
+    }
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return sessions.map((_, index) => index);
+    }
+    const indexes = [];
+    for (let index = 0; index < sessions.length; index += 1) {
+      if (getSessionDisplayName(sessions[index]).toLowerCase().includes(normalizedQuery)) {
+        indexes.push(index);
+      }
+    }
+    return indexes;
+  }
+  function ensureVisibleSessionSelection(selectedIndex, visibleIndexes) {
+    if (visibleIndexes.length === 0) {
+      return 0;
+    }
+    return visibleIndexes.includes(selectedIndex) ? selectedIndex : visibleIndexes[0];
+  }
+  function moveVisibleSessionSelection(selectedIndex, visibleIndexes, delta) {
+    if (visibleIndexes.length === 0) {
+      return void 0;
+    }
+    const currentPosition = visibleIndexes.indexOf(selectedIndex);
+    const nextPosition = currentPosition >= 0 ? Math.max(0, Math.min(currentPosition + delta, visibleIndexes.length - 1)) : delta > 0 ? 0 : visibleIndexes.length - 1;
+    return visibleIndexes[nextPosition];
+  }
+
   // src/webview/sessions/sessionUiHelpers.ts
   function createSessionEmptyElement(text) {
     const empty = document.createElement("div");
@@ -2507,6 +2539,7 @@
     }
     options;
     sessionListSelectedIndex = 0;
+    sessionSearchQuery = "";
     sessionPointerHoverEnabled = false;
     openSessionListMenuIndex;
     openSessionListMenuCommandIndex = 0;
@@ -2532,7 +2565,13 @@
       if (this.topControls.handleGlobalKeydown(event)) {
         return true;
       }
-      const sessionListNameInput = eventTargetElement3(event)?.closest(".sessions__name-input");
+      const state2 = this.options.getState();
+      const target = eventTargetElement3(event);
+      const sessionSearchInput = target?.closest(".sessions__search-input");
+      if (sessionSearchInput instanceof HTMLInputElement && state2.viewMode === "sessions") {
+        return this.handleSessionSearchKeydown(event, sessionSearchInput);
+      }
+      const sessionListNameInput = target?.closest(".sessions__name-input");
       if (sessionListNameInput instanceof HTMLInputElement) {
         if (event.key === "Enter" && !event.shiftKey) {
           event.preventDefault();
@@ -2549,12 +2588,12 @@
         event.stopPropagation();
         return true;
       }
-      const state2 = this.options.getState();
       return (state2.viewMode === "sessions" || state2.viewMode === "tree") && this.handleSessionListKeydown(event);
     }
     syncForRender(isListView) {
       const state2 = this.options.getState();
       if (state2.viewMode !== "sessions") {
+        this.sessionSearchQuery = "";
         this.openSessionListMenuIndex = void 0;
         this.openSessionListMenuCommandIndex = 0;
         this.stopSessionListNameEdit();
@@ -2563,15 +2602,22 @@
     }
     renderSessions() {
       const state2 = this.options.getState();
+      const searchInput = this.isSessionSearchFocused() ? document.activeElement : void 0;
+      const selectedIndex = searchInput ? -1 : this.sessionListSelectedIndex;
+      const searchSelectionStart = searchInput?.selectionStart ?? null;
+      const searchSelectionEnd = searchInput?.selectionEnd ?? null;
+      const count = Array.isArray(state2.sessions) ? state2.sessions.length : 0;
+      const visibleIndexes = this.getVisibleSessionIndexes();
+      this.sessionListSelectedIndex = ensureVisibleSessionSelection(this.sessionListSelectedIndex, visibleIndexes);
       this.options.sessionsElement.replaceChildren();
-      this.sessionListSelectedIndex = this.clampSessionIndex(this.sessionListSelectedIndex);
+      const search = this.createSessionSearchElement();
+      this.options.sessionsElement.append(search);
       const header = document.createElement("div");
       header.className = "sessions__header";
-      const count = Array.isArray(state2.sessions) ? state2.sessions.length : 0;
-      if (this.openSessionListMenuIndex !== void 0 && this.openSessionListMenuIndex >= count) {
+      if (this.openSessionListMenuIndex !== void 0 && !visibleIndexes.includes(this.openSessionListMenuIndex)) {
         this.openSessionListMenuIndex = void 0;
       }
-      header.textContent = state2.sessionsRefreshing ? "Loading sessions..." : count === 1 ? "1 session" : count + " sessions";
+      header.textContent = state2.sessionsRefreshing ? "Loading sessions..." : this.sessionSearchQuery.trim() && visibleIndexes.length !== count ? visibleIndexes.length + " of " + count + " sessions" : count === 1 ? "1 session" : count + " sessions";
       this.options.sessionsElement.append(header);
       if (state2.sessionsError) {
         const error = document.createElement("div");
@@ -2581,31 +2627,33 @@
       }
       if (state2.sessionsRefreshing && count === 0) {
         this.options.sessionsElement.append(createSessionEmptyElement("Loading sessions..."));
-        return;
-      }
-      if (count === 0) {
+      } else if (count === 0) {
         this.options.sessionsElement.append(createSessionEmptyElement("No sessions found for this workspace."));
-        return;
-      }
-      for (let index = 0; index < state2.sessions.length; index += 1) {
-        this.options.sessionsElement.append(createSessionItemElement({
-          session: state2.sessions[index],
-          index,
-          selectedIndex: this.sessionListSelectedIndex,
-          nameEditPath: this.sessionListNameEditPath,
-          nameEditInitialValue: this.sessionListNameEditInitialValue,
-          openMenuIndex: this.openSessionListMenuIndex,
-          canRunSessionItemCommand: (session, command) => this.canRunSessionItemCommand(session, command),
-          onNameInputBlur: () => this.cancelSessionListNameEdit(),
-          onCommandActivate: (commandIndex, button) => {
-            this.openSessionListMenuCommandIndex = commandIndex;
-            this.setSessionMenuItemHover(button, true);
-          },
-          onCommandHover: (button, hovered) => this.setSessionMenuItemHover(button, hovered)
-        }));
+      } else if (visibleIndexes.length === 0) {
+        this.options.sessionsElement.append(createSessionEmptyElement("No sessions match your search."));
+      } else {
+        for (const index of visibleIndexes) {
+          this.options.sessionsElement.append(createSessionItemElement({
+            session: state2.sessions[index],
+            index,
+            selectedIndex,
+            nameEditPath: this.sessionListNameEditPath,
+            nameEditInitialValue: this.sessionListNameEditInitialValue,
+            openMenuIndex: this.openSessionListMenuIndex,
+            canRunSessionItemCommand: (session, command) => this.canRunSessionItemCommand(session, command),
+            onNameInputBlur: () => this.cancelSessionListNameEdit(),
+            onCommandActivate: (commandIndex, button) => {
+              this.openSessionListMenuCommandIndex = commandIndex;
+              this.setSessionMenuItemHover(button, true);
+            },
+            onCommandHover: (button, hovered) => this.setSessionMenuItemHover(button, hovered)
+          }));
+        }
       }
       if (this.sessionListNameEditPath) {
         requestAnimationFrame(() => this.focusSessionListNameInput());
+      } else if (searchInput) {
+        this.focusSessionSearchInput({ select: false, selectionStart: searchSelectionStart, selectionEnd: searchSelectionEnd });
       }
     }
     renderTree() {
@@ -2614,10 +2662,8 @@
     selectCurrentTreeEntry() {
       this.treeController.selectCurrent();
     }
-    selectCurrentSession() {
-      const state2 = this.options.getState();
-      const currentIndex = Array.isArray(state2.sessions) ? state2.sessions.findIndex((session) => session.current || session.path === state2.currentSessionFile) : -1;
-      this.sessionListSelectedIndex = currentIndex >= 0 ? currentIndex : 0;
+    selectFirstVisibleSession() {
+      this.sessionListSelectedIndex = this.getVisibleSessionIndexes()[0] ?? 0;
     }
     disableSessionPointerHover() {
       this.sessionPointerHoverEnabled = false;
@@ -2629,6 +2675,9 @@
     }
     isSessionListNameEditing() {
       return Boolean(this.sessionListNameEditPath);
+    }
+    isSessionSearchFocused() {
+      return document.activeElement instanceof HTMLInputElement && document.activeElement.classList.contains("sessions__search-input");
     }
     isSessionListNameEditingMissing() {
       const state2 = this.options.getState();
@@ -2736,7 +2785,7 @@
         event.preventDefault();
         event.stopPropagation();
         this.closeSessionItemMenus();
-        state2.viewMode === "tree" ? this.treeController.moveSelection(-1) : this.moveSessionSelection(-1);
+        state2.viewMode === "tree" ? this.treeController.moveSelection(-1) : this.moveSessionSelectionUpOrFocusSearch();
         return true;
       }
       if (state2.viewMode === "sessions" && event.key === "ArrowRight") {
@@ -2770,18 +2819,30 @@
       this.options.sessionsElement.classList.add("sessions--pointer-hover");
     }
     moveSessionSelection(delta) {
-      const state2 = this.options.getState();
-      if (!Array.isArray(state2.sessions) || state2.sessions.length === 0) {
+      const visibleIndexes = this.getVisibleSessionIndexes();
+      if (visibleIndexes.length === 0) {
         return;
       }
-      this.sessionListSelectedIndex = this.clampSessionIndex(this.sessionListSelectedIndex + delta);
+      const nextIndex = moveVisibleSessionSelection(this.sessionListSelectedIndex, visibleIndexes, delta);
+      if (nextIndex === void 0) {
+        return;
+      }
+      this.sessionListSelectedIndex = nextIndex;
       this.renderSessions();
       document.getElementById("session-" + this.sessionListSelectedIndex)?.scrollIntoView({ block: "nearest" });
+    }
+    moveSessionSelectionUpOrFocusSearch() {
+      const visibleIndexes = this.getVisibleSessionIndexes();
+      if (visibleIndexes.length === 0 || this.sessionListSelectedIndex === visibleIndexes[0]) {
+        this.focusSessionSearchInput();
+        return;
+      }
+      this.moveSessionSelection(-1);
     }
     selectSessionIndex(index) {
       const state2 = this.options.getState();
       const session = Array.isArray(state2.sessions) ? state2.sessions[index] : void 0;
-      if (!session?.path) {
+      if (!session?.path || !this.isSessionIndexVisible(index)) {
         return;
       }
       this.options.postMessage({ type: "selectSession", sessionPath: session.path });
@@ -2789,7 +2850,7 @@
     deleteSessionIndex(index) {
       const state2 = this.options.getState();
       const session = Array.isArray(state2.sessions) ? state2.sessions[index] : void 0;
-      if (!session?.path || !this.canDeleteSession(session)) {
+      if (!session?.path || !this.isSessionIndexVisible(index) || !this.canDeleteSession(session)) {
         return;
       }
       this.options.postMessage({ type: "deleteSession", sessionPath: session.path });
@@ -2803,7 +2864,7 @@
     }
     openSessionItemMenu(index, options = {}) {
       const state2 = this.options.getState();
-      if (!Number.isInteger(index) || index < 0 || state2.viewMode !== "sessions") {
+      if (!Number.isInteger(index) || index < 0 || state2.viewMode !== "sessions" || !this.isSessionIndexVisible(index)) {
         return;
       }
       const session = Array.isArray(state2.sessions) ? state2.sessions[index] : void 0;
@@ -2901,7 +2962,7 @@
       const state2 = this.options.getState();
       const parsedCommand = parseSessionItemCommand(command);
       const session = Array.isArray(state2.sessions) ? state2.sessions[index] : void 0;
-      if (!parsedCommand || !session?.path || !this.canRunSessionItemCommand(session, parsedCommand)) {
+      if (!parsedCommand || !session?.path || !this.isSessionIndexVisible(index) || !this.canRunSessionItemCommand(session, parsedCommand)) {
         return;
       }
       this.closeSessionItemMenus();
@@ -2956,6 +3017,101 @@
       input?.focus({ preventScroll: true });
       input?.select();
     }
+    createSessionSearchElement() {
+      const wrap = document.createElement("div");
+      wrap.className = "sessions__search";
+      const input = document.createElement("input");
+      input.className = "sessions__search-input";
+      input.type = "search";
+      input.value = this.sessionSearchQuery;
+      input.placeholder = "Search sessions";
+      input.spellcheck = false;
+      input.setAttribute("aria-label", "Search sessions");
+      input.addEventListener("input", () => this.updateSessionSearchQuery(input.value, input.selectionStart, input.selectionEnd));
+      input.addEventListener("focus", () => this.handleSessionSearchFocus());
+      input.addEventListener("blur", () => this.handleSessionSearchBlur());
+      input.addEventListener("click", (event) => event.stopPropagation());
+      wrap.append(input);
+      return wrap;
+    }
+    handleSessionSearchFocus() {
+      this.disableSessionPointerHover();
+      this.setSessionListHighlightEnabled(false);
+    }
+    handleSessionSearchBlur() {
+      this.setSessionListHighlightEnabled(true);
+    }
+    setSessionListHighlightEnabled(enabled) {
+      const activeItem = document.getElementById("session-" + this.sessionListSelectedIndex);
+      for (const item of this.options.sessionsElement.querySelectorAll(".sessions__item")) {
+        const isActive = enabled && item === activeItem;
+        item.classList.toggle("sessions__item--active", isActive);
+        item.setAttribute("aria-selected", isActive ? "true" : "false");
+      }
+    }
+    updateSessionSearchQuery(value, selectionStart, selectionEnd) {
+      if (value === this.sessionSearchQuery) {
+        return;
+      }
+      this.sessionSearchQuery = value;
+      this.closeSessionItemMenus();
+      this.renderSessions();
+      requestAnimationFrame(() => {
+        const input = this.options.sessionsElement.querySelector(".sessions__search-input");
+        input?.focus({ preventScroll: true });
+        if (input && selectionStart !== null) {
+          input.setSelectionRange(selectionStart, selectionEnd ?? selectionStart);
+        }
+      });
+    }
+    handleSessionSearchKeydown(event, input) {
+      if (event.key === "ArrowDown" || event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.focusFirstVisibleSession();
+        return true;
+      }
+      if (event.key === "Escape" && this.sessionSearchQuery.trim()) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.updateSessionSearchQuery("", 0, 0);
+        return true;
+      }
+      if (event.key !== "Escape") {
+        event.stopPropagation();
+        this.sessionSearchQuery = input.value;
+        return true;
+      }
+      return false;
+    }
+    focusFirstVisibleSession() {
+      const firstVisibleIndex = this.getVisibleSessionIndexes()[0];
+      if (firstVisibleIndex === void 0) {
+        return;
+      }
+      this.sessionListSelectedIndex = firstVisibleIndex;
+      this.closeSessionItemMenus();
+      this.renderSessions();
+      requestAnimationFrame(() => {
+        this.options.sessionsElement.focus({ preventScroll: true });
+        this.setSessionListHighlightEnabled(true);
+        document.getElementById("session-" + firstVisibleIndex)?.scrollIntoView({ block: "nearest" });
+      });
+    }
+    focusSessionSearchInput(options = {}) {
+      const input = this.options.sessionsElement.querySelector(".sessions__search-input");
+      input?.focus({ preventScroll: true });
+      if (!input) {
+        return;
+      }
+      if (options.select ?? true) {
+        input.select();
+        return;
+      }
+      if (options.selectionStart !== null && options.selectionStart !== void 0) {
+        input.setSelectionRange(options.selectionStart, options.selectionEnd ?? options.selectionStart);
+      }
+    }
     handleSessionListCommandKey(event) {
       if (event.altKey || event.ctrlKey || event.metaKey) {
         return false;
@@ -2979,6 +3135,13 @@
     canDeleteSession(session) {
       const state2 = this.options.getState();
       return session.liveStatus !== "running" && !(session.current && state2.busy);
+    }
+    getVisibleSessionIndexes() {
+      const state2 = this.options.getState();
+      return getVisibleSessionIndexes(Array.isArray(state2.sessions) ? state2.sessions : [], this.sessionSearchQuery);
+    }
+    isSessionIndexVisible(index) {
+      return this.getVisibleSessionIndexes().includes(index);
     }
     clampSessionIndex(index) {
       const state2 = this.options.getState();
@@ -3219,7 +3382,7 @@
       sessionsController.disableSessionPointerHover();
     }
     if (state.viewMode === "sessions" && (previousViewMode !== "sessions" || previousCurrentSessionFile !== state.currentSessionFile || previousSessionCount === 0)) {
-      sessionsController.selectCurrentSession();
+      sessionsController.selectFirstVisibleSession();
     }
     if (state.viewMode === "tree" && (previousViewMode !== "tree" || previousTreeCount === 0)) {
       sessionsController.selectCurrentTreeEntry();
@@ -3303,7 +3466,7 @@
       composerController.closeModelMenu();
       sessionsController.closeSessionCommandMenu();
       sessionsController.cancelSessionNameEdit();
-      if (!sessionsController.isSessionListNameEditing()) {
+      if (!sessionsController.isSessionListNameEditing() && !sessionsController.isSessionSearchFocused()) {
         requestAnimationFrame(() => sessionsElement.focus({ preventScroll: true }));
       }
       return;

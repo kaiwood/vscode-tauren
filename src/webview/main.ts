@@ -162,7 +162,7 @@ window.addEventListener('message', (event) => {
       || previousCurrentSessionFile !== state.currentSessionFile
       || previousSessionCount === 0)
   ) {
-    sessionsController.selectCurrentSession();
+    sessionsController.selectFirstVisibleSession();
   }
 
   if (state.viewMode === 'tree' && (previousViewMode !== 'tree' || previousTreeCount === 0)) {
@@ -266,7 +266,7 @@ function render(): void {
     sessionsController.closeSessionCommandMenu();
     sessionsController.cancelSessionNameEdit();
 
-    if (!sessionsController.isSessionListNameEditing()) {
+    if (!sessionsController.isSessionListNameEditing() && !sessionsController.isSessionSearchFocused()) {
       requestAnimationFrame(() => sessionsElement.focus({ preventScroll: true }));
     }
 
