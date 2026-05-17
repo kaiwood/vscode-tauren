@@ -1,23 +1,34 @@
 import { getSessionDisplayName } from './sessionFormat';
 import type { SessionItem } from '../types';
 
-export function getVisibleSessionIndexes(sessions: readonly SessionItem[], query: string): number[] {
+export type SessionVisibilityFilter = {
+  namedOnly?: boolean;
+};
+
+export function getVisibleSessionIndexes(
+  sessions: readonly SessionItem[],
+  query: string,
+  filter: SessionVisibilityFilter = {}
+): number[] {
   if (sessions.length === 0) {
     return [];
   }
 
   const normalizedQuery = query.trim().toLowerCase();
-
-  if (!normalizedQuery) {
-    return sessions.map((_, index) => index);
-  }
-
   const indexes: number[] = [];
 
   for (let index = 0; index < sessions.length; index += 1) {
-    if (getSessionDisplayName(sessions[index]).toLowerCase().includes(normalizedQuery)) {
-      indexes.push(index);
+    const session = sessions[index];
+
+    if (filter.namedOnly && !session.name?.trim()) {
+      continue;
     }
+
+    if (normalizedQuery && !getSessionDisplayName(session).toLowerCase().includes(normalizedQuery)) {
+      continue;
+    }
+
+    indexes.push(index);
   }
 
   return indexes;

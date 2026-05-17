@@ -20,6 +20,19 @@ suite('Webview session search', () => {
     assert.deepStrictEqual(getVisibleSessionIndexes(sessions, 'needle'), []);
   });
 
+  test('filters named sessions as a secondary filter', () => {
+    const sessions = [
+      createSession({ name: 'Alpha plan', firstMessage: 'ignored' }),
+      createSession({ name: 'Beta review', firstMessage: 'ignored' }),
+      createSession({ name: '', firstMessage: 'Alpha fallback' }),
+      createSession({ name: '   ', firstMessage: 'Whitespace name' })
+    ];
+
+    assert.deepStrictEqual(getVisibleSessionIndexes(sessions, '', { namedOnly: true }), [0, 1]);
+    assert.deepStrictEqual(getVisibleSessionIndexes(sessions, 'alpha', { namedOnly: true }), [0]);
+    assert.deepStrictEqual(getVisibleSessionIndexes(sessions, 'fallback', { namedOnly: true }), []);
+  });
+
   test('repairs selection to the first visible session', () => {
     assert.strictEqual(ensureVisibleSessionSelection(4, [2, 4, 7]), 4);
     assert.strictEqual(ensureVisibleSessionSelection(1, [2, 4, 7]), 2);

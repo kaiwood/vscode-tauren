@@ -37,6 +37,7 @@ export type SessionViewControllerOptions = {
 export class SessionViewController {
   private sessionListSelectedIndex = 0;
   private sessionSearchQuery = '';
+  private sessionNamedOnlyFilter = false;
   private sessionPointerHoverEnabled = false;
   private openSessionListMenuIndex: number | undefined;
   private openSessionListMenuCommandIndex = 0;
@@ -104,6 +105,12 @@ export class SessionViewController {
       return this.handleSessionSearchKeydown(event, sessionSearchInput);
     }
 
+    const namedOnlyFilterButton = target?.closest('.sessions__named-filter');
+
+    if (namedOnlyFilterButton instanceof HTMLButtonElement && state.viewMode === 'sessions') {
+      return this.handleNamedOnlyFilterKeydown(event);
+    }
+
     const sessionListNameInput = target?.closest('.sessions__name-input');
 
     if (sessionListNameInput instanceof HTMLInputElement) {
@@ -133,6 +140,7 @@ export class SessionViewController {
 
     if (state.viewMode !== 'sessions') {
       this.sessionSearchQuery = '';
+      this.sessionNamedOnlyFilter = false;
       this.openSessionListMenuIndex = undefined;
       this.openSessionListMenuCommandIndex = 0;
       this.stopSessionListNameEdit();
@@ -149,6 +157,7 @@ export class SessionViewController {
     const searchSelectionEnd = searchInput?.selectionEnd ?? null;
     const count = Array.isArray(state.sessions) ? state.sessions.length : 0;
     const visibleIndexes = this.getVisibleSessionIndexes();
+    const filtersActive = this.hasActiveSessionListFilters();
     this.sessionListSelectedIndex = ensureVisibleSessionSelection(this.sessionListSelectedIndex, visibleIndexes);
     this.options.sessionsElement.replaceChildren();
 
@@ -162,7 +171,7 @@ export class SessionViewController {
     }
     header.textContent = state.sessionsRefreshing
       ? 'Loading sessions...'
-      : this.sessionSearchQuery.trim() && visibleIndexes.length !== count
+      : filtersActive && visibleIndexes.length !== count
       ? visibleIndexes.length + ' of ' + count + ' sessions'
       : count === 1
       ? '1 session'
@@ -181,7 +190,7 @@ export class SessionViewController {
     } else if (count === 0) {
       this.options.sessionsElement.append(createSessionEmptyElement('No sessions found for this workspace.'));
     } else if (visibleIndexes.length === 0) {
-      this.options.sessionsElement.append(createSessionEmptyElement('No sessions match your search.'));
+      this.options.sessionsElement.append(createSessionEmptyElement(this.getSessionListEmptyText()));
     } else {
       for (const index of visibleIndexes) {
         this.options.sessionsElement.append(createSessionItemElement({
@@ -749,6 +758,21 @@ export class SessionViewController {
     input.addEventListener('click', (event) => event.stopPropagation());
     wrap.append(input);
 
+    const namedOnlyButton = document.createElement('button');
+    namedOnlyButton.className = 'sessions__named-filter';
+    namedOnlyButton.classList.toggle('sessions__named-filter--active', this.sessionNamedOnlyFilter);
+    namedOnlyButton.type = 'button';
+    namedOnlyButton.innerHTML = '<svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3.75 2.5H8.6C8.95 2.5 9.29 2.64 9.54 2.89L13.1 6.45C13.62 6.97 13.62 7.81 13.1 8.33L8.33 13.1C7.81 13.62 6.97 13.62 6.45 13.1L2.89 9.54C2.64 9.29 2.5 8.95 2.5 8.6V3.75C2.5 3.06 3.06 2.5 3.75 2.5Z" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/><circle cx="5.65" cy="5.65" r="1" fill="currentColor"/><path d="M7.35 8.3H10.7" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg>';
+    namedOnlyButton.title = 'Filter to named sessions';
+    namedOnlyButton.setAttribute('aria-label', 'Filter to named sessions');
+    namedOnlyButton.setAttribute('aria-pressed', this.sessionNamedOnlyFilter ? 'true' : 'false');
+    namedOnlyButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.toggleNamedOnlyFilter();
+    });
+    wrap.append(namedOnlyButton);
+
     return wrap;
   }
 
@@ -858,6 +882,43 @@ export class SessionViewController {
     }
   }
 
+  private handleNamedOnlyFilterKeydown(event: KeyboardEvent): boolean {
+    if (event.altKey || event.ctrlKey || event.metaKey) {
+      return false;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.toggleNamedOnlyFilter();
+      return true;
+    }
+
+    return false;
+  }
+
+  private toggleNamedOnlyFilter(): void {
+    this.sessionNamedOnlyFilter = !this.sessionNamedOnlyFilter;
+    this.closeSessionItemMenus();
+    this.renderSessions();
+  }
+
+  private hasActiveSessionListFilters(): boolean {
+    return Boolean(this.sessionSearchQuery.trim()) || this.sessionNamedOnlyFilter;
+  }
+
+  private getSessionListEmptyText(): string {
+    if (this.sessionNamedOnlyFilter && this.sessionSearchQuery.trim()) {
+      return 'No named sessions match your search.';
+    }
+
+    if (this.sessionNamedOnlyFilter) {
+      return 'No named sessions found.';
+    }
+
+    return 'No sessions match your search.';
+  }
+
   private handleSessionListCommandKey(event: KeyboardEvent): boolean {
     if (event.altKey || event.ctrlKey || event.metaKey) {
       return false;
@@ -893,7 +954,9 @@ export class SessionViewController {
   private getVisibleSessionIndexes(): number[] {
     const state = this.options.getState();
 
-    return getVisibleSessionIndexes(Array.isArray(state.sessions) ? state.sessions : [], this.sessionSearchQuery);
+    return getVisibleSessionIndexes(Array.isArray(state.sessions) ? state.sessions : [], this.sessionSearchQuery, {
+      namedOnly: this.sessionNamedOnlyFilter
+    });
   }
 
   private isSessionIndexVisible(index: number): boolean {

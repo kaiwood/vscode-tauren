@@ -393,6 +393,10 @@ const viewLayoutStyles = /* css */ `    .messages,
 `;
 
 const sessionListStyles = /* css */ `    .sessions__search {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 6px;
+      align-items: center;
       padding: 4px 4px 6px;
     }
 
@@ -416,6 +420,39 @@ const sessionListStyles = /* css */ `    .sessions__search {
 
     .sessions__search-input::placeholder {
       color: var(--vscode-input-placeholderForeground, var(--vscode-descriptionForeground));
+    }
+
+    .sessions__named-filter {
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+      background: var(--vscode-button-secondaryBackground, transparent);
+      border: 1px solid var(--vscode-button-border, var(--vscode-input-border, transparent));
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .sessions__named-filter:hover,
+    .sessions__named-filter:focus-visible {
+      color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+      background: var(--vscode-button-secondaryHoverBackground, color-mix(in srgb, var(--vscode-foreground) 10%, transparent));
+      border-color: var(--vscode-focusBorder, var(--vscode-button-border, var(--vscode-input-border, transparent)));
+      outline: none;
+    }
+
+    .sessions__named-filter--active {
+      color: var(--vscode-button-foreground, var(--vscode-foreground));
+      background: var(--vscode-button-background, var(--vscode-focusBorder));
+      border-color: var(--vscode-focusBorder, var(--vscode-button-border, transparent));
+    }
+
+    .sessions__named-filter--active:hover,
+    .sessions__named-filter--active:focus-visible {
+      color: var(--vscode-button-foreground, var(--vscode-foreground));
+      background: var(--vscode-button-hoverBackground, var(--vscode-button-background, var(--vscode-focusBorder)));
     }
 
     .sessions__header,

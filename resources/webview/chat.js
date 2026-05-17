@@ -2183,19 +2183,21 @@
   }
 
   // src/webview/sessions/sessionSearch.ts
-  function getVisibleSessionIndexes(sessions, query) {
+  function getVisibleSessionIndexes(sessions, query, filter = {}) {
     if (sessions.length === 0) {
       return [];
     }
     const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) {
-      return sessions.map((_, index) => index);
-    }
     const indexes = [];
     for (let index = 0; index < sessions.length; index += 1) {
-      if (getSessionDisplayName(sessions[index]).toLowerCase().includes(normalizedQuery)) {
-        indexes.push(index);
+      const session = sessions[index];
+      if (filter.namedOnly && !session.name?.trim()) {
+        continue;
       }
+      if (normalizedQuery && !getSessionDisplayName(session).toLowerCase().includes(normalizedQuery)) {
+        continue;
+      }
+      indexes.push(index);
     }
     return indexes;
   }
@@ -2540,6 +2542,7 @@
     options;
     sessionListSelectedIndex = 0;
     sessionSearchQuery = "";
+    sessionNamedOnlyFilter = false;
     sessionPointerHoverEnabled = false;
     openSessionListMenuIndex;
     openSessionListMenuCommandIndex = 0;
@@ -2573,6 +2576,10 @@
       if (sessionSearchInput instanceof HTMLInputElement && state2.viewMode === "sessions") {
         return this.handleSessionSearchKeydown(event, sessionSearchInput);
       }
+      const namedOnlyFilterButton = target?.closest(".sessions__named-filter");
+      if (namedOnlyFilterButton instanceof HTMLButtonElement && state2.viewMode === "sessions") {
+        return this.handleNamedOnlyFilterKeydown(event);
+      }
       const sessionListNameInput = target?.closest(".sessions__name-input");
       if (sessionListNameInput instanceof HTMLInputElement) {
         if (event.key === "Enter" && !event.shiftKey) {
@@ -2596,6 +2603,7 @@
       const state2 = this.options.getState();
       if (state2.viewMode !== "sessions") {
         this.sessionSearchQuery = "";
+        this.sessionNamedOnlyFilter = false;
         this.openSessionListMenuIndex = void 0;
         this.openSessionListMenuCommandIndex = 0;
         this.stopSessionListNameEdit();
@@ -2610,6 +2618,7 @@
       const searchSelectionEnd = searchInput?.selectionEnd ?? null;
       const count = Array.isArray(state2.sessions) ? state2.sessions.length : 0;
       const visibleIndexes = this.getVisibleSessionIndexes();
+      const filtersActive = this.hasActiveSessionListFilters();
       this.sessionListSelectedIndex = ensureVisibleSessionSelection(this.sessionListSelectedIndex, visibleIndexes);
       this.options.sessionsElement.replaceChildren();
       const search = this.createSessionSearchElement();
@@ -2619,7 +2628,7 @@
       if (this.openSessionListMenuIndex !== void 0 && !visibleIndexes.includes(this.openSessionListMenuIndex)) {
         this.openSessionListMenuIndex = void 0;
       }
-      header.textContent = state2.sessionsRefreshing ? "Loading sessions..." : this.sessionSearchQuery.trim() && visibleIndexes.length !== count ? visibleIndexes.length + " of " + count + " sessions" : count === 1 ? "1 session" : count + " sessions";
+      header.textContent = state2.sessionsRefreshing ? "Loading sessions..." : filtersActive && visibleIndexes.length !== count ? visibleIndexes.length + " of " + count + " sessions" : count === 1 ? "1 session" : count + " sessions";
       this.options.sessionsElement.append(header);
       if (state2.sessionsError) {
         const error = document.createElement("div");
@@ -2632,7 +2641,7 @@
       } else if (count === 0) {
         this.options.sessionsElement.append(createSessionEmptyElement("No sessions found for this workspace."));
       } else if (visibleIndexes.length === 0) {
-        this.options.sessionsElement.append(createSessionEmptyElement("No sessions match your search."));
+        this.options.sessionsElement.append(createSessionEmptyElement(this.getSessionListEmptyText()));
       } else {
         for (const index of visibleIndexes) {
           this.options.sessionsElement.append(createSessionItemElement({
@@ -3075,6 +3084,20 @@
       input.addEventListener("blur", () => this.handleSessionSearchBlur());
       input.addEventListener("click", (event) => event.stopPropagation());
       wrap.append(input);
+      const namedOnlyButton = document.createElement("button");
+      namedOnlyButton.className = "sessions__named-filter";
+      namedOnlyButton.classList.toggle("sessions__named-filter--active", this.sessionNamedOnlyFilter);
+      namedOnlyButton.type = "button";
+      namedOnlyButton.innerHTML = '<svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3.75 2.5H8.6C8.95 2.5 9.29 2.64 9.54 2.89L13.1 6.45C13.62 6.97 13.62 7.81 13.1 8.33L8.33 13.1C7.81 13.62 6.97 13.62 6.45 13.1L2.89 9.54C2.64 9.29 2.5 8.95 2.5 8.6V3.75C2.5 3.06 3.06 2.5 3.75 2.5Z" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/><circle cx="5.65" cy="5.65" r="1" fill="currentColor"/><path d="M7.35 8.3H10.7" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg>';
+      namedOnlyButton.title = "Filter to named sessions";
+      namedOnlyButton.setAttribute("aria-label", "Filter to named sessions");
+      namedOnlyButton.setAttribute("aria-pressed", this.sessionNamedOnlyFilter ? "true" : "false");
+      namedOnlyButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.toggleNamedOnlyFilter();
+      });
+      wrap.append(namedOnlyButton);
       return wrap;
     }
     handleSessionSearchFocus() {
@@ -3162,6 +3185,35 @@
         input.setSelectionRange(options.selectionStart, options.selectionEnd ?? options.selectionStart);
       }
     }
+    handleNamedOnlyFilterKeydown(event) {
+      if (event.altKey || event.ctrlKey || event.metaKey) {
+        return false;
+      }
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.toggleNamedOnlyFilter();
+        return true;
+      }
+      return false;
+    }
+    toggleNamedOnlyFilter() {
+      this.sessionNamedOnlyFilter = !this.sessionNamedOnlyFilter;
+      this.closeSessionItemMenus();
+      this.renderSessions();
+    }
+    hasActiveSessionListFilters() {
+      return Boolean(this.sessionSearchQuery.trim()) || this.sessionNamedOnlyFilter;
+    }
+    getSessionListEmptyText() {
+      if (this.sessionNamedOnlyFilter && this.sessionSearchQuery.trim()) {
+        return "No named sessions match your search.";
+      }
+      if (this.sessionNamedOnlyFilter) {
+        return "No named sessions found.";
+      }
+      return "No sessions match your search.";
+    }
     handleSessionListCommandKey(event) {
       if (event.altKey || event.ctrlKey || event.metaKey) {
         return false;
@@ -3188,7 +3240,9 @@
     }
     getVisibleSessionIndexes() {
       const state2 = this.options.getState();
-      return getVisibleSessionIndexes(Array.isArray(state2.sessions) ? state2.sessions : [], this.sessionSearchQuery);
+      return getVisibleSessionIndexes(Array.isArray(state2.sessions) ? state2.sessions : [], this.sessionSearchQuery, {
+        namedOnly: this.sessionNamedOnlyFilter
+      });
     }
     isSessionIndexVisible(index) {
       return this.getVisibleSessionIndexes().includes(index);
