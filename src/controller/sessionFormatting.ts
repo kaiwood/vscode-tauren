@@ -1,6 +1,6 @@
 import type { WebviewSessionItem } from '../sidebar/types';
 import type { PiForkMessage, PiSessionState, PiSessionStats } from '../rpc/types';
-import { formatContextUsage, formatInteger } from '../sessionMetadata';
+import { formatContextUsage, formatInteger } from '../metadata/sessionMetadata';
 
 export type ForkMessageOption = {
   entryId: string;

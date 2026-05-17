@@ -40,7 +40,7 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - `src/piEventMapper.ts` owns pure Pi RPC event-to-UI action mapping helpers.
 - `src/prompt/` owns one-shot IDE prompt context attachment types, state, normalization, labels, editor extraction, prompt formatting, and webview projection.
 - `src/readyScript/` owns ready-script running, arming/queued-run state transitions, and shared ready-script types.
-- `src/sessionMetadata.ts` owns session model/context/slash-command metadata state, refresh orchestration, formatting, and equality checks.
+- `src/metadata/sessionMetadata.ts` owns session model/context/slash-command metadata state, refresh orchestration, formatting, and equality checks.
 - `src/metadata/types.ts` owns shared metadata/cache type shapes; `src/metadata/cache.ts` owns persisted session metadata cache parsing/writing, including legacy cached model metadata migration.
 - `src/extensionUi/requestHandler.ts` owns extension UI request routing through an injected VS Code UI adapter, safe cancellation, and stale request cleanup.
 - `src/sessions/piSessionList.ts` owns extension-side discovery/parsing of persisted Pi session JSONL files for the sidebar session switcher.

@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { SessionMetadataRefreshController, SessionMetadataState, formatContextUsage } from '../../sessionMetadata';
+import { SessionMetadataRefreshController, SessionMetadataState, formatContextUsage } from '../../metadata/sessionMetadata';
 
 suite('SessionMetadataState', () => {
   test('applies initial metadata and publishes webview state', () => {

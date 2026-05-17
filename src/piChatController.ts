@@ -22,7 +22,7 @@ import { ReadyScriptState } from './readyScript';
 import {
   SessionMetadataRefreshController,
   SessionMetadataState
-} from './sessionMetadata';
+} from './metadata/sessionMetadata';
 import { SessionDiffController } from './diff/sessionDiffController';
 import {
   getErrorMessage,
@@ -36,7 +36,7 @@ import { PiRpcEventHandler } from './controller/piRpcEventHandler';
 import { SessionViewController } from './controller/sessionViewController';
 
 export type { PiChatControllerOptions } from './controller/types';
-export type { PiChatContextUsage, PiChatModelMeta, PiChatSessionMetaSnapshot } from './sessionMetadata';
+export type { PiChatContextUsage, PiChatModelMeta, PiChatSessionMetaSnapshot } from './metadata/sessionMetadata';
 
 export type { PiPromptContextAttachment, PiPromptContextInput } from './prompt/types';
 

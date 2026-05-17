@@ -2,7 +2,7 @@ import type { ChatSession } from '../chatSession';
 import type { ExtensionUiRequestUi } from '../extensionUi/requestHandler';
 import type { PiRpcClientLike } from '../rpc/clientTypes';
 import type { PiSessionState, PiSessionStats } from '../rpc/types';
-import { SessionMetadataState } from '../sessionMetadata';
+import { SessionMetadataState } from '../metadata/sessionMetadata';
 import { isSupportedBuiltinSlashCommand } from '../slashCommands';
 import { getErrorMessage, isUnsupportedReloadCommandError } from './errors';
 import { filterModelOptions, formatModelOptionLabel } from './modelFormatting';
