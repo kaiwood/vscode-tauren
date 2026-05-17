@@ -2191,6 +2191,105 @@
     return button;
   }
 
+  // src/webview/sessions/sessionUiHelpers.ts
+  function createSessionEmptyElement(text) {
+    const empty = document.createElement("div");
+    empty.className = "sessions__empty";
+    empty.textContent = text;
+    return empty;
+  }
+  function getSessionListCommandForKey(key) {
+    switch (key.toLowerCase()) {
+      case "r":
+        return "rename";
+      case "f":
+        return "fork";
+      case "c":
+        return "clone";
+      case "z":
+        return "compact";
+      case "e":
+        return "export";
+      default:
+        return void 0;
+    }
+  }
+  function eventTargetElement3(event) {
+    return event.target instanceof Element ? event.target : null;
+  }
+
+  // src/webview/sessions/sessionTreeController.ts
+  var SessionTreeController = class {
+    constructor(options) {
+      this.options = options;
+    }
+    options;
+    selectedIndex = 0;
+    render() {
+      const state2 = this.options.getState();
+      this.options.sessionsElement.replaceChildren();
+      this.selectedIndex = this.clampIndex(this.selectedIndex);
+      const header = document.createElement("div");
+      header.className = "sessions__header";
+      const count = Array.isArray(state2.treeItems) ? state2.treeItems.length : 0;
+      header.textContent = state2.treeRefreshing ? "Loading session tree..." : count === 1 ? "1 tree entry" : count + " tree entries";
+      this.options.sessionsElement.append(header);
+      if (state2.treeError) {
+        const error = document.createElement("div");
+        error.className = "sessions__error";
+        error.textContent = state2.treeError;
+        this.options.sessionsElement.append(error);
+      }
+      if (state2.treeRefreshing && count === 0) {
+        this.options.sessionsElement.append(createSessionEmptyElement("Loading session tree..."));
+        return;
+      }
+      if (count === 0) {
+        this.options.sessionsElement.append(createSessionEmptyElement("No persisted tree entries found for this session."));
+        return;
+      }
+      for (let index = 0; index < state2.treeItems.length; index += 1) {
+        this.options.sessionsElement.append(createTreeItemElement(state2.treeItems[index], index, {
+          selectedIndex: this.selectedIndex,
+          disabled: state2.busy || state2.treeRefreshing
+        }));
+      }
+    }
+    selectCurrent() {
+      const state2 = this.options.getState();
+      const currentIndex = Array.isArray(state2.treeItems) ? state2.treeItems.findIndex((item) => item.current) : -1;
+      this.selectedIndex = currentIndex >= 0 ? currentIndex : 0;
+    }
+    moveSelection(delta) {
+      const state2 = this.options.getState();
+      if (!Array.isArray(state2.treeItems) || state2.treeItems.length === 0) {
+        return;
+      }
+      this.selectedIndex = this.clampIndex(this.selectedIndex + delta);
+      this.render();
+      document.getElementById("tree-" + this.selectedIndex)?.scrollIntoView({ block: "nearest" });
+    }
+    selectCurrentIndex() {
+      this.selectIndex(this.selectedIndex);
+    }
+    selectIndex(index) {
+      const state2 = this.options.getState();
+      const treeItem = Array.isArray(state2.treeItems) ? state2.treeItems[index] : void 0;
+      if (!treeItem?.entryId || state2.busy || state2.treeRefreshing) {
+        return;
+      }
+      this.options.postMessage({ type: "selectTreeEntry", entryId: treeItem.entryId });
+    }
+    clampIndex(index) {
+      const state2 = this.options.getState();
+      const count = Array.isArray(state2.treeItems) ? state2.treeItems.length : 0;
+      if (count === 0) {
+        return 0;
+      }
+      return Math.max(0, Math.min(index, count - 1));
+    }
+  };
+
   // src/webview/sessions/topSessionControls.ts
   var TopSessionControls = class {
     constructor(options) {
@@ -2400,6 +2499,11 @@
   var SessionViewController = class {
     constructor(options) {
       this.options = options;
+      this.treeController = new SessionTreeController({
+        getState: options.getState,
+        postMessage: options.postMessage,
+        sessionsElement: options.sessionsElement
+      });
       this.topControls = new TopSessionControls({
         getState: options.getState,
         postMessage: options.postMessage,
@@ -2422,13 +2526,13 @@
     }
     options;
     sessionListSelectedIndex = 0;
-    treeListSelectedIndex = 0;
     sessionPointerHoverEnabled = false;
     openSessionListMenuIndex;
     openSessionListMenuCommandIndex = 0;
     sessionListNameEditPath;
     sessionListNameEditInitialValue = "";
     topControls;
+    treeController;
     attachEventListeners() {
       this.topControls.attachEventListeners();
       this.options.sessionsElement.addEventListener("keydown", (event) => this.handleSessionListKeydown(event));
@@ -2524,39 +2628,10 @@
       }
     }
     renderTree() {
-      const state2 = this.options.getState();
-      this.options.sessionsElement.replaceChildren();
-      this.treeListSelectedIndex = this.clampTreeIndex(this.treeListSelectedIndex);
-      const header = document.createElement("div");
-      header.className = "sessions__header";
-      const count = Array.isArray(state2.treeItems) ? state2.treeItems.length : 0;
-      header.textContent = state2.treeRefreshing ? "Loading session tree..." : count === 1 ? "1 tree entry" : count + " tree entries";
-      this.options.sessionsElement.append(header);
-      if (state2.treeError) {
-        const error = document.createElement("div");
-        error.className = "sessions__error";
-        error.textContent = state2.treeError;
-        this.options.sessionsElement.append(error);
-      }
-      if (state2.treeRefreshing && count === 0) {
-        this.options.sessionsElement.append(createSessionEmptyElement("Loading session tree..."));
-        return;
-      }
-      if (count === 0) {
-        this.options.sessionsElement.append(createSessionEmptyElement("No persisted tree entries found for this session."));
-        return;
-      }
-      for (let index = 0; index < state2.treeItems.length; index += 1) {
-        this.options.sessionsElement.append(createTreeItemElement(state2.treeItems[index], index, {
-          selectedIndex: this.treeListSelectedIndex,
-          disabled: state2.busy || state2.treeRefreshing
-        }));
-      }
+      this.treeController.render();
     }
     selectCurrentTreeEntry() {
-      const state2 = this.options.getState();
-      const currentIndex = Array.isArray(state2.treeItems) ? state2.treeItems.findIndex((item) => item.current) : -1;
-      this.treeListSelectedIndex = currentIndex >= 0 ? currentIndex : 0;
+      this.treeController.selectCurrent();
     }
     selectCurrentSession() {
       const state2 = this.options.getState();
@@ -2631,7 +2706,7 @@
       }
       this.closeSessionItemMenus();
       const index = Number(item.getAttribute("data-index"));
-      state2.viewMode === "tree" ? this.selectTreeIndex(index) : this.selectSessionIndex(index);
+      state2.viewMode === "tree" ? this.treeController.selectIndex(index) : this.selectSessionIndex(index);
     }
     getCurrentSessionTitle() {
       const state2 = this.options.getState();
@@ -2673,14 +2748,14 @@
         event.preventDefault();
         event.stopPropagation();
         this.closeSessionItemMenus();
-        state2.viewMode === "tree" ? this.moveTreeSelection(1) : this.moveSessionSelection(1);
+        state2.viewMode === "tree" ? this.treeController.moveSelection(1) : this.moveSessionSelection(1);
         return true;
       }
       if (event.key === "ArrowUp") {
         event.preventDefault();
         event.stopPropagation();
         this.closeSessionItemMenus();
-        state2.viewMode === "tree" ? this.moveTreeSelection(-1) : this.moveSessionSelection(-1);
+        state2.viewMode === "tree" ? this.treeController.moveSelection(-1) : this.moveSessionSelection(-1);
         return true;
       }
       if (state2.viewMode === "sessions" && event.key === "ArrowRight") {
@@ -2695,7 +2770,7 @@
       if (event.key === "Enter") {
         event.preventDefault();
         event.stopPropagation();
-        state2.viewMode === "tree" ? this.selectTreeIndex(this.treeListSelectedIndex) : this.selectSessionIndex(this.sessionListSelectedIndex);
+        state2.viewMode === "tree" ? this.treeController.selectCurrentIndex() : this.selectSessionIndex(this.sessionListSelectedIndex);
         return true;
       }
       if (state2.viewMode === "sessions" && (event.key === "Delete" || event.key === "Backspace")) {
@@ -2932,31 +3007,6 @@
       }
       return Math.max(0, Math.min(index, count - 1));
     }
-    moveTreeSelection(delta) {
-      const state2 = this.options.getState();
-      if (!Array.isArray(state2.treeItems) || state2.treeItems.length === 0) {
-        return;
-      }
-      this.treeListSelectedIndex = this.clampTreeIndex(this.treeListSelectedIndex + delta);
-      this.renderTree();
-      document.getElementById("tree-" + this.treeListSelectedIndex)?.scrollIntoView({ block: "nearest" });
-    }
-    selectTreeIndex(index) {
-      const state2 = this.options.getState();
-      const treeItem = Array.isArray(state2.treeItems) ? state2.treeItems[index] : void 0;
-      if (!treeItem?.entryId || state2.busy || state2.treeRefreshing) {
-        return;
-      }
-      this.options.postMessage({ type: "selectTreeEntry", entryId: treeItem.entryId });
-    }
-    clampTreeIndex(index) {
-      const state2 = this.options.getState();
-      const count = Array.isArray(state2.treeItems) ? state2.treeItems.length : 0;
-      if (count === 0) {
-        return 0;
-      }
-      return Math.max(0, Math.min(index, count - 1));
-    }
     setSessionMenuItemHover(item, hovered) {
       item.classList.toggle("pi-toolbar__menu-item--hover", hovered);
     }
@@ -2969,31 +3019,6 @@
       return (this.getCurrentSession()?.path ?? state2.currentSessionFile ?? "").trim();
     }
   };
-  function createSessionEmptyElement(text) {
-    const empty = document.createElement("div");
-    empty.className = "sessions__empty";
-    empty.textContent = text;
-    return empty;
-  }
-  function getSessionListCommandForKey(key) {
-    switch (key.toLowerCase()) {
-      case "r":
-        return "rename";
-      case "f":
-        return "fork";
-      case "c":
-        return "clone";
-      case "z":
-        return "compact";
-      case "e":
-        return "export";
-      default:
-        return void 0;
-    }
-  }
-  function eventTargetElement3(event) {
-    return event.target instanceof Element ? event.target : null;
-  }
 
   // src/webview/state.ts
   var initialWebviewState = {

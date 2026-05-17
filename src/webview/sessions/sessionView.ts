@@ -1,10 +1,12 @@
-import { createSessionItemElement, createTreeItemElement } from './sessionElements';
+import { createSessionItemElement } from './sessionElements';
 import { getSessionDisplayName } from './sessionFormat';
-import { TopSessionControls } from './topSessionControls';
+import { SessionTreeController } from './sessionTreeController';
 import {
   parseSessionItemCommand,
   sessionItemMenuCommands
 } from './sessionItemCommands';
+import { createSessionEmptyElement, eventTargetElement, getSessionListCommandForKey } from './sessionUiHelpers';
+import { TopSessionControls } from './topSessionControls';
 import type { SessionItem, SessionItemCommand, WebviewState } from '../types';
 
 type PostMessage = (message: unknown) => void;
@@ -29,15 +31,20 @@ export type SessionViewControllerOptions = {
 
 export class SessionViewController {
   private sessionListSelectedIndex = 0;
-  private treeListSelectedIndex = 0;
   private sessionPointerHoverEnabled = false;
   private openSessionListMenuIndex: number | undefined;
   private openSessionListMenuCommandIndex = 0;
   private sessionListNameEditPath: string | undefined;
   private sessionListNameEditInitialValue = '';
   private readonly topControls: TopSessionControls;
+  private readonly treeController: SessionTreeController;
 
   public constructor(private readonly options: SessionViewControllerOptions) {
+    this.treeController = new SessionTreeController({
+      getState: options.getState,
+      postMessage: options.postMessage,
+      sessionsElement: options.sessionsElement
+    });
     this.topControls = new TopSessionControls({
       getState: options.getState,
       postMessage: options.postMessage,
@@ -177,51 +184,11 @@ export class SessionViewController {
   }
 
   public renderTree(): void {
-    const state = this.options.getState();
-    this.options.sessionsElement.replaceChildren();
-    this.treeListSelectedIndex = this.clampTreeIndex(this.treeListSelectedIndex);
-
-    const header = document.createElement('div');
-    header.className = 'sessions__header';
-    const count = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
-    header.textContent = state.treeRefreshing
-      ? 'Loading session tree...'
-      : count === 1
-      ? '1 tree entry'
-      : count + ' tree entries';
-    this.options.sessionsElement.append(header);
-
-    if (state.treeError) {
-      const error = document.createElement('div');
-      error.className = 'sessions__error';
-      error.textContent = state.treeError;
-      this.options.sessionsElement.append(error);
-    }
-
-    if (state.treeRefreshing && count === 0) {
-      this.options.sessionsElement.append(createSessionEmptyElement('Loading session tree...'));
-      return;
-    }
-
-    if (count === 0) {
-      this.options.sessionsElement.append(createSessionEmptyElement('No persisted tree entries found for this session.'));
-      return;
-    }
-
-    for (let index = 0; index < state.treeItems.length; index += 1) {
-      this.options.sessionsElement.append(createTreeItemElement(state.treeItems[index], index, {
-        selectedIndex: this.treeListSelectedIndex,
-        disabled: state.busy || state.treeRefreshing
-      }));
-    }
+    this.treeController.render();
   }
 
   public selectCurrentTreeEntry(): void {
-    const state = this.options.getState();
-    const currentIndex = Array.isArray(state.treeItems)
-      ? state.treeItems.findIndex((item) => item.current)
-      : -1;
-    this.treeListSelectedIndex = currentIndex >= 0 ? currentIndex : 0;
+    this.treeController.selectCurrent();
   }
 
   public selectCurrentSession(): void {
@@ -317,7 +284,7 @@ export class SessionViewController {
 
     this.closeSessionItemMenus();
     const index = Number(item.getAttribute('data-index'));
-    state.viewMode === 'tree' ? this.selectTreeIndex(index) : this.selectSessionIndex(index);
+    state.viewMode === 'tree' ? this.treeController.selectIndex(index) : this.selectSessionIndex(index);
   }
 
   private getCurrentSessionTitle(): string {
@@ -373,7 +340,7 @@ export class SessionViewController {
       event.preventDefault();
       event.stopPropagation();
       this.closeSessionItemMenus();
-      state.viewMode === 'tree' ? this.moveTreeSelection(1) : this.moveSessionSelection(1);
+      state.viewMode === 'tree' ? this.treeController.moveSelection(1) : this.moveSessionSelection(1);
       return true;
     }
 
@@ -381,7 +348,7 @@ export class SessionViewController {
       event.preventDefault();
       event.stopPropagation();
       this.closeSessionItemMenus();
-      state.viewMode === 'tree' ? this.moveTreeSelection(-1) : this.moveSessionSelection(-1);
+      state.viewMode === 'tree' ? this.treeController.moveSelection(-1) : this.moveSessionSelection(-1);
       return true;
     }
 
@@ -399,7 +366,7 @@ export class SessionViewController {
     if (event.key === 'Enter') {
       event.preventDefault();
       event.stopPropagation();
-      state.viewMode === 'tree' ? this.selectTreeIndex(this.treeListSelectedIndex) : this.selectSessionIndex(this.sessionListSelectedIndex);
+      state.viewMode === 'tree' ? this.treeController.selectCurrentIndex() : this.selectSessionIndex(this.sessionListSelectedIndex);
       return true;
     }
 
@@ -709,40 +676,6 @@ export class SessionViewController {
     return Math.max(0, Math.min(index, count - 1));
   }
 
-  private moveTreeSelection(delta: number): void {
-    const state = this.options.getState();
-
-    if (!Array.isArray(state.treeItems) || state.treeItems.length === 0) {
-      return;
-    }
-
-    this.treeListSelectedIndex = this.clampTreeIndex(this.treeListSelectedIndex + delta);
-    this.renderTree();
-    document.getElementById('tree-' + this.treeListSelectedIndex)?.scrollIntoView({ block: 'nearest' });
-  }
-
-  private selectTreeIndex(index: number): void {
-    const state = this.options.getState();
-    const treeItem = Array.isArray(state.treeItems) ? state.treeItems[index] : undefined;
-
-    if (!treeItem?.entryId || state.busy || state.treeRefreshing) {
-      return;
-    }
-
-    this.options.postMessage({ type: 'selectTreeEntry', entryId: treeItem.entryId });
-  }
-
-  private clampTreeIndex(index: number): number {
-    const state = this.options.getState();
-    const count = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
-
-    if (count === 0) {
-      return 0;
-    }
-
-    return Math.max(0, Math.min(index, count - 1));
-  }
-
   private setSessionMenuItemHover(item: HTMLButtonElement, hovered: boolean): void {
     item.classList.toggle('pi-toolbar__menu-item--hover', hovered);
   }
@@ -757,32 +690,4 @@ export class SessionViewController {
     return (this.getCurrentSession()?.path ?? state.currentSessionFile ?? '').trim();
   }
 
-}
-
-function createSessionEmptyElement(text: string): HTMLElement {
-  const empty = document.createElement('div');
-  empty.className = 'sessions__empty';
-  empty.textContent = text;
-  return empty;
-}
-
-function getSessionListCommandForKey(key: string): SessionItemCommand | undefined {
-  switch (key.toLowerCase()) {
-    case 'r':
-      return 'rename';
-    case 'f':
-      return 'fork';
-    case 'c':
-      return 'clone';
-    case 'z':
-      return 'compact';
-    case 'e':
-      return 'export';
-    default:
-      return undefined;
-  }
-}
-
-function eventTargetElement(event: Event): Element | null {
-  return event.target instanceof Element ? event.target : null;
 }
