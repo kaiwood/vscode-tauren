@@ -2838,10 +2838,7 @@
         return true;
       }
       if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        this.options.postMessage({ type: "hideSessions" });
-        this.options.focusPromptInput();
+        this.hideSessionList(event);
         return true;
       }
       if (event.key === "ArrowDown") {
@@ -2880,6 +2877,12 @@
         return true;
       }
       return false;
+    }
+    hideSessionList(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.options.postMessage({ type: "hideSessions" });
+      this.options.focusPromptInput();
     }
     enableSessionPointerHover() {
       if (this.sessionPointerHoverEnabled) {
@@ -3196,18 +3199,19 @@
         this.focusFirstVisibleSession();
         return true;
       }
-      if (event.key === "Escape" && this.sessionSearchQuery.trim()) {
-        event.preventDefault();
-        event.stopPropagation();
-        this.updateSessionSearchQuery("", 0, 0);
+      if (event.key === "Escape") {
+        if (input.value.length > 0 || this.sessionSearchQuery.length > 0) {
+          event.preventDefault();
+          event.stopPropagation();
+          this.updateSessionSearchQuery("", 0, 0);
+          return true;
+        }
+        this.hideSessionList(event);
         return true;
       }
-      if (event.key !== "Escape") {
-        event.stopPropagation();
-        this.sessionSearchQuery = input.value;
-        return true;
-      }
-      return false;
+      event.stopPropagation();
+      this.sessionSearchQuery = input.value;
+      return true;
     }
     focusFirstVisibleSession() {
       const firstVisibleIndex = this.getVisibleSessionIndexes()[0];

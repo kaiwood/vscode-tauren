@@ -373,10 +373,7 @@ export class SessionViewController {
     }
 
     if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopPropagation();
-      this.options.postMessage({ type: 'hideSessions' });
-      this.options.focusPromptInput();
+      this.hideSessionList(event);
       return true;
     }
 
@@ -422,6 +419,13 @@ export class SessionViewController {
     }
 
     return false;
+  }
+
+  private hideSessionList(event: KeyboardEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.options.postMessage({ type: 'hideSessions' });
+    this.options.focusPromptInput();
   }
 
   private enableSessionPointerHover(): void {
@@ -829,20 +833,21 @@ export class SessionViewController {
       return true;
     }
 
-    if (event.key === 'Escape' && this.sessionSearchQuery.trim()) {
-      event.preventDefault();
-      event.stopPropagation();
-      this.updateSessionSearchQuery('', 0, 0);
+    if (event.key === 'Escape') {
+      if (input.value.length > 0 || this.sessionSearchQuery.length > 0) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.updateSessionSearchQuery('', 0, 0);
+        return true;
+      }
+
+      this.hideSessionList(event);
       return true;
     }
 
-    if (event.key !== 'Escape') {
-      event.stopPropagation();
-      this.sessionSearchQuery = input.value;
-      return true;
-    }
-
-    return false;
+    event.stopPropagation();
+    this.sessionSearchQuery = input.value;
+    return true;
   }
 
   private focusFirstVisibleSession(): void {
