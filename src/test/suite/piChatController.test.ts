@@ -9,7 +9,7 @@ import {
 } from '../../piChatController';
 import type { PiRpcClientLike } from '../../rpc/clientTypes';
 import type { WebviewSessionItem, WebviewStateMessage, WebviewTreeItem } from '../../sidebar/types';
-import type { StatePublisherScheduler } from '../../statePublisher';
+import type { StatePublisherScheduler } from '../../controller/statePublisher';
 import type {
   ExtensionUiResponse,
   PiAgentMessage,

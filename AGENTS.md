@@ -26,7 +26,7 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - `src/sidebar/chatWebview.ts` owns extension-host public sidebar webview HTML composition and message parsing.
 - `src/sidebar/types.ts` owns extension-host sidebar webview message/state/types shared by the provider, controller, and tests.
 - `src/sidebar/chatWebviewStyles.ts` owns the static sidebar CSS string.
-- `src/shikiCodeRenderer.ts` owns extension-host Shiki syntax rendering, VS Code theme/language registration resolution, fallback bundled Shiki themes/languages, and highlight-result caching.
+- `src/highlighting/shikiCodeRenderer.ts` owns extension-host Shiki syntax rendering, VS Code theme/language registration resolution, fallback bundled Shiki themes/languages, and highlight-result caching.
 - Browser-side sidebar logic lives under `src/webview` and is bundled by esbuild to `resources/webview/chat.js`; keep generated webview assets in `resources/webview`.
 - `src/webview/main.ts` is only the browser-side composition entrypoint for shared state, top-level events, and the ready message.
 - `src/webview/composer/` owns browser-side composer UI state: textarea sizing, submit/stop controls, model/thinking picker, prompt context badges, slash menu, and diff summary controls.
@@ -42,7 +42,7 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - `src/readyScript/` owns ready-script running, arming/queued-run state transitions, and shared ready-script types.
 - `src/sessionMetadata.ts` owns session model/context/slash-command metadata state, refresh orchestration, formatting, and equality checks.
 - `src/metadata/types.ts` owns shared metadata/cache type shapes; `src/metadata/cache.ts` owns persisted session metadata cache parsing/writing, including legacy cached model metadata migration.
-- `src/extensionUiRequestHandler.ts` owns extension UI request routing through an injected VS Code UI adapter, safe cancellation, and stale request cleanup.
+- `src/extensionUi/requestHandler.ts` owns extension UI request routing through an injected VS Code UI adapter, safe cancellation, and stale request cleanup.
 - `src/sessions/piSessionList.ts` owns extension-side discovery/parsing of persisted Pi session JSONL files for the sidebar session switcher.
 - `src/sessions/piSessionTree.ts` owns extension-side parsing of persisted Pi session JSONL files for the in-session tree view.
 - `src/diff/sessionDiffController.ts` owns `PiChatController`'s session diff lifecycle: current session file binding, snapshot restore/save, refresh deduping, and state-post callbacks.
@@ -90,7 +90,7 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - Use VS Code theme CSS variables for colors, fonts, focus, inputs, buttons, and borders.
 - Code highlighting uses Shiki asynchronously through the extension host. Do not reintroduce highlight.js unless explicitly requested.
 - Keep Shiki highlighting failure-tolerant: code must remain readable as plain text if theme/language resolution or highlighting fails.
-- Preserve the bundled Shiki fallback path in `src/shikiCodeRenderer.ts`; it prevents read boxes from silently losing highlighting when VS Code theme/grammar resolution is unreliable.
+- Preserve the bundled Shiki fallback path in `src/highlighting/shikiCodeRenderer.ts`; it prevents read boxes from silently losing highlighting when VS Code theme/grammar resolution is unreliable.
 - Keep transcript state in memory until persistence is explicitly requested.
 - The sidebar `/resume` command opens the session switcher for switching session files. `/tree` opens a first-version in-session session tree view backed by the persisted JSONL session file and attempts navigation through Pi RPC `navigate_tree`; keep a graceful unsupported-RPC error until Pi exposes that command in released RPC builds.
 - Disable submit while Pi is streaming; do not invent steering or follow-up queue behavior without a specific iteration goal.

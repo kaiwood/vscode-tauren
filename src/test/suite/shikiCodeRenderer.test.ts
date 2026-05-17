@@ -1,5 +1,5 @@
 import * as assert from 'node:assert';
-import { ShikiCodeRenderer } from '../../shikiCodeRenderer';
+import { ShikiCodeRenderer } from '../../highlighting/shikiCodeRenderer';
 
 suite('ShikiCodeRenderer', () => {
   test('highlights TypeScript using the active VS Code theme', async () => {

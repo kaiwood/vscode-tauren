@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { StatePublisher, type StatePublisherScheduler } from '../../statePublisher';
+import { StatePublisher, type StatePublisherScheduler } from '../../controller/statePublisher';
 
 suite('StatePublisher', () => {
   test('coalesces multiple scheduled updates into one post', () => {

@@ -9,7 +9,7 @@ import { type PiRpcClientFactory } from './rpc/clientTypes';
 import { PiRpcClient } from './rpc/client';
 import { createSessionDiffStatsFileWatcher, readSessionDiffSnapshot, writeSessionDiffSnapshot } from './diff/sessionDiffStorage';
 import { SessionDiffViewer } from './diff/sessionDiffViewer';
-import { ShikiCodeRenderer } from './shikiCodeRenderer';
+import { ShikiCodeRenderer } from './highlighting/shikiCodeRenderer';
 import { TauSessionManager } from './sessions/tauSessionManager';
 import { listPiSessions } from './sessions/piSessionList';
 import { runReadyScript } from './readyScript';

@@ -5,7 +5,7 @@ import {
   type ExtensionUiRequestClock,
   type ExtensionUiRequestUi,
   type MaybePromise
-} from '../../extensionUiRequestHandler';
+} from '../../extensionUi/requestHandler';
 import type { ExtensionUiResponse } from '../../rpc/types';
 
 suite('ExtensionUiRequestHandler', () => {

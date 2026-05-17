@@ -9,12 +9,12 @@ import type {
 import {
   StatePublisher,
   type StatePublisherScheduler
-} from './statePublisher';
+} from './controller/statePublisher';
 import {
   createCancellingExtensionUi,
   ExtensionUiRequestHandler,
   type ExtensionUiRequestUi
-} from './extensionUiRequestHandler';
+} from './extensionUi/requestHandler';
 import type { PiRpcClientFactory, PiRpcClientLike } from './rpc/clientTypes';
 import type {
   PiPromptStreamingBehavior,

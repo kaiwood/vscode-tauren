@@ -2,7 +2,7 @@ import {
   createCancellingExtensionUi,
   ExtensionUiRequestHandler,
   type ExtensionUiRequestUi
-} from '../extensionUiRequestHandler';
+} from '../extensionUi/requestHandler';
 import type { PiRpcClientFactory, PiRpcClientLike } from '../rpc/clientTypes';
 import type { PiRpcClientOptions } from '../rpc/types';
 import { formatForkMessageLabel, formatForkMessages } from './sessionFormatting';
