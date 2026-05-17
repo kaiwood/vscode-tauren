@@ -1,4 +1,4 @@
-import type { ChatSession } from '../chatSession';
+import type { ChatSession } from '../chat/chatSession';
 import type { PiRpcClientLike } from '../rpc/clientTypes';
 import type { PiSessionState, PiSessionStats } from '../rpc/types';
 import { formatAgentMessages } from '../controller/transcriptFormatting';

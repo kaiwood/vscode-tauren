@@ -1,7 +1,7 @@
 import type {
   ChatActivityBodyMode,
   ChatActivityInput
-} from '../chatSession';
+} from '../chat/chatSession';
 import type { RpcEvent } from '../rpc/types';
 
 const toolResultPreviewMaxLines = 8;

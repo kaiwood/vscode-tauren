@@ -6,7 +6,7 @@ import {
   createWebviewStateMessage,
   parseWebviewMessage
 } from '../../sidebar/chatWebview';
-import type { ChatState } from '../../chatSession';
+import type { ChatState } from '../../chat/chatSession';
 
 suite('Chat webview helpers', () => {
   test('createWebviewStateMessage adds message type, model metadata, and context usage', () => {

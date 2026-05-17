@@ -1,4 +1,4 @@
-import type { ChatState } from '../chatSession';
+import type { ChatState } from '../chat/chatSession';
 
 export type WebviewStreamingBehavior = 'steer' | 'followUp';
 

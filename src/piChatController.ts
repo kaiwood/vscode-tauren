@@ -1,4 +1,4 @@
-import { ChatSession } from './chatSession';
+import { ChatSession } from './chat/chatSession';
 import { createWebviewStateMessage } from './sidebar/chatWebview';
 import type {
   WebviewMessage,

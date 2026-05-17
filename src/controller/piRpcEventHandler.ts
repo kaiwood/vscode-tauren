@@ -1,4 +1,4 @@
-import type { ChatSession } from '../chatSession';
+import type { ChatSession } from '../chat/chatSession';
 import {
   formatExtensionError,
   getFailedResponseError,

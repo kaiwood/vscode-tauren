@@ -23,7 +23,7 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - `src/sessions/tauSessionManager.ts` owns the open-session switcher model and coordinates multiple live `PiChatController` instances so background sessions can keep running; open-session controller state types stay local to that manager.
 - `src/sessions/sessionViewController.ts`, `src/sessions/sessionHistoryController.ts`, `src/sessions/sessionClientActions.ts`, and `src/sessions/sessionFormatting.ts` own extension-side session UI state/actions, history adoption, background session-client actions, and session formatting.
 - `src/piChatController.ts` owns Tau chat orchestration; controller helpers for parsing, type guards, error classification, shared controller option types, transcript formatting, Pi client lifecycle, local slash commands, and RPC event handling live under `src/controller/`.
-- `src/chatSession.ts` owns pure in-memory transcript/session state and has no VS Code or Pi process dependencies.
+- `src/chat/chatSession.ts` owns pure in-memory transcript/session state and has no VS Code or Pi process dependencies.
 - `src/sidebar/chatWebview.ts` owns extension-host public sidebar webview HTML composition and message parsing.
 - `src/webviewProtocol/types.ts` owns extension-host/sidebar webview message, state, and protocol types shared by the provider, controller, sidebar HTML helpers, and tests.
 - `src/sidebar/chatWebviewStyles.ts` owns the static sidebar CSS string.
@@ -105,7 +105,7 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - Tests live in `src/test/suite` as TypeScript Mocha tests and run through `vscode-test`.
 - Keep automated tests independent from the real `pi` CLI; test RPC framing and event mapping with local helpers or fixtures.
 - Run `npm run compile` after TypeScript changes.
-- Run `npm test` after changes to `src/chatSession.ts` or `src/pi/eventMapper.ts`.
+- Run `npm test` after changes to `src/chat/chatSession.ts` or `src/pi/eventMapper.ts`.
 - Use `git diff --check` before finishing edits.
 - For UI behavior changes, manually verify in the VS Code Extension Host when practical.
 - For syntax-highlighting changes, manually verify fresh and resumed read-tool boxes, markdown fenced code, theme switching, and unsupported-extension fallback.

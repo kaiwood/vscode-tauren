@@ -3,7 +3,7 @@ import {
   ChatSession,
   chatActivityBodyMaxDisplayLength,
   chatTruncationMarker
-} from '../../chatSession';
+} from '../../chat/chatSession';
 
 suite('ChatSession', () => {
   test('beginSubmit rejects blank input and accepts trimmed non-blank input', () => {
