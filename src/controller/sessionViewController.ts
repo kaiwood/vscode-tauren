@@ -3,7 +3,7 @@ import type {
   WebviewSessionItem,
   WebviewSessionItemCommand,
   WebviewTreeItem
-} from '../sidebar/types';
+} from '../webviewProtocol/types';
 import type { PiChatControllerOptions } from './types';
 import type { PiRpcClientLike } from '../rpc/clientTypes';
 import { getErrorMessage } from './errors';

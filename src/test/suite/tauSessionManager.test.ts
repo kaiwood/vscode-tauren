@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { TauSessionManager, type TauSessionManagerOptions } from '../../sessions/tauSessionManager';
-import type { WebviewSessionItem, WebviewStateMessage, WebviewTreeItem } from '../../sidebar/types';
+import type { WebviewSessionItem, WebviewStateMessage, WebviewTreeItem } from '../../webviewProtocol/types';
 import type { PiRpcClientLike } from '../../rpc/clientTypes';
 import type {
   ExtensionUiResponse,

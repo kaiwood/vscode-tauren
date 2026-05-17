@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { PiChatViewProvider, type PiRpcClientLike } from '../../piChatViewProvider';
-import type { WebviewStateMessage } from '../../sidebar/types';
+import type { WebviewStateMessage } from '../../webviewProtocol/types';
 import type {
   ExtensionUiResponse,
   PiAgentMessage,

@@ -7,7 +7,7 @@ import type {
   WebviewSessionItemCommand,
   WebviewStateMessage,
   WebviewStreamingBehavior
-} from './types';
+} from '../webviewProtocol/types';
 
 export function parseWebviewMessage(value: unknown): WebviewMessage {
   if (!isRecord(value) || typeof value.type !== 'string') {

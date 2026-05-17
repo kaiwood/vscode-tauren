@@ -2,7 +2,7 @@ import { PiChatController } from '../piChatController';
 import type { PiChatControllerOptions } from '../controller/types';
 import type { PiChatSessionMetaSnapshot } from '../metadata/types';
 import type { PiPromptContextInput } from '../prompt/types';
-import type { WebviewMessage, WebviewSessionItem, WebviewStateMessage } from '../sidebar/types';
+import type { WebviewMessage, WebviewSessionItem, WebviewStateMessage } from '../webviewProtocol/types';
 
 export type TauSessionManagerOptions = PiChatControllerOptions;
 

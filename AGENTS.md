@@ -24,7 +24,7 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - `src/piChatController.ts` owns Tau chat orchestration; controller helpers for formatting, parsing, type guards, error classification, shared controller option types, session view state/actions, and background session-client actions live under `src/controller/`.
 - `src/chatSession.ts` owns pure in-memory transcript/session state and has no VS Code or Pi process dependencies.
 - `src/sidebar/chatWebview.ts` owns extension-host public sidebar webview HTML composition and message parsing.
-- `src/sidebar/types.ts` owns extension-host sidebar webview message/state/types shared by the provider, controller, and tests.
+- `src/webviewProtocol/types.ts` owns extension-host/sidebar webview message, state, and protocol types shared by the provider, controller, sidebar HTML helpers, and tests.
 - `src/sidebar/chatWebviewStyles.ts` owns the static sidebar CSS string.
 - `src/highlighting/shikiCodeRenderer.ts` owns extension-host Shiki syntax rendering, VS Code theme/language registration resolution, fallback bundled Shiki themes/languages, and highlight-result caching.
 - Browser-side sidebar logic lives under `src/webview` and is bundled by esbuild to `resources/webview/chat.js`; keep generated webview assets in `resources/webview`.

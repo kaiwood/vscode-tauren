@@ -1,4 +1,4 @@
-import type { WebviewModelOption } from '../sidebar/types';
+import type { WebviewModelOption } from '../webviewProtocol/types';
 
 export function filterModelOptions(modelOptions: WebviewModelOption[], query: string): WebviewModelOption[] {
   const normalizedQuery = query.trim().toLowerCase();

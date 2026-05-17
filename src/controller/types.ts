@@ -6,7 +6,7 @@ import type {
   WebviewSessionItem,
   WebviewStateMessage,
   WebviewTreeItem
-} from '../sidebar/types';
+} from '../webviewProtocol/types';
 import type { StatePublisherScheduler } from './statePublisher';
 
 export type PiChatControllerOptions = {

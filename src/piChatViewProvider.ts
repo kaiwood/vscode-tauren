@@ -4,7 +4,7 @@ import {
   createWebviewHtml,
   parseWebviewMessage
 } from './sidebar/chatWebview';
-import type { WebviewMessage } from './sidebar/types';
+import type { WebviewMessage } from './webviewProtocol/types';
 import { type PiRpcClientFactory } from './rpc/clientTypes';
 import { PiRpcClient } from './rpc/client';
 import { createSessionDiffStatsFileWatcher, readSessionDiffSnapshot, writeSessionDiffSnapshot } from './diff/sessionDiffStorage';

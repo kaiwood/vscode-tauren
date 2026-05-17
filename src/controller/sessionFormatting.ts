@@ -1,4 +1,4 @@
-import type { WebviewSessionItem } from '../sidebar/types';
+import type { WebviewSessionItem } from '../webviewProtocol/types';
 import type { PiForkMessage, PiSessionState, PiSessionStats } from '../rpc/types';
 import { formatContextUsage, formatInteger } from '../metadata/sessionMetadata';
 

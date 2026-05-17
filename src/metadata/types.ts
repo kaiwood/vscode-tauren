@@ -1,4 +1,4 @@
-import type { WebviewModelOption, WebviewSlashCommand } from '../sidebar/types';
+import type { WebviewModelOption, WebviewSlashCommand } from '../webviewProtocol/types';
 
 export type PiChatModelMeta = {
   label: string;

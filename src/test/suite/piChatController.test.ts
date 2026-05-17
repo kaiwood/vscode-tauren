@@ -8,7 +8,7 @@ import {
   type PiChatSessionMetaSnapshot
 } from '../../piChatController';
 import type { PiRpcClientLike } from '../../rpc/clientTypes';
-import type { WebviewSessionItem, WebviewStateMessage, WebviewTreeItem } from '../../sidebar/types';
+import type { WebviewSessionItem, WebviewStateMessage, WebviewTreeItem } from '../../webviewProtocol/types';
 import type { StatePublisherScheduler } from '../../controller/statePublisher';
 import type {
   ExtensionUiResponse,

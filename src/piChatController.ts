@@ -3,7 +3,7 @@ import { createWebviewStateMessage } from './sidebar/chatWebview';
 import type {
   WebviewMessage,
   WebviewStateMessage
-} from './sidebar/types';
+} from './webviewProtocol/types';
 import { StatePublisher } from './controller/statePublisher';
 import {
   createCancellingExtensionUi,
