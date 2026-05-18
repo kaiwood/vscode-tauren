@@ -1213,6 +1213,12 @@ const composerStyles = /* css */ `    .composer {
       line-height: 1.3;
     }
 
+    .composer__context-badge--origin {
+      color: var(--vscode-foreground);
+      background: color-mix(in srgb, #2ea043 28%, var(--vscode-input-background) 72%);
+      border-color: color-mix(in srgb, #2ea043 62%, transparent);
+    }
+
     .composer__context-label {
       min-width: 0;
       overflow: hidden;

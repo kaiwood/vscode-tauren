@@ -26,6 +26,7 @@ export type PromptContextAttachment = {
   kind: 'file' | 'selection';
   label: string;
   title: string;
+  source?: 'origin';
 };
 
 export type SessionItem = {

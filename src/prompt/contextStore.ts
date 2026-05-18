@@ -33,7 +33,8 @@ export class PromptContextStore {
       id: attachment.id,
       kind: attachment.kind,
       label: attachment.label,
-      title: attachment.title
+      title: attachment.title,
+      ...(attachment.source ? { source: attachment.source } : {})
     }));
   }
 
@@ -70,9 +71,10 @@ export class PromptContextStore {
     const title = (input.title ?? '').trim() || createPromptContextTitle(input, path);
 
     const note = normalizePromptContextNote(input.note);
+    const source = normalizePromptContextSource(input.source);
 
     if (kind === 'file') {
-      return [{ id: this.nextId(), kind, path, label, title, ...(note ? { note } : {}) }];
+      return [{ id: this.nextId(source), kind, path, label, title, ...(note ? { note } : {}), ...(source ? { source } : {}) }];
     }
 
     const text = typeof input.text === 'string' ? input.text : '';
@@ -82,7 +84,7 @@ export class PromptContextStore {
     }
 
     return [{
-      id: this.nextId(),
+      id: this.nextId(source),
       kind,
       path,
       label,
@@ -91,13 +93,14 @@ export class PromptContextStore {
       startLine: normalizeLineNumber(input.startLine),
       endLine: normalizeLineNumber(input.endLine),
       ...(note ? { note } : {}),
+      ...(source ? { source } : {}),
       text
     }];
   }
 
-  private nextId(): string {
+  private nextId(source: 'origin' | undefined): string {
     this.sequence += 1;
-    return `context-${this.sequence}`;
+    return `${source ?? 'context'}-${this.sequence}`;
   }
 }
 
@@ -110,6 +113,10 @@ function normalizeLineNumber(value: number | undefined): number | undefined {
 function normalizePromptContextNote(value: string | undefined): string | undefined {
   const note = value?.trim();
   return note ? note : undefined;
+}
+
+function normalizePromptContextSource(value: string | undefined): 'origin' | undefined {
+  return value === 'origin' ? value : undefined;
 }
 
 function createPromptContextLabel(input: PiPromptContextInput, path: string): string {

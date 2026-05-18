@@ -14,6 +14,8 @@ import { TauSessionManager } from './sessions/tauSessionManager';
 import { listPiSessions } from './sessions/piSessionList';
 import { runReadyScript } from './readyScript';
 import { createPromptContextFromEditor } from './prompt/editorContext';
+import type { PiPromptContextInput } from './prompt/types';
+import { traceOrigin, type TraceOriginInput, type TraceOriginMatch } from './origin/sessionOriginTracer';
 import { readCachedSessionMeta, writeCachedSessionMeta } from './metadata/cache';
 
 export const chatViewType = 'tau.chatView';
@@ -228,6 +230,36 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     await this.focus();
   }
 
+  public async traceOrigin(): Promise<void> {
+    const editor = vscode.window.activeTextEditor;
+
+    if (!editor) {
+      this.showNotification('Open a file or select code before tracing its Pi origin.', 'warning');
+      return;
+    }
+
+    const context = createPromptContextFromEditor(editor);
+
+    if (context.length === 0) {
+      this.showNotification('No file context is available for the active editor.', 'warning');
+      return;
+    }
+
+    const match = await traceOrigin(createTraceOriginInputs(context, editor.document), {
+      cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+      currentSessionFile: readCurrentSessionFile(this.workspaceState)
+    });
+
+    if (!match) {
+      this.showNotification('No Pi session origin found for the selected code or file.', 'info');
+      return;
+    }
+
+    await this.controller.handleWebviewMessage({ type: 'selectSession', sessionPath: match.sessionPath });
+    this.controller.addPromptContext(createOriginPromptContext(context, match));
+    await this.focus();
+  }
+
   private async handleWebviewMessage(message: WebviewMessage): Promise<void> {
     if (message.type === 'openFile') {
       await this.openFileReference(message.path, message.line, message.column);
@@ -414,6 +446,37 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     void this.workspaceState.update(currentSessionFileStorageKey, sessionFile || undefined).then(undefined, () => undefined);
   }
 
+}
+
+function createTraceOriginInputs(context: PiPromptContextInput[], document: vscode.TextDocument): TraceOriginInput[] {
+  const absolutePath = document.uri.scheme === 'file' ? document.uri.fsPath : undefined;
+
+  return context.map((entry) => ({
+    kind: entry.kind,
+    path: entry.path,
+    absolutePath,
+    text: entry.text
+  }));
+}
+
+function createOriginPromptContext(context: PiPromptContextInput[], match: TraceOriginMatch): PiPromptContextInput[] {
+  return context.map((entry) => ({
+    ...entry,
+    source: 'origin',
+    label: `Origin: ${entry.label ?? getPathBasename(entry.path)}`,
+    title: `${entry.title ?? entry.path}\nTraced to Pi session: ${match.sessionPath}`,
+    note: appendContextNote(entry.note, `Trace Origin matched ${match.toolName} of ${match.filePath} in Pi session ${match.sessionPath}.`)
+  }));
+}
+
+function appendContextNote(existing: string | undefined, note: string): string {
+  return existing?.trim() ? `${existing.trim()} ${note}` : note;
+}
+
+function getPathBasename(filePath: string): string {
+  const normalizedPath = filePath.replace(/\\/g, '/');
+  const lastSlashIndex = normalizedPath.lastIndexOf('/');
+  return lastSlashIndex === -1 ? normalizedPath : normalizedPath.slice(lastSlashIndex + 1);
 }
 
 function getPiPathSetting(): string | undefined {

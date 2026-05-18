@@ -472,6 +472,7 @@
       for (const attachment of attachments) {
         const badge = document.createElement("span");
         badge.className = "composer__context-badge";
+        badge.classList.toggle("composer__context-badge--origin", attachment.source === "origin");
         badge.title = attachment.title || attachment.label;
         const label = document.createElement("span");
         label.className = "composer__context-label";

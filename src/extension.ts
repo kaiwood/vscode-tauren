@@ -12,7 +12,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('tau.resume', () => provider.resume()),
     vscode.commands.registerCommand('tau.fork', () => provider.fork()),
     vscode.commands.registerCommand('tau.clone', () => provider.clone()),
-    vscode.commands.registerCommand('tau.addContext', () => provider.addContext())
+    vscode.commands.registerCommand('tau.addContext', () => provider.addContext()),
+    vscode.commands.registerCommand('tau.traceOrigin', () => provider.traceOrigin())
   );
 }
 

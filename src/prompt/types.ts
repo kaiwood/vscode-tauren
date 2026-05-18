@@ -1,5 +1,7 @@
 export type PiPromptContextKind = 'file' | 'selection';
 
+export type PiPromptContextSource = 'origin';
+
 export type PiPromptContextInput = {
   kind: PiPromptContextKind;
   path: string;
@@ -10,6 +12,7 @@ export type PiPromptContextInput = {
   endLine?: number;
   note?: string;
   text?: string;
+  source?: PiPromptContextSource;
 };
 
 export type PiPromptContextAttachment = PiPromptContextInput & {
