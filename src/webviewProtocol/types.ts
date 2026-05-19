@@ -8,6 +8,7 @@ export type WebviewPromptContextAttachment = {
   label: string;
   title: string;
   source?: 'origin';
+  xml?: string;
 };
 
 export type WebviewSessionItemCommand = 'rename' | 'showChanges' | 'fork' | 'clone' | 'compact' | 'export' | 'delete';

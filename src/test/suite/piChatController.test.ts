@@ -797,7 +797,13 @@ suite('PiChatController', () => {
     });
 
     assert.deepStrictEqual(lastState(harness).promptContext, [
-      { id: 'context-1', kind: 'selection', label: 'foo.ts:2-4', title: 'src/foo.ts:2-4' }
+      {
+        id: 'context-1',
+        kind: 'selection',
+        label: 'foo.ts:2-4',
+        title: 'src/foo.ts:2-4',
+        xml: '<ide_context source="vscode-tau">\nUser-attached IDE context.\n\n<selection path="src/foo.ts" start_line="2" end_line="4" language="typescript"><![CDATA[\nconst answer = 42;\n]]></selection>\n</ide_context>'
+      }
     ]);
 
     await harness.controller.handleWebviewMessage({ type: 'submit', text: 'explain this' });
@@ -879,7 +885,7 @@ suite('PiChatController', () => {
     await flushPromises();
 
     assert.deepStrictEqual(lastState(harness).promptContext, [
-      { id: 'context-1', kind: 'file', label: 'foo.ts', title: 'src/foo.ts' }
+      { id: 'context-1', kind: 'file', label: 'foo.ts', title: 'src/foo.ts', xml: '<ide_context source="vscode-tau">\nUser-attached IDE context.\n\n<file path="src/foo.ts" />\n</ide_context>' }
     ]);
     harness.controller.dispose();
   });
@@ -906,7 +912,7 @@ suite('PiChatController', () => {
 
     assert.deepStrictEqual(client.switchedSessions, ['/sessions/next.jsonl']);
     assert.deepStrictEqual(lastState(harness).promptContext, [
-      { id: 'context-1', kind: 'file', label: 'foo.ts', title: 'src/foo.ts' }
+      { id: 'context-1', kind: 'file', label: 'foo.ts', title: 'src/foo.ts', xml: '<ide_context source="vscode-tau">\nUser-attached IDE context.\n\n<file path="src/foo.ts" />\n</ide_context>' }
     ]);
     assert.deepStrictEqual(lastState(harness).messages, [
       { role: 'user', text: 'Next prompt' }

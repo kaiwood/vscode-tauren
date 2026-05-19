@@ -1218,7 +1218,7 @@ const composerStyles = /* css */ `    .composer {
       align-items: center;
       min-width: 0;
       max-width: 100%;
-      overflow: hidden;
+      overflow: visible;
       color: var(--vscode-foreground);
       background: color-mix(in srgb, #0969da 28%, var(--vscode-input-background) 72%);
       border: 1px solid color-mix(in srgb, #0969da 62%, transparent);
@@ -1265,6 +1265,69 @@ const composerStyles = /* css */ `    .composer {
       background: color-mix(in srgb, currentColor 18%, transparent);
       outline: none;
       opacity: 1;
+    }
+
+    .composer__context-badge-tooltip {
+      position: absolute;
+      left: 9px;
+      right: 9px;
+      bottom: calc(100% + 8px);
+      z-index: 4;
+      width: auto;
+      max-width: none;
+      overflow: hidden;
+      visibility: hidden;
+      color: var(--tau-code-foreground);
+      background: var(--vscode-editorHoverWidget-background, var(--vscode-editor-background, var(--vscode-sideBar-background)));
+      border: 1px solid color-mix(in srgb, var(--vscode-foreground) 15%, transparent);
+      border-radius: 6px;
+      box-shadow: 0 2px 8px color-mix(in srgb, #000 35%, transparent);
+      font-size: 11px;
+      font-weight: 400;
+      line-height: 1.4;
+      opacity: 0;
+      pointer-events: auto;
+      transition: opacity 90ms ease 180ms, visibility 0s linear 270ms;
+    }
+
+    .composer__context-badge-tooltip pre {
+      max-width: inherit;
+      max-height: min(320px, 45vh);
+      margin: 0;
+      padding: 7px 8px 8px;
+      overflow-x: hidden;
+      overflow-y: auto;
+      background: var(--vscode-editorHoverWidget-background, var(--vscode-editor-background, var(--vscode-sideBar-background)));
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: inherit;
+      line-height: inherit;
+      overflow-wrap: anywhere;
+      tab-size: 2;
+      white-space: pre-wrap;
+    }
+
+    .composer__context-badge-tooltip code {
+      display: block;
+      background: var(--vscode-editorHoverWidget-background, var(--vscode-editor-background, var(--vscode-sideBar-background)));
+      font-family: inherit;
+      white-space: inherit;
+    }
+
+    .composer__context-badge-tooltip::after {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -8px;
+      height: 8px;
+      content: '';
+    }
+
+    .composer__context-badge:hover .composer__context-badge-tooltip,
+    .composer__context-badge:focus-within .composer__context-badge-tooltip,
+    .composer__context-badge-tooltip:hover {
+      visibility: visible;
+      opacity: 1;
+      transition-delay: 0s;
     }
 
     .composer__input {

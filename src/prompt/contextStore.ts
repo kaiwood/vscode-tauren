@@ -1,4 +1,5 @@
 import type { WebviewPromptContextAttachment } from '../webviewProtocol/types';
+import { formatIdeContextXml } from './formatting';
 import type { PiPromptContextAttachment, PiPromptContextInput } from './types';
 
 export class PromptContextStore {
@@ -29,13 +30,18 @@ export class PromptContextStore {
   }
 
   public getWebviewAttachments(): WebviewPromptContextAttachment[] {
-    return this.attachments.map((attachment) => ({
-      id: attachment.id,
-      kind: attachment.kind,
-      label: attachment.label,
-      title: attachment.title,
-      ...(attachment.source ? { source: attachment.source } : {})
-    }));
+    return this.attachments.map((attachment) => {
+      const xml = formatIdeContextXml([attachment]);
+
+      return {
+        id: attachment.id,
+        kind: attachment.kind,
+        label: attachment.label,
+        title: attachment.title,
+        ...(attachment.source ? { source: attachment.source } : {}),
+        ...(xml ? { xml } : {})
+      };
+    });
   }
 
   public consume(): PiPromptContextAttachment[] {

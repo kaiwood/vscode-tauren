@@ -22,15 +22,41 @@ suite('PromptContextStore', () => {
         id: 'context-1',
         kind: 'file',
         label: 'example.ts',
-        title: 'src/example.ts'
+        title: 'src/example.ts',
+        xml: '<ide_context source="vscode-tau">\nUser-attached IDE context.\n\n<file path="src/example.ts" />\n</ide_context>'
       },
       {
         id: 'context-2',
         kind: 'selection',
         label: 'other.ts:3-5',
-        title: 'src/other.ts:3-5'
+        title: 'src/other.ts:3-5',
+        xml: '<ide_context source="vscode-tau">\nUser-attached IDE context.\n\n<selection path="src/other.ts" start_line="3" end_line="5" language="typescript"><![CDATA[\nconst value = 1;\n\n]]></selection>\n</ide_context>'
       }
     ]);
+  });
+
+  test('includes complete IDE context XML for origin attachments', () => {
+    const store = new PromptContextStore();
+
+    store.add({
+      kind: 'file',
+      path: 'src/current.ts',
+      source: 'origin',
+      traceOrigin: {
+        historicalPath: 'src/old.ts',
+        currentRelativePath: 'src/current.ts'
+      }
+    });
+
+    const attachment = store.getWebviewAttachments()[0];
+
+    assert.strictEqual(attachment.source, 'origin');
+    assert.ok(attachment.xml?.startsWith('<ide_context source="vscode-tau">\nUser-attached IDE context.'));
+    assert.ok(attachment.xml?.includes('<trace_origin_instructions>'));
+    assert.ok(attachment.xml?.includes('<trace_origin_data>'));
+    assert.ok(attachment.xml?.includes('"historicalPath": "src/old.ts"'));
+    assert.ok(attachment.xml?.includes('<file path="src/current.ts" />'));
+    assert.ok(attachment.xml?.endsWith('\n</ide_context>'));
   });
 
   test('ignores empty context and restores consumed context before existing attachments', () => {

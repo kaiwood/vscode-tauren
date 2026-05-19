@@ -1,3 +1,4 @@
+import { requestCodeHighlight } from '../codeHighlighting';
 import { createDiffCounter, formatDiffLineCount, normalizeDiffLineCount, updateDiffCounter } from './diffCounter';
 import {
   localSlashCommands,
@@ -197,9 +198,6 @@ export class ComposerController {
       const badge = document.createElement('span');
       badge.className = 'composer__context-badge';
       badge.classList.toggle('composer__context-badge--origin', attachment.source === 'origin');
-      badge.title = attachment.source === 'origin'
-        ? attachment.title || attachment.label
-        : 'Context: ' + attachment.label;
 
       const badgeLabel = attachment.source === 'origin'
         ? attachment.label
@@ -214,10 +212,20 @@ export class ComposerController {
       remove.className = 'composer__context-remove';
       remove.setAttribute('data-context-id', attachment.id);
       remove.setAttribute('aria-label', 'Remove context ' + attachment.label);
-      remove.title = 'Remove context';
       remove.textContent = '×';
 
-      badge.append(label, remove);
+      const tooltip = document.createElement('span');
+      tooltip.className = 'composer__context-badge-tooltip';
+      const tooltipCode = attachment.xml || badgeLabel;
+      const tooltipPre = document.createElement('pre');
+      const tooltipCodeElement = document.createElement('code');
+      tooltipCodeElement.className = 'language-xml';
+      tooltipCodeElement.textContent = tooltipCode;
+      tooltipPre.append(tooltipCodeElement);
+      tooltip.append(tooltipPre);
+      requestCodeHighlight(tooltipCodeElement, tooltipCode, 'xml');
+
+      badge.append(label, remove, tooltip);
       this.options.contextBadgesElement.append(badge);
     }
   }
@@ -845,7 +853,8 @@ function isPromptContextAttachment(value: unknown): value is PromptContextAttach
   const attachment = value as Partial<PromptContextAttachment>;
   return typeof attachment.id === 'string'
     && typeof attachment.label === 'string'
-    && typeof attachment.title === 'string';
+    && typeof attachment.title === 'string'
+    && (!('xml' in attachment) || typeof attachment.xml === 'string');
 }
 
 function modelKey(provider: string, id: string): string {

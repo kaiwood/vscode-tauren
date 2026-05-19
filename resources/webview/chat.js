@@ -472,7 +472,6 @@
         const badge = document.createElement("span");
         badge.className = "composer__context-badge";
         badge.classList.toggle("composer__context-badge--origin", attachment.source === "origin");
-        badge.title = attachment.source === "origin" ? attachment.title || attachment.label : "Context: " + attachment.label;
         const badgeLabel = attachment.source === "origin" ? attachment.label : "Context: " + attachment.label;
         const label = document.createElement("span");
         label.className = "composer__context-label";
@@ -482,9 +481,18 @@
         remove.className = "composer__context-remove";
         remove.setAttribute("data-context-id", attachment.id);
         remove.setAttribute("aria-label", "Remove context " + attachment.label);
-        remove.title = "Remove context";
         remove.textContent = "\xD7";
-        badge.append(label, remove);
+        const tooltip = document.createElement("span");
+        tooltip.className = "composer__context-badge-tooltip";
+        const tooltipCode = attachment.xml || badgeLabel;
+        const tooltipPre = document.createElement("pre");
+        const tooltipCodeElement = document.createElement("code");
+        tooltipCodeElement.className = "language-xml";
+        tooltipCodeElement.textContent = tooltipCode;
+        tooltipPre.append(tooltipCodeElement);
+        tooltip.append(tooltipPre);
+        requestCodeHighlight(tooltipCodeElement, tooltipCode, "xml");
+        badge.append(label, remove, tooltip);
         this.options.contextBadgesElement.append(badge);
       }
     }
@@ -970,7 +978,7 @@
       return false;
     }
     const attachment = value;
-    return typeof attachment.id === "string" && typeof attachment.label === "string" && typeof attachment.title === "string";
+    return typeof attachment.id === "string" && typeof attachment.label === "string" && typeof attachment.title === "string" && (!("xml" in attachment) || typeof attachment.xml === "string");
   }
   function modelKey(provider, id) {
     return provider + "/" + id;

@@ -11,17 +11,31 @@ export function formatPromptWithIdeContext(
   userText: string,
   context: PiPromptFormattingContextAttachment[]
 ): string {
-  if (context.length === 0) {
+  const ideContext = formatIdeContextXml(context);
+
+  if (!ideContext) {
     return userText;
   }
 
+  return [
+    userText,
+    '',
+    ideContext
+  ].join('\n');
+}
+
+export function formatIdeContextXml(context: PiPromptFormattingContextAttachment[]): string | undefined {
+  if (context.length === 0) {
+    return undefined;
+  }
+
   const contextItems = context.flatMap((attachment) => {
-    const formatted = formatPromptContextAttachment(attachment);
+    const formatted = formatPromptContextAttachmentXml(attachment);
     return formatted ? [formatted] : [];
   });
 
   if (contextItems.length === 0) {
-    return userText;
+    return undefined;
   }
 
   const traceOriginContext = formatTraceOriginContext(context);
@@ -31,8 +45,6 @@ export function formatPromptWithIdeContext(
   ].join('\n\n');
 
   return [
-    userText,
-    '',
     '<ide_context source="vscode-tau">',
     'User-attached IDE context.',
     '',
@@ -86,7 +98,7 @@ function dedupeTraceOriginData(
   return result;
 }
 
-function formatPromptContextAttachment(attachment: PiPromptFormattingContextAttachment): string | undefined {
+export function formatPromptContextAttachmentXml(attachment: PiPromptFormattingContextAttachment): string | undefined {
   if (attachment.kind === 'file') {
     const attributes = [
       `path="${escapeXmlAttribute(attachment.path)}"`,

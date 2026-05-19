@@ -86,7 +86,7 @@ suite('TauSessionManager', () => {
     await flushPromises();
 
     assert.deepStrictEqual(lastState(harness).promptContext, [
-      { id: 'context-1', kind: 'file', label: 'foo.ts', title: 'src/foo.ts' }
+      { id: 'context-1', kind: 'file', label: 'foo.ts', title: 'src/foo.ts', xml: '<ide_context source="vscode-tau">\nUser-attached IDE context.\n\n<file path="src/foo.ts" />\n</ide_context>' }
     ]);
 
     await harness.manager.handleWebviewMessage({ type: 'submit', text: 'explain this' });
@@ -118,7 +118,7 @@ suite('TauSessionManager', () => {
     await flushPromises();
 
     assert.deepStrictEqual(lastState(harness).promptContext, [
-      { id: 'context-1', kind: 'file', label: 'foo.ts', title: 'src/foo.ts' }
+      { id: 'context-1', kind: 'file', label: 'foo.ts', title: 'src/foo.ts', xml: '<ide_context source="vscode-tau">\nUser-attached IDE context.\n\n<file path="src/foo.ts" />\n</ide_context>' }
     ]);
 
     await harness.manager.handleWebviewMessage({ type: 'submit', text: 'explain this' });

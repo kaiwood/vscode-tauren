@@ -27,6 +27,7 @@ export type PromptContextAttachment = {
   label: string;
   title: string;
   source?: 'origin';
+  xml?: string;
 };
 
 export type SessionItem = {
