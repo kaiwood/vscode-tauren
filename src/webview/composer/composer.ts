@@ -321,6 +321,16 @@ export class ComposerController {
     this.openSlashMenu();
   }
 
+  public toggleStreamingBehavior(): void {
+    if (!this.options.getState().busy) {
+      return;
+    }
+
+    this.streamingBehavior = this.streamingBehavior === 'steer' ? 'followUp' : 'steer';
+    this.syncComposer({ preserveBottom: true });
+    this.options.focusPromptInput();
+  }
+
   public runSessionSlashCommand(command: 'fork' | 'clone' | 'compact' | 'reload' | 'export'): void {
     const state = this.options.getState();
 

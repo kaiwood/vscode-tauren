@@ -31,6 +31,7 @@ const sessionDiffStatsRefreshDelayMs = 250;
 export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   private webviewView: vscode.WebviewView | undefined;
   private pendingInputFocus = false;
+  private pendingStreamingBehaviorToggle = false;
   private webviewReady = false;
   private readonly pendingToastMessages: string[] = [];
   private readonly controller: TauSessionManager;
@@ -230,7 +231,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     await this.focus();
   }
 
-  public async showSessionChanges(): Promise<void> {
+  public async openSessionDiff(): Promise<void> {
     await this.controller.handleWebviewMessage({ type: 'showCurrentChanges' });
   }
 
@@ -260,6 +261,12 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
   public async stop(): Promise<void> {
     await this.controller.handleWebviewMessage({ type: 'abort' });
+  }
+
+  public async toggleSteerFollowUp(): Promise<void> {
+    await this.focus();
+    this.pendingStreamingBehaviorToggle = true;
+    this.postStreamingBehaviorToggleSoon();
   }
 
   public async addContext(): Promise<void> {
@@ -349,6 +356,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       this.codeRenderer.warmup();
       await this.controller.handleWebviewMessage(message);
       this.postInputFocusSoon();
+      this.postStreamingBehaviorToggleSoon();
       this.postPendingToasts();
       return;
     }
@@ -479,6 +487,19 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
   private postInputFocusSoon(): void {
     setTimeout(() => this.postInputFocus(), 0);
+  }
+
+  private postStreamingBehaviorToggle(): void {
+    if (!this.pendingStreamingBehaviorToggle || !this.webviewView || !this.webviewReady) {
+      return;
+    }
+
+    this.pendingStreamingBehaviorToggle = false;
+    void this.webviewView.webview.postMessage({ type: 'toggleStreamingBehavior' });
+  }
+
+  private postStreamingBehaviorToggleSoon(): void {
+    setTimeout(() => this.postStreamingBehaviorToggle(), 0);
   }
 
   private postPendingToasts(): void {

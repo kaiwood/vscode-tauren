@@ -589,6 +589,14 @@
       this.renderSlashMenu(query);
       this.openSlashMenu();
     }
+    toggleStreamingBehavior() {
+      if (!this.options.getState().busy) {
+        return;
+      }
+      this.streamingBehavior = this.streamingBehavior === "steer" ? "followUp" : "steer";
+      this.syncComposer({ preserveBottom: true });
+      this.options.focusPromptInput();
+    }
     runSessionSlashCommand(command) {
       const state2 = this.options.getState();
       if (state2.busy) {
@@ -3931,6 +3939,10 @@
     }
     if (event.data?.type === "focusInput") {
       focusPromptInput();
+      return;
+    }
+    if (event.data?.type === "toggleStreamingBehavior") {
+      composerController.toggleStreamingBehavior();
       return;
     }
     if (event.data?.type === "toast") {

@@ -45,8 +45,8 @@
         "category": "Tau"
       },
       {
-        "command": "tau.showSessionChanges",
-        "title": "Show Session Changes",
+        "command": "tau.openSessionDiff",
+        "title": "Open Session Diff",
         "category": "Tau"
       },
       {
@@ -77,6 +77,11 @@
       {
         "command": "tau.stop",
         "title": "Stop Current Response",
+        "category": "Tau"
+      },
+      {
+        "command": "tau.toggleSteerFollowUp",
+        "title": "Toggle Steer / Follow-up",
         "category": "Tau"
       },
       {
@@ -134,7 +139,7 @@
           "group": "tau@2"
         },
         {
-          "command": "tau.showSessionChanges",
+          "command": "tau.openSessionDiff",
           "when": "view == tau.chatView",
           "group": "tau@3"
         },
@@ -179,9 +184,14 @@
           "group": "tau@80"
         },
         {
-          "command": "tau.stop",
+          "command": "tau.toggleSteerFollowUp",
           "when": "view == tau.chatView && tau.busy",
           "group": "tau@90"
+        },
+        {
+          "command": "tau.stop",
+          "when": "view == tau.chatView && tau.busy",
+          "group": "tau@91"
         }
       ]
     },

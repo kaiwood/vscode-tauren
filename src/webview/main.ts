@@ -144,6 +144,11 @@ window.addEventListener('message', (event) => {
     return;
   }
 
+  if (event.data?.type === 'toggleStreamingBehavior') {
+    composerController.toggleStreamingBehavior();
+    return;
+  }
+
   if (event.data?.type === 'toast') {
     showToast(typeof event.data.message === 'string' ? event.data.message : 'Done.');
     return;

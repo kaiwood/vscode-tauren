@@ -28,13 +28,14 @@ suite('Tau extension', () => {
     assert.ok(commands.includes('tau.fork'));
     assert.ok(commands.includes('tau.clone'));
     assert.ok(commands.includes('tau.showSessionTree'));
-    assert.ok(commands.includes('tau.showSessionChanges'));
+    assert.ok(commands.includes('tau.openSessionDiff'));
     assert.ok(commands.includes('tau.compactSession'));
     assert.ok(commands.includes('tau.exportSession'));
     assert.ok(commands.includes('tau.reloadPi'));
     assert.ok(commands.includes('tau.copyLastResponse'));
     assert.ok(commands.includes('tau.selectModel'));
     assert.ok(commands.includes('tau.stop'));
+    assert.ok(commands.includes('tau.toggleSteerFollowUp'));
     assert.ok(commands.includes('tau.addContext'));
     assert.ok(commands.includes('tau.traceOrigin'));
   });

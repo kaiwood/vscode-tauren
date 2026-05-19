@@ -54,13 +54,14 @@ Useful commands are also available from the Command Palette:
 - `Tau: Fork Session`
 - `Tau: Clone Session`
 - `Tau: Show Session Tree`
-- `Tau: Show Session Changes`
+- `Tau: Open Session Diff`
 - `Tau: Compact Session`
 - `Tau: Export Session as HTML`
 - `Tau: Reload Pi`
 - `Tau: Copy Last Response`
 - `Tau: Select Model`
 - `Tau: Stop Current Response`
+- `Tau: Toggle Steer / Follow-up`
 - `Tau: Add Context`
 - `Tau: Trace Origin`
 
