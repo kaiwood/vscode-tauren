@@ -1,6 +1,5 @@
-import { readFile } from 'fs/promises';
 import { extractPiMessageText } from '../pi/messageContent';
-import { parseSessionJsonlRecords } from '../pi/sessionJsonl';
+import { parseSessionJsonlFileRecords } from '../pi/sessionJsonl';
 import type { PiSessionTreeItem, RawEntry, TreeNode } from './types';
 export type { PiSessionTreeItem } from './types';
 
@@ -9,15 +8,14 @@ export async function listPiSessionTree(sessionFile: string | undefined): Promis
     return [];
   }
 
-  const content = await readFile(sessionFile, 'utf8');
-  return flattenTree(parseTreeEntries(content));
+  return flattenTree(await parseTreeEntries(sessionFile));
 }
 
-function parseTreeEntries(content: string): RawEntry[] {
+async function parseTreeEntries(sessionFile: string): Promise<RawEntry[]> {
   const entries: RawEntry[] = [];
   const labels = new Map<string, string>();
 
-  for (const parsed of parseSessionJsonlRecords(content)) {
+  for await (const parsed of parseSessionJsonlFileRecords(sessionFile)) {
     if (!isRecord(parsed) || typeof parsed.type !== 'string') {
       continue;
     }

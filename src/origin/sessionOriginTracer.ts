@@ -1,6 +1,6 @@
 import { existsSync } from 'fs';
-import { readFile } from 'fs/promises';
 import * as path from 'path';
+import { parseSessionJsonlFileRecords } from '../pi/sessionJsonl';
 import { listPiSessions } from '../sessions/piSessionList';
 
 export type TraceOriginInput = {
@@ -144,79 +144,61 @@ async function traceOriginInSession(
   inputs: TraceOriginInput[],
   options: { allowContentOnly: boolean }
 ): Promise<(TraceOriginMatch & { timestampMs: number }) | undefined> {
-  let content: string;
-
-  try {
-    content = await readFile(session.path, 'utf8');
-  } catch {
-    return undefined;
-  }
-
   let sessionCwd: string | undefined;
   let sessionId = session.id;
   let sessionEndedAtMs = Number.NEGATIVE_INFINITY;
   let earliest: (TraceOriginMatch & { timestampMs: number }) | undefined;
 
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim();
-
-    if (!trimmed) {
-      continue;
-    }
-
-    let record: unknown;
-
-    try {
-      record = JSON.parse(trimmed);
-    } catch {
-      continue;
-    }
-
-    if (!isRecord(record)) {
-      continue;
-    }
-
-    const recordTimestamp = getRecordTimestamp(record);
-
-    if (Number.isFinite(recordTimestamp.timestampMs) && recordTimestamp.timestampMs > sessionEndedAtMs) {
-      sessionEndedAtMs = recordTimestamp.timestampMs;
-    }
-
-    if (record.type === 'session') {
-      sessionCwd = getString(record.cwd) ?? session.cwd ?? sessionCwd;
-      sessionId = getString(record.id) ?? sessionId;
-
-      if (sessionCwd && !existsSync(sessionCwd)) {
-        return undefined;
-      }
-    }
-
-    for (const toolCall of getMutationToolCalls(record)) {
-      const filePath = getString(toolCall.args.path) ?? getString(toolCall.args.file_path);
-
-      if (!filePath) {
+  try {
+    for await (const record of parseSessionJsonlFileRecords(session.path)) {
+      if (!isRecord(record)) {
         continue;
       }
 
-      if (!inputs.some((input) => toolCallMatchesInput(toolCall, filePath, input, sessionCwd, options))) {
-        continue;
+      const recordTimestamp = getRecordTimestamp(record);
+
+      if (Number.isFinite(recordTimestamp.timestampMs) && recordTimestamp.timestampMs > sessionEndedAtMs) {
+        sessionEndedAtMs = recordTimestamp.timestampMs;
       }
 
-      const match = {
-        sessionPath: session.path,
-        sessionId,
-        sessionCwd,
-        timestamp: toolCall.timestamp,
-        recordId: toolCall.recordId,
-        timestampMs: toolCall.timestampMs,
-        toolName: toolCall.toolName,
-        filePath
-      };
+      if (record.type === 'session') {
+        sessionCwd = getString(record.cwd) ?? session.cwd ?? sessionCwd;
+        sessionId = getString(record.id) ?? sessionId;
 
-      if (!earliest || match.timestampMs < earliest.timestampMs) {
-        earliest = match;
+        if (sessionCwd && !existsSync(sessionCwd)) {
+          return undefined;
+        }
+      }
+
+      for (const toolCall of getMutationToolCalls(record)) {
+        const filePath = getString(toolCall.args.path) ?? getString(toolCall.args.file_path);
+
+        if (!filePath) {
+          continue;
+        }
+
+        if (!inputs.some((input) => toolCallMatchesInput(toolCall, filePath, input, sessionCwd, options))) {
+          continue;
+        }
+
+        const match = {
+          sessionPath: session.path,
+          sessionId,
+          sessionCwd,
+          timestamp: toolCall.timestamp,
+          recordId: toolCall.recordId,
+          timestampMs: toolCall.timestampMs,
+          toolName: toolCall.toolName,
+          filePath
+        };
+
+        if (!earliest || match.timestampMs < earliest.timestampMs) {
+          earliest = match;
+        }
       }
     }
+  } catch {
+    return undefined;
   }
 
   return earliest

@@ -1,13 +1,17 @@
-import { existsSync } from 'fs';
+import { existsSync, type Stats } from 'fs';
 import { readdir, readFile, stat } from 'fs/promises';
 import { homedir } from 'os';
 import { dirname, isAbsolute, join, resolve } from 'path';
 import { extractPiMessageText } from '../pi/messageContent';
-import { parseSessionJsonlRecords } from '../pi/sessionJsonl';
+import { parseSessionJsonlFileRecords } from '../pi/sessionJsonl';
 import type { ListPiSessionsOptions, PiSessionListItem, RawSessionInfo, SessionTreeNode } from './types';
 export type { ListPiSessionsOptions, PiSessionListItem } from './types';
 
 const piSessionDirEnvName = 'PI_CODING_AGENT_SESSION_DIR';
+const maxConcurrentSessionFileReads = 8;
+const maxCachedSessionInfos = 500;
+
+const sessionInfoCache = new Map<string, { mtimeMs: number; size: number; session: RawSessionInfo }>();
 
 export async function listPiSessions(options: ListPiSessionsOptions = {}): Promise<PiSessionListItem[]> {
   const env = options.env ?? process.env;
@@ -35,12 +39,15 @@ async function listSessionsFromDir(sessionDir: string): Promise<RawSessionInfo[]
     return [];
   }
 
-  return (await Promise.all(
+  const sessions = await mapWithConcurrency(
     names
       .filter((name) => name.endsWith('.jsonl'))
-      .map((name) => buildSessionInfo(join(sessionDir, name)))
-  ))
-    .filter((session): session is RawSessionInfo => Boolean(session));
+      .map((name) => join(sessionDir, name)),
+    maxConcurrentSessionFileReads,
+    buildSessionInfo
+  );
+
+  return sessions.filter((session): session is RawSessionInfo => Boolean(session));
 }
 
 async function listAllDefaultSessions(): Promise<RawSessionInfo[]> {
@@ -52,10 +59,12 @@ async function listAllDefaultSessions(): Promise<RawSessionInfo[]> {
 
   try {
     const entries = await readdir(sessionsRoot, { withFileTypes: true });
-    const sessionGroups = await Promise.all(
+    const sessionGroups = await mapWithConcurrency(
       entries
         .filter((entry) => entry.isDirectory())
-        .map((entry) => listSessionsFromDir(join(sessionsRoot, entry.name)))
+        .map((entry) => join(sessionsRoot, entry.name)),
+      maxConcurrentSessionFileReads,
+      listSessionsFromDir
     );
     return sessionGroups.flat();
   } catch {
@@ -147,24 +156,30 @@ function expandTildePath(path: string): string {
 
 async function buildSessionInfo(filePath: string): Promise<RawSessionInfo | undefined> {
   try {
-    const [content, stats] = await Promise.all([
-      readFile(filePath, 'utf8'),
-      stat(filePath)
-    ]);
-    const entries = parseSessionEntries(content);
-    const header = entries[0];
+    const stats = await stat(filePath);
+    const cached = getCachedSessionInfo(filePath, stats);
 
-    if (!isRecord(header) || header.type !== 'session' || typeof header.id !== 'string') {
-      return undefined;
+    if (cached) {
+      return cached;
     }
 
+    let header: Record<string, unknown> | undefined;
     let messageCount = 0;
     let firstMessage = '';
     let name: string | undefined;
     let lastActivityTime: number | undefined;
 
-    for (const entry of entries) {
+    for await (const entry of parseSessionJsonlFileRecords(filePath)) {
       if (!isRecord(entry)) {
+        continue;
+      }
+
+      if (!header) {
+        if (entry.type !== 'session' || typeof entry.id !== 'string') {
+          return undefined;
+        }
+
+        header = entry;
         continue;
       }
 
@@ -193,12 +208,15 @@ async function buildSessionInfo(filePath: string): Promise<RawSessionInfo | unde
       }
     }
 
+    if (!header) {
+      return undefined;
+    }
+
     const created = parseDate(header.timestamp, stats.mtime);
     const modified = lastActivityTime !== undefined ? new Date(lastActivityTime) : created;
-
-    return {
+    const session = {
       path: filePath,
-      id: header.id,
+      id: header.id as string,
       cwd: typeof header.cwd === 'string' ? header.cwd : '',
       name,
       parentSessionPath: typeof header.parentSession === 'string' ? header.parentSession : undefined,
@@ -207,13 +225,72 @@ async function buildSessionInfo(filePath: string): Promise<RawSessionInfo | unde
       messageCount,
       firstMessage: firstMessage || '(no messages)'
     };
+
+    rememberSessionInfo(filePath, stats, session);
+    return session;
   } catch {
     return undefined;
   }
 }
 
-function parseSessionEntries(content: string): unknown[] {
-  return parseSessionJsonlRecords(content);
+function getCachedSessionInfo(filePath: string, stats: Stats): RawSessionInfo | undefined {
+  const cached = sessionInfoCache.get(filePath);
+
+  if (!cached || cached.mtimeMs !== stats.mtimeMs || cached.size !== stats.size) {
+    return undefined;
+  }
+
+  sessionInfoCache.delete(filePath);
+  sessionInfoCache.set(filePath, cached);
+  return { ...cached.session };
+}
+
+function rememberSessionInfo(filePath: string, stats: Stats, session: RawSessionInfo): void {
+  if (sessionInfoCache.has(filePath)) {
+    sessionInfoCache.delete(filePath);
+  }
+
+  sessionInfoCache.set(filePath, {
+    mtimeMs: stats.mtimeMs,
+    size: stats.size,
+    session: { ...session }
+  });
+
+  if (sessionInfoCache.size <= maxCachedSessionInfos) {
+    return;
+  }
+
+  const oldestKey = sessionInfoCache.keys().next().value;
+
+  if (typeof oldestKey === 'string') {
+    sessionInfoCache.delete(oldestKey);
+  }
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  task: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    for (;;) {
+      const index = nextIndex;
+      nextIndex += 1;
+
+      if (index >= items.length) {
+        return;
+      }
+
+      results[index] = await task(items[index]);
+    }
+  }
+
+  const workerCount = Math.min(Math.max(limit, 1), items.length);
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return results;
 }
 
 function getMessageActivityTime(entry: Record<string, unknown>, message: Record<string, unknown>): number | undefined {

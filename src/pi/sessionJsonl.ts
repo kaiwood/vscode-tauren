@@ -1,19 +1,67 @@
+import { createReadStream } from 'fs';
+
 export function parseSessionJsonlRecords(content: string): unknown[] {
-  const records: unknown[] = [];
+  return Array.from(iterSessionJsonlRecords(content));
+}
 
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim();
+export function* iterSessionJsonlRecords(content: string): Generator<unknown> {
+  let lineStart = 0;
 
-    if (!trimmed) {
-      continue;
+  for (;;) {
+    const lineEnd = content.indexOf('\n', lineStart);
+
+    if (lineEnd === -1) {
+      yield* yieldParsedSessionLine(content.slice(lineStart));
+      return;
     }
 
-    try {
-      records.push(JSON.parse(trimmed));
-    } catch {
-      // Skip malformed session lines. Pi session readers are intentionally tolerant.
+    yield* yieldParsedSessionLine(content.slice(lineStart, lineEnd));
+    lineStart = lineEnd + 1;
+  }
+}
+
+export async function* parseSessionJsonlFileRecords(filePath: string): AsyncGenerator<unknown> {
+  let buffer = '';
+
+  for await (const chunk of createReadStream(filePath, { encoding: 'utf8' })) {
+    buffer += chunk;
+
+    for (;;) {
+      const lineEnd = buffer.indexOf('\n');
+
+      if (lineEnd === -1) {
+        break;
+      }
+
+      yield* yieldParsedSessionLine(buffer.slice(0, lineEnd));
+      buffer = buffer.slice(lineEnd + 1);
     }
   }
 
-  return records;
+  if (buffer) {
+    yield* yieldParsedSessionLine(buffer);
+  }
+}
+
+function* yieldParsedSessionLine(line: string): Generator<unknown> {
+  const parsed = parseSessionJsonlLine(line);
+
+  if (parsed !== undefined) {
+    yield parsed;
+  }
+}
+
+function parseSessionJsonlLine(line: string): unknown | undefined {
+  const trimmed = line.trim();
+
+  if (!trimmed) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // Skip malformed session lines. Pi session readers are intentionally tolerant.
+    return undefined;
+  }
 }
