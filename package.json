@@ -117,6 +117,7 @@
   },
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('out', { recursive: true, force: true })\"",
+    "vscode:prepublish": "npm run compile",
     "compile": "npm run clean && npm run compile:webview && tsc -p ./",
     "compile:webview": "esbuild src/webview/main.ts --bundle --format=iife --target=es2022 --outfile=resources/webview/chat.js",
     "install:local": "npm run compile && npx --yes @vscode/vsce package --out tau-local.vsix && code --install-extension tau-local.vsix --force && node scripts/restart-vscode-extension-host.js",
