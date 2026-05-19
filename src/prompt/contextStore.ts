@@ -163,18 +163,17 @@ function normalizeTraceOrigin(value: PiPromptContextInput['traceOrigin']): PiPro
     return undefined;
   }
 
-  const historicalPath = value.historicalPath.trim();
+  const historicalPath = value.historicalPath?.trim();
   const currentRelativePath = value.currentRelativePath.trim();
-
-  if (!historicalPath || !currentRelativePath) {
-    return undefined;
-  }
-
   const origin = normalizeTraceOriginDetails(value.origin);
   const traceLinkedCommit = normalizeTraceLinkedCommit(value.git?.traceLinkedCommit);
 
+  if (!currentRelativePath || (!historicalPath && !origin && !traceLinkedCommit)) {
+    return undefined;
+  }
+
   return {
-    historicalPath,
+    ...(historicalPath ? { historicalPath } : {}),
     currentRelativePath,
     ...(origin ? { origin } : {}),
     ...(traceLinkedCommit ? { git: { traceLinkedCommit } } : {})

@@ -17,7 +17,54 @@ export type FindTraceLinkedGitCommitInput = {
   runner?: GitCommandRunner;
 };
 
+export type FindCurrentPathGitCommitInput = {
+  cwd?: string;
+  currentRelativePath: string;
+  runner?: GitCommandRunner;
+};
+
 export type GitCommandRunner = (args: string[], cwd: string) => Promise<string>;
+
+export async function findCurrentPathGitCommit(
+  input: FindCurrentPathGitCommitInput
+): Promise<PiPromptTraceOriginLinkedCommit | undefined> {
+  const cwd = input.cwd;
+
+  if (!cwd) {
+    return undefined;
+  }
+
+  const runner = input.runner ?? runGit;
+  const repoRoot = await getRepoRoot(runner, cwd);
+
+  if (!repoRoot) {
+    return undefined;
+  }
+
+  const pathspecs = getTraceOriginPathspecs({
+    cwd,
+    historicalPath: input.currentRelativePath,
+    currentRelativePath: input.currentRelativePath
+  }, repoRoot);
+
+  if (pathspecs.length === 0) {
+    return undefined;
+  }
+
+  const commit = await getLatestPathCommit(runner, repoRoot, pathspecs);
+
+  if (!commit) {
+    return undefined;
+  }
+
+  const touchedPaths = await getTouchedPaths(runner, repoRoot, commit.sha, pathspecs);
+
+  if (touchedPaths.length === 0) {
+    return undefined;
+  }
+
+  return createTraceLinkedCommit(commit, touchedPaths);
+}
 
 export async function findTraceLinkedGitCommit(
   input: FindTraceLinkedGitCommitInput
@@ -82,13 +129,32 @@ async function getFirstPostTraceCommit(
   after: string,
   pathspecs: string[]
 ): Promise<ParsedGitCommit | undefined> {
+  return getGitLogCommit(runner, repoRoot, [
+    `--after=${after}`,
+    '--reverse'
+  ], pathspecs);
+}
+
+async function getLatestPathCommit(
+  runner: GitCommandRunner,
+  repoRoot: string,
+  pathspecs: string[]
+): Promise<ParsedGitCommit | undefined> {
+  return getGitLogCommit(runner, repoRoot, ['-1'], pathspecs);
+}
+
+async function getGitLogCommit(
+  runner: GitCommandRunner,
+  repoRoot: string,
+  logOptions: string[],
+  pathspecs: string[]
+): Promise<ParsedGitCommit | undefined> {
   const format = `%H${logFieldSeparator}%h${logFieldSeparator}%cI${logFieldSeparator}%aI${logFieldSeparator}%s${logFieldSeparator}%b${logRecordSeparator}`;
 
   try {
     const output = await runner([
       'log',
-      `--after=${after}`,
-      '--reverse',
+      ...logOptions,
       `--format=${format}`,
       '--',
       ...pathspecs

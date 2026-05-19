@@ -92,6 +92,38 @@ suite('Pi prompt formatting helpers', () => {
     assert.ok(prompt.includes('"confidence": "high"'));
   });
 
+  test('uses git-only trace origin instructions without session fields', () => {
+    const prompt = formatPromptWithIdeContext('explain origin', [
+      {
+        kind: 'selection',
+        path: 'src/current.ts',
+        source: 'origin',
+        traceOrigin: {
+          currentRelativePath: 'src/current.ts',
+          git: {
+            traceLinkedCommit: {
+              sha: 'abcdef1234567890',
+              shortSha: 'abcdef1',
+              subject: 'Explain current file',
+              touchedTracedPath: true,
+              touchedPaths: ['src/current.ts'],
+              relation: 'commit_touches_traced_path',
+              confidence: 'high'
+            }
+          }
+        },
+        text: 'export const current = true;'
+      }
+    ]);
+
+    assert.ok(prompt.includes('The attached metadata links Git history to the current code location.'));
+    assert.ok(!prompt.includes('historical agent work'));
+    assert.ok(!prompt.includes('"historicalPath"'));
+    assert.ok(!prompt.includes('"origin"'));
+    assert.ok(prompt.includes('"currentRelativePath": "src/current.ts"'));
+    assert.ok(prompt.includes('"traceLinkedCommit"'));
+  });
+
   test('includes context notes for diff-view selections', () => {
     const prompt = formatPromptWithIdeContext('explain this change', [
       {

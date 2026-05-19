@@ -76,6 +76,38 @@ suite('PromptContextStore', () => {
     assert.ok(attachment.xml?.endsWith('\n</ide_context>'));
   });
 
+  test('preserves git-only origin metadata', () => {
+    const store = new PromptContextStore();
+
+    store.add({
+      kind: 'file',
+      path: 'src/current.ts',
+      source: 'origin',
+      traceOrigin: {
+        currentRelativePath: 'src/current.ts',
+        git: {
+          traceLinkedCommit: {
+            sha: 'abcdef1234567890',
+            shortSha: 'abcdef1',
+            subject: 'Explain current file',
+            touchedTracedPath: true,
+            relation: 'commit_touches_traced_path',
+            confidence: 'high'
+          }
+        }
+      }
+    });
+
+    const attachment = store.getWebviewAttachments()[0];
+
+    assert.strictEqual(attachment.source, 'origin');
+    assert.ok(attachment.xml?.includes('The attached metadata links Git history to the current code location.'));
+    assert.ok(attachment.xml?.includes('"currentRelativePath": "src/current.ts"'));
+    assert.ok(!attachment.xml?.includes('"historicalPath"'));
+    assert.ok(!attachment.xml?.includes('"origin"'));
+    assert.ok(attachment.xml?.includes('"subject": "Explain current file"'));
+  });
+
   test('ignores empty context and restores consumed context before existing attachments', () => {
     const store = new PromptContextStore();
 

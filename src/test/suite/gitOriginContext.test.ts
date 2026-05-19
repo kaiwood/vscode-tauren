@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { findTraceLinkedGitCommit, type GitCommandRunner } from '../../origin/gitOriginContext';
+import { findCurrentPathGitCommit, findTraceLinkedGitCommit, type GitCommandRunner } from '../../origin/gitOriginContext';
 
 suite('GitOriginContext', () => {
   test('finds the first trace-linked commit touching traced paths', async () => {
@@ -56,6 +56,47 @@ suite('GitOriginContext', () => {
       relation: 'commit_touches_traced_path',
       confidence: 'high'
     });
+    assert.strictEqual(calls.length, 3);
+  });
+
+  test('finds the latest commit touching the current path without session origin', async () => {
+    const calls: string[][] = [];
+    const runner: GitCommandRunner = async (args) => {
+      calls.push(args);
+
+      if (args[0] === 'rev-parse') {
+        return '/repo\n';
+      }
+
+      if (args[0] === 'log') {
+        assert.ok(args.includes('-1'));
+        assert.deepStrictEqual(args.slice(args.indexOf('--') + 1), ['src/current.ts']);
+        return [
+          'fedcba0987654321',
+          'fedcba0',
+          '2026-01-02T00:05:00+00:00',
+          '2026-01-02T00:04:00+00:00',
+          'Touch current file',
+          ''
+        ].join('\x1f') + '\x1e';
+      }
+
+      if (args[0] === 'show') {
+        return 'src/current.ts\n';
+      }
+
+      throw new Error(`unexpected git command: ${args.join(' ')}`);
+    };
+
+    const commit = await findCurrentPathGitCommit({
+      cwd: '/repo',
+      currentRelativePath: 'src/current.ts',
+      runner
+    });
+
+    assert.strictEqual(commit?.shortSha, 'fedcba0');
+    assert.strictEqual(commit?.relation, 'commit_touches_traced_path');
+    assert.strictEqual(commit?.confidence, 'high');
     assert.strictEqual(calls.length, 3);
   });
 

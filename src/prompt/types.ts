@@ -16,7 +16,7 @@ export type PiPromptTraceOriginLinkedCommit = {
 };
 
 export type PiPromptTraceOriginData = {
-  historicalPath: string;
+  historicalPath?: string;
   currentRelativePath: string;
   origin?: {
     sessionId?: string;

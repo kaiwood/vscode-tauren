@@ -15,7 +15,7 @@ import { listPiSessions } from './sessions/piSessionList';
 import { runReadyScript } from './readyScript';
 import { createPromptContextFromEditor } from './prompt/editorContext';
 import type { PiPromptContextInput, PiPromptTraceOriginLinkedCommit } from './prompt/types';
-import { findTraceLinkedGitCommit } from './origin/gitOriginContext';
+import { findCurrentPathGitCommit, findTraceLinkedGitCommit } from './origin/gitOriginContext';
 import { traceOrigin, type TraceOriginInput, type TraceOriginMatch } from './origin/sessionOriginTracer';
 import { readCachedSessionMeta, writeCachedSessionMeta } from './metadata/cache';
 
@@ -253,7 +253,20 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     });
 
     if (!match) {
-      this.showNotification('No Pi session origin found for the selected code or file.', 'info');
+      const traceLinkedCommit = await findCurrentPathGitCommit({
+        cwd,
+        currentRelativePath: context[0].path
+      });
+
+      if (!traceLinkedCommit) {
+        this.showNotification('No Pi session origin found for the selected code or file.', 'info');
+        return;
+      }
+
+      this.controller.newSession();
+      this.controller.addPromptContext(createGitOriginPromptContext(context, traceLinkedCommit));
+      this.showNotification('No agent session found. Opened a new session with Git context.', 'info');
+      await this.focus();
       return;
     }
 
@@ -466,6 +479,22 @@ function createTraceOriginInputs(context: PiPromptContextInput[], document: vsco
     path: entry.path,
     absolutePath,
     text: entry.text
+  }));
+}
+
+function createGitOriginPromptContext(
+  context: PiPromptContextInput[],
+  traceLinkedCommit: PiPromptTraceOriginLinkedCommit
+): PiPromptContextInput[] {
+  return context.map((entry) => ({
+    ...entry,
+    source: 'origin',
+    label: `Origin: ${entry.label ?? getPathBasename(entry.path)}`,
+    title: `${entry.title ?? entry.path}\nGit commit: ${traceLinkedCommit.shortSha} ${traceLinkedCommit.subject}`,
+    traceOrigin: {
+      currentRelativePath: entry.path,
+      git: { traceLinkedCommit }
+    }
   }));
 }
 

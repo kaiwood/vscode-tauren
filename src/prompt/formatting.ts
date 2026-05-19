@@ -63,14 +63,24 @@ function formatTraceOriginContext(context: PiPromptFormattingContextAttachment[]
   }
 
   const payload = data.length === 1 ? data[0] : data;
+  const instructions = data.some((item) => item.origin || item.historicalPath)
+    ? [
+      'The attached metadata links historical agent work to the current code location.',
+      'Use currentRelativePath for current file reads.',
+      'Use historicalPath only to understand the original session context.',
+      'If git.traceLinkedCommit is present, use its confidence and relation fields to judge how strongly the commit explains the traced code.',
+      'Avoid repository search unless direct file reads fail.'
+    ]
+    : [
+      'The attached metadata links Git history to the current code location.',
+      'Use currentRelativePath for current file reads.',
+      'If git.traceLinkedCommit is present, use its confidence and relation fields to judge how strongly the commit explains the current code.',
+      'Avoid repository search unless direct file reads fail.'
+    ];
 
   return [
     '<trace_origin_instructions>',
-    'The attached metadata links historical agent work to the current code location.',
-    'Use currentRelativePath for current file reads.',
-    'Use historicalPath only to understand the original session context.',
-    'If git.traceLinkedCommit is present, use its confidence and relation fields to judge how strongly the commit explains the traced code.',
-    'Avoid repository search unless direct file reads fail.',
+    ...instructions,
     '</trace_origin_instructions>',
     '',
     '<trace_origin_data>',
