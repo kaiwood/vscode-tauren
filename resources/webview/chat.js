@@ -2086,6 +2086,12 @@
         }
         return;
       }
+      const dismissWelcomeButton = target?.closest("[data-dismiss-welcome]");
+      if (dismissWelcomeButton instanceof HTMLElement) {
+        event.preventDefault();
+        this.options.postMessage({ type: "dismissWelcome" });
+        return;
+      }
       const copyButton = target?.closest(".message__copy");
       if (copyButton instanceof HTMLElement) {
         const index = Number(copyButton.dataset.copyMessageIndex);
@@ -2115,7 +2121,7 @@
     createEmptyStateElement() {
       const state2 = this.options.getState();
       if (!state2.sessionLoading) {
-        return createWelcomeStateElement();
+        return state2.welcomeDismissed ? createPlainEmptyStateElement() : createWelcomeStateElement();
       }
       const empty = document.createElement("p");
       empty.className = "empty-state empty-state--loading";
@@ -2247,6 +2253,12 @@
       }
     }
   };
+  function createPlainEmptyStateElement() {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "Ask Pi about this workspace.";
+    return empty;
+  }
   function createWelcomeStateElement() {
     const empty = document.createElement("div");
     empty.className = "empty-state empty-state--welcome";
@@ -2272,7 +2284,12 @@
       item.textContent = prompt;
       promptList.append(item);
     }
-    empty.append(title, description, commandHint, tryLabel, promptList);
+    const dismiss = document.createElement("button");
+    dismiss.type = "button";
+    dismiss.className = "empty-state__dismiss";
+    dismiss.textContent = "Don't show again";
+    dismiss.setAttribute("data-dismiss-welcome", "");
+    empty.append(title, description, commandHint, tryLabel, promptList, dismiss);
     return empty;
   }
   function canReuseMessageElement(view, message, showRole, activitiesSignature, copyable) {
@@ -3829,6 +3846,7 @@
     slashCommands: [],
     slashCommandsRefreshing: false,
     outputColors: true,
+    welcomeDismissed: false,
     promptContext: [],
     composerText: "",
     composerTextRevision: 0,
@@ -3862,6 +3880,7 @@
       slashCommands: Array.isArray(record.slashCommands) ? record.slashCommands : [],
       slashCommandsRefreshing: Boolean(record.slashCommandsRefreshing),
       outputColors: typeof record.outputColors === "boolean" ? record.outputColors : true,
+      welcomeDismissed: Boolean(record.welcomeDismissed),
       promptContext: Array.isArray(record.promptContext) ? record.promptContext : [],
       composerText: typeof record.composerText === "string" ? record.composerText : "",
       composerTextRevision: typeof record.composerTextRevision === "number" ? record.composerTextRevision : 0,

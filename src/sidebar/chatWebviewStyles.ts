@@ -507,6 +507,24 @@ const viewLayoutStyles = /* css */ `    .messages,
       margin: 4px 0;
     }
 
+    .empty-state__dismiss {
+      margin: 12px 0 0;
+      padding: 0;
+      color: var(--vscode-textLink-foreground);
+      background: transparent;
+      border: 0;
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .empty-state__dismiss:hover,
+    .empty-state__dismiss:focus-visible {
+      color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
+      text-decoration: underline;
+      outline: none;
+    }
+
     .empty-state--loading {
       display: inline-flex;
       align-items: center;

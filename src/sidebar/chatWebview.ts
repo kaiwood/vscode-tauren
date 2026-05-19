@@ -1,6 +1,7 @@
 import { chatWebviewStyles } from './chatWebviewStyles';
 import { createNonce } from './nonce';
 import type {
+  CreateWebviewHtmlOptions,
   CreateWebviewStateMessageOptions,
   WebviewMessage,
   WebviewScriptUris,
@@ -31,6 +32,8 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
       return { type: 'refreshSessions' };
     case 'showCurrentChanges':
       return { type: 'showCurrentChanges' };
+    case 'dismissWelcome':
+      return { type: 'dismissWelcome' };
     case 'selectSession':
       return typeof value.sessionPath === 'string' && value.sessionPath
         ? { type: 'selectSession', sessionPath: value.sessionPath }
@@ -143,6 +146,7 @@ export function createWebviewStateMessage({
   slashCommands = [],
   slashCommandsRefreshing = false,
   outputColors = true,
+  welcomeDismissed,
   promptContext = [],
   composer,
   sessionView
@@ -169,6 +173,10 @@ export function createWebviewStateMessage({
     slashCommandsRefreshing,
     outputColors
   };
+
+  if (welcomeDismissed !== undefined) {
+    message.welcomeDismissed = Boolean(welcomeDismissed);
+  }
 
   if (promptContext.length > 0) {
     message.promptContext = promptContext.map((attachment) => ({ ...attachment }));
@@ -201,7 +209,7 @@ export function createWebviewStateMessage({
   return message;
 }
 
-export function createWebviewHtml(scriptUris: WebviewScriptUris): string {
+export function createWebviewHtml(scriptUris: WebviewScriptUris, options: CreateWebviewHtmlOptions = {}): string {
   const nonce = createNonce();
 
   return /* html */ `<!DOCTYPE html>
@@ -339,18 +347,7 @@ ${chatWebviewStyles}
     </header>
     <div class="pi-toast" role="status" aria-live="polite" hidden></div>
     <section class="messages" aria-live="polite" aria-label="Pi conversation">
-      <div class="empty-state empty-state--welcome">
-        <h2 class="empty-state__title">Welcome to Tau</h2>
-        <p>Ask Pi about this workspace, review code, plan changes, or make edits.</p>
-        <p>Type / for commands, or add a file/selection as context from the editor.</p>
-        <p class="empty-state__try-label">Try:</p>
-        <ul class="empty-state__prompts">
-          <li>Explain how this workspace is structured</li>
-          <li>Review the current file for bugs</li>
-          <li>Plan the changes before editing</li>
-          <li>Write tests for this behavior</li>
-        </ul>
-      </div>
+${createInitialEmptyStateHtml(Boolean(options.welcomeDismissed))}
     </section>
     <section class="sessions" aria-label="Pi sessions and tree" role="listbox" tabindex="0" hidden></section>
     <form class="composer" aria-label="Pi message input">
@@ -413,6 +410,26 @@ ${chatWebviewStyles}
   <script nonce="${nonce}" src="${scriptUris.webviewScriptUri}"></script>
 </body>
 </html>`;
+}
+
+function createInitialEmptyStateHtml(welcomeDismissed: boolean): string {
+  if (welcomeDismissed) {
+    return '      <p class="empty-state">Ask Pi about this workspace.</p>';
+  }
+
+  return /* html */ `      <div class="empty-state empty-state--welcome">
+        <h2 class="empty-state__title">Welcome to Tau</h2>
+        <p>Ask Pi about this workspace, review code, plan changes, or make edits.</p>
+        <p>Type / for commands, or add a file/selection as context from the editor.</p>
+        <p class="empty-state__try-label">Try:</p>
+        <ul class="empty-state__prompts">
+          <li>Explain how this workspace is structured</li>
+          <li>Review the current file for bugs</li>
+          <li>Plan the changes before editing</li>
+          <li>Write tests for this behavior</li>
+        </ul>
+        <button class="empty-state__dismiss" type="button" data-dismiss-welcome>Don't show again</button>
+      </div>`;
 }
 
 function parseStreamingBehavior(value: unknown): WebviewStreamingBehavior | undefined {

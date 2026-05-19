@@ -146,6 +146,14 @@ export class MessageListController {
       return;
     }
 
+    const dismissWelcomeButton = target?.closest('[data-dismiss-welcome]');
+
+    if (dismissWelcomeButton instanceof HTMLElement) {
+      event.preventDefault();
+      this.options.postMessage({ type: 'dismissWelcome' });
+      return;
+    }
+
     const copyButton = target?.closest('.message__copy');
 
     if (copyButton instanceof HTMLElement) {
@@ -185,7 +193,7 @@ export class MessageListController {
     const state = this.options.getState();
 
     if (!state.sessionLoading) {
-      return createWelcomeStateElement();
+      return state.welcomeDismissed ? createPlainEmptyStateElement() : createWelcomeStateElement();
     }
 
     const empty = document.createElement('p');
@@ -366,6 +374,13 @@ export class MessageListController {
   }
 }
 
+function createPlainEmptyStateElement(): HTMLElement {
+  const empty = document.createElement('p');
+  empty.className = 'empty-state';
+  empty.textContent = 'Ask Pi about this workspace.';
+  return empty;
+}
+
 function createWelcomeStateElement(): HTMLElement {
   const empty = document.createElement('div');
   empty.className = 'empty-state empty-state--welcome';
@@ -398,7 +413,13 @@ function createWelcomeStateElement(): HTMLElement {
     promptList.append(item);
   }
 
-  empty.append(title, description, commandHint, tryLabel, promptList);
+  const dismiss = document.createElement('button');
+  dismiss.type = 'button';
+  dismiss.className = 'empty-state__dismiss';
+  dismiss.textContent = "Don't show again";
+  dismiss.setAttribute('data-dismiss-welcome', '');
+
+  empty.append(title, description, commandHint, tryLabel, promptList, dismiss);
   return empty;
 }
 

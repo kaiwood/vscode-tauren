@@ -110,6 +110,51 @@ suite('PiChatViewProvider', () => {
     provider.dispose();
   });
 
+  test('persists dismissed welcome state globally and posts updated state', async () => {
+    const globalState = new FakeMemento();
+    const provider = new PiChatViewProvider(
+      vscode.Uri.file('/extension'),
+      () => {
+        throw new Error('Unexpected Pi client creation');
+      },
+      undefined,
+      globalState
+    );
+    const view = new FakeWebviewView();
+
+    provider.resolveWebviewView(view.asWebviewView());
+
+    assert.strictEqual(lastPostedState(view).welcomeDismissed, false);
+    assert.match(view.webview.html, /Don't show again/);
+
+    view.webview.fireMessage({ type: 'dismissWelcome' });
+    await flushPromises();
+
+    assert.strictEqual(globalState.get<unknown>('tau.welcomeDismissed'), true);
+    assert.strictEqual(lastPostedState(view).welcomeDismissed, true);
+    provider.dispose();
+  });
+
+  test('uses plain initial empty state after welcome is dismissed', () => {
+    const globalState = new FakeMemento({ 'tau.welcomeDismissed': true });
+    const provider = new PiChatViewProvider(
+      vscode.Uri.file('/extension'),
+      () => {
+        throw new Error('Unexpected Pi client creation');
+      },
+      undefined,
+      globalState
+    );
+    const view = new FakeWebviewView();
+
+    provider.resolveWebviewView(view.asWebviewView());
+
+    assert.doesNotMatch(view.webview.html, /Don't show again/);
+    assert.match(view.webview.html, /Ask Pi about this workspace\./);
+    assert.strictEqual(lastPostedState(view).welcomeDismissed, true);
+    provider.dispose();
+  });
+
   test('clears webview-specific disposables when views are replaced, disposed, or provider is disposed', () => {
     const provider = new PiChatViewProvider(vscode.Uri.file('/extension'), () => {
       throw new Error('Unexpected Pi client creation');

@@ -105,6 +105,7 @@ suite('Chat webview helpers', () => {
     assert.deepStrictEqual(parseWebviewMessage({ type: 'hideSessions' }), { type: 'hideSessions' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'refreshSessions' }), { type: 'refreshSessions' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'showCurrentChanges' }), { type: 'showCurrentChanges' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'dismissWelcome' }), { type: 'dismissWelcome' });
     assert.deepStrictEqual(
       parseWebviewMessage({ type: 'selectSession', sessionPath: '/sessions/current.jsonl' }),
       { type: 'selectSession', sessionPath: '/sessions/current.jsonl' }
@@ -244,6 +245,7 @@ suite('Chat webview helpers', () => {
     assert.ok(html.includes('class="pi-toolbar__menu-icon"'));
     assert.ok(!html.includes('pi-toolbar__session-menu'));
     assert.ok(html.includes('class="messages" aria-live="polite" aria-label="Pi conversation"'));
+    assert.ok(html.includes('Don\'t show again'));
     assert.ok(html.includes('class="sessions" aria-label="Pi sessions and tree" role="listbox"'));
     assert.ok(html.includes('<form class="composer" aria-label="Pi message input">'));
     assert.ok(html.includes('class="composer__button composer__add"'));
@@ -269,5 +271,12 @@ suite('Chat webview helpers', () => {
     assert.ok(html.includes('class="composer__select composer__model-select"'));
     assert.ok(html.includes('class="composer__button composer__submit"'));
 
+    const dismissedHtml = createWebviewHtml({
+      markdownItScriptUri: 'vscode-resource://markdown-it.js',
+      domPurifyScriptUri: 'vscode-resource://dompurify.js',
+      webviewScriptUri: 'vscode-resource://chat.js'
+    }, { welcomeDismissed: true });
+    assert.ok(dismissedHtml.includes('<p class="empty-state">Ask Pi about this workspace.</p>'));
+    assert.ok(!dismissedHtml.includes('Don\'t show again'));
   });
 });

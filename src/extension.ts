@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { chatViewType, PiChatViewProvider } from './piChatViewProvider';
 
 export function activate(context: vscode.ExtensionContext): void {
-  const provider = new PiChatViewProvider(context.extensionUri, undefined, context.workspaceState);
+  const provider = new PiChatViewProvider(context.extensionUri, undefined, context.workspaceState, context.globalState);
 
   context.subscriptions.push(
     provider,

@@ -7,6 +7,7 @@ suite('Webview state helpers', () => {
     assert.strictEqual(initialWebviewState.busy, false);
     assert.deepStrictEqual(initialWebviewState.workspaceDiffStats, { addedLines: 0, removedLines: 0 });
     assert.strictEqual(initialWebviewState.viewMode, 'chat');
+    assert.strictEqual(initialWebviewState.welcomeDismissed, false);
     assert.deepStrictEqual(initialWebviewState.sessions, []);
   });
 
@@ -27,6 +28,7 @@ suite('Webview state helpers', () => {
       workspaceDiffStats: { addedLines: 300, removedLines: 200 },
       slashCommands: [{ name: 'test', description: '', source: 'prompt' }],
       slashCommandsRefreshing: true,
+      welcomeDismissed: true,
       promptContext: [{ id: 'context-1', kind: 'file', label: 'file.ts', title: 'src/file.ts' }],
       composerText: 'draft',
       composerTextRevision: 2,
@@ -46,6 +48,7 @@ suite('Webview state helpers', () => {
     assert.strictEqual(parsed.modelLabel, 'gpt-test');
     assert.deepStrictEqual(parsed.workspaceDiffStats, { addedLines: 300, removedLines: 200 });
     assert.strictEqual(parsed.viewMode, 'sessions');
+    assert.strictEqual(parsed.welcomeDismissed, true);
     assert.strictEqual(parsed.sessions[0]?.path, '/session.jsonl');
     assert.strictEqual(parsed.treeItems[0]?.entryId, 'entry-1');
     assert.strictEqual(parsed.sessionLoading, true);
@@ -66,6 +69,7 @@ suite('Webview state helpers', () => {
     assert.deepStrictEqual(parsed.workspaceDiffStats, { addedLines: 0, removedLines: 0 });
     assert.strictEqual(parsed.composerTextRevision, 0);
     assert.strictEqual(parsed.viewMode, 'chat');
+    assert.strictEqual(parsed.welcomeDismissed, false);
     assert.deepStrictEqual(parsed.sessions, []);
   });
 });

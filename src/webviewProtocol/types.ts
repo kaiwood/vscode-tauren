@@ -21,6 +21,7 @@ export type WebviewMessage =
   | { type: 'hideSessions' }
   | { type: 'refreshSessions' }
   | { type: 'showCurrentChanges' }
+  | { type: 'dismissWelcome' }
   | { type: 'selectSession'; sessionPath: string }
   | { type: 'deleteSession'; sessionPath: string }
   | { type: 'sessionItemCommand'; sessionPath: string; command: WebviewSessionItemCommand }
@@ -102,6 +103,7 @@ export type WebviewStateMessage = ChatState & {
   slashCommands: WebviewSlashCommand[];
   slashCommandsRefreshing: boolean;
   outputColors: boolean;
+  welcomeDismissed?: boolean;
   promptContext?: WebviewPromptContextAttachment[];
   composerText?: string;
   composerTextRevision?: number;
@@ -137,6 +139,7 @@ export type CreateWebviewStateMessageOptions = {
   slashCommands?: WebviewSlashCommand[];
   slashCommandsRefreshing?: boolean;
   outputColors?: boolean;
+  welcomeDismissed?: boolean;
   promptContext?: WebviewPromptContextAttachment[];
   composer?: {
     text?: string;
@@ -160,4 +163,8 @@ export type WebviewScriptUris = {
   markdownItScriptUri: string;
   domPurifyScriptUri: string;
   webviewScriptUri: string;
+};
+
+export type CreateWebviewHtmlOptions = {
+  welcomeDismissed?: boolean;
 };

@@ -96,6 +96,7 @@ export type WebviewState = {
   slashCommands: SlashCommand[];
   slashCommandsRefreshing: boolean;
   outputColors: boolean;
+  welcomeDismissed: boolean;
   promptContext: PromptContextAttachment[];
   composerText: string;
   composerTextRevision: number;

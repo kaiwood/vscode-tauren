@@ -4,7 +4,7 @@ import {
   createWebviewHtml,
   parseWebviewMessage
 } from './sidebar/chatWebview';
-import type { WebviewMessage } from './webviewProtocol/types';
+import type { WebviewMessage, WebviewStateMessage } from './webviewProtocol/types';
 import { type PiRpcClientFactory } from './rpc/clientTypes';
 import { PiRpcClient } from './rpc/client';
 import { createSessionDiffStatsFileWatcher, readSessionDiffSnapshot, writeSessionDiffSnapshot } from './diff/sessionDiffStorage';
@@ -23,6 +23,7 @@ export const chatViewType = 'tau.chatView';
 export type { PiRpcClientLike } from './rpc/clientTypes';
 
 const currentSessionFileStorageKey = 'tau.currentSessionFile';
+const welcomeDismissedStorageKey = 'tau.welcomeDismissed';
 const tauSidebarFocusContextKey = 'tau.sidebarFocus';
 const tauBusyContextKey = 'tau.busy';
 const contextUsagePollingIntervalMs = 2000;
@@ -48,7 +49,8 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   public constructor(
     private readonly extensionUri: vscode.Uri,
     createClient: PiRpcClientFactory = (options) => new PiRpcClient(options),
-    private readonly workspaceState?: vscode.Memento
+    private readonly workspaceState?: vscode.Memento,
+    private readonly globalState?: vscode.Memento
   ) {
     this.controller = new TauSessionManager({
       createClient,
@@ -64,7 +66,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       },
       postState: (message) => {
         this.setBusyContext(message.busy);
-        void this.webviewView?.webview.postMessage(message);
+        void this.webviewView?.webview.postMessage(this.withProviderState(message));
       },
       showNotification: (message, notifyType) => this.showNotification(message, notifyType),
       showToast: (message) => this.showToast(message),
@@ -155,6 +157,8 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       markdownItScriptUri: markdownItUri.toString(),
       domPurifyScriptUri: domPurifyUri.toString(),
       webviewScriptUri: webviewScriptUri.toString()
+    }, {
+      welcomeDismissed: this.isWelcomeDismissed()
     });
 
     this.webviewDisposables.push(
@@ -353,6 +357,11 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       return;
     }
 
+    if (message.type === 'dismissWelcome') {
+      await this.dismissWelcome();
+      return;
+    }
+
     if (message.type === 'ready') {
       this.webviewReady = true;
       this.codeRenderer.warmup();
@@ -370,6 +379,22 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     }
 
     await this.controller.handleWebviewMessage(message);
+  }
+
+  private withProviderState(message: WebviewStateMessage): WebviewStateMessage {
+    return {
+      ...message,
+      welcomeDismissed: this.isWelcomeDismissed()
+    };
+  }
+
+  private async dismissWelcome(): Promise<void> {
+    await this.globalState?.update(welcomeDismissedStorageKey, true);
+    this.controller.postState();
+  }
+
+  private isWelcomeDismissed(): boolean {
+    return this.globalState?.get<boolean>(welcomeDismissedStorageKey) === true;
   }
 
   private async handleCodeHighlightRequest(id: string, code: string, language: string, themeId?: string): Promise<void> {
