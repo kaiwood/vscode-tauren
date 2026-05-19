@@ -3762,6 +3762,8 @@
   var isMac = navigator.platform.toUpperCase().includes("MAC");
   var state = { ...initialWebviewState };
   var toastHideTimeout;
+  var pendingRenderFrame;
+  var pendingReturnToChatAfterRender = false;
   var sessionsController;
   var messagesController = new MessageListController({
     getState: () => state,
@@ -3844,7 +3846,9 @@
     const previousCurrentSessionFile = state.currentSessionFile;
     const previousSessionCount = Array.isArray(state.sessions) ? state.sessions.length : 0;
     const previousTreeCount = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
-    state = parseWebviewStateMessage(event.data);
+    const nextState = parseWebviewStateMessage(event.data);
+    const hasComposerTextUpdate = nextState.composerTextRevision > 0;
+    state = nextState;
     const wasListView = previousViewMode === "sessions" || previousViewMode === "tree";
     const isListView = state.viewMode === "sessions" || state.viewMode === "tree";
     if (previousViewMode === "sessions" && state.viewMode !== "sessions") {
@@ -3865,12 +3869,10 @@
     if (sessionsController.isSessionListNameEditingMissing()) {
       sessionsController.stopSessionListNameEdit();
     }
-    render();
-    composerController.applyComposerTextFromState();
-    if (wasListView && state.viewMode === "chat") {
-      messagesController.scheduleMessagesToBottom();
-      focusPromptInput();
+    if (hasComposerTextUpdate) {
+      composerController.applyComposerTextFromState();
     }
+    scheduleRender({ returnToChat: wasListView && state.viewMode === "chat" });
   });
   window.addEventListener("click", (event) => {
     const target = eventTargetNode(event);
@@ -3917,6 +3919,22 @@
       toastElement.hidden = true;
       toastHideTimeout = void 0;
     }, 2500);
+  }
+  function scheduleRender(options = {}) {
+    pendingReturnToChatAfterRender ||= Boolean(options.returnToChat);
+    if (pendingRenderFrame !== void 0) {
+      return;
+    }
+    pendingRenderFrame = requestAnimationFrame(() => {
+      pendingRenderFrame = void 0;
+      const shouldHandleReturnToChat = pendingReturnToChatAfterRender;
+      pendingReturnToChatAfterRender = false;
+      render();
+      if (shouldHandleReturnToChat && state.viewMode === "chat") {
+        messagesController.scheduleMessagesToBottom();
+        focusPromptInput();
+      }
+    });
   }
   function render() {
     const isListView = state.viewMode === "sessions" || state.viewMode === "tree";
