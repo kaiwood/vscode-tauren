@@ -2517,6 +2517,7 @@
     options;
     sessionNameEditing = false;
     sessionNameEditInitialValue = "";
+    sessionHelpOpenedFromShortcut = false;
     get isSessionNameEditing() {
       return this.sessionNameEditing;
     }
@@ -2544,7 +2545,7 @@
       if (this.hasSessionHelpPopoverOpen() && event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        this.closeSessionHelpPopover({ focusButton: true });
+        this.closeSessionHelpPopover({ focusButton: !this.sessionHelpOpenedFromShortcut });
         return true;
       }
       if (!this.sessionNameEditing || event.target !== this.options.sessionNameInputElement) {
@@ -2609,12 +2610,23 @@
         this.setSessionMenuItemHover(item, false);
       }
     }
+    openSessionHelpPopover(options = {}) {
+      const state2 = this.options.getState();
+      if (state2.viewMode !== "sessions") {
+        return;
+      }
+      this.closeSessionCommandMenu();
+      this.sessionHelpOpenedFromShortcut = Boolean(options.fromShortcut);
+      this.options.sessionHelpPopoverElement.hidden = false;
+      this.options.sessionHelpButton.setAttribute("aria-expanded", "true");
+    }
     closeSessionHelpPopover(options = {}) {
       if (this.options.sessionHelpPopoverElement.hidden) {
         return;
       }
       this.options.sessionHelpPopoverElement.hidden = true;
       this.options.sessionHelpButton.setAttribute("aria-expanded", "false");
+      this.sessionHelpOpenedFromShortcut = false;
       if (options.focusButton && !this.options.sessionHelpWrapElement.hidden) {
         this.options.sessionHelpButton.focus({ preventScroll: true });
       }
@@ -2702,10 +2714,12 @@
       if (state2.viewMode !== "sessions") {
         return;
       }
-      this.closeSessionCommandMenu();
       const isOpen = !this.options.sessionHelpPopoverElement.hidden;
-      this.options.sessionHelpPopoverElement.hidden = isOpen;
-      this.options.sessionHelpButton.setAttribute("aria-expanded", isOpen ? "false" : "true");
+      if (isOpen) {
+        this.closeSessionHelpPopover();
+        return;
+      }
+      this.openSessionHelpPopover();
     }
     syncSessionCommandMenuItems() {
       const state2 = this.options.getState();
@@ -3054,6 +3068,13 @@
         return false;
       }
       if (this.openSessionListMenuIndex !== void 0 && this.handleSessionItemMenuKeydown(event)) {
+        return true;
+      }
+      if (state2.viewMode === "sessions" && event.key === "?") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.closeSessionItemMenus();
+        this.topControls.openSessionHelpPopover({ fromShortcut: true });
         return true;
       }
       if (event.key === "Escape") {

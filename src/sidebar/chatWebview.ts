@@ -296,6 +296,7 @@ ${chatWebviewStyles}
           <div class="pi-toolbar__help-title">Session shortcuts</div>
           <dl class="pi-toolbar__help-list">
             <div><dt>Enter</dt><dd>Open selected session</dd></div>
+            <div><dt>?</dt><dd>Show shortcuts</dd></div>
             <div><dt>R</dt><dd>Rename</dd></div>
             <div><dt>F</dt><dd>Fork</dd></div>
             <div><dt>C</dt><dd>Clone</dd></div>

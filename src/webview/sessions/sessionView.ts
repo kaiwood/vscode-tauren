@@ -406,6 +406,14 @@ export class SessionViewController {
       return true;
     }
 
+    if (state.viewMode === 'sessions' && event.key === '?') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.closeSessionItemMenus();
+      this.topControls.openSessionHelpPopover({ fromShortcut: true });
+      return true;
+    }
+
     if (event.key === 'Escape') {
       this.hideSessionList(event);
       return true;

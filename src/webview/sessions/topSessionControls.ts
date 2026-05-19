@@ -31,6 +31,7 @@ type TopSessionControlsOptions = {
 export class TopSessionControls {
   private sessionNameEditing = false;
   private sessionNameEditInitialValue = '';
+  private sessionHelpOpenedFromShortcut = false;
 
   public constructor(private readonly options: TopSessionControlsOptions) {}
 
@@ -67,7 +68,7 @@ export class TopSessionControls {
     if (this.hasSessionHelpPopoverOpen() && event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
-      this.closeSessionHelpPopover({ focusButton: true });
+      this.closeSessionHelpPopover({ focusButton: !this.sessionHelpOpenedFromShortcut });
       return true;
     }
 
@@ -147,6 +148,19 @@ export class TopSessionControls {
     }
   }
 
+  public openSessionHelpPopover(options: { fromShortcut?: boolean } = {}): void {
+    const state = this.options.getState();
+
+    if (state.viewMode !== 'sessions') {
+      return;
+    }
+
+    this.closeSessionCommandMenu();
+    this.sessionHelpOpenedFromShortcut = Boolean(options.fromShortcut);
+    this.options.sessionHelpPopoverElement.hidden = false;
+    this.options.sessionHelpButton.setAttribute('aria-expanded', 'true');
+  }
+
   public closeSessionHelpPopover(options: { focusButton?: boolean } = {}): void {
     if (this.options.sessionHelpPopoverElement.hidden) {
       return;
@@ -154,6 +168,7 @@ export class TopSessionControls {
 
     this.options.sessionHelpPopoverElement.hidden = true;
     this.options.sessionHelpButton.setAttribute('aria-expanded', 'false');
+    this.sessionHelpOpenedFromShortcut = false;
 
     if (options.focusButton && !this.options.sessionHelpWrapElement.hidden) {
       this.options.sessionHelpButton.focus({ preventScroll: true });
@@ -264,10 +279,14 @@ export class TopSessionControls {
       return;
     }
 
-    this.closeSessionCommandMenu();
     const isOpen = !this.options.sessionHelpPopoverElement.hidden;
-    this.options.sessionHelpPopoverElement.hidden = isOpen;
-    this.options.sessionHelpButton.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+
+    if (isOpen) {
+      this.closeSessionHelpPopover();
+      return;
+    }
+
+    this.openSessionHelpPopover();
   }
 
   private syncSessionCommandMenuItems(): void {
