@@ -77,6 +77,7 @@ Tau-specific keys inside the sidebar:
 | ------------------------------- | ---------------------------- | --------------------------------------------------- |
 | `Enter`                         | Prompt                       | Send the prompt.                                    |
 | `Shift+Enter`                   | Prompt                       | Insert a newline.                                   |
+| `Cmd+N` / `Ctrl+N`              | Anywhere in Tau              | Start a new session.                                |
 | `PageUp` / `PageDown`           | Chat                         | Scroll the transcript by page.                      |
 | `Ctrl+PageUp` / `Ctrl+PageDown` | Chat                         | Scroll the transcript by line.                      |
 | `Esc`                           | Prompt, with no popup open   | Open the session list.                              |

@@ -195,6 +195,14 @@
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "tau.newSession",
+        "key": "ctrl+n",
+        "mac": "cmd+n",
+        "when": "tau.sidebarFocus"
+      }
+    ],
     "configuration": {
       "id": "tau",
       "title": "Tau",
