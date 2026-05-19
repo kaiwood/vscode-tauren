@@ -2,9 +2,32 @@ export type PiPromptContextKind = 'file' | 'selection';
 
 export type PiPromptContextSource = 'origin';
 
+export type PiPromptTraceOriginLinkedCommit = {
+  sha: string;
+  shortSha: string;
+  subject: string;
+  body?: string;
+  authorDate?: string;
+  commitDate?: string;
+  touchedTracedPath: true;
+  touchedPaths?: string[];
+  relation: 'commit_touches_traced_path';
+  confidence: 'high';
+};
+
 export type PiPromptTraceOriginData = {
   historicalPath: string;
   currentRelativePath: string;
+  origin?: {
+    sessionId?: string;
+    toolName?: 'edit' | 'write';
+    recordId?: string;
+    matchedAt?: string;
+    sessionEndedAt?: string;
+  };
+  git?: {
+    traceLinkedCommit?: PiPromptTraceOriginLinkedCommit;
+  };
 };
 
 export type PiPromptContextInput = {

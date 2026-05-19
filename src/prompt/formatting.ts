@@ -69,6 +69,7 @@ function formatTraceOriginContext(context: PiPromptFormattingContextAttachment[]
     'The attached metadata links historical agent work to the current code location.',
     'Use currentRelativePath for current file reads.',
     'Use historicalPath only to understand the original session context.',
+    'If git.traceLinkedCommit is present, use its confidence and relation fields to judge how strongly the commit explains the traced code.',
     'Avoid repository search unless direct file reads fail.',
     '</trace_origin_instructions>',
     '',

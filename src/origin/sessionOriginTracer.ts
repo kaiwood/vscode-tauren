@@ -15,6 +15,7 @@ export type TraceOriginMatch = {
   sessionId?: string;
   sessionCwd?: string;
   timestamp?: string;
+  sessionEndedAt?: string;
   recordId?: string;
   toolName: 'edit' | 'write';
   filePath: string;
@@ -153,6 +154,7 @@ async function traceOriginInSession(
 
   let sessionCwd: string | undefined;
   let sessionId = session.id;
+  let sessionEndedAtMs = Number.NEGATIVE_INFINITY;
   let earliest: (TraceOriginMatch & { timestampMs: number }) | undefined;
 
   for (const line of content.split('\n')) {
@@ -172,6 +174,12 @@ async function traceOriginInSession(
 
     if (!isRecord(record)) {
       continue;
+    }
+
+    const recordTimestamp = getRecordTimestamp(record);
+
+    if (Number.isFinite(recordTimestamp.timestampMs) && recordTimestamp.timestampMs > sessionEndedAtMs) {
+      sessionEndedAtMs = recordTimestamp.timestampMs;
     }
 
     if (record.type === 'session') {
@@ -211,7 +219,12 @@ async function traceOriginInSession(
     }
   }
 
-  return earliest;
+  return earliest
+    ? {
+      ...earliest,
+      ...(Number.isFinite(sessionEndedAtMs) ? { sessionEndedAt: new Date(sessionEndedAtMs).toISOString() } : {})
+    }
+    : undefined;
 }
 
 function getMutationToolCalls(record: Record<string, unknown>): ParsedToolCall[] {

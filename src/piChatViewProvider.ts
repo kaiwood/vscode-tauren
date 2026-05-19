@@ -14,7 +14,8 @@ import { TauSessionManager } from './sessions/tauSessionManager';
 import { listPiSessions } from './sessions/piSessionList';
 import { runReadyScript } from './readyScript';
 import { createPromptContextFromEditor } from './prompt/editorContext';
-import type { PiPromptContextInput } from './prompt/types';
+import type { PiPromptContextInput, PiPromptTraceOriginLinkedCommit } from './prompt/types';
+import { findTraceLinkedGitCommit } from './origin/gitOriginContext';
 import { traceOrigin, type TraceOriginInput, type TraceOriginMatch } from './origin/sessionOriginTracer';
 import { readCachedSessionMeta, writeCachedSessionMeta } from './metadata/cache';
 
@@ -245,8 +246,9 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       return;
     }
 
+    const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     const match = await traceOrigin(createTraceOriginInputs(context, editor.document), {
-      cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+      cwd,
       currentSessionFile: readCurrentSessionFile(this.workspaceState)
     });
 
@@ -255,8 +257,16 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       return;
     }
 
+    const traceLinkedCommit = await findTraceLinkedGitCommit({
+      cwd,
+      sessionCwd: match.sessionCwd,
+      historicalPath: match.filePath,
+      currentRelativePath: context[0]?.path ?? match.filePath,
+      after: match.timestamp
+    });
+
     await this.controller.handleWebviewMessage({ type: 'selectSession', sessionPath: match.sessionPath });
-    this.controller.addPromptContext(createOriginPromptContext(context, match));
+    this.controller.addPromptContext(createOriginPromptContext(context, match, traceLinkedCommit));
     await this.focus();
   }
 
@@ -459,7 +469,11 @@ function createTraceOriginInputs(context: PiPromptContextInput[], document: vsco
   }));
 }
 
-function createOriginPromptContext(context: PiPromptContextInput[], match: TraceOriginMatch): PiPromptContextInput[] {
+function createOriginPromptContext(
+  context: PiPromptContextInput[],
+  match: TraceOriginMatch,
+  traceLinkedCommit: PiPromptTraceOriginLinkedCommit | undefined
+): PiPromptContextInput[] {
   return context.map((entry) => ({
     ...entry,
     source: 'origin',
@@ -467,7 +481,15 @@ function createOriginPromptContext(context: PiPromptContextInput[], match: Trace
     title: `${entry.title ?? entry.path}\nTraced to Pi session: ${match.sessionPath}`,
     traceOrigin: {
       historicalPath: match.filePath,
-      currentRelativePath: entry.path
+      currentRelativePath: entry.path,
+      origin: {
+        ...(match.sessionId ? { sessionId: match.sessionId } : {}),
+        toolName: match.toolName,
+        ...(match.recordId ? { recordId: match.recordId } : {}),
+        ...(match.timestamp ? { matchedAt: match.timestamp } : {}),
+        ...(match.sessionEndedAt ? { sessionEndedAt: match.sessionEndedAt } : {})
+      },
+      ...(traceLinkedCommit ? { git: { traceLinkedCommit } } : {})
     }
   }));
 }

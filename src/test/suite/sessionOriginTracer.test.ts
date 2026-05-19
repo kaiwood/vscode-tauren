@@ -45,7 +45,8 @@ suite('SessionOriginTracer', () => {
               arguments: { path: 'src/example.ts', edits: [{ oldText: '', newText: 'const traced = "value";\n' }] }
             }]
           }
-        })
+        }),
+        JSON.stringify({ type: 'agent_end', timestamp: '2026-01-01T00:00:02.000Z' })
       ].join('\n'));
 
       const match = await traceOrigin([{
@@ -58,6 +59,7 @@ suite('SessionOriginTracer', () => {
       assert.strictEqual(match?.sessionPath, earlierSession);
       assert.strictEqual(match?.recordId, 'earlier-call');
       assert.strictEqual(match?.toolName, 'edit');
+      assert.strictEqual(match?.sessionEndedAt, '2026-01-01T00:00:02.000Z');
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }

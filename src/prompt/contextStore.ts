@@ -1,6 +1,6 @@
 import type { WebviewPromptContextAttachment } from '../webviewProtocol/types';
 import { formatIdeContextXml } from './formatting';
-import type { PiPromptContextAttachment, PiPromptContextInput } from './types';
+import type { PiPromptContextAttachment, PiPromptContextInput, PiPromptTraceOriginLinkedCommit } from './types';
 
 export class PromptContextStore {
   private sequence = 0;
@@ -159,17 +159,90 @@ function normalizePromptContextSource(value: string | undefined): 'origin' | und
 }
 
 function normalizeTraceOrigin(value: PiPromptContextInput['traceOrigin']): PiPromptContextInput['traceOrigin'] {
-  const historicalPath = value?.historicalPath?.trim();
-  const currentRelativePath = value?.currentRelativePath?.trim();
+  if (!value) {
+    return undefined;
+  }
+
+  const historicalPath = value.historicalPath.trim();
+  const currentRelativePath = value.currentRelativePath.trim();
 
   if (!historicalPath || !currentRelativePath) {
     return undefined;
   }
 
+  const origin = normalizeTraceOriginDetails(value.origin);
+  const traceLinkedCommit = normalizeTraceLinkedCommit(value.git?.traceLinkedCommit);
+
   return {
     historicalPath,
-    currentRelativePath
+    currentRelativePath,
+    ...(origin ? { origin } : {}),
+    ...(traceLinkedCommit ? { git: { traceLinkedCommit } } : {})
   };
+}
+
+function normalizeTraceOriginDetails(
+  value: NonNullable<PiPromptContextInput['traceOrigin']>['origin']
+): NonNullable<PiPromptContextInput['traceOrigin']>['origin'] | undefined {
+  const sessionId = value?.sessionId?.trim();
+  const toolName = value?.toolName === 'edit' || value?.toolName === 'write' ? value.toolName : undefined;
+  const recordId = value?.recordId?.trim();
+  const matchedAt = normalizeIsoDateString(value?.matchedAt);
+  const sessionEndedAt = normalizeIsoDateString(value?.sessionEndedAt);
+
+  if (!sessionId && !toolName && !recordId && !matchedAt && !sessionEndedAt) {
+    return undefined;
+  }
+
+  return {
+    ...(sessionId ? { sessionId } : {}),
+    ...(toolName ? { toolName } : {}),
+    ...(recordId ? { recordId } : {}),
+    ...(matchedAt ? { matchedAt } : {}),
+    ...(sessionEndedAt ? { sessionEndedAt } : {})
+  };
+}
+
+function normalizeTraceLinkedCommit(
+  value: PiPromptTraceOriginLinkedCommit | undefined
+): PiPromptTraceOriginLinkedCommit | undefined {
+  const sha = value?.sha?.trim();
+  const shortSha = value?.shortSha?.trim();
+  const subject = value?.subject?.trim();
+  if (!sha || !shortSha || !subject || value?.touchedTracedPath !== true || value?.relation !== 'commit_touches_traced_path' || value.confidence !== 'high') {
+    return undefined;
+  }
+
+  const body = value.body?.trim();
+  const authorDate = normalizeIsoDateString(value.authorDate);
+  const commitDate = normalizeIsoDateString(value.commitDate);
+  const touchedPaths = value.touchedPaths
+    ?.map((touchedPath) => touchedPath.trim())
+    .filter((touchedPath) => touchedPath.length > 0);
+
+  return {
+    sha,
+    shortSha,
+    subject,
+    ...(body ? { body } : {}),
+    ...(authorDate ? { authorDate } : {}),
+    ...(commitDate ? { commitDate } : {}),
+    touchedTracedPath: true,
+    ...(touchedPaths && touchedPaths.length > 0 ? { touchedPaths } : {}),
+    relation: 'commit_touches_traced_path',
+    confidence: 'high'
+  };
+}
+
+function normalizeIsoDateString(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const time = Date.parse(trimmed);
+  return Number.isFinite(time) ? new Date(time).toISOString() : undefined;
 }
 
 function createPromptContextLabel(input: PiPromptContextInput, path: string): string {

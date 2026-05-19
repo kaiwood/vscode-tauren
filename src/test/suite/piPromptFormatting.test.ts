@@ -52,6 +52,46 @@ suite('Pi prompt formatting helpers', () => {
     assert.ok(prompt.indexOf('<trace_origin_data>') < prompt.indexOf('<selection path="src/features/NewComponent.ts">'));
   });
 
+  test('includes trace origin git commit metadata when supplied', () => {
+    const prompt = formatPromptWithIdeContext('explain origin', [
+      {
+        kind: 'selection',
+        path: 'src/current.ts',
+        source: 'origin',
+        traceOrigin: {
+          historicalPath: 'src/old.ts',
+          currentRelativePath: 'src/current.ts',
+          origin: {
+            sessionId: 'session-1',
+            toolName: 'edit',
+            recordId: 'call-1',
+            matchedAt: '2026-01-01T00:00:01.000Z',
+            sessionEndedAt: '2026-01-01T00:00:02.000Z'
+          },
+          git: {
+            traceLinkedCommit: {
+              sha: 'abcdef1234567890',
+              shortSha: 'abcdef1',
+              subject: 'Explain traced change',
+              body: 'Commit rationale.',
+              commitDate: '2026-01-01T00:05:00.000Z',
+              touchedTracedPath: true,
+              touchedPaths: ['src/current.ts'],
+              relation: 'commit_touches_traced_path',
+              confidence: 'high'
+            }
+          }
+        },
+        text: 'export const current = true;'
+      }
+    ]);
+
+    assert.ok(prompt.includes('"sessionEndedAt": "2026-01-01T00:00:02.000Z"'));
+    assert.ok(prompt.includes('"traceLinkedCommit"'));
+    assert.ok(prompt.includes('"subject": "Explain traced change"'));
+    assert.ok(prompt.includes('"confidence": "high"'));
+  });
+
   test('includes context notes for diff-view selections', () => {
     const prompt = formatPromptWithIdeContext('explain this change', [
       {

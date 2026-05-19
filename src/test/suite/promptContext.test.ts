@@ -44,7 +44,22 @@ suite('PromptContextStore', () => {
       source: 'origin',
       traceOrigin: {
         historicalPath: 'src/old.ts',
-        currentRelativePath: 'src/current.ts'
+        currentRelativePath: 'src/current.ts',
+        origin: {
+          sessionId: 'session-1',
+          toolName: 'write',
+          sessionEndedAt: '2026-01-01T00:00:02.000Z'
+        },
+        git: {
+          traceLinkedCommit: {
+            sha: 'abcdef1234567890',
+            shortSha: 'abcdef1',
+            subject: 'Explain traced change',
+            touchedTracedPath: true,
+            relation: 'commit_touches_traced_path',
+            confidence: 'high'
+          }
+        }
       }
     });
 
@@ -55,6 +70,8 @@ suite('PromptContextStore', () => {
     assert.ok(attachment.xml?.includes('<trace_origin_instructions>'));
     assert.ok(attachment.xml?.includes('<trace_origin_data>'));
     assert.ok(attachment.xml?.includes('"historicalPath": "src/old.ts"'));
+    assert.ok(attachment.xml?.includes('"sessionEndedAt": "2026-01-01T00:00:02.000Z"'));
+    assert.ok(attachment.xml?.includes('"subject": "Explain traced change"'));
     assert.ok(attachment.xml?.includes('<file path="src/current.ts" />'));
     assert.ok(attachment.xml?.endsWith('\n</ide_context>'));
   });
