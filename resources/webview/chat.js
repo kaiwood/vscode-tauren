@@ -474,9 +474,10 @@
         badge.className = "composer__context-badge";
         badge.classList.toggle("composer__context-badge--origin", attachment.source === "origin");
         badge.title = attachment.source === "origin" ? attachment.title || attachment.label : "Context: " + attachment.label;
+        const badgeLabel = attachment.source === "origin" ? attachment.label : "Context: " + attachment.label;
         const label = document.createElement("span");
         label.className = "composer__context-label";
-        label.textContent = attachment.label;
+        label.textContent = badgeLabel;
         const remove = document.createElement("button");
         remove.type = "button";
         remove.className = "composer__context-remove";

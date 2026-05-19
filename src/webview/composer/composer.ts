@@ -204,9 +204,13 @@ export class ComposerController {
         ? attachment.title || attachment.label
         : 'Context: ' + attachment.label;
 
+      const badgeLabel = attachment.source === 'origin'
+        ? attachment.label
+        : 'Context: ' + attachment.label;
+
       const label = document.createElement('span');
       label.className = 'composer__context-label';
-      label.textContent = attachment.label;
+      label.textContent = badgeLabel;
 
       const remove = document.createElement('button');
       remove.type = 'button';
