@@ -30,6 +30,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   private webviewView: vscode.WebviewView | undefined;
   private pendingInputFocus = false;
   private webviewReady = false;
+  private readonly pendingToastMessages: string[] = [];
   private readonly controller: TauSessionManager;
   private readonly codeRenderer = new ShikiCodeRenderer();
   private readonly sessionDiffViewer = new SessionDiffViewer((message, notifyType) => this.showNotification(message, notifyType));
@@ -59,9 +60,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
         void this.webviewView?.webview.postMessage(message);
       },
       showNotification: (message, notifyType) => this.showNotification(message, notifyType),
-      showToast: (message) => {
-        void this.webviewView?.webview.postMessage({ type: 'toast', message });
-      },
+      showToast: (message) => this.showToast(message),
       writeClipboard: (text) => vscode.env.clipboard.writeText(text),
       extensionUi: {
         notify: (message, notifyType) => this.showNotification(message, notifyType),
@@ -265,8 +264,8 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
       this.controller.newSession();
       this.controller.addPromptContext(createGitOriginPromptContext(context, traceLinkedCommit));
-      this.showNotification('No agent session found. Opened a new session with Git context.', 'info');
       await this.focus();
+      this.showToast('No agent session found. Opened a new session with Git context.');
       return;
     }
 
@@ -294,6 +293,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       this.codeRenderer.warmup();
       await this.controller.handleWebviewMessage(message);
       this.postInputFocusSoon();
+      this.postPendingToasts();
       return;
     }
 
@@ -350,6 +350,15 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     for (const disposable of this.webviewDisposables.splice(0)) {
       disposable.dispose();
     }
+  }
+
+  private showToast(message: string): void {
+    if (!this.webviewView || !this.webviewReady) {
+      this.pendingToastMessages.push(message);
+      return;
+    }
+
+    void this.webviewView.webview.postMessage({ type: 'toast', message });
   }
 
   private showNotification(message: string, notifyType: string): void {
@@ -414,6 +423,16 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
   private postInputFocusSoon(): void {
     setTimeout(() => this.postInputFocus(), 0);
+  }
+
+  private postPendingToasts(): void {
+    if (!this.webviewView || !this.webviewReady) {
+      return;
+    }
+
+    for (const message of this.pendingToastMessages.splice(0)) {
+      void this.webviewView.webview.postMessage({ type: 'toast', message });
+    }
   }
 
   private refreshLiveMetadata(): void {
