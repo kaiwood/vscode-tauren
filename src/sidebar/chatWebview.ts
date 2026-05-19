@@ -314,7 +314,18 @@ ${chatWebviewStyles}
     </header>
     <div class="pi-toast" role="status" aria-live="polite" hidden></div>
     <section class="messages" aria-live="polite" aria-label="Pi conversation">
-      <p class="empty-state">Ask Pi about this workspace.</p>
+      <div class="empty-state empty-state--welcome">
+        <h2 class="empty-state__title">Welcome to Tau</h2>
+        <p>Ask Pi about this workspace, review code, plan changes, or make edits.</p>
+        <p>Type / for commands, or add a file/selection as context from the editor.</p>
+        <p class="empty-state__try-label">Try:</p>
+        <ul class="empty-state__prompts">
+          <li>Explain how this workspace is structured</li>
+          <li>Review the current file for bugs</li>
+          <li>Plan the changes before editing</li>
+          <li>Write tests for this behavior</li>
+        </ul>
+      </div>
     </section>
     <section class="sessions" aria-label="Pi sessions and tree" role="listbox" tabindex="0" hidden></section>
     <form class="composer" aria-label="Pi message input">

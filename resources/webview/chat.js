@@ -2109,13 +2109,11 @@
     }
     createEmptyStateElement() {
       const state2 = this.options.getState();
-      const empty = document.createElement("p");
-      empty.className = "empty-state";
       if (!state2.sessionLoading) {
-        empty.textContent = "Ask Pi about this workspace.";
-        return empty;
+        return createWelcomeStateElement();
       }
-      empty.classList.add("empty-state--loading");
+      const empty = document.createElement("p");
+      empty.className = "empty-state empty-state--loading";
       const spinner = document.createElement("span");
       spinner.className = "status__spinner";
       spinner.setAttribute("aria-hidden", "true");
@@ -2241,6 +2239,34 @@
       }
     }
   };
+  function createWelcomeStateElement() {
+    const empty = document.createElement("div");
+    empty.className = "empty-state empty-state--welcome";
+    const title = document.createElement("h2");
+    title.className = "empty-state__title";
+    title.textContent = "Welcome to Tau";
+    const description = document.createElement("p");
+    description.textContent = "Ask Pi about this workspace, review code, plan changes, or make edits.";
+    const commandHint = document.createElement("p");
+    commandHint.textContent = "Type / for commands, or add a file/selection as context from the editor.";
+    const tryLabel = document.createElement("p");
+    tryLabel.className = "empty-state__try-label";
+    tryLabel.textContent = "Try:";
+    const promptList = document.createElement("ul");
+    promptList.className = "empty-state__prompts";
+    for (const prompt of [
+      "Explain how this workspace is structured",
+      "Review the current file for bugs",
+      "Plan the changes before editing",
+      "Write tests for this behavior"
+    ]) {
+      const item = document.createElement("li");
+      item.textContent = prompt;
+      promptList.append(item);
+    }
+    empty.append(title, description, commandHint, tryLabel, promptList);
+    return empty;
+  }
   function canReuseMessageElement(view, message, showRole, activitiesSignature, copyable) {
     return view.message.role === message.role && Boolean(view.message.error) === Boolean(message.error) && (view.message.variant || "") === (message.variant || "") && view.showRole === showRole && view.activitiesSignature === activitiesSignature && view.copyable === copyable;
   }

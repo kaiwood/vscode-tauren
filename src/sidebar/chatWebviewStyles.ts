@@ -474,6 +474,39 @@ const viewLayoutStyles = /* css */ `    .messages,
       color: var(--vscode-descriptionForeground);
     }
 
+    .empty-state--welcome {
+      max-width: 560px;
+      padding-top: 6px;
+      line-height: 1.45;
+    }
+
+    .empty-state--welcome p {
+      margin: 0 0 8px;
+    }
+
+    .empty-state__title {
+      margin: 0 0 10px;
+      color: var(--vscode-foreground);
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    .empty-state__try-label {
+      margin-top: 14px;
+      color: var(--vscode-foreground);
+      font-weight: 600;
+    }
+
+    .empty-state__prompts {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .empty-state__prompts li {
+      margin: 4px 0;
+    }
+
     .empty-state--loading {
       display: inline-flex;
       align-items: center;
