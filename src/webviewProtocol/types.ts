@@ -32,7 +32,7 @@ export type WebviewMessage =
   | { type: 'refreshSlashCommands' }
   | { type: 'removePromptContext'; id: string }
   | { type: 'abort' }
-  | { type: 'copyText'; text: string }
+  | { type: 'copyText'; text: string; successMessage?: string }
   | { type: 'openFile'; path: string; line?: number; column?: number }
   | { type: 'highlightCode'; id: string; code: string; language: string; themeId?: string }
   | { type: 'submit'; text: string; streamingBehavior?: WebviewStreamingBehavior }

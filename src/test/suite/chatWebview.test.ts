@@ -143,6 +143,10 @@ suite('Chat webview helpers', () => {
       { type: 'copyText', text: 'assistant output' }
     );
     assert.deepStrictEqual(
+      parseWebviewMessage({ type: 'copyText', text: 'const x = 1;', successMessage: 'Copied code.' }),
+      { type: 'copyText', text: 'const x = 1;', successMessage: 'Copied code.' }
+    );
+    assert.deepStrictEqual(
       parseWebviewMessage({ type: 'highlightCode', id: 'highlight-1', code: 'const x = 1;', language: 'typescript' }),
       { type: 'highlightCode', id: 'highlight-1', code: 'const x = 1;', language: 'typescript' }
     );
@@ -187,6 +191,7 @@ suite('Chat webview helpers', () => {
     assert.deepStrictEqual(parseWebviewMessage({ type: 'removePromptContext', id: '' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'copyText', text: '' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'copyText', text: 42 }), { type: 'unknown' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'copyText', text: 'assistant output', successMessage: 42 }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'highlightCode', id: '', code: 'const x = 1;', language: 'typescript' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'highlightCode', id: 'highlight-1', code: '', language: 'typescript' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'highlightCode', id: 'highlight-1', code: 'const x = 1;', language: '' }), { type: 'unknown' });

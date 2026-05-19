@@ -69,9 +69,13 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
     case 'abort':
       return { type: 'abort' };
     case 'copyText':
-      return typeof value.text === 'string' && value.text
-        ? { type: 'copyText', text: value.text }
-        : { type: 'unknown' };
+      if (typeof value.text !== 'string' || !value.text || ('successMessage' in value && typeof value.successMessage !== 'string')) {
+        return { type: 'unknown' };
+      }
+
+      return typeof value.successMessage === 'string' && value.successMessage
+        ? { type: 'copyText', text: value.text, successMessage: value.successMessage }
+        : { type: 'copyText', text: value.text };
     case 'openFile': {
       if (typeof value.path !== 'string' || !value.path) {
         return { type: 'unknown' };

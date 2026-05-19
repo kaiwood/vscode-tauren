@@ -1,4 +1,5 @@
 import { requestCodeHighlight, requestCodeHighlightsIn } from '../codeHighlighting';
+import { createIconActionButton } from './actionButtons';
 import type { MarkdownRenderer } from '../types';
 
 export type RenderMarkdownOptions = {
@@ -27,6 +28,7 @@ export function renderMarkdownInto(element: HTMLElement, text: string, options: 
     USE_PROFILES: { html: true }
   });
   linkifyFileReferences(element);
+  addCodeBlockActions(element);
   requestCodeHighlightsIn(element);
   animateNewVisibleText(element, options.animateFromText);
 }
@@ -158,6 +160,27 @@ function createFileReferenceLink(reference: { path: string; line?: number; colum
   }
 
   return link;
+}
+
+function addCodeBlockActions(root: HTMLElement): void {
+  for (const pre of Array.from(root.querySelectorAll('pre'))) {
+    if (!(pre instanceof HTMLElement) || pre.closest('.tau-code-block')) {
+      continue;
+    }
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'tau-code-block';
+
+    const actions = document.createElement('div');
+    actions.className = 'tau-code-block__actions';
+
+    const copyButton = createIconActionButton('tau-code-block__action', 'Copy code');
+    copyButton.dataset.copyCodeBlock = 'true';
+    actions.append(copyButton);
+
+    pre.replaceWith(wrapper);
+    wrapper.append(actions, pre);
+  }
 }
 
 function animateNewVisibleText(root: HTMLElement, previousVisibleText: string | undefined): void {

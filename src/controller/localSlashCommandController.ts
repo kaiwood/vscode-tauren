@@ -179,8 +179,8 @@ export class LocalSlashCommandController {
     }
   }
 
-  public async copyTextFromWebview(text: string): Promise<void> {
-    await this.copyTextToClipboard(text, 'Copied Pi response.');
+  public async copyTextFromWebview(text: string, successMessage = 'Copied Pi response.'): Promise<void> {
+    await this.copyTextToClipboard(text, successMessage);
   }
 
   public async handleCompactSlashCommand(customInstructions: string): Promise<void> {

@@ -856,6 +856,29 @@ const messageStyles = /* css */ `    .message {
       white-space: inherit;
     }
 
+    .tau-code-block {
+      position: relative;
+      margin: 0 0 8px;
+    }
+
+    .message__body--markdown > .tau-code-block:last-child {
+      margin-bottom: 0;
+    }
+
+    .message__body--markdown .tau-code-block > pre {
+      margin: 0;
+      padding-right: 34px;
+    }
+
+    .tau-code-block__actions {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      z-index: 1;
+      display: inline-flex;
+      gap: 2px;
+    }
+
     .tau-shiki-pending {
       color: var(--tau-code-foreground);
     }
@@ -933,7 +956,10 @@ const messageStyles = /* css */ `    .message {
       margin-top: 6px;
     }
 
-    .message__copy {
+    .message__copy,
+    .tau-code-block__action,
+    .activity__body-action {
+      position: relative;
       display: grid;
       place-items: center;
       width: 24px;
@@ -944,13 +970,54 @@ const messageStyles = /* css */ `    .message {
       border: 0;
       border-radius: 5px;
       cursor: pointer;
+      overflow: visible;
     }
 
     .message__copy:hover,
-    .message__copy:focus-visible {
+    .message__copy:focus-visible,
+    .tau-code-block__action:hover,
+    .tau-code-block__action:focus-visible,
+    .activity__body-action:hover,
+    .activity__body-action:focus-visible {
       color: var(--vscode-foreground);
       background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
       outline: none;
+    }
+
+    .tau-code-block__action,
+    .activity__body-action {
+      background: color-mix(in srgb, var(--tau-code-background, var(--vscode-editor-background)) 88%, var(--vscode-foreground) 12%);
+    }
+
+    .tau-icon-action-tooltip {
+      position: absolute;
+      right: 0;
+      bottom: calc(100% + 5px);
+      z-index: 2;
+      display: none;
+      width: max-content;
+      max-width: min(220px, 70vw);
+      padding: 4px 6px;
+      color: var(--vscode-editorHoverWidget-foreground);
+      background: var(--vscode-editorHoverWidget-background);
+      border: 1px solid var(--vscode-editorHoverWidget-border, var(--vscode-input-border, transparent));
+      border-radius: 4px;
+      box-shadow: 0 2px 8px color-mix(in srgb, #000 35%, transparent);
+      font-family: var(--vscode-font-family);
+      font-size: 11px;
+      font-weight: 400;
+      line-height: 1.3;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .message__copy:hover .tau-icon-action-tooltip,
+    .message__copy:focus-visible .tau-icon-action-tooltip,
+    .tau-code-block__action:hover .tau-icon-action-tooltip,
+    .tau-code-block__action:focus-visible .tau-icon-action-tooltip,
+    .activity__body-action:hover .tau-icon-action-tooltip,
+    .activity__body-action:focus-visible .tau-icon-action-tooltip {
+      display: block;
     }
 
     .message--user .message__body {
@@ -1048,6 +1115,19 @@ const activityStyles = /* css */ `    .activity-list {
       line-height: 1.35;
     }
 
+    .activity__body-wrap {
+      position: relative;
+    }
+
+    .activity__body-actions {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      z-index: 1;
+      display: inline-flex;
+      gap: 2px;
+    }
+
     .activity__body {
       max-height: 260px;
       margin: 0;
@@ -1058,6 +1138,17 @@ const activityStyles = /* css */ `    .activity-list {
       white-space: pre-wrap;
       overflow-wrap: anywhere;
       line-height: 1.4;
+    }
+
+    .activity__body-wrap > .activity__body--code {
+      padding-right: 92px;
+    }
+
+    .activity__body-action--text {
+      width: auto;
+      padding: 0 6px;
+      font-family: var(--vscode-font-family);
+      font-size: 11px;
     }
 
     .activity__body--code {

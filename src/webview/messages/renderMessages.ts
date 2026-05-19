@@ -1,4 +1,5 @@
 import { containsAnsiEscape, renderAnsiTextInto } from './ansi';
+import { createIconActionButton } from './actionButtons';
 import { renderHighlightedCodeInto, renderMarkdownInto, type RenderMarkdownOptions } from './markdown';
 import type { Activity, ChatMessage } from '../types';
 
@@ -114,13 +115,8 @@ function createCopyButtonElement(messageIndex: number): HTMLElement {
   const actions = document.createElement('div');
   actions.className = 'message__actions';
 
-  const button = document.createElement('button');
-  button.className = 'message__copy';
-  button.type = 'button';
-  button.title = 'Copy response';
-  button.setAttribute('aria-label', 'Copy response');
+  const button = createIconActionButton('message__copy', 'Copy response');
   button.dataset.copyMessageIndex = String(messageIndex);
-  button.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path fill="currentColor" d="M5 1.75A1.75 1.75 0 0 1 6.75 0h6.5A1.75 1.75 0 0 1 15 1.75v6.5A1.75 1.75 0 0 1 13.25 10h-1.5v1.25A1.75 1.75 0 0 1 10 13H3.75A1.75 1.75 0 0 1 2 11.25v-6.5A1.75 1.75 0 0 1 3.75 3H5V1.75Zm1.75-.25a.25.25 0 0 0-.25.25V3H10a1.75 1.75 0 0 1 1.75 1.75V8.5h1.5a.25.25 0 0 0 .25-.25v-6.5a.25.25 0 0 0-.25-.25h-6.5ZM3.75 4.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25H10a.25.25 0 0 0 .25-.25v-6.5A.25.25 0 0 0 10 4.5H3.75Z"/></svg>';
 
   actions.append(button);
   return actions;
@@ -191,7 +187,7 @@ function createActivityElement(activity: Activity, messageIndex: number | undefi
       renderMarkdownInto(body, bodyText);
     }
 
-    details.append(body);
+    details.append(activity.code ? createActivityBodyWrap(body, bodyText, getReadActivityPath(activity, bodyText)) : body);
 
     if (bodyExpanded && shouldScrollExpandedBodyToBottom(activity.body)) {
       scheduleActivityBodyScrollToBottom(body);
@@ -199,6 +195,36 @@ function createActivityElement(activity: Activity, messageIndex: number | undefi
   }
 
   return details;
+}
+
+function createActivityBodyWrap(body: HTMLElement, bodyText: string, filePath: string | undefined): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'activity__body-wrap';
+
+  const actions = document.createElement('div');
+  actions.className = 'activity__body-actions';
+
+  const copyOutput = createIconActionButton('activity__body-action', 'Copy output');
+  copyOutput.dataset.copyActivityOutput = bodyText;
+  actions.append(copyOutput);
+
+  if (filePath) {
+    const openFile = document.createElement('button');
+    openFile.className = 'activity__body-action activity__body-action--text';
+    openFile.type = 'button';
+    openFile.textContent = 'Open';
+    openFile.title = 'Open file';
+    openFile.setAttribute('aria-label', 'Open file');
+    openFile.dataset.openFilePath = filePath;
+    actions.append(openFile);
+
+    const copyPath = createIconActionButton('activity__body-action', 'Copy path');
+    copyPath.dataset.copyPath = filePath;
+    actions.append(copyPath);
+  }
+
+  wrap.append(actions, body);
+  return wrap;
 }
 
 function renderCodeActivityBody(

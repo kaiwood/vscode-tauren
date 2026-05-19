@@ -264,7 +264,7 @@ export class PiChatController {
         await this.abortActivePrompt();
         return;
       case 'copyText':
-        await this.slashCommandController.copyTextFromWebview(message.text);
+        await this.slashCommandController.copyTextFromWebview(message.text, message.successMessage);
         return;
       case 'submit':
         await this.handleSubmitMessage(message);

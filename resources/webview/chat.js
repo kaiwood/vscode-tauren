@@ -1495,6 +1495,22 @@
     return Math.max(0, Math.min(255, value));
   }
 
+  // src/webview/messages/actionButtons.ts
+  var copyIconSvg = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path fill="currentColor" d="M5 1.75A1.75 1.75 0 0 1 6.75 0h6.5A1.75 1.75 0 0 1 15 1.75v6.5A1.75 1.75 0 0 1 13.25 10h-1.5v1.25A1.75 1.75 0 0 1 10 13H3.75A1.75 1.75 0 0 1 2 11.25v-6.5A1.75 1.75 0 0 1 3.75 3H5V1.75Zm1.75-.25a.25.25 0 0 0-.25.25V3H10a1.75 1.75 0 0 1 1.75 1.75V8.5h1.5a.25.25 0 0 0 .25-.25v-6.5a.25.25 0 0 0-.25-.25h-6.5ZM3.75 4.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25H10a.25.25 0 0 0 .25-.25v-6.5A.25.25 0 0 0 10 4.5H3.75Z"/></svg>';
+  function createIconActionButton(className, label) {
+    const button = document.createElement("button");
+    button.className = className;
+    button.type = "button";
+    button.title = label;
+    button.setAttribute("aria-label", label);
+    button.innerHTML = copyIconSvg;
+    const tooltip = document.createElement("span");
+    tooltip.className = "tau-icon-action-tooltip";
+    tooltip.textContent = label;
+    button.append(tooltip);
+    return button;
+  }
+
   // src/webview/messages/markdown.ts
   var markdownRenderer = window.markdownit ? window.markdownit({
     html: false,
@@ -1513,6 +1529,7 @@
       USE_PROFILES: { html: true }
     });
     linkifyFileReferences(element);
+    addCodeBlockActions(element);
     requestCodeHighlightsIn(element);
     animateNewVisibleText(element, options.animateFromText);
   }
@@ -1614,6 +1631,22 @@
       link.dataset.column = String(reference.column);
     }
     return link;
+  }
+  function addCodeBlockActions(root) {
+    for (const pre of Array.from(root.querySelectorAll("pre"))) {
+      if (!(pre instanceof HTMLElement) || pre.closest(".tau-code-block")) {
+        continue;
+      }
+      const wrapper = document.createElement("div");
+      wrapper.className = "tau-code-block";
+      const actions = document.createElement("div");
+      actions.className = "tau-code-block__actions";
+      const copyButton = createIconActionButton("tau-code-block__action", "Copy code");
+      copyButton.dataset.copyCodeBlock = "true";
+      actions.append(copyButton);
+      pre.replaceWith(wrapper);
+      wrapper.append(actions, pre);
+    }
   }
   function animateNewVisibleText(root, previousVisibleText) {
     if (previousVisibleText === void 0) {
@@ -1785,13 +1818,8 @@
   function createCopyButtonElement(messageIndex) {
     const actions = document.createElement("div");
     actions.className = "message__actions";
-    const button = document.createElement("button");
-    button.className = "message__copy";
-    button.type = "button";
-    button.title = "Copy response";
-    button.setAttribute("aria-label", "Copy response");
+    const button = createIconActionButton("message__copy", "Copy response");
     button.dataset.copyMessageIndex = String(messageIndex);
-    button.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path fill="currentColor" d="M5 1.75A1.75 1.75 0 0 1 6.75 0h6.5A1.75 1.75 0 0 1 15 1.75v6.5A1.75 1.75 0 0 1 13.25 10h-1.5v1.25A1.75 1.75 0 0 1 10 13H3.75A1.75 1.75 0 0 1 2 11.25v-6.5A1.75 1.75 0 0 1 3.75 3H5V1.75Zm1.75-.25a.25.25 0 0 0-.25.25V3H10a1.75 1.75 0 0 1 1.75 1.75V8.5h1.5a.25.25 0 0 0 .25-.25v-6.5a.25.25 0 0 0-.25-.25h-6.5ZM3.75 4.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25H10a.25.25 0 0 0 .25-.25v-6.5A.25.25 0 0 0 10 4.5H3.75Z"/></svg>';
     actions.append(button);
     return actions;
   }
@@ -1844,12 +1872,36 @@
       } else {
         renderMarkdownInto(body, bodyText);
       }
-      details.append(body);
+      details.append(activity.code ? createActivityBodyWrap(body, bodyText, getReadActivityPath(activity, bodyText)) : body);
       if (bodyExpanded && shouldScrollExpandedBodyToBottom(activity.body)) {
         scheduleActivityBodyScrollToBottom(body);
       }
     }
     return details;
+  }
+  function createActivityBodyWrap(body, bodyText, filePath) {
+    const wrap = document.createElement("div");
+    wrap.className = "activity__body-wrap";
+    const actions = document.createElement("div");
+    actions.className = "activity__body-actions";
+    const copyOutput = createIconActionButton("activity__body-action", "Copy output");
+    copyOutput.dataset.copyActivityOutput = bodyText;
+    actions.append(copyOutput);
+    if (filePath) {
+      const openFile = document.createElement("button");
+      openFile.className = "activity__body-action activity__body-action--text";
+      openFile.type = "button";
+      openFile.textContent = "Open";
+      openFile.title = "Open file";
+      openFile.setAttribute("aria-label", "Open file");
+      openFile.dataset.openFilePath = filePath;
+      actions.append(openFile);
+      const copyPath = createIconActionButton("activity__body-action", "Copy path");
+      copyPath.dataset.copyPath = filePath;
+      actions.append(copyPath);
+    }
+    wrap.append(actions, body);
+    return wrap;
   }
   function renderCodeActivityBody(element, activity, bodyText, options) {
     const activityId = typeof activity.id === "string" ? activity.id : "";
@@ -2092,13 +2144,50 @@
         this.options.postMessage({ type: "dismissWelcome" });
         return;
       }
+      const codeCopyButton = target?.closest("[data-copy-code-block]");
+      if (codeCopyButton instanceof HTMLElement) {
+        const block = codeCopyButton.closest(".tau-code-block");
+        const text = block?.querySelector("pre")?.textContent ?? "";
+        if (text) {
+          event.preventDefault();
+          this.options.postMessage({ type: "copyText", text, successMessage: "Copied code." });
+        }
+        return;
+      }
+      const activityCopyButton = target?.closest("[data-copy-activity-output]");
+      if (activityCopyButton instanceof HTMLElement) {
+        const text = activityCopyButton.dataset.copyActivityOutput ?? "";
+        if (text) {
+          event.preventDefault();
+          this.options.postMessage({ type: "copyText", text, successMessage: "Copied output." });
+        }
+        return;
+      }
+      const pathCopyButton = target?.closest("[data-copy-path]");
+      if (pathCopyButton instanceof HTMLElement) {
+        const text = pathCopyButton.dataset.copyPath ?? "";
+        if (text) {
+          event.preventDefault();
+          this.options.postMessage({ type: "copyText", text, successMessage: "Copied path." });
+        }
+        return;
+      }
+      const openFileButton = target?.closest("[data-open-file-path]");
+      if (openFileButton instanceof HTMLElement) {
+        const filePath2 = openFileButton.dataset.openFilePath;
+        if (filePath2) {
+          event.preventDefault();
+          this.options.postMessage({ type: "openFile", path: filePath2 });
+        }
+        return;
+      }
       const copyButton = target?.closest(".message__copy");
       if (copyButton instanceof HTMLElement) {
         const index = Number(copyButton.dataset.copyMessageIndex);
         const text = Number.isInteger(index) ? state2.messages[index]?.text : "";
         if (text) {
           event.preventDefault();
-          this.options.postMessage({ type: "copyText", text });
+          this.options.postMessage({ type: "copyText", text, successMessage: "Copied Pi response." });
         }
         return;
       }

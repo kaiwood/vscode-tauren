@@ -154,6 +154,59 @@ export class MessageListController {
       return;
     }
 
+    const codeCopyButton = target?.closest('[data-copy-code-block]');
+
+    if (codeCopyButton instanceof HTMLElement) {
+      const block = codeCopyButton.closest('.tau-code-block');
+      const text = block?.querySelector('pre')?.textContent ?? '';
+
+      if (text) {
+        event.preventDefault();
+        this.options.postMessage({ type: 'copyText', text, successMessage: 'Copied code.' });
+      }
+
+      return;
+    }
+
+    const activityCopyButton = target?.closest('[data-copy-activity-output]');
+
+    if (activityCopyButton instanceof HTMLElement) {
+      const text = activityCopyButton.dataset.copyActivityOutput ?? '';
+
+      if (text) {
+        event.preventDefault();
+        this.options.postMessage({ type: 'copyText', text, successMessage: 'Copied output.' });
+      }
+
+      return;
+    }
+
+    const pathCopyButton = target?.closest('[data-copy-path]');
+
+    if (pathCopyButton instanceof HTMLElement) {
+      const text = pathCopyButton.dataset.copyPath ?? '';
+
+      if (text) {
+        event.preventDefault();
+        this.options.postMessage({ type: 'copyText', text, successMessage: 'Copied path.' });
+      }
+
+      return;
+    }
+
+    const openFileButton = target?.closest('[data-open-file-path]');
+
+    if (openFileButton instanceof HTMLElement) {
+      const filePath = openFileButton.dataset.openFilePath;
+
+      if (filePath) {
+        event.preventDefault();
+        this.options.postMessage({ type: 'openFile', path: filePath });
+      }
+
+      return;
+    }
+
     const copyButton = target?.closest('.message__copy');
 
     if (copyButton instanceof HTMLElement) {
@@ -162,7 +215,7 @@ export class MessageListController {
 
       if (text) {
         event.preventDefault();
-        this.options.postMessage({ type: 'copyText', text });
+        this.options.postMessage({ type: 'copyText', text, successMessage: 'Copied Pi response.' });
       }
 
       return;
