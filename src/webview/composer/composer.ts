@@ -6,6 +6,7 @@ import {
   minTextareaHeight
 } from '../constants';
 import type {
+  ModelOption,
   PromptContextAttachment,
   SlashCommand,
   WebviewState,
@@ -53,6 +54,7 @@ export class ComposerController {
   private slashCommandsRefreshRequested = false;
   private streamingBehavior: WebviewStreamingBehavior = 'steer';
   private busySubmitHideTimeout: ReturnType<typeof setTimeout> | undefined;
+  private modelSelectOptionsSignature = '';
   private readonly addedDiffCounter: ReturnType<typeof createDiffCounter>;
   private readonly removedDiffCounter: ReturnType<typeof createDiffCounter>;
 
@@ -508,19 +510,24 @@ export class ComposerController {
     const selectedValue = modelKey(state.modelProvider, state.modelId);
     const currentValue = this.options.modelSelectElement.value;
     const modelOptions = this.getDisplayModelOptions();
-    this.options.modelSelectElement.replaceChildren();
+    const nextOptionsSignature = getModelOptionsSignature(modelOptions);
 
-    for (const model of modelOptions) {
-      if (!model || typeof model.provider !== 'string' || typeof model.id !== 'string') {
-        continue;
+    if (nextOptionsSignature !== this.modelSelectOptionsSignature) {
+      this.modelSelectOptionsSignature = nextOptionsSignature;
+      this.options.modelSelectElement.replaceChildren();
+
+      for (const model of modelOptions) {
+        if (!model || typeof model.provider !== 'string' || typeof model.id !== 'string') {
+          continue;
+        }
+
+        const option = document.createElement('option');
+        option.value = modelKey(model.provider, model.id);
+        option.textContent = model.name && model.name !== model.id
+          ? model.name + ' (' + model.provider + '/' + model.id + ')'
+          : model.provider + '/' + model.id;
+        this.options.modelSelectElement.append(option);
       }
-
-      const option = document.createElement('option');
-      option.value = modelKey(model.provider, model.id);
-      option.textContent = model.name && model.name !== model.id
-        ? model.name + ' (' + model.provider + '/' + model.id + ')'
-        : model.provider + '/' + model.id;
-      this.options.modelSelectElement.append(option);
     }
 
     this.options.modelSelectElement.value = selectedValue || currentValue;
@@ -855,6 +862,12 @@ function isPromptContextAttachment(value: unknown): value is PromptContextAttach
     && typeof attachment.label === 'string'
     && typeof attachment.title === 'string'
     && (!('xml' in attachment) || typeof attachment.xml === 'string');
+}
+
+function getModelOptionsSignature(modelOptions: readonly ModelOption[]): string {
+  return modelOptions
+    .map((model) => [model.provider, model.id, model.name, model.reasoning ? '1' : '0'].join('\u0000'))
+    .join('\u0001');
 }
 
 function modelKey(provider: string, id: string): string {

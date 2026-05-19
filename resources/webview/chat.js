@@ -360,6 +360,7 @@
     slashCommandsRefreshRequested = false;
     streamingBehavior = "steer";
     busySubmitHideTimeout;
+    modelSelectOptionsSignature = "";
     addedDiffCounter;
     removedDiffCounter;
     attachEventListeners() {
@@ -712,15 +713,19 @@
       const selectedValue = modelKey(state2.modelProvider, state2.modelId);
       const currentValue = this.options.modelSelectElement.value;
       const modelOptions = this.getDisplayModelOptions();
-      this.options.modelSelectElement.replaceChildren();
-      for (const model of modelOptions) {
-        if (!model || typeof model.provider !== "string" || typeof model.id !== "string") {
-          continue;
+      const nextOptionsSignature = getModelOptionsSignature(modelOptions);
+      if (nextOptionsSignature !== this.modelSelectOptionsSignature) {
+        this.modelSelectOptionsSignature = nextOptionsSignature;
+        this.options.modelSelectElement.replaceChildren();
+        for (const model of modelOptions) {
+          if (!model || typeof model.provider !== "string" || typeof model.id !== "string") {
+            continue;
+          }
+          const option = document.createElement("option");
+          option.value = modelKey(model.provider, model.id);
+          option.textContent = model.name && model.name !== model.id ? model.name + " (" + model.provider + "/" + model.id + ")" : model.provider + "/" + model.id;
+          this.options.modelSelectElement.append(option);
         }
-        const option = document.createElement("option");
-        option.value = modelKey(model.provider, model.id);
-        option.textContent = model.name && model.name !== model.id ? model.name + " (" + model.provider + "/" + model.id + ")" : model.provider + "/" + model.id;
-        this.options.modelSelectElement.append(option);
       }
       this.options.modelSelectElement.value = selectedValue || currentValue;
       this.options.modelSelectElement.disabled = state2.busy || modelOptions.length === 0;
@@ -979,6 +984,9 @@
     }
     const attachment = value;
     return typeof attachment.id === "string" && typeof attachment.label === "string" && typeof attachment.title === "string" && (!("xml" in attachment) || typeof attachment.xml === "string");
+  }
+  function getModelOptionsSignature(modelOptions) {
+    return modelOptions.map((model) => [model.provider, model.id, model.name, model.reasoning ? "1" : "0"].join("\0")).join("");
   }
   function modelKey(provider, id) {
     return provider + "/" + id;
