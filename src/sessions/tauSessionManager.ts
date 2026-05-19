@@ -8,6 +8,9 @@ export type TauSessionManagerOptions = PiChatControllerOptions;
 
 type OpenSessionStatus = 'idle' | 'running' | 'done' | 'error';
 
+const inactiveSessionDisposeAfterMs = 30 * 60 * 1000;
+const maxInactiveOpenSessions = 3;
+
 type OpenSession = {
   id: string;
   controller: PiChatController;
@@ -16,6 +19,8 @@ type OpenSession = {
   status: OpenSessionStatus;
   unread: boolean;
   title: string;
+  inactiveSince: number | undefined;
+  inactiveDisposeTimer: ReturnType<typeof setTimeout> | undefined;
 };
 
 export class TauSessionManager {
@@ -30,6 +35,7 @@ export class TauSessionManager {
 
   public dispose(): void {
     for (const session of this.sessions.splice(0)) {
+      this.clearInactiveDisposal(session);
       session.controller.dispose();
     }
   }
@@ -128,7 +134,9 @@ export class TauSessionManager {
       sessionFile: initialSessionFile,
       status: 'idle',
       unread: false,
-      title: options.initial ? 'Current session' : options.sessionFile ? 'Loading session' : 'New session'
+      title: options.initial ? 'Current session' : options.sessionFile ? 'Loading session' : 'New session',
+      inactiveSince: undefined,
+      inactiveDisposeTimer: undefined
     };
 
     this.sessions.push(session);
@@ -145,6 +153,7 @@ export class TauSessionManager {
       }
     }
 
+    this.reconcileSessionDisposal();
     session.controller.postState();
     void session.controller.refreshSessionDiffStats();
 
@@ -173,6 +182,7 @@ export class TauSessionManager {
     }
 
     this.updateActivePersistence(session);
+    this.reconcileSessionDisposal();
     void session.controller.refreshSessionDiffStats();
     void session.controller.handleWebviewMessage({ type: 'hideSessions' });
     this.postState();
@@ -209,7 +219,9 @@ export class TauSessionManager {
       this.updateActivePersistence(session);
     }
 
-    if (id === this.activeSessionId || this.active().state?.viewMode === 'sessions') {
+    const disposedInactiveSession = this.reconcileSessionDisposal();
+
+    if (id === this.activeSessionId || this.active().state?.viewMode === 'sessions' || disposedInactiveSession) {
       this.postState();
     }
   }
@@ -270,6 +282,117 @@ export class TauSessionManager {
 
   private hasRunningBackgroundSession(): boolean {
     return this.sessions.some((session) => session.id !== this.activeSessionId && session.status === 'running');
+  }
+
+  private reconcileSessionDisposal(): boolean {
+    const now = Date.now();
+
+    for (const session of this.sessions) {
+      this.updateSessionInactivity(session, now);
+    }
+
+    return this.disposeExcessInactiveSessions();
+  }
+
+  private updateSessionInactivity(session: OpenSession, now: number): void {
+    if (!this.isInactiveSession(session)) {
+      this.clearInactiveDisposal(session);
+      return;
+    }
+
+    session.inactiveSince ??= now;
+    this.armInactiveDisposalTimer(session, now);
+  }
+
+  private armInactiveDisposalTimer(session: OpenSession, now: number): void {
+    if (session.inactiveDisposeTimer) {
+      return;
+    }
+
+    const inactiveSince = session.inactiveSince ?? now;
+    const delayMs = Math.max(0, inactiveSince + inactiveSessionDisposeAfterMs - now);
+    const timer = setTimeout(() => {
+      session.inactiveDisposeTimer = undefined;
+      this.disposeExpiredInactiveSession(session.id);
+    }, delayMs);
+
+    if (typeof timer === 'object' && typeof timer.unref === 'function') {
+      timer.unref();
+    }
+
+    session.inactiveDisposeTimer = timer;
+  }
+
+  private disposeExpiredInactiveSession(id: string): void {
+    const session = this.sessions.find((entry) => entry.id === id);
+
+    if (!session || !this.isInactiveSession(session)) {
+      return;
+    }
+
+    const inactiveSince = session.inactiveSince;
+    const now = Date.now();
+
+    if (inactiveSince === undefined || now - inactiveSince < inactiveSessionDisposeAfterMs) {
+      this.updateSessionInactivity(session, now);
+      return;
+    }
+
+    if (this.disposeInactiveSession(session)) {
+      this.postState();
+    }
+  }
+
+  private disposeExcessInactiveSessions(): boolean {
+    const inactiveSessions = this.sessions
+      .map((session, index) => ({ session, index }))
+      .filter(({ session }) => this.isInactiveSession(session))
+      .sort((left, right) => {
+        const timeComparison = (right.session.inactiveSince ?? 0) - (left.session.inactiveSince ?? 0);
+        return timeComparison !== 0 ? timeComparison : right.index - left.index;
+      });
+
+    if (inactiveSessions.length <= maxInactiveOpenSessions) {
+      return false;
+    }
+
+    let disposed = false;
+
+    for (const { session } of inactiveSessions.slice(maxInactiveOpenSessions)) {
+      disposed = this.disposeInactiveSession(session) || disposed;
+    }
+
+    return disposed;
+  }
+
+  private disposeInactiveSession(session: OpenSession): boolean {
+    if (!this.isInactiveSession(session)) {
+      return false;
+    }
+
+    const index = this.sessions.indexOf(session);
+
+    if (index === -1) {
+      return false;
+    }
+
+    this.clearInactiveDisposal(session);
+    this.sessions.splice(index, 1);
+    session.controller.dispose();
+    return true;
+  }
+
+  private clearInactiveDisposal(session: OpenSession): void {
+    if (session.inactiveDisposeTimer) {
+      clearTimeout(session.inactiveDisposeTimer);
+      session.inactiveDisposeTimer = undefined;
+    }
+
+    session.inactiveSince = undefined;
+  }
+
+  private isInactiveSession(session: OpenSession): boolean {
+    return session.id !== this.activeSessionId && session.status !== 'running';
   }
 }
 

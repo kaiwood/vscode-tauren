@@ -145,6 +145,73 @@ suite('TauSessionManager', () => {
     harness.manager.dispose();
   });
 
+  test('auto-disposes an inactive session after 30 minutes', async () => {
+    const harness = createManagerHarness([new FakePiClient()], {
+      initialSessionFile: '/sessions/one.jsonl',
+      listSessions: async (_cwd, currentSessionFile) => createSessionItems(currentSessionFile)
+    });
+    const originalSetTimeout = globalThis.setTimeout;
+    const originalClearTimeout = globalThis.clearTimeout;
+    const originalDateNow = Date.now;
+    const inactiveDisposeDelayMs = 30 * 60 * 1000;
+    const scheduledTimeouts: Array<{ callback: () => void; delay: number | undefined }> = [];
+    let now = 1_000;
+
+    try {
+      Date.now = () => now;
+      globalThis.setTimeout = ((handler: (...args: unknown[]) => void, delay?: number, ...args: unknown[]) => {
+        scheduledTimeouts.push({
+          callback: () => handler(...args),
+          delay
+        });
+        return { unref() {} } as ReturnType<typeof setTimeout>;
+      }) as typeof setTimeout;
+      globalThis.clearTimeout = (() => undefined) as typeof clearTimeout;
+
+      await harness.manager.handleWebviewMessage({ type: 'newSession' });
+      await harness.manager.handleWebviewMessage({ type: 'showSessions' });
+      await flushPromises();
+
+      assert.strictEqual(findSession(lastState(harness), '/sessions/one.jsonl')?.liveStatus, 'idle');
+
+      const inactiveDisposeTimer = scheduledTimeouts.find((entry) => entry.delay === inactiveDisposeDelayMs);
+      assert.ok(inactiveDisposeTimer, 'Expected inactive session disposal to be scheduled');
+
+      now += inactiveDisposeDelayMs;
+      inactiveDisposeTimer.callback();
+      await flushPromises();
+
+      assert.strictEqual(findSession(lastState(harness), '/sessions/one.jsonl')?.liveStatus, undefined);
+    } finally {
+      harness.manager.dispose();
+      Date.now = originalDateNow;
+      globalThis.setTimeout = originalSetTimeout;
+      globalThis.clearTimeout = originalClearTimeout;
+    }
+  });
+
+  test('keeps only the three most recent inactive sessions', async () => {
+    const harness = createManagerHarness([new FakePiClient(), new FakePiClient(), new FakePiClient(), new FakePiClient()], {
+      initialSessionFile: '/sessions/one.jsonl',
+      listSessions: async (_cwd, currentSessionFile) => createSessionItems(currentSessionFile)
+    });
+
+    await harness.manager.handleWebviewMessage({ type: 'newSession' });
+    await harness.manager.handleWebviewMessage({ type: 'newSession' });
+    await harness.manager.handleWebviewMessage({ type: 'newSession' });
+    await harness.manager.handleWebviewMessage({ type: 'showSessions' });
+    await flushPromises();
+
+    assert.strictEqual(findSession(lastState(harness), '/sessions/one.jsonl')?.liveStatus, 'idle');
+
+    await harness.manager.handleWebviewMessage({ type: 'newSession' });
+    await harness.manager.handleWebviewMessage({ type: 'showSessions' });
+    await flushPromises();
+
+    assert.strictEqual(findSession(lastState(harness), '/sessions/one.jsonl')?.liveStatus, undefined);
+    harness.manager.dispose();
+  });
+
   test('blocks forks while a background session is running', async () => {
     const firstClient = new FakePiClient();
     const secondClient = new FakePiClient();
