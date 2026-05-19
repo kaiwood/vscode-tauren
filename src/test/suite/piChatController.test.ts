@@ -803,11 +803,11 @@ suite('PiChatController', () => {
     await harness.controller.handleWebviewMessage({ type: 'submit', text: 'explain this' });
 
     assert.strictEqual(client.prompts.length, 1);
-    assert.ok(client.prompts[0].startsWith('<ide_context source="vscode-tau">\n'));
+    assert.ok(client.prompts[0].startsWith('explain this\n\n<ide_context source="vscode-tau">\n'));
     assert.ok(!client.prompts[0].includes('<!-- tau:ide-context'));
     assert.ok(client.prompts[0].includes('<selection path="src/foo.ts" start_line="2" end_line="4" language="typescript"><![CDATA[\nconst answer = 42;\n]]></selection>'));
     assert.ok(!client.prompts[0].includes('```typescript'));
-    assert.ok(client.prompts[0].endsWith('\n\nexplain this'));
+    assert.ok(client.prompts[0].endsWith('\n</ide_context>'));
     assert.deepStrictEqual(lastState(harness).messages, [
       { role: 'user', text: 'explain this' },
       { role: 'assistant', text: '' }
@@ -854,8 +854,8 @@ suite('PiChatController', () => {
 
     assert.strictEqual(client.prompts.length, 2);
     assert.strictEqual(client.prompts[0], 'hello');
+    assert.ok(client.prompts[1].startsWith('change direction\n\n<ide_context source="vscode-tau">\n'));
     assert.ok(client.prompts[1].includes('<file path="src/foo.ts" />'));
-    assert.ok(client.prompts[1].endsWith('\n\nchange direction'));
     assert.strictEqual(lastState(harness).messages[1].activities?.[0]?.summary, 'change direction');
     assert.strictEqual(lastState(harness).promptContext, undefined);
     harness.controller.dispose();

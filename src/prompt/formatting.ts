@@ -31,13 +31,13 @@ export function formatPromptWithIdeContext(
   ].join('\n\n');
 
   return [
+    userText,
+    '',
     '<ide_context source="vscode-tau">',
     'User-attached IDE context.',
     '',
     contextBody,
-    '</ide_context>',
-    '',
-    userText
+    '</ide_context>'
   ].join('\n');
 }
 
