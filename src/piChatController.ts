@@ -395,6 +395,21 @@ export class PiChatController {
     }
   }
 
+  public takePromptContext(): PiPromptContextAttachment[] {
+    const context = this.promptContext.consume();
+
+    if (context.length > 0) {
+      this.postState();
+    }
+
+    return context;
+  }
+
+  public replacePromptContext(context: PiPromptContextAttachment[]): void {
+    this.promptContext.replace(context);
+    this.postState();
+  }
+
   private clearPostedComposerText(message: WebviewStateMessage): void {
     if (this.pendingComposerText && message.composerTextRevision === this.pendingComposerText.revision) {
       this.pendingComposerText = undefined;

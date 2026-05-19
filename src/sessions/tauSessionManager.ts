@@ -111,6 +111,7 @@ export class TauSessionManager {
   }
 
   private createSession(options: { initial?: boolean; activate?: boolean; sessionFile?: string } = {}): OpenSession {
+    const previousActive = this.activeSessionId ? this.active() : undefined;
     const id = `open-${++this.sessionSequence}`;
     const initialSessionFile = options.initial ? this.options.initialSessionFile : options.sessionFile;
     const session: OpenSession = {
@@ -135,6 +136,10 @@ export class TauSessionManager {
     if (!this.activeSessionId || options.activate) {
       this.activeSessionId = id;
 
+      if (previousActive && previousActive.id !== session.id) {
+        this.movePromptContext(previousActive, session);
+      }
+
       if (!options.initial) {
         this.updateActivePersistence(session);
       }
@@ -158,8 +163,15 @@ export class TauSessionManager {
       return;
     }
 
+    const previousActive = this.active();
+
     this.activeSessionId = id;
     session.unread = false;
+
+    if (previousActive.id !== session.id) {
+      this.movePromptContext(previousActive, session);
+    }
+
     this.updateActivePersistence(session);
     void session.controller.refreshSessionDiffStats();
     void session.controller.handleWebviewMessage({ type: 'hideSessions' });
@@ -204,6 +216,11 @@ export class TauSessionManager {
 
   private updateActivePersistence(session: OpenSession): void {
     this.options.onSessionFileChange?.(session.state?.currentSessionFile || undefined);
+  }
+
+  private movePromptContext(from: OpenSession, to: OpenSession): void {
+    const context = from.controller.takePromptContext();
+    to.controller.replacePromptContext(context);
   }
 
   private handleSessionMetaChange(id: string, metadata: PiChatSessionMetaSnapshot): void {

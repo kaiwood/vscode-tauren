@@ -57,6 +57,12 @@ export class PromptContextStore {
       ...context.map((attachment) => ({ ...attachment })),
       ...this.attachments
     ];
+    this.syncSequenceFromAttachments(context);
+  }
+
+  public replace(context: PiPromptContextAttachment[]): void {
+    this.attachments = context.map((attachment) => ({ ...attachment }));
+    this.syncSequenceFromAttachments(context);
   }
 
   private createAttachment(input: PiPromptContextInput): PiPromptContextAttachment[] {
@@ -112,6 +118,22 @@ export class PromptContextStore {
   private nextId(source: 'origin' | undefined): string {
     this.sequence += 1;
     return `${source ?? 'context'}-${this.sequence}`;
+  }
+
+  private syncSequenceFromAttachments(attachments: PiPromptContextAttachment[]): void {
+    for (const attachment of attachments) {
+      const match = attachment.id.match(/-(\d+)$/);
+
+      if (!match) {
+        continue;
+      }
+
+      const value = Number.parseInt(match[1], 10);
+
+      if (Number.isFinite(value) && value > this.sequence) {
+        this.sequence = value;
+      }
+    }
   }
 }
 

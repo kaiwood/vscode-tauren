@@ -71,6 +71,64 @@ suite('TauSessionManager', () => {
     harness.manager.dispose();
   });
 
+  test('moves unsent prompt context to a new session', async () => {
+    const client = new FakePiClient();
+    const harness = createManagerHarness([client]);
+
+    harness.manager.addPromptContext({
+      kind: 'file',
+      path: 'src/foo.ts',
+      label: 'foo.ts',
+      title: 'src/foo.ts'
+    });
+
+    await harness.manager.handleWebviewMessage({ type: 'newSession' });
+    await flushPromises();
+
+    assert.deepStrictEqual(lastState(harness).promptContext, [
+      { id: 'context-1', kind: 'file', label: 'foo.ts', title: 'src/foo.ts' }
+    ]);
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'explain this' });
+
+    assert.strictEqual(client.prompts.length, 1);
+    assert.ok(client.prompts[0].startsWith('explain this\n\n<ide_context source="vscode-tau">\n'));
+    assert.ok(client.prompts[0].includes('<file path="src/foo.ts" />'));
+    assert.strictEqual(lastState(harness).promptContext, undefined);
+    harness.manager.dispose();
+  });
+
+  test('moves unsent prompt context when selecting another open session', async () => {
+    const newSessionClient = new FakePiClient();
+    const selectedSessionClient = new FakePiClient();
+    const harness = createManagerHarness([newSessionClient, selectedSessionClient], {
+      initialSessionFile: '/sessions/one.jsonl'
+    });
+
+    await harness.manager.handleWebviewMessage({ type: 'newSession' });
+    await flushPromises();
+
+    harness.manager.addPromptContext({
+      kind: 'file',
+      path: 'src/foo.ts',
+      label: 'foo.ts',
+      title: 'src/foo.ts'
+    });
+    await harness.manager.handleWebviewMessage({ type: 'selectSession', sessionPath: '/sessions/one.jsonl' });
+    await flushPromises();
+
+    assert.deepStrictEqual(lastState(harness).promptContext, [
+      { id: 'context-1', kind: 'file', label: 'foo.ts', title: 'src/foo.ts' }
+    ]);
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'explain this' });
+
+    assert.strictEqual(selectedSessionClient.prompts.length, 1);
+    assert.ok(selectedSessionClient.prompts[0].includes('<file path="src/foo.ts" />'));
+    assert.deepStrictEqual(newSessionClient.prompts, []);
+    harness.manager.dispose();
+  });
+
   test('shows restored per-session diff stats when selecting a resumed session', async () => {
     const sessionPath = '/sessions/resumed.jsonl';
     const harness = createManagerHarness([new FakePiClient({ state: { sessionFile: sessionPath } })], {
