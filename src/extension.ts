@@ -7,7 +7,6 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     provider,
     vscode.window.registerWebviewViewProvider(chatViewType, provider),
-    vscode.commands.registerCommand('tau.focus', () => provider.focus()),
     vscode.commands.registerCommand('tau.newSession', () => provider.newSession()),
     vscode.commands.registerCommand('tau.resume', () => provider.resume()),
     vscode.commands.registerCommand('tau.fork', () => provider.fork()),

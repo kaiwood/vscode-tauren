@@ -23,7 +23,6 @@ suite('Tau extension', () => {
 
     const commands = await vscode.commands.getCommands(true);
 
-    assert.ok(commands.includes('tau.focus'));
     assert.ok(commands.includes('tau.newSession'));
     assert.ok(commands.includes('tau.resume'));
     assert.ok(commands.includes('tau.fork'));

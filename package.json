@@ -20,11 +20,6 @@
   "contributes": {
     "commands": [
       {
-        "command": "tau.focus",
-        "title": "Focus on Tau",
-        "category": "Tau"
-      },
-      {
         "command": "tau.newSession",
         "title": "New Session",
         "category": "Tau"

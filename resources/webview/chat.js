@@ -4125,7 +4125,7 @@
     vscode.postMessage({ type: "focusChanged", focused });
   }
   document.addEventListener("focusin", () => postFocusChanged(true));
-  window.addEventListener("focus", () => postFocusChanged(true));
+  window.addEventListener("focus", handleWindowFocus);
   window.addEventListener("blur", () => postFocusChanged(false));
   document.addEventListener("focusout", () => {
     setTimeout(() => {
@@ -4134,6 +4134,18 @@
       }
     }, 0);
   });
+  function handleWindowFocus() {
+    postFocusChanged(true);
+    focusPromptInputIfNothingFocused();
+  }
+  function focusPromptInputIfNothingFocused() {
+    requestAnimationFrame(() => {
+      const activeElement = document.activeElement;
+      if (activeElement === document.body || activeElement === document.documentElement) {
+        focusPromptInput();
+      }
+    });
+  }
   vscode.postMessage({ type: "ready" });
   postFocusChanged(document.hasFocus());
   render();

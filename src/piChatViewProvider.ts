@@ -172,6 +172,8 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       }),
       webviewView.onDidChangeVisibility(() => {
         if (webviewView.visible) {
+          this.pendingInputFocus = true;
+          this.postInputFocusSoon();
           this.refreshLiveMetadata();
           this.controller.refreshSessionDiffStats();
           this.startContextUsagePolling();

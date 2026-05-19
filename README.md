@@ -49,7 +49,6 @@ Open the Tau icon in the Activity Bar, then type normally.
 
 Useful commands are also available from the Command Palette:
 
-- `Tau: Focus on Tau`
 - `Tau: New Session`
 - `Tau: Resume Session`
 - `Tau: Fork Session`
