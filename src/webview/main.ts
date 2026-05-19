@@ -320,6 +320,12 @@ function handleChatEscape(event: KeyboardEvent): boolean {
     return true;
   }
 
+  if (composerController.handlePromptEscape()) {
+    event.preventDefault();
+    event.stopPropagation();
+    return true;
+  }
+
   if (state.viewMode === 'chat') {
     event.preventDefault();
     event.stopPropagation();

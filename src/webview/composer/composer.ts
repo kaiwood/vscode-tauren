@@ -188,10 +188,7 @@ export class ComposerController {
       return;
     }
 
-    const state = this.options.getState();
-    const attachments = Array.isArray(state.promptContext)
-      ? state.promptContext.filter(isPromptContextAttachment)
-      : [];
+    const attachments = this.getPromptContextAttachments();
     this.options.form.classList.toggle('composer--has-context', attachments.length > 0);
     this.options.contextBadgesElement.hidden = attachments.length === 0;
     this.options.contextBadgesElement.replaceChildren();
@@ -326,8 +323,41 @@ export class ComposerController {
     this.options.focusPromptInput();
   }
 
+  public handlePromptEscape(): boolean {
+    if (document.activeElement !== this.options.textarea) {
+      return false;
+    }
+
+    if (this.options.textarea.value.length > 0) {
+      this.options.textarea.value = '';
+      this.slashMenuDismissedQuery = undefined;
+      this.closeSlashMenu();
+      this.syncComposer({ preserveBottom: true });
+      return true;
+    }
+
+    const attachments = this.getPromptContextAttachments();
+
+    if (attachments.length === 0) {
+      return false;
+    }
+
+    for (const attachment of attachments) {
+      this.options.postMessage({ type: 'removePromptContext', id: attachment.id });
+    }
+
+    return true;
+  }
+
   public isStopSubmitMode(): boolean {
     return this.options.getState().busy && this.options.textarea.value.length === 0;
+  }
+
+  private getPromptContextAttachments(): PromptContextAttachment[] {
+    const state = this.options.getState();
+    return Array.isArray(state.promptContext)
+      ? state.promptContext.filter(isPromptContextAttachment)
+      : [];
   }
 
   private handleSubmit(event: SubmitEvent): void {

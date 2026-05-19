@@ -464,8 +464,7 @@
       if (!this.options.contextBadgesElement) {
         return;
       }
-      const state2 = this.options.getState();
-      const attachments = Array.isArray(state2.promptContext) ? state2.promptContext.filter(isPromptContextAttachment) : [];
+      const attachments = this.getPromptContextAttachments();
       this.options.form.classList.toggle("composer--has-context", attachments.length > 0);
       this.options.contextBadgesElement.hidden = attachments.length === 0;
       this.options.contextBadgesElement.replaceChildren();
@@ -565,8 +564,32 @@
       this.options.postMessage({ type: "submit", text: "/" + command });
       this.options.focusPromptInput();
     }
+    handlePromptEscape() {
+      if (document.activeElement !== this.options.textarea) {
+        return false;
+      }
+      if (this.options.textarea.value.length > 0) {
+        this.options.textarea.value = "";
+        this.slashMenuDismissedQuery = void 0;
+        this.closeSlashMenu();
+        this.syncComposer({ preserveBottom: true });
+        return true;
+      }
+      const attachments = this.getPromptContextAttachments();
+      if (attachments.length === 0) {
+        return false;
+      }
+      for (const attachment of attachments) {
+        this.options.postMessage({ type: "removePromptContext", id: attachment.id });
+      }
+      return true;
+    }
     isStopSubmitMode() {
       return this.options.getState().busy && this.options.textarea.value.length === 0;
+    }
+    getPromptContextAttachments() {
+      const state2 = this.options.getState();
+      return Array.isArray(state2.promptContext) ? state2.promptContext.filter(isPromptContextAttachment) : [];
     }
     handleSubmit(event) {
       const state2 = this.options.getState();
@@ -3840,6 +3863,11 @@
       sessionsController.cancelSessionNameEdit();
     }
     if (hadSlashMenu || hadModelMenu || sessionUiState.sessionCommandMenu || sessionUiState.sessionNameEditing) {
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
+    }
+    if (composerController.handlePromptEscape()) {
       event.preventDefault();
       event.stopPropagation();
       return true;
