@@ -159,31 +159,6 @@
           "group": "tau@30"
         },
         {
-          "command": "tau.fork",
-          "when": "view == tau.chatView && !tau.busy",
-          "group": "tau@40"
-        },
-        {
-          "command": "tau.clone",
-          "when": "view == tau.chatView && !tau.busy",
-          "group": "tau@50"
-        },
-        {
-          "command": "tau.compactSession",
-          "when": "view == tau.chatView && !tau.busy",
-          "group": "tau@60"
-        },
-        {
-          "command": "tau.exportSession",
-          "when": "view == tau.chatView && !tau.busy",
-          "group": "tau@70"
-        },
-        {
-          "command": "tau.reloadPi",
-          "when": "view == tau.chatView && !tau.busy",
-          "group": "tau@80"
-        },
-        {
           "command": "tau.toggleSteerFollowUp",
           "when": "view == tau.chatView && tau.busy",
           "group": "tau@90"
