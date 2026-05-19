@@ -1746,6 +1746,7 @@ const composerStyles = /* css */ `    .composer {
       outline-offset: -1px;
     }
 
+
     .composer__submit {
       justify-self: end;
       width: 34px;

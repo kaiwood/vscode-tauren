@@ -396,6 +396,7 @@
         button.addEventListener("click", () => this.selectStreamingBehavior(button));
       }
       this.options.modelElement.addEventListener("click", () => this.toggleModelMenu());
+      this.options.modelMenuElement?.addEventListener("keydown", (event) => this.handleModelMenuKeydown(event), true);
       this.options.modelSelectElement.addEventListener("change", () => this.selectModel());
       this.options.thinkingSelectElement.addEventListener("change", () => this.selectThinkingLevel());
       this.options.textarea.addEventListener("keydown", (event) => {
@@ -486,6 +487,13 @@
     closeModelMenu() {
       this.options.modelMenuElement?.removeAttribute("open");
       this.options.modelElement.setAttribute("aria-expanded", "false");
+    }
+    openModelPicker() {
+      if (this.options.modelElement.disabled) {
+        return;
+      }
+      this.openModelMenu();
+      this.focusModelPickerControl(1);
     }
     syncPromptContextBadges() {
       if (!this.options.contextBadgesElement) {
@@ -786,17 +794,25 @@
       this.options.thinkingSelectElement.title = state2.modelReasoning ? "Thinking mode" : "The selected model does not advertise thinking support.";
     }
     toggleModelMenu() {
-      const state2 = this.options.getState();
       if (this.options.modelElement.disabled) {
         return;
       }
+      const open = !this.options.modelMenuElement?.hasAttribute("open");
+      if (open) {
+        this.openModelMenu();
+      } else {
+        this.closeModelMenu();
+      }
+    }
+    openModelMenu() {
+      const state2 = this.options.getState();
       if (state2.modelOptions.length === 0 && !state2.metadataRefreshing) {
         this.options.refreshMetadata();
       }
+      this.closeSlashMenu();
       this.options.cancelSessionNameEdit();
-      const open = !this.options.modelMenuElement?.hasAttribute("open");
-      this.options.modelMenuElement?.toggleAttribute("open", open);
-      this.options.modelElement.setAttribute("aria-expanded", open ? "true" : "false");
+      this.options.modelMenuElement?.setAttribute("open", "");
+      this.options.modelElement.setAttribute("aria-expanded", "true");
     }
     selectModel() {
       const state2 = this.options.getState();
@@ -815,6 +831,35 @@
       }
       this.closeModelMenu();
       this.options.postMessage({ type: "setThinkingLevel", level });
+    }
+    handleModelMenuKeydown(event) {
+      if (!this.hasModelMenuOpen()) {
+        return;
+      }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.focusModelPickerControl(event.key === "ArrowUp" ? -1 : 1);
+        return;
+      }
+      if (event.key === "Home" || event.key === "End") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.focusModelPickerControl(event.key === "End" ? -1 : 1, true);
+      }
+    }
+    focusModelPickerControl(direction, edge = false) {
+      const controls = this.getEnabledModelPickerControls();
+      if (controls.length === 0) {
+        this.options.modelElement.focus({ preventScroll: true });
+        return;
+      }
+      const activeIndex = controls.findIndex((control) => control === document.activeElement);
+      const nextIndex = edge || activeIndex === -1 ? direction === 1 ? 0 : controls.length - 1 : (activeIndex + direction + controls.length) % controls.length;
+      requestAnimationFrame(() => controls[nextIndex]?.focus({ preventScroll: true }));
+    }
+    getEnabledModelPickerControls() {
+      return [this.options.thinkingSelectElement, this.options.modelSelectElement].filter((control) => !control.disabled);
     }
     handleSlashMenuKeydown(event) {
       if (!this.slashMenuOpen) {
@@ -3939,6 +3984,10 @@
     }
     if (event.data?.type === "focusInput") {
       focusPromptInput();
+      return;
+    }
+    if (event.data?.type === "openModelPicker") {
+      composerController.openModelPicker();
       return;
     }
     if (event.data?.type === "toggleStreamingBehavior") {

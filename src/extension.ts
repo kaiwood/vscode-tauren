@@ -17,7 +17,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('tau.exportSession', () => provider.exportSession()),
     vscode.commands.registerCommand('tau.reloadPi', () => provider.reloadPi()),
     vscode.commands.registerCommand('tau.copyLastResponse', () => provider.copyLastResponse()),
-    vscode.commands.registerCommand('tau.selectModel', () => provider.selectModel()),
+    vscode.commands.registerCommand('tau.openModelPicker', () => provider.openModelPicker()),
     vscode.commands.registerCommand('tau.stop', () => provider.stop()),
     vscode.commands.registerCommand('tau.toggleSteerFollowUp', () => provider.toggleSteerFollowUp()),
     vscode.commands.registerCommand('tau.addContext', () => provider.addContext()),

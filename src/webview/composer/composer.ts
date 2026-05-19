@@ -73,6 +73,7 @@ export class ComposerController {
     }
 
     this.options.modelElement.addEventListener('click', () => this.toggleModelMenu());
+    this.options.modelMenuElement?.addEventListener('keydown', (event) => this.handleModelMenuKeydown(event), true);
     this.options.modelSelectElement.addEventListener('change', () => this.selectModel());
     this.options.thinkingSelectElement.addEventListener('change', () => this.selectThinkingLevel());
 
@@ -185,6 +186,15 @@ export class ComposerController {
   public closeModelMenu(): void {
     this.options.modelMenuElement?.removeAttribute('open');
     this.options.modelElement.setAttribute('aria-expanded', 'false');
+  }
+
+  public openModelPicker(): void {
+    if (this.options.modelElement.disabled) {
+      return;
+    }
+
+    this.openModelMenu();
+    this.focusModelPickerControl(1);
   }
 
   public syncPromptContextBadges(): void {
@@ -574,20 +584,30 @@ export class ComposerController {
   }
 
   private toggleModelMenu(): void {
-    const state = this.options.getState();
-
     if (this.options.modelElement.disabled) {
       return;
     }
+
+    const open = !this.options.modelMenuElement?.hasAttribute('open');
+
+    if (open) {
+      this.openModelMenu();
+    } else {
+      this.closeModelMenu();
+    }
+  }
+
+  private openModelMenu(): void {
+    const state = this.options.getState();
 
     if (state.modelOptions.length === 0 && !state.metadataRefreshing) {
       this.options.refreshMetadata();
     }
 
+    this.closeSlashMenu();
     this.options.cancelSessionNameEdit();
-    const open = !this.options.modelMenuElement?.hasAttribute('open');
-    this.options.modelMenuElement?.toggleAttribute('open', open);
-    this.options.modelElement.setAttribute('aria-expanded', open ? 'true' : 'false');
+    this.options.modelMenuElement?.setAttribute('open', '');
+    this.options.modelElement.setAttribute('aria-expanded', 'true');
   }
 
   private selectModel(): void {
@@ -612,6 +632,46 @@ export class ComposerController {
 
     this.closeModelMenu();
     this.options.postMessage({ type: 'setThinkingLevel', level });
+  }
+
+  private handleModelMenuKeydown(event: KeyboardEvent): void {
+    if (!this.hasModelMenuOpen()) {
+      return;
+    }
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.focusModelPickerControl(event.key === 'ArrowUp' ? -1 : 1);
+      return;
+    }
+
+    if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.focusModelPickerControl(event.key === 'End' ? -1 : 1, true);
+    }
+  }
+
+  private focusModelPickerControl(direction: 1 | -1, edge = false): void {
+    const controls = this.getEnabledModelPickerControls();
+
+    if (controls.length === 0) {
+      this.options.modelElement.focus({ preventScroll: true });
+      return;
+    }
+
+    const activeIndex = controls.findIndex((control) => control === document.activeElement);
+    const nextIndex = edge || activeIndex === -1
+      ? direction === 1 ? 0 : controls.length - 1
+      : (activeIndex + direction + controls.length) % controls.length;
+
+    requestAnimationFrame(() => controls[nextIndex]?.focus({ preventScroll: true }));
+  }
+
+  private getEnabledModelPickerControls(): HTMLSelectElement[] {
+    return [this.options.thinkingSelectElement, this.options.modelSelectElement]
+      .filter((control) => !control.disabled);
   }
 
   private handleSlashMenuKeydown(event: KeyboardEvent): boolean {

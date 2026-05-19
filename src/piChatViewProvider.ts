@@ -31,6 +31,7 @@ const sessionDiffStatsRefreshDelayMs = 250;
 export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   private webviewView: vscode.WebviewView | undefined;
   private pendingInputFocus = false;
+  private pendingModelPickerOpen = false;
   private pendingStreamingBehaviorToggle = false;
   private webviewReady = false;
   private readonly pendingToastMessages: string[] = [];
@@ -254,9 +255,10 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     await this.controller.runLocalSlashCommand('copy');
   }
 
-  public async selectModel(): Promise<void> {
-    await this.controller.runLocalSlashCommand('model');
+  public async openModelPicker(): Promise<void> {
     await this.focus();
+    this.pendingModelPickerOpen = true;
+    this.postModelPickerOpenSoon();
   }
 
   public async stop(): Promise<void> {
@@ -356,6 +358,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       this.codeRenderer.warmup();
       await this.controller.handleWebviewMessage(message);
       this.postInputFocusSoon();
+      this.postModelPickerOpenSoon();
       this.postStreamingBehaviorToggleSoon();
       this.postPendingToasts();
       return;
@@ -487,6 +490,19 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
   private postInputFocusSoon(): void {
     setTimeout(() => this.postInputFocus(), 0);
+  }
+
+  private postModelPickerOpen(): void {
+    if (!this.pendingModelPickerOpen || !this.webviewView || !this.webviewReady) {
+      return;
+    }
+
+    this.pendingModelPickerOpen = false;
+    void this.webviewView.webview.postMessage({ type: 'openModelPicker' });
+  }
+
+  private postModelPickerOpenSoon(): void {
+    setTimeout(() => this.postModelPickerOpen(), 0);
   }
 
   private postStreamingBehaviorToggle(): void {

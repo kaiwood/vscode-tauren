@@ -144,6 +144,11 @@ window.addEventListener('message', (event) => {
     return;
   }
 
+  if (event.data?.type === 'openModelPicker') {
+    composerController.openModelPicker();
+    return;
+  }
+
   if (event.data?.type === 'toggleStreamingBehavior') {
     composerController.toggleStreamingBehavior();
     return;

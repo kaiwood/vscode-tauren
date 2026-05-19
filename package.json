@@ -70,8 +70,8 @@
         "category": "Tau"
       },
       {
-        "command": "tau.selectModel",
-        "title": "Select Model",
+        "command": "tau.openModelPicker",
+        "title": "Open Model Picker",
         "category": "Tau"
       },
       {
@@ -149,7 +149,7 @@
           "group": "tau@10"
         },
         {
-          "command": "tau.selectModel",
+          "command": "tau.openModelPicker",
           "when": "view == tau.chatView && !tau.busy",
           "group": "tau@20"
         },

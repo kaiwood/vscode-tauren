@@ -59,7 +59,7 @@ Useful commands are also available from the Command Palette:
 - `Tau: Export Session as HTML`
 - `Tau: Reload Pi`
 - `Tau: Copy Last Response`
-- `Tau: Select Model`
+- `Tau: Open Model Picker`
 - `Tau: Stop Current Response`
 - `Tau: Toggle Steer / Follow-up`
 - `Tau: Add Context`
@@ -99,6 +99,8 @@ Tau-specific keys inside the sidebar:
 | `Tab`                           | Slash command menu           | Insert the selected command.                        |
 | `Enter`                         | Slash command menu           | Insert the selected command.                        |
 | `Esc`                           | Slash command menu           | Close the menu.                                     |
+| `ArrowUp` / `ArrowDown`         | Model picker                 | Move between Thinking and Model.                    |
+| `Home` / `End`                  | Model picker                 | Move to the first or last picker field.             |
 | `Enter`                         | Inline session naming        | Save the session name.                              |
 | `Esc`                           | Inline session naming        | Cancel editing and focus the prompt.                |
 
