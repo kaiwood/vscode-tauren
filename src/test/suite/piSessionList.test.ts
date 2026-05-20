@@ -25,7 +25,7 @@ suite('Pi session list', () => {
     }
   });
 
-  test('falls back to all default sessions when the workspace session directory is empty', async () => {
+  test('does not fall back to other default workspace session directories', async () => {
     const home = await mkdtemp(join(tmpdir(), 'tau-home-'));
 
     try {
@@ -41,8 +41,7 @@ suite('Pi session list', () => {
       process.env.HOME = home;
       try {
         const sessions = await listPiSessions({ cwd: '/workspace', env: {} });
-        assert.strictEqual(sessions.length, 1);
-        assert.strictEqual(sessions[0].path, sessionPath);
+        assert.strictEqual(sessions.length, 0);
       } finally {
         if (originalHome === undefined) {
           delete process.env.HOME;

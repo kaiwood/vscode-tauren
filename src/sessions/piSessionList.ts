@@ -17,11 +17,7 @@ export async function listPiSessions(options: ListPiSessionsOptions = {}): Promi
   const env = options.env ?? process.env;
   const sessionDir = options.sessionDir
     ?? await resolveConfiguredSessionDir(options.cwd, options.currentSessionFile, env);
-  let sessions = sessionDir ? await listSessionsFromDir(sessionDir) : [];
-
-  if (sessions.length === 0 && !options.sessionDir) {
-    sessions = await listAllDefaultSessions();
-  }
+  const sessions = sessionDir ? await listSessionsFromDir(sessionDir) : [];
 
   return decorateSessions(sessions, options.currentSessionFile);
 }
@@ -48,28 +44,6 @@ async function listSessionsFromDir(sessionDir: string): Promise<RawSessionInfo[]
   );
 
   return sessions.filter((session): session is RawSessionInfo => Boolean(session));
-}
-
-async function listAllDefaultSessions(): Promise<RawSessionInfo[]> {
-  const sessionsRoot = getDefaultSessionsRoot();
-
-  if (!existsSync(sessionsRoot)) {
-    return [];
-  }
-
-  try {
-    const entries = await readdir(sessionsRoot, { withFileTypes: true });
-    const sessionGroups = await mapWithConcurrency(
-      entries
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => join(sessionsRoot, entry.name)),
-      maxConcurrentSessionFileReads,
-      listSessionsFromDir
-    );
-    return sessionGroups.flat();
-  } catch {
-    return [];
-  }
 }
 
 function decorateSessions(
