@@ -1892,12 +1892,14 @@
     }
     details.append(summary);
     if (typeof activity.body === "string" && activity.body.length > 0) {
-      const bodyExpanded = Boolean(activityId && activityBodyExpansion.get(activityId) && activity.expandedBody);
+      const bodyCanVisuallyExpand = Boolean(activityId && activity.code);
+      const bodyExpanded = Boolean(activityId && activityBodyExpansion.get(activityId) && (activity.expandedBody || bodyCanVisuallyExpand));
       const bodyText = bodyExpanded && typeof activity.expandedBody === "string" ? activity.expandedBody : activity.body;
       const body = document.createElement(activity.code ? "pre" : "div");
       body.className = `activity__body${activity.code ? " activity__body--code" : " activity__body--markdown"}${bodyExpanded ? " activity__body--expanded" : ""}`;
+      let bodyToggle;
       if (activity.code) {
-        renderCodeActivityBody(body, activity, bodyText, {
+        bodyToggle = renderCodeActivityBody(body, activity, bodyText, {
           bodyExpanded,
           messageIndex,
           outputColors: options.outputColors !== false
@@ -1905,14 +1907,15 @@
       } else {
         renderMarkdownInto(body, bodyText);
       }
-      details.append(activity.code ? createActivityBodyWrap(body, bodyText, getReadActivityPath(activity, bodyText)) : body);
+      const overflowToggle = bodyCanVisuallyExpand && !bodyExpanded && !bodyToggle ? { label: "Show full output", activityId, messageIndex, expanded: false } : void 0;
+      details.append(activity.code ? createActivityBodyWrap(body, bodyText, getReadActivityPath(activity, bodyText), bodyToggle, overflowToggle) : body);
       if (bodyExpanded && shouldScrollExpandedBodyToBottom(activity.body)) {
         scheduleActivityBodyScrollToBottom(body);
       }
     }
     return details;
   }
-  function createActivityBodyWrap(body, bodyText, filePath) {
+  function createActivityBodyWrap(body, bodyText, filePath, bodyToggle, overflowToggle) {
     const wrap = document.createElement("div");
     wrap.className = "activity__body-wrap";
     const actions = document.createElement("div");
@@ -1937,24 +1940,41 @@
       actions.append(copyPath);
     }
     wrap.append(actions, body);
+    if (bodyToggle) {
+      wrap.append(createActivityBodyToggle(bodyToggle));
+    } else if (overflowToggle) {
+      scheduleActivityBodyOverflowToggle(wrap, body, overflowToggle);
+    }
     return wrap;
   }
   function renderCodeActivityBody(element, activity, bodyText, options) {
     const activityId = typeof activity.id === "string" ? activity.id : "";
     const filePath = getReadActivityPath(activity, bodyText);
-    const hasExpandedToggle = Boolean(options.bodyExpanded && activityId && typeof activity.expandedBody === "string");
+    const hasExpandedToggle = Boolean(options.bodyExpanded && activityId);
     const marker = !options.bodyExpanded && activityId && typeof activity.expandedBody === "string" ? findTruncationMarker(bodyText) : void 0;
-    if (filePath && !containsAnsiEscape(bodyText)) {
-      renderHighlightedActivityCodeInto(element, bodyText, filePath, marker, activityId, options.messageIndex, hasExpandedToggle);
+    const renderedBodyText = marker ? removeTruncationMarker(marker) : bodyText;
+    if (filePath && !containsAnsiEscape(renderedBodyText)) {
+      renderHighlightedActivityCodeInto(element, renderedBodyText, filePath);
     } else {
-      renderAnsiActivityCodeInto(element, bodyText, marker, activityId, options.messageIndex, options.outputColors);
+      renderAnsiActivityCodeInto(element, renderedBodyText, options.outputColors);
     }
     if (hasExpandedToggle) {
-      if (!bodyText.endsWith("\n")) {
-        element.append(document.createTextNode("\n"));
-      }
-      appendActivityBodyToggle(element, "Show less", activityId, options.messageIndex, true);
+      return {
+        label: "Show less",
+        activityId,
+        messageIndex: options.messageIndex,
+        expanded: true
+      };
     }
+    if (marker) {
+      return {
+        label: marker.text,
+        activityId,
+        messageIndex: options.messageIndex,
+        expanded: false
+      };
+    }
+    return void 0;
   }
   function getReadActivityPath(activity, bodyText) {
     if (activity.kind !== "tool_execution" || typeof activity.title !== "string" || containsAnsiEscape(bodyText)) {
@@ -1962,50 +1982,22 @@
     }
     return parseReadActivityPath(activity.title);
   }
-  function renderHighlightedActivityCodeInto(element, bodyText, filePath, marker, activityId, messageIndex, renderAsChild = false) {
-    if (!marker) {
-      if (renderAsChild) {
-        element.replaceChildren();
-        appendHighlightedCodeChunk(element, bodyText, filePath);
-        return;
-      }
-      if (!renderHighlightedCodeInto(element, bodyText, filePath)) {
-        element.textContent = bodyText;
-      }
-      return;
+  function renderHighlightedActivityCodeInto(element, bodyText, filePath) {
+    if (!renderHighlightedCodeInto(element, bodyText, filePath)) {
+      element.textContent = bodyText;
     }
-    element.replaceChildren();
-    appendHighlightedCodeChunk(element, marker.before, filePath);
-    appendActivityBodyToggle(element, marker.text, activityId, messageIndex, false);
-    appendHighlightedCodeChunk(element, marker.after, filePath);
   }
-  function appendHighlightedCodeChunk(element, value, filePath) {
-    if (!value) {
-      return;
-    }
-    const code = document.createElement("code");
-    if (!renderHighlightedCodeInto(code, value, filePath)) {
-      code.textContent = value;
-    }
-    element.append(code);
+  function renderAnsiActivityCodeInto(element, bodyText, outputColors) {
+    renderAnsiTextInto(element, bodyText, outputColors);
   }
-  function renderAnsiActivityCodeInto(element, bodyText, marker, activityId, messageIndex, outputColors) {
-    if (!marker) {
-      renderAnsiTextInto(element, bodyText, outputColors);
-      return;
+  function removeTruncationMarker(marker) {
+    const before = marker.before.endsWith("\n") ? marker.before.slice(0, -1) : marker.before;
+    const after = marker.after.startsWith("\n") ? marker.after.slice(1) : marker.after;
+    if (before && after) {
+      return `${before}
+${after}`;
     }
-    element.replaceChildren();
-    appendAnsiCodeChunk(element, marker.before, outputColors);
-    appendActivityBodyToggle(element, marker.text, activityId, messageIndex, false);
-    appendAnsiCodeChunk(element, marker.after, outputColors);
-  }
-  function appendAnsiCodeChunk(element, value, outputColors) {
-    if (!value) {
-      return;
-    }
-    const chunk = document.createElement("span");
-    renderAnsiTextInto(chunk, value, outputColors);
-    element.append(...Array.from(chunk.childNodes));
+    return before || after;
   }
   function findTruncationMarker(value) {
     const markerPattern = /^\.\.\. \((?:\d+ (?:more|earlier)[^)]+|output truncated)\)$/m;
@@ -2037,7 +2029,28 @@
     setTimeout(scroll, 80);
     setTimeout(scroll, 220);
   }
-  function appendActivityBodyToggle(element, label, activityId, messageIndex, expanded) {
+  function scheduleActivityBodyOverflowToggle(wrap, body, bodyToggle) {
+    const appendIfOverflowing = () => {
+      if (!wrap.isConnected || wrap.querySelector("[data-activity-body-toggle]")) {
+        return;
+      }
+      if (body.scrollHeight > body.clientHeight + 1) {
+        wrap.append(createActivityBodyToggle(bodyToggle));
+      }
+    };
+    requestAnimationFrame(() => {
+      appendIfOverflowing();
+      requestAnimationFrame(appendIfOverflowing);
+    });
+    setTimeout(appendIfOverflowing, 80);
+    setTimeout(appendIfOverflowing, 220);
+  }
+  function createActivityBodyToggle({
+    label,
+    activityId,
+    messageIndex,
+    expanded
+  }) {
     const button = document.createElement("button");
     button.className = "activity__body-toggle";
     button.type = "button";
@@ -2048,7 +2061,7 @@
     if (typeof messageIndex === "number") {
       button.dataset.messageIndex = String(messageIndex);
     }
-    element.append(button);
+    return button;
   }
   function parseReadActivityPath(title) {
     const match = title.match(/^read\s+(.+?)(?::\d+(?:-\d+)?)?$/);

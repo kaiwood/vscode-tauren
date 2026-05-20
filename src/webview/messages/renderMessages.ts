@@ -172,13 +172,16 @@ function createActivityElement(activity: Activity, messageIndex: number | undefi
   details.append(summary);
 
   if (typeof activity.body === 'string' && activity.body.length > 0) {
-    const bodyExpanded = Boolean(activityId && activityBodyExpansion.get(activityId) && activity.expandedBody);
+    const bodyCanVisuallyExpand = Boolean(activityId && activity.code);
+    const bodyExpanded = Boolean(activityId && activityBodyExpansion.get(activityId) && (activity.expandedBody || bodyCanVisuallyExpand));
     const bodyText = bodyExpanded && typeof activity.expandedBody === 'string' ? activity.expandedBody : activity.body;
     const body = document.createElement(activity.code ? 'pre' : 'div');
     body.className = `activity__body${activity.code ? ' activity__body--code' : ' activity__body--markdown'}${bodyExpanded ? ' activity__body--expanded' : ''}`;
 
+    let bodyToggle: ActivityBodyToggle | undefined;
+
     if (activity.code) {
-      renderCodeActivityBody(body, activity, bodyText, {
+      bodyToggle = renderCodeActivityBody(body, activity, bodyText, {
         bodyExpanded,
         messageIndex,
         outputColors: options.outputColors !== false
@@ -187,7 +190,11 @@ function createActivityElement(activity: Activity, messageIndex: number | undefi
       renderMarkdownInto(body, bodyText);
     }
 
-    details.append(activity.code ? createActivityBodyWrap(body, bodyText, getReadActivityPath(activity, bodyText)) : body);
+    const overflowToggle = bodyCanVisuallyExpand && !bodyExpanded && !bodyToggle
+      ? { label: 'Show full output', activityId, messageIndex, expanded: false }
+      : undefined;
+
+    details.append(activity.code ? createActivityBodyWrap(body, bodyText, getReadActivityPath(activity, bodyText), bodyToggle, overflowToggle) : body);
 
     if (bodyExpanded && shouldScrollExpandedBodyToBottom(activity.body)) {
       scheduleActivityBodyScrollToBottom(body);
@@ -197,7 +204,13 @@ function createActivityElement(activity: Activity, messageIndex: number | undefi
   return details;
 }
 
-function createActivityBodyWrap(body: HTMLElement, bodyText: string, filePath: string | undefined): HTMLElement {
+function createActivityBodyWrap(
+  body: HTMLElement,
+  bodyText: string,
+  filePath: string | undefined,
+  bodyToggle: ActivityBodyToggle | undefined,
+  overflowToggle: ActivityBodyToggle | undefined
+): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'activity__body-wrap';
 
@@ -227,35 +240,62 @@ function createActivityBodyWrap(body: HTMLElement, bodyText: string, filePath: s
   }
 
   wrap.append(actions, body);
+
+  if (bodyToggle) {
+    wrap.append(createActivityBodyToggle(bodyToggle));
+  } else if (overflowToggle) {
+    scheduleActivityBodyOverflowToggle(wrap, body, overflowToggle);
+  }
+
   return wrap;
 }
+
+type ActivityBodyToggle = {
+  label: string;
+  activityId: string;
+  messageIndex: number | undefined;
+  expanded: boolean;
+};
 
 function renderCodeActivityBody(
   element: HTMLElement,
   activity: Activity,
   bodyText: string,
   options: { bodyExpanded: boolean; messageIndex: number | undefined; outputColors: boolean }
-): void {
+): ActivityBodyToggle | undefined {
   const activityId = typeof activity.id === 'string' ? activity.id : '';
   const filePath = getReadActivityPath(activity, bodyText);
-  const hasExpandedToggle = Boolean(options.bodyExpanded && activityId && typeof activity.expandedBody === 'string');
+  const hasExpandedToggle = Boolean(options.bodyExpanded && activityId);
   const marker = !options.bodyExpanded && activityId && typeof activity.expandedBody === 'string'
     ? findTruncationMarker(bodyText)
     : undefined;
+  const renderedBodyText = marker ? removeTruncationMarker(marker) : bodyText;
 
-  if (filePath && !containsAnsiEscape(bodyText)) {
-    renderHighlightedActivityCodeInto(element, bodyText, filePath, marker, activityId, options.messageIndex, hasExpandedToggle);
+  if (filePath && !containsAnsiEscape(renderedBodyText)) {
+    renderHighlightedActivityCodeInto(element, renderedBodyText, filePath);
   } else {
-    renderAnsiActivityCodeInto(element, bodyText, marker, activityId, options.messageIndex, options.outputColors);
+    renderAnsiActivityCodeInto(element, renderedBodyText, options.outputColors);
   }
 
   if (hasExpandedToggle) {
-    if (!bodyText.endsWith('\n')) {
-      element.append(document.createTextNode('\n'));
-    }
-
-    appendActivityBodyToggle(element, 'Show less', activityId, options.messageIndex, true);
+    return {
+      label: 'Show less',
+      activityId,
+      messageIndex: options.messageIndex,
+      expanded: true
+    };
   }
+
+  if (marker) {
+    return {
+      label: marker.text,
+      activityId,
+      messageIndex: options.messageIndex,
+      expanded: false
+    };
+  }
+
+  return undefined;
 }
 
 function getReadActivityPath(activity: Activity, bodyText: string): string | undefined {
@@ -269,72 +309,19 @@ function getReadActivityPath(activity: Activity, bodyText: string): string | und
 function renderHighlightedActivityCodeInto(
   element: HTMLElement,
   bodyText: string,
-  filePath: string,
-  marker: TruncationMarker | undefined,
-  activityId: string,
-  messageIndex: number | undefined,
-  renderAsChild = false
+  filePath: string
 ): void {
-  if (!marker) {
-    if (renderAsChild) {
-      element.replaceChildren();
-      appendHighlightedCodeChunk(element, bodyText, filePath);
-      return;
-    }
-
-    if (!renderHighlightedCodeInto(element, bodyText, filePath)) {
-      element.textContent = bodyText;
-    }
-    return;
+  if (!renderHighlightedCodeInto(element, bodyText, filePath)) {
+    element.textContent = bodyText;
   }
-
-  element.replaceChildren();
-  appendHighlightedCodeChunk(element, marker.before, filePath);
-  appendActivityBodyToggle(element, marker.text, activityId, messageIndex, false);
-  appendHighlightedCodeChunk(element, marker.after, filePath);
-}
-
-function appendHighlightedCodeChunk(element: HTMLElement, value: string, filePath: string): void {
-  if (!value) {
-    return;
-  }
-
-  const code = document.createElement('code');
-
-  if (!renderHighlightedCodeInto(code, value, filePath)) {
-    code.textContent = value;
-  }
-
-  element.append(code);
 }
 
 function renderAnsiActivityCodeInto(
   element: HTMLElement,
   bodyText: string,
-  marker: TruncationMarker | undefined,
-  activityId: string,
-  messageIndex: number | undefined,
   outputColors: boolean
 ): void {
-  if (!marker) {
-    renderAnsiTextInto(element, bodyText, outputColors);
-    return;
-  }
-
-  element.replaceChildren();
-  appendAnsiCodeChunk(element, marker.before, outputColors);
-  appendActivityBodyToggle(element, marker.text, activityId, messageIndex, false);
-  appendAnsiCodeChunk(element, marker.after, outputColors);
-}
-
-function appendAnsiCodeChunk(element: HTMLElement, value: string, outputColors: boolean): void {
-  if (!value) {
-    return;
-  }
-
-  const chunk = document.createElement('span');
-  renderAnsiTextInto(chunk, value, outputColors);
-  element.append(...Array.from(chunk.childNodes));
+  renderAnsiTextInto(element, bodyText, outputColors);
 }
 
 type TruncationMarker = {
@@ -342,6 +329,17 @@ type TruncationMarker = {
   text: string;
   after: string;
 };
+
+function removeTruncationMarker(marker: TruncationMarker): string {
+  const before = marker.before.endsWith('\n') ? marker.before.slice(0, -1) : marker.before;
+  const after = marker.after.startsWith('\n') ? marker.after.slice(1) : marker.after;
+
+  if (before && after) {
+    return `${before}\n${after}`;
+  }
+
+  return before || after;
+}
 
 function findTruncationMarker(value: string): TruncationMarker | undefined {
   const markerPattern = /^\.\.\. \((?:\d+ (?:more|earlier)[^)]+|output truncated)\)$/m;
@@ -380,13 +378,35 @@ function scheduleActivityBodyScrollToBottom(element: HTMLElement): void {
   setTimeout(scroll, 220);
 }
 
-function appendActivityBodyToggle(
-  element: HTMLElement,
-  label: string,
-  activityId: string,
-  messageIndex: number | undefined,
-  expanded: boolean
+function scheduleActivityBodyOverflowToggle(
+  wrap: HTMLElement,
+  body: HTMLElement,
+  bodyToggle: ActivityBodyToggle
 ): void {
+  const appendIfOverflowing = () => {
+    if (!wrap.isConnected || wrap.querySelector('[data-activity-body-toggle]')) {
+      return;
+    }
+
+    if (body.scrollHeight > body.clientHeight + 1) {
+      wrap.append(createActivityBodyToggle(bodyToggle));
+    }
+  };
+
+  requestAnimationFrame(() => {
+    appendIfOverflowing();
+    requestAnimationFrame(appendIfOverflowing);
+  });
+  setTimeout(appendIfOverflowing, 80);
+  setTimeout(appendIfOverflowing, 220);
+}
+
+function createActivityBodyToggle({
+  label,
+  activityId,
+  messageIndex,
+  expanded
+}: ActivityBodyToggle): HTMLButtonElement {
   const button = document.createElement('button');
   button.className = 'activity__body-toggle';
   button.type = 'button';
@@ -399,7 +419,7 @@ function appendActivityBodyToggle(
     button.dataset.messageIndex = String(messageIndex);
   }
 
-  element.append(button);
+  return button;
 }
 
 function parseReadActivityPath(title: string): string | undefined {

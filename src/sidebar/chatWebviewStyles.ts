@@ -1208,7 +1208,13 @@ const activityStyles = /* css */ `    .activity-list {
       line-height: 1.4;
     }
 
+    .activity__body--code:not(.activity__body--expanded) {
+      box-sizing: content-box;
+      max-height: calc(16 * 16px);
+    }
+
     .activity__body--expanded {
+      box-sizing: border-box;
       max-height: min(520px, 65vh);
       overflow: auto;
     }
@@ -1229,6 +1235,7 @@ const activityStyles = /* css */ `    .activity-list {
       background: var(--tau-code-background);
       font-family: var(--vscode-editor-font-family, monospace);
       font-size: 11px;
+      line-height: 16px;
     }
 
     .activity__body--markdown {
@@ -1236,12 +1243,18 @@ const activityStyles = /* css */ `    .activity-list {
     }
 
     .activity__body-toggle {
+      display: block;
+      width: 100%;
       margin: 0;
-      padding: 0;
+      padding: 5px 8px 6px;
       color: var(--vscode-textLink-foreground);
-      background: transparent;
+      background: var(--tau-code-background);
       border: 0;
-      font: inherit;
+      border-top: 1px solid color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 11px;
+      line-height: 1.4;
+      text-align: left;
       cursor: pointer;
       white-space: pre-wrap;
     }
