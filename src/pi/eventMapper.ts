@@ -6,7 +6,7 @@ import type { RpcEvent } from '../rpc/types';
 
 const toolResultPreviewMaxLines = 8;
 const toolResultPreviewMaxCharacters = 2400;
-const editDiffPreviewMaxLines = 40;
+const editDiffPreviewMaxLines = 16;
 const editDiffLineMaxCharacters = 500;
 const ansiRed = '\x1b[31m';
 const ansiGreen = '\x1b[32m';

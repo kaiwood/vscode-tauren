@@ -1197,15 +1197,20 @@ const activityStyles = /* css */ `    .activity-list {
     }
 
     .activity__body {
-      max-height: 260px;
+      max-height: none;
       margin: 0;
       padding: 7px 8px 8px;
-      overflow: auto;
+      overflow: hidden;
       color: var(--vscode-foreground);
       border-top: 1px solid color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
       white-space: pre-wrap;
       overflow-wrap: anywhere;
       line-height: 1.4;
+    }
+
+    .activity__body--expanded {
+      max-height: min(520px, 65vh);
+      overflow: auto;
     }
 
     .activity__body-wrap > .activity__body--code {
