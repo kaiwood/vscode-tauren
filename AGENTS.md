@@ -56,15 +56,16 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - `src/commands/slashCommands.ts` owns shared local slash command metadata used by both the extension host and browser webview.
 - `src/rpc/client.ts` owns the default `pi --mode rpc` subprocess, request/response tracking, stderr collection, and process cleanup; `src/rpc/protocol.ts` owns strict JSONL parsing/serialization; `src/rpc/types.ts` owns shared transport-facing Pi result types used by both RPC and SDK adapters.
 - `src/sdk/piSdkClient.ts`, `src/sdk/piSdkLoader.ts`, `src/sdk/piSdkEventMapper.ts`, and `src/sdk/extensionUiBridge.ts` own the experimental in-process Pi SDK transport selected by `tau.useSdkInsteadOfRpc`; keep it behind the existing `PiRpcClientLike` client abstraction until there is a deliberate broader rename/refactor.
+- `scripts/piSdkBundleEntry.ts` and `scripts/build-sdk-bundle.js` produce the tree-shaken SDK runtime bundle at `out/sdk/piSdkBundle.mjs` plus SDK runtime assets under `resources/pi-sdk-runtime`; `@earendil-works/pi-coding-agent` is a build-time `devDependency`, not a packaged runtime dependency.
 - Third-party webview browser bundles are vendored in `resources/vendor`; generated first-party webview bundles live in `resources/webview`; keep browser-only libraries out of runtime `dependencies` unless extension-host code imports them.
 - Shiki and `vscode-shiki-bridge` are runtime dependencies because syntax highlighting runs in the extension host, not as a vendored webview browser bundle.
-- `.vscodeignore` must not exclude runtime `dependencies`; installed VSIX builds do not have the workspace `node_modules` available. Let `vsce` include production dependencies such as Shiki, the Pi SDK, and their transitive packages.
-- The extension host still compiles with direct `tsc`; browser-side webview code is bundled separately with esbuild through `npm run compile:webview`.
+- `.vscodeignore` must not exclude runtime `dependencies`; installed VSIX builds do not have the workspace `node_modules` available. Let `vsce` include production dependencies such as Shiki and its transitive packages, but keep build-time-only SDK source dependencies out of the VSIX.
+- The extension host still compiles with direct `tsc`; browser-side webview code is bundled separately with esbuild through `npm run compile:webview`, and SDK transport code is bundled separately through `npm run compile:sdk`.
 
 ## Pi Integration
 
 - Prefer `pi --mode rpc` as the default extension integration; keep RPC working when changing transport-facing code.
-- The experimental SDK transport is enabled only by `tau.useSdkInsteadOfRpc` and runs Pi in-process through the bundled `@earendil-works/pi-coding-agent` dependency.
+- The experimental SDK transport is enabled only by `tau.useSdkInsteadOfRpc` and runs Pi in-process through Tau's generated, tree-shaken Pi SDK bundle.
 - Do not use `pi -p` / `--print` for the chat UI; it is one-shot and exits after a prompt.
 - Do not use `pi --mode json` for the main chat UI; it streams events for a command-line prompt but is less suitable for a persistent IDE frontend.
 - SDK mode ignores `tau.piPath`; that setting only applies to the RPC subprocess transport.

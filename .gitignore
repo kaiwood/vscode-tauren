@@ -1,5 +1,6 @@
 node_modules/
 out/
+resources/pi-sdk-runtime/
 .vscode-test/
 *.vsix
 plan/

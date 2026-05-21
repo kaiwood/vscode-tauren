@@ -1,10 +1,30 @@
 import * as assert from 'assert';
 import { PiSdkClient } from '../../sdk/piSdkClient';
 import { createSdkExtensionUiContext } from '../../sdk/extensionUiBridge';
-import type { PiSdkModule } from '../../sdk/piSdkLoader';
+import { loadPiSdk, resetPiSdkLoaderForTests, type PiSdkModule } from '../../sdk/piSdkLoader';
 import type { RpcEvent } from '../../rpc/types';
 
 suite('PiSdkClient', () => {
+  test('loads the bundled SDK runtime', async () => {
+    const previousPackageDir = process.env.PI_PACKAGE_DIR;
+    delete process.env.PI_PACKAGE_DIR;
+    resetPiSdkLoaderForTests();
+
+    try {
+      const sdk = await loadPiSdk();
+
+      assert.strictEqual(typeof sdk.createAgentSessionRuntime, 'function');
+      assert.match(process.env.PI_PACKAGE_DIR ?? '', /resources[/\\]pi-sdk-runtime$/);
+    } finally {
+      if (previousPackageDir === undefined) {
+        delete process.env.PI_PACKAGE_DIR;
+      } else {
+        process.env.PI_PACKAGE_DIR = previousPackageDir;
+      }
+      resetPiSdkLoaderForTests();
+    }
+  });
+
   test('starts lazily and maps SDK session events to RPC events', async () => {
     const harness = createSdkHarness();
     const events: RpcEvent[] = [];
