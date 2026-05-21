@@ -18,6 +18,8 @@ export class SessionTreeController {
   private summaryChoiceIndex = 0;
   private customSummaryMode = false;
   private customInstructions = '';
+  private pendingTreeScrollIndex: number | undefined;
+  private pendingTreeScrollFrame: number | undefined;
 
   public constructor(private readonly options: SessionTreeControllerOptions) {}
 
@@ -89,10 +91,24 @@ export class SessionTreeController {
       return;
     }
 
+    const previousIndex = this.selectedIndex;
+    const hadSummaryDialog = Boolean(this.pendingSummaryEntryId);
+    const nextIndex = this.wrapIndex(this.selectedIndex + delta, state.treeItems.length);
+
+    if (nextIndex === previousIndex && !hadSummaryDialog) {
+      return;
+    }
+
     this.closeSummaryDialog();
-    this.selectedIndex = this.wrapIndex(this.selectedIndex + delta, state.treeItems.length);
-    this.render();
-    this.scrollSelectedIntoView();
+    this.selectedIndex = nextIndex;
+
+    if (hadSummaryDialog) {
+      this.render();
+      return;
+    }
+
+    this.updateRenderedSelection(previousIndex);
+    this.scheduleSelectedIntoView(nextIndex);
   }
 
   public selectCurrentIndex(): void {
@@ -329,8 +345,65 @@ export class SessionTreeController {
     });
   }
 
+  private updateRenderedSelection(previousIndex: number): void {
+    this.updateRenderedTreeItemSelection(previousIndex, false);
+    this.updateRenderedTreeItemSelection(this.selectedIndex, true);
+    this.updateRenderedFooter();
+  }
+
+  private updateRenderedTreeItemSelection(index: number, selected: boolean): void {
+    const item = document.getElementById('tree-' + index);
+
+    if (!item) {
+      return;
+    }
+
+    item.classList.toggle('sessions__item--active', selected);
+    item.setAttribute('aria-selected', selected ? 'true' : 'false');
+
+    const cursor = item.querySelector<HTMLElement>('.sessions__tree-cursor');
+
+    if (cursor) {
+      cursor.textContent = selected ? '›' : '';
+    }
+  }
+
+  private updateRenderedFooter(): void {
+    const state = this.options.getState();
+    const count = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
+    const footer = this.options.sessionsElement.querySelector<HTMLElement>('.sessions__tree-footer');
+
+    if (footer) {
+      footer.textContent = `(${this.selectedIndex + 1}/${count})`;
+    }
+  }
+
+  private scheduleSelectedIntoView(index: number): void {
+    this.pendingTreeScrollIndex = index;
+
+    if (this.pendingTreeScrollFrame !== undefined) {
+      return;
+    }
+
+    this.pendingTreeScrollFrame = requestAnimationFrame(() => {
+      const scrollIndex = this.pendingTreeScrollIndex;
+      this.pendingTreeScrollIndex = undefined;
+      this.pendingTreeScrollFrame = undefined;
+
+      if (scrollIndex === undefined) {
+        return;
+      }
+
+      this.scrollIndexIntoView(scrollIndex);
+    });
+  }
+
   private scrollSelectedIntoView(): void {
-    const item = document.getElementById('tree-' + this.selectedIndex);
+    this.scrollIndexIntoView(this.selectedIndex);
+  }
+
+  private scrollIndexIntoView(index: number): void {
+    const item = document.getElementById('tree-' + index);
 
     if (!item) {
       return;

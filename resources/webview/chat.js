@@ -2827,6 +2827,8 @@ ${after}`;
     summaryChoiceIndex = 0;
     customSummaryMode = false;
     customInstructions = "";
+    pendingTreeScrollIndex;
+    pendingTreeScrollFrame;
     render() {
       const state2 = this.options.getState();
       this.options.sessionsElement.replaceChildren();
@@ -2882,10 +2884,20 @@ ${after}`;
       if (!Array.isArray(state2.treeItems) || state2.treeItems.length === 0) {
         return;
       }
+      const previousIndex = this.selectedIndex;
+      const hadSummaryDialog = Boolean(this.pendingSummaryEntryId);
+      const nextIndex = this.wrapIndex(this.selectedIndex + delta, state2.treeItems.length);
+      if (nextIndex === previousIndex && !hadSummaryDialog) {
+        return;
+      }
       this.closeSummaryDialog();
-      this.selectedIndex = this.wrapIndex(this.selectedIndex + delta, state2.treeItems.length);
-      this.render();
-      this.scrollSelectedIntoView();
+      this.selectedIndex = nextIndex;
+      if (hadSummaryDialog) {
+        this.render();
+        return;
+      }
+      this.updateRenderedSelection(previousIndex);
+      this.scheduleSelectedIntoView(nextIndex);
     }
     selectCurrentIndex() {
       this.selectIndex(this.selectedIndex);
@@ -3082,8 +3094,51 @@ ${after}`;
         this.options.sessionsElement.querySelector(".sessions__tree-summary-choice--active")?.focus({ preventScroll: true });
       });
     }
+    updateRenderedSelection(previousIndex) {
+      this.updateRenderedTreeItemSelection(previousIndex, false);
+      this.updateRenderedTreeItemSelection(this.selectedIndex, true);
+      this.updateRenderedFooter();
+    }
+    updateRenderedTreeItemSelection(index, selected) {
+      const item = document.getElementById("tree-" + index);
+      if (!item) {
+        return;
+      }
+      item.classList.toggle("sessions__item--active", selected);
+      item.setAttribute("aria-selected", selected ? "true" : "false");
+      const cursor = item.querySelector(".sessions__tree-cursor");
+      if (cursor) {
+        cursor.textContent = selected ? "\u203A" : "";
+      }
+    }
+    updateRenderedFooter() {
+      const state2 = this.options.getState();
+      const count = Array.isArray(state2.treeItems) ? state2.treeItems.length : 0;
+      const footer = this.options.sessionsElement.querySelector(".sessions__tree-footer");
+      if (footer) {
+        footer.textContent = `(${this.selectedIndex + 1}/${count})`;
+      }
+    }
+    scheduleSelectedIntoView(index) {
+      this.pendingTreeScrollIndex = index;
+      if (this.pendingTreeScrollFrame !== void 0) {
+        return;
+      }
+      this.pendingTreeScrollFrame = requestAnimationFrame(() => {
+        const scrollIndex = this.pendingTreeScrollIndex;
+        this.pendingTreeScrollIndex = void 0;
+        this.pendingTreeScrollFrame = void 0;
+        if (scrollIndex === void 0) {
+          return;
+        }
+        this.scrollIndexIntoView(scrollIndex);
+      });
+    }
     scrollSelectedIntoView() {
-      const item = document.getElementById("tree-" + this.selectedIndex);
+      this.scrollIndexIntoView(this.selectedIndex);
+    }
+    scrollIndexIntoView(index) {
+      const item = document.getElementById("tree-" + index);
       if (!item) {
         return;
       }
