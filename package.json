@@ -243,7 +243,7 @@
     "sync:vendor": "node scripts/sync-vendor-deps.js",
     "install:local": "npm run compile && npx --yes @vscode/vsce package --out tau-local.vsix && code --install-extension tau-local.vsix --force && node scripts/restart-vscode-extension-host.js",
     "test": "npm run compile -- --pretty false && vscode-test",
-    "watch": "node scripts/watch.js",
+    "watch": "npm run compile:sdk && node scripts/watch.js",
     "compile:sdk": "node scripts/build-sdk-bundle.js"
   },
   "devDependencies": {
