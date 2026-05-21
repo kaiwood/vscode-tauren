@@ -1,5 +1,6 @@
 import type { PiRpcClient } from './client';
 import type { PiRpcClientOptions } from './types';
+import type { WebviewTreeItem } from '../webviewProtocol/types';
 
 export type PiRpcClientLike = Pick<
   PiRpcClient,
@@ -27,6 +28,8 @@ export type PiRpcClientLike = Pick<
   | 'clone'
   | 'respondExtensionUiRequest'
   | 'dispose'
->;
+> & {
+  getSessionTree?: () => Promise<WebviewTreeItem[]>;
+};
 
 export type PiRpcClientFactory = (options: PiRpcClientOptions) => PiRpcClientLike;

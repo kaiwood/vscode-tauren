@@ -49,8 +49,8 @@ export class LocalSlashCommandController {
   }
 
   public async handle(command: LocalSlashCommand): Promise<void> {
-    if (command.name === 'tree') {
-      this.options.session.addSystemMessage('/tree is temporarily disabled in Tau. The session tree implementation is preserved for a later Pi navigation integration.');
+    if (command.name === 'tree' && !this.options.sessionView.canNavigateTree()) {
+      this.options.session.addSystemMessage('/tree currently requires Tau SDK mode. Enable tau.useSdkInsteadOfRpc to navigate the live session tree.');
       this.options.postState();
       return;
     }

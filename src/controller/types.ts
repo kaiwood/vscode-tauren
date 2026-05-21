@@ -21,6 +21,7 @@ export type PiChatControllerOptions = {
   getAnimationsEnabled?: () => boolean;
   getReadyScript?: () => string | undefined;
   getReadyScriptEnabled?: () => boolean;
+  supportsSessionTree?: () => boolean;
   runReadyScript?: (scriptPath: string, cwd: string | undefined) => void;
   stateScheduler?: StatePublisherScheduler;
   initialSessionMeta?: PiChatSessionMetaSnapshot;

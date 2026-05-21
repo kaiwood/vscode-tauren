@@ -91,7 +91,8 @@ const toolbarStyles = /* css */ `    .pi-toolbar {
       border-bottom: 1px solid color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
     }
 
-    .pi-toolbar__sessions {
+    .pi-toolbar__sessions,
+    .pi-toolbar__tree {
       position: relative;
       display: grid;
       place-items: center;
@@ -109,13 +110,16 @@ const toolbarStyles = /* css */ `    .pi-toolbar {
     }
 
     .pi-toolbar__sessions:hover,
-    .pi-toolbar__sessions:focus-visible {
+    .pi-toolbar__sessions:focus-visible,
+    .pi-toolbar__tree:hover,
+    .pi-toolbar__tree:focus-visible {
       color: var(--vscode-foreground);
       background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
       outline: none;
     }
 
-    .pi-toolbar__sessions svg {
+    .pi-toolbar__sessions svg,
+    .pi-toolbar__tree svg {
       transition: transform 120ms ease;
     }
 
@@ -469,7 +473,7 @@ const viewLayoutStyles = /* css */ `    .messages,
       padding: 6px 12px 12px 8px;
       background: var(--vscode-sideBar-background);
       outline: none;
-      transform: translate3d(100%, 0, 0);
+      transform: translate3d(-100%, 0, 0);
       pointer-events: none;
     }
 
@@ -478,19 +482,34 @@ const viewLayoutStyles = /* css */ `    .messages,
       pointer-events: auto;
     }
 
-    .pi-view--chat .sessions {
-      transform: translate3d(100%, 0, 0);
-      pointer-events: none;
-    }
-
-    .pi-view--list .messages {
+    .pi-view--chat.pi-view--lane-sessions .sessions {
       transform: translate3d(-100%, 0, 0);
       pointer-events: none;
     }
 
-    .pi-view--list .sessions {
+    .pi-view--chat.pi-view--lane-tree .sessions {
+      transform: translate3d(100%, 0, 0);
+      pointer-events: none;
+    }
+
+    .pi-view--sessions .messages {
+      transform: translate3d(100%, 0, 0);
+      pointer-events: none;
+    }
+
+    .pi-view--tree .messages {
+      transform: translate3d(-100%, 0, 0);
+      pointer-events: none;
+    }
+
+    .pi-view--sessions .sessions,
+    .pi-view--tree .sessions {
       transform: translate3d(0, 0, 0);
       pointer-events: auto;
+    }
+
+    .pi-view--lane-jump .sessions {
+      transition: none;
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -691,6 +710,175 @@ const sessionListStyles = /* css */ `    .sessions__search {
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .sessions__role {
+      flex: 0 0 auto;
+      color: var(--vscode-descriptionForeground);
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .sessions__tree-item {
+      grid-template-columns: auto minmax(0, 1fr);
+      padding: 4px 6px;
+      font-family: var(--vscode-font-family);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .sessions__tree-prefix {
+      display: inline-flex;
+      grid-row: 1;
+      align-items: center;
+      color: var(--vscode-focusBorder);
+      font-family: var(--vscode-font-family);
+      white-space: nowrap;
+    }
+
+    .sessions__tree-cursor,
+    .sessions__tree-active-path {
+      display: inline-grid;
+      place-items: center;
+      width: 1.1em;
+      min-width: 1.1em;
+      font-weight: 600;
+    }
+
+    .sessions__tree-connector {
+      display: inline-grid;
+      place-items: center start;
+      width: 1.55em;
+      min-width: 1.55em;
+      color: var(--vscode-descriptionForeground);
+      font-family: var(--vscode-font-family);
+    }
+
+    .sessions__tree-connector--branch {
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .sessions__tree-connector--gutter {
+      color: color-mix(in srgb, var(--vscode-descriptionForeground) 70%, transparent);
+    }
+
+    .sessions__tree-title {
+      gap: 4px;
+      color: var(--vscode-foreground);
+      font-weight: 400;
+    }
+
+    .sessions__tree-role {
+      font-size: inherit;
+      font-weight: 600;
+    }
+
+    .sessions__tree-label {
+      flex: 0 0 auto;
+      color: var(--vscode-editorWarning-foreground, var(--vscode-notificationsWarningIcon-foreground));
+    }
+
+    .sessions__tree-item--user .sessions__tree-role {
+      color: var(--vscode-textLink-foreground, var(--vscode-focusBorder));
+    }
+
+    .sessions__tree-item--assistant .sessions__tree-role {
+      color: var(--vscode-testing-iconPassed, var(--vscode-terminal-ansiGreen, var(--vscode-foreground)));
+    }
+
+    .sessions__tree-item--tool .sessions__tree-content,
+    .sessions__tree-item--toolresult .sessions__tree-content,
+    .sessions__tree-item--message .sessions__tree-content {
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .sessions__item--active .sessions__tree-prefix,
+    .sessions__item--active .sessions__tree-label {
+      color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+    }
+
+    .sessions__tree-summary {
+      grid-template-columns: minmax(0, 1fr);
+      margin: 2px 6px 6px 24px;
+      padding: 8px;
+      color: var(--vscode-foreground);
+      background: color-mix(in srgb, var(--vscode-sideBar-background) 92%, var(--vscode-foreground) 8%);
+      border: 1px solid color-mix(in srgb, var(--vscode-focusBorder) 45%, transparent);
+      border-radius: 6px;
+      font-family: var(--vscode-font-family);
+      font-size: 12px;
+    }
+
+    .sessions__tree-summary-title {
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .sessions__tree-summary-choices {
+      display: grid;
+      gap: 2px;
+    }
+
+    .sessions__tree-summary-choice,
+    .sessions__tree-summary-cancel {
+      width: 100%;
+      padding: 2px 4px;
+      color: inherit;
+      background: transparent;
+      border: 0;
+      border-radius: 3px;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .sessions__tree-summary-choice:hover,
+    .sessions__tree-summary-choice:focus-visible,
+    .sessions__tree-summary-choice--active {
+      color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+      background: var(--vscode-list-activeSelectionBackground, color-mix(in srgb, var(--vscode-foreground) 14%, transparent));
+      outline: none;
+    }
+
+    .sessions__tree-summary-input {
+      width: 100%;
+      min-width: 0;
+      resize: vertical;
+      margin: 2px 0 6px;
+      padding: 4px 6px;
+      color: var(--vscode-input-foreground);
+      background: var(--vscode-input-background);
+      border: 1px solid var(--vscode-focusBorder, var(--vscode-input-border, transparent));
+      border-radius: 4px;
+      font: inherit;
+      outline: none;
+    }
+
+    .sessions__tree-summary-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .sessions__tree-summary-actions .sessions__tree-summary-choice {
+      width: auto;
+      padding-right: 8px;
+    }
+
+    .sessions__tree-summary-cancel {
+      width: auto;
+      color: var(--vscode-textLink-foreground);
+      text-decoration: underline;
+    }
+
+    .sessions__tree-footer {
+      position: sticky;
+      bottom: 0;
+      z-index: 1;
+      margin-top: 4px;
+      background: var(--vscode-sideBar-background);
+      border-top: 1px solid color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
     }
 
     .sessions__name-input {
@@ -1047,6 +1235,7 @@ const messageStyles = /* css */ `    .message {
     }
 
     .pi-toolbar__sessions .tau-icon-action-tooltip,
+    .pi-toolbar__tree .tau-icon-action-tooltip,
     .pi-toolbar__menu-button .tau-icon-action-tooltip,
     .pi-toolbar__help-button .tau-icon-action-tooltip,
     .sessions__menu-button .tau-icon-action-tooltip,
@@ -1070,6 +1259,8 @@ const messageStyles = /* css */ `    .message {
     .activity__body-action:focus-visible .tau-icon-action-tooltip,
     .pi-toolbar__sessions:hover .tau-icon-action-tooltip,
     .pi-toolbar__sessions:focus-visible .tau-icon-action-tooltip,
+    .pi-toolbar__tree:hover .tau-icon-action-tooltip,
+    .pi-toolbar__tree:focus-visible .tau-icon-action-tooltip,
     .pi-toolbar__menu-button[aria-expanded="false"]:hover .tau-icon-action-tooltip,
     .pi-toolbar__menu-button[aria-expanded="false"]:focus-visible .tau-icon-action-tooltip,
     .pi-toolbar__help-button[aria-expanded="false"]:hover .tau-icon-action-tooltip,

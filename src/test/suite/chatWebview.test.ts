@@ -104,6 +104,7 @@ suite('Chat webview helpers', () => {
     assert.deepStrictEqual(parseWebviewMessage({ type: 'focusChanged', focused: true }), { type: 'focusChanged', focused: true });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'newSession' }), { type: 'newSession' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'showSessions' }), { type: 'showSessions' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'showTree' }), { type: 'showTree' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'hideSessions' }), { type: 'hideSessions' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'refreshSessions' }), { type: 'refreshSessions' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'showCurrentChanges' }), { type: 'showCurrentChanges' });
@@ -131,6 +132,10 @@ suite('Chat webview helpers', () => {
     assert.deepStrictEqual(
       parseWebviewMessage({ type: 'selectTreeEntry', entryId: 'entry-1' }),
       { type: 'selectTreeEntry', entryId: 'entry-1' }
+    );
+    assert.deepStrictEqual(
+      parseWebviewMessage({ type: 'selectTreeEntry', entryId: 'entry-1', summarize: true, customInstructions: 'Focus on tests' }),
+      { type: 'selectTreeEntry', entryId: 'entry-1', summarize: true, customInstructions: 'Focus on tests' }
     );
     assert.deepStrictEqual(
       parseWebviewMessage({ type: 'setSessionName', name: 'Feature work' }),
@@ -238,6 +243,8 @@ suite('Chat webview helpers', () => {
     assert.ok(html.includes('<script nonce="' + nonce + '" src="vscode-resource://dompurify.js"></script>'));
     assert.ok(html.includes('<script nonce="' + nonce + '" src="vscode-resource://chat.js"></script>'));
     assert.ok(html.includes('class="pi-toolbar__sessions"'));
+    assert.ok(html.includes('class="pi-toolbar__tree"'));
+    assert.ok(html.includes('<span class="tau-icon-action-tooltip">Show tree</span>'));
     assert.ok(!html.includes('class="pi-toolbar__edit"'));
     assert.ok(html.includes('class="pi-toolbar__title-input"'));
     assert.ok(html.includes('data-session-command="rename"'));

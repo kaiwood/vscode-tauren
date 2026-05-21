@@ -25,7 +25,7 @@ const localSlashCommandDefinitions: LocalSlashCommandDefinition[] = [
   { name: 'hotkeys', description: 'Terminal-only: use VS Code keybindings instead', source: 'unsupported', supported: false },
   { name: 'fork', description: 'Fork from a previous user message', source: 'builtin', supported: true },
   { name: 'clone', description: 'Duplicate the current session', source: 'builtin', supported: true },
-  { name: 'tree', description: 'Navigate session tree', source: 'builtin', supported: false, hidden: true },
+  { name: 'tree', description: 'Navigate session tree', source: 'builtin', supported: true },
   { name: 'login', description: 'Terminal-only: run pi in a terminal to authenticate', source: 'unsupported', supported: false },
   { name: 'logout', description: 'Terminal-only: run pi in a terminal to manage auth', source: 'unsupported', supported: false },
   { name: 'resume', description: 'Resume a different session', source: 'builtin', supported: true },

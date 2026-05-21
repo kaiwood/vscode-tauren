@@ -53,6 +53,12 @@ export type TreeItem = {
   role: string;
   text: string;
   current: boolean;
+  depth?: number;
+  isLast?: boolean;
+  ancestorContinues?: boolean[];
+  activePath?: boolean;
+  label?: string;
+  prefix?: string;
 };
 
 export type Activity = {

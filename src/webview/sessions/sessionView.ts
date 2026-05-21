@@ -25,6 +25,7 @@ export type SessionViewControllerOptions = {
   toolbarTimestampElement: HTMLElement;
   sessionNameInputElement: HTMLInputElement;
   sessionToggleButton: HTMLButtonElement;
+  treeToggleButton: HTMLButtonElement;
   sessionMenuWrapElement: HTMLElement;
   sessionMenuButton: HTMLButtonElement;
   sessionMenuElement: HTMLElement;
@@ -71,6 +72,7 @@ export class SessionViewController {
       toolbarTimestampElement: options.toolbarTimestampElement,
       sessionNameInputElement: options.sessionNameInputElement,
       sessionToggleButton: options.sessionToggleButton,
+      treeToggleButton: options.treeToggleButton,
       sessionMenuWrapElement: options.sessionMenuWrapElement,
       sessionMenuButton: options.sessionMenuButton,
       sessionMenuElement: options.sessionMenuElement,
@@ -110,6 +112,16 @@ export class SessionViewController {
     }
 
     const state = this.options.getState();
+
+    if (state.viewMode === 'tree' && this.treeController.handleKeydown(event)) {
+      return true;
+    }
+
+    if (state.viewMode === 'tree' && event.key === 'Escape') {
+      this.hideSessionList(event);
+      return true;
+    }
+
     const target = eventTargetElement(event);
     const sessionSearchInput = target?.closest('.sessions__search-input');
 
@@ -341,6 +353,10 @@ export class SessionViewController {
   private handleSessionsClick(event: MouseEvent): void {
     const state = this.options.getState();
     const target = eventTargetElement(event);
+
+    if (state.viewMode === 'tree' && this.treeController.handleClick(target, event)) {
+      return;
+    }
     const sessionMenuButton = target?.closest('.sessions__menu-button');
 
     if (sessionMenuButton) {
@@ -427,6 +443,10 @@ export class SessionViewController {
 
     if (state.viewMode !== 'sessions' && state.viewMode !== 'tree') {
       return false;
+    }
+
+    if (state.viewMode === 'tree' && this.treeController.handleKeydown(event)) {
+      return true;
     }
 
     if (this.openSessionListMenuIndex !== undefined && this.handleSessionItemMenuKeydown(event)) {

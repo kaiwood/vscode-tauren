@@ -18,6 +18,7 @@ export type WebviewMessage =
   | { type: 'focusChanged'; focused: boolean }
   | { type: 'newSession' }
   | { type: 'showSessions' }
+  | { type: 'showTree' }
   | { type: 'hideSessions' }
   | { type: 'refreshSessions' }
   | { type: 'showCurrentChanges' }
@@ -26,7 +27,7 @@ export type WebviewMessage =
   | { type: 'deleteSession'; sessionPath: string }
   | { type: 'sessionItemCommand'; sessionPath: string; command: WebviewSessionItemCommand }
   | { type: 'setSessionItemName'; sessionPath: string; name: string }
-  | { type: 'selectTreeEntry'; entryId: string }
+  | { type: 'selectTreeEntry'; entryId: string; summarize?: boolean; customInstructions?: string }
   | { type: 'setSessionName'; name: string }
   | { type: 'refreshMetadata' }
   | { type: 'refreshSlashCommands' }
@@ -80,6 +81,12 @@ export type WebviewTreeItem = {
   role: string;
   text: string;
   current: boolean;
+  depth?: number;
+  isLast?: boolean;
+  ancestorContinues?: boolean[];
+  activePath?: boolean;
+  label?: string;
+  prefix?: string;
 };
 
 export type WebviewWorkspaceDiffStats = {

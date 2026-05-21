@@ -98,7 +98,7 @@ suite('PiSdkClient', () => {
     harness.client.dispose();
   });
 
-  test('implements model, command, and history metadata methods', async () => {
+  test('implements model, command, history metadata, and live tree methods', async () => {
     const harness = createSdkHarness();
 
     assert.deepStrictEqual(await harness.client.getAvailableModels(), { models: harness.session.availableModels });
@@ -127,6 +127,16 @@ suite('PiSdkClient', () => {
 
     assert.deepStrictEqual(await harness.client.getMessages(), { messages: harness.session.messages });
     assert.deepStrictEqual(await harness.client.getLastAssistantText(), { text: 'last answer' });
+    assert.deepStrictEqual(await harness.client.getSessionTree(), [{
+      entryId: 'leaf-1',
+      role: 'user',
+      text: 'Fix tests',
+      current: true,
+      depth: 0,
+      isLast: true,
+      ancestorContinues: [],
+      activePath: true
+    }]);
 
     const selectedModel = await harness.client.setModel('openai', 'gpt-test');
     assert.strictEqual(selectedModel, harness.session.availableModels[0]);
@@ -239,7 +249,16 @@ class FakeSession {
     })
   };
   public readonly sessionManager = {
-    getLeafId: () => 'leaf-1'
+    getLeafId: () => 'leaf-1',
+    getTree: () => [{
+      entry: {
+        id: 'leaf-1',
+        parentId: null,
+        type: 'message',
+        message: { role: 'user', content: 'Fix tests' }
+      },
+      children: []
+    }]
   };
   public readonly agent = {
     waitForIdle: async () => undefined

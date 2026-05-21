@@ -359,7 +359,7 @@
     { name: "hotkeys", description: "Terminal-only: use VS Code keybindings instead", source: "unsupported", supported: false },
     { name: "fork", description: "Fork from a previous user message", source: "builtin", supported: true },
     { name: "clone", description: "Duplicate the current session", source: "builtin", supported: true },
-    { name: "tree", description: "Navigate session tree", source: "builtin", supported: false, hidden: true },
+    { name: "tree", description: "Navigate session tree", source: "builtin", supported: true },
     { name: "login", description: "Terminal-only: run pi in a terminal to authenticate", source: "unsupported", supported: false },
     { name: "logout", description: "Terminal-only: run pi in a terminal to manage auth", source: "unsupported", supported: false },
     { name: "resume", description: "Resume a different session", source: "builtin", supported: true },
@@ -1186,6 +1186,7 @@
       toolbarTimestampElement: queryRequired(".pi-toolbar__timestamp"),
       sessionNameInputElement: queryRequired(".pi-toolbar__title-input"),
       sessionToggleButton: queryRequired(".pi-toolbar__sessions"),
+      treeToggleButton: queryRequired(".pi-toolbar__tree"),
       sessionMenuWrapElement: queryRequired(".pi-toolbar__menu-wrap"),
       sessionMenuButton: queryRequired(".pi-toolbar__menu-button"),
       sessionMenuElement: queryRequired(".pi-toolbar__menu"),
@@ -2620,16 +2621,88 @@ ${after}`;
     const item = document.createElement("button");
     item.type = "button";
     item.id = "tree-" + index;
-    item.className = "sessions__item" + (index === options.selectedIndex ? " sessions__item--active" : "") + (treeItem.current ? " sessions__item--current" : "");
+    const roleClass = getTreeRoleClass(treeItem.role);
+    item.className = "sessions__item sessions__tree-item sessions__tree-item--" + roleClass + (index === options.selectedIndex ? " sessions__item--active" : "") + (treeItem.current ? " sessions__item--current" : "");
     item.setAttribute("role", "option");
     item.setAttribute("aria-selected", index === options.selectedIndex ? "true" : "false");
     item.setAttribute("data-index", String(index));
     item.disabled = options.disabled;
+    item.append(createTreePrefixElement(treeItem, index === options.selectedIndex));
     const title = document.createElement("span");
-    title.className = "sessions__title";
-    title.textContent = treeItem.role + ": " + (treeItem.text || "(empty)");
+    title.className = "sessions__title sessions__tree-title";
+    if (treeItem.label) {
+      const label = document.createElement("span");
+      label.className = "sessions__tree-label";
+      label.textContent = `[${treeItem.label}]`;
+      title.append(label);
+    }
+    if (treeItem.role === "tool") {
+      const toolText = document.createElement("span");
+      toolText.className = "sessions__title-text sessions__tree-content";
+      toolText.textContent = treeItem.text || "[tool]";
+      title.append(toolText);
+    } else {
+      const role = document.createElement("span");
+      role.className = "sessions__role sessions__tree-role";
+      role.textContent = treeItem.role + ":";
+      title.append(role);
+      const titleText = document.createElement("span");
+      titleText.className = "sessions__title-text sessions__tree-content";
+      titleText.textContent = treeItem.text || "(empty)";
+      title.append(titleText);
+    }
     item.append(title);
     return item;
+  }
+  function createTreePrefixElement(treeItem, selected) {
+    const prefix = document.createElement("span");
+    prefix.className = "sessions__prefix sessions__tree-prefix";
+    const cursor = document.createElement("span");
+    cursor.className = "sessions__tree-cursor";
+    cursor.textContent = selected ? "\u203A" : "";
+    prefix.append(cursor);
+    for (const chunk of getTreePrefixChunks(treeItem.prefix ?? "")) {
+      const connector = document.createElement("span");
+      connector.className = "sessions__tree-connector" + getTreeConnectorClass(chunk);
+      connector.textContent = getTreeConnectorText(chunk);
+      prefix.append(connector);
+    }
+    const activePath = document.createElement("span");
+    activePath.className = "sessions__tree-active-path";
+    activePath.textContent = treeItem.activePath ? "\u2022" : "";
+    prefix.append(activePath);
+    return prefix;
+  }
+  function getTreePrefixChunks(prefix) {
+    const chunks = [];
+    for (let index = 0; index < prefix.length; index += 3) {
+      chunks.push(prefix.slice(index, index + 3));
+    }
+    return chunks;
+  }
+  function getTreeConnectorText(chunk) {
+    if (chunk.includes("\u251C")) {
+      return chunk.includes("\u229F") ? "\u251C\u229F" : "\u251C\u2500";
+    }
+    if (chunk.includes("\u2514")) {
+      return chunk.includes("\u229F") ? "\u2514\u229F" : "\u2514\u2500";
+    }
+    if (chunk.includes("\u2502")) {
+      return "\u2502";
+    }
+    return "";
+  }
+  function getTreeConnectorClass(chunk) {
+    if (chunk.includes("\u251C") || chunk.includes("\u2514")) {
+      return " sessions__tree-connector--branch";
+    }
+    if (chunk.includes("\u2502")) {
+      return " sessions__tree-connector--gutter";
+    }
+    return " sessions__tree-connector--blank";
+  }
+  function getTreeRoleClass(role) {
+    return role.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "entry";
   }
   function createSessionListNameInput(options) {
     const input = document.createElement("input");
@@ -2750,6 +2823,10 @@ ${after}`;
     }
     options;
     selectedIndex = 0;
+    pendingSummaryEntryId;
+    summaryChoiceIndex = 0;
+    customSummaryMode = false;
+    customInstructions = "";
     render() {
       const state2 = this.options.getState();
       this.options.sessionsElement.replaceChildren();
@@ -2757,7 +2834,7 @@ ${after}`;
       const header = document.createElement("div");
       header.className = "sessions__header";
       const count = Array.isArray(state2.treeItems) ? state2.treeItems.length : 0;
-      header.textContent = state2.treeRefreshing ? "Loading session tree..." : count === 1 ? "1 tree entry" : count + " tree entries";
+      header.textContent = state2.treeRefreshing ? "Loading session tree..." : "Session tree";
       this.options.sessionsElement.append(header);
       if (state2.treeError) {
         const error = document.createElement("div");
@@ -2774,25 +2851,41 @@ ${after}`;
         return;
       }
       for (let index = 0; index < state2.treeItems.length; index += 1) {
-        this.options.sessionsElement.append(createTreeItemElement(state2.treeItems[index], index, {
+        const item = state2.treeItems[index];
+        this.options.sessionsElement.append(createTreeItemElement(item, index, {
           selectedIndex: this.selectedIndex,
           disabled: state2.busy || state2.treeRefreshing
         }));
+        if (item.entryId === this.pendingSummaryEntryId) {
+          this.options.sessionsElement.append(this.createSummaryDialog());
+        }
       }
+      const footer = document.createElement("div");
+      footer.className = "sessions__header sessions__tree-footer";
+      footer.textContent = `(${this.selectedIndex + 1}/${count})`;
+      this.options.sessionsElement.append(footer);
+      requestAnimationFrame(() => this.scrollSelectedIntoView());
     }
     selectCurrent() {
       const state2 = this.options.getState();
-      const currentIndex = Array.isArray(state2.treeItems) ? state2.treeItems.findIndex((item) => item.current) : -1;
-      this.selectedIndex = currentIndex >= 0 ? currentIndex : 0;
+      const items = Array.isArray(state2.treeItems) ? state2.treeItems : [];
+      const currentIndex = items.findIndex((item) => item.current);
+      if (currentIndex >= 0) {
+        this.selectedIndex = currentIndex;
+        return;
+      }
+      const activePathIndex = findLastIndex(items, (item) => Boolean(item.activePath));
+      this.selectedIndex = activePathIndex >= 0 ? activePathIndex : 0;
     }
     moveSelection(delta) {
       const state2 = this.options.getState();
       if (!Array.isArray(state2.treeItems) || state2.treeItems.length === 0) {
         return;
       }
-      this.selectedIndex = this.clampIndex(this.selectedIndex + delta);
+      this.closeSummaryDialog();
+      this.selectedIndex = this.wrapIndex(this.selectedIndex + delta, state2.treeItems.length);
       this.render();
-      document.getElementById("tree-" + this.selectedIndex)?.scrollIntoView({ block: "nearest" });
+      this.scrollSelectedIntoView();
     }
     selectCurrentIndex() {
       this.selectIndex(this.selectedIndex);
@@ -2803,7 +2896,211 @@ ${after}`;
       if (!treeItem?.entryId || state2.busy || state2.treeRefreshing) {
         return;
       }
-      this.options.postMessage({ type: "selectTreeEntry", entryId: treeItem.entryId });
+      this.selectedIndex = this.clampIndex(index);
+      this.openSummaryDialog(treeItem.entryId);
+    }
+    handleClick(target, event) {
+      const action = target?.closest("[data-tree-summary-action]");
+      if (action) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.runSummaryAction(action.getAttribute("data-tree-summary-action"));
+        return true;
+      }
+      const cancel = target?.closest(".sessions__tree-summary-cancel");
+      if (cancel) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.closeSummaryDialog();
+        this.render();
+        this.options.sessionsElement.focus({ preventScroll: true });
+        return true;
+      }
+      return false;
+    }
+    handleKeydown(event) {
+      if (!this.pendingSummaryEntryId) {
+        return false;
+      }
+      const target = eventTargetElement3(event);
+      const customInput = target?.closest(".sessions__tree-summary-input");
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.closeSummaryDialog();
+        this.render();
+        this.options.sessionsElement.focus({ preventScroll: true });
+        return true;
+      }
+      if (customInput instanceof HTMLTextAreaElement) {
+        this.customInstructions = customInput.value;
+        if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+          event.preventDefault();
+          event.stopPropagation();
+          this.navigatePending("custom");
+          return true;
+        }
+        return false;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.summaryChoiceIndex = this.wrapIndex(this.summaryChoiceIndex + 1, 3);
+        this.customSummaryMode = false;
+        this.renderAndFocusSummaryChoice();
+        return true;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.summaryChoiceIndex = this.wrapIndex(this.summaryChoiceIndex - 1, 3);
+        this.customSummaryMode = false;
+        this.renderAndFocusSummaryChoice();
+        return true;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.runSummaryAction(this.getSummaryChoice(this.summaryChoiceIndex));
+        return true;
+      }
+      return false;
+    }
+    createSummaryDialog() {
+      const dialog = document.createElement("div");
+      dialog.className = "sessions__tree-summary";
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-label", "Summarize branch?");
+      const title = document.createElement("div");
+      title.className = "sessions__tree-summary-title";
+      title.textContent = "Summarize branch?";
+      dialog.append(title);
+      if (this.customSummaryMode) {
+        const input = document.createElement("textarea");
+        input.className = "sessions__tree-summary-input";
+        input.value = this.customInstructions;
+        input.rows = 3;
+        input.placeholder = "Custom summary prompt";
+        input.addEventListener("input", () => {
+          this.customInstructions = input.value;
+        });
+        dialog.append(input);
+        const actions = document.createElement("div");
+        actions.className = "sessions__tree-summary-actions";
+        actions.append(
+          this.createSummaryButton("custom", "Summarize", true),
+          this.createCancelLink()
+        );
+        dialog.append(actions);
+        requestAnimationFrame(() => input.focus({ preventScroll: true }));
+        return dialog;
+      }
+      const choices = document.createElement("div");
+      choices.className = "sessions__tree-summary-choices";
+      const options = [
+        { action: "none", label: "No summary" },
+        { action: "summarize", label: "Summarize" },
+        { action: "custom", label: "Summarize with custom prompt" }
+      ];
+      options.forEach((option, index) => {
+        choices.append(this.createSummaryButton(option.action, option.label, index === this.summaryChoiceIndex));
+      });
+      dialog.append(choices, this.createCancelLink());
+      requestAnimationFrame(() => {
+        dialog.querySelector(".sessions__tree-summary-choice--active")?.focus({ preventScroll: true });
+        document.getElementById("tree-" + this.selectedIndex)?.scrollIntoView({ block: "nearest" });
+      });
+      return dialog;
+    }
+    createSummaryButton(action, label, active) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "sessions__tree-summary-choice" + (active ? " sessions__tree-summary-choice--active" : "");
+      button.setAttribute("data-tree-summary-action", action);
+      button.textContent = (active ? "\u2192 " : "  ") + label;
+      return button;
+    }
+    createCancelLink() {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "sessions__tree-summary-cancel";
+      button.textContent = "Cancel";
+      return button;
+    }
+    openSummaryDialog(entryId) {
+      this.pendingSummaryEntryId = entryId;
+      this.summaryChoiceIndex = 0;
+      this.customSummaryMode = false;
+      this.customInstructions = "";
+      this.render();
+    }
+    closeSummaryDialog() {
+      this.pendingSummaryEntryId = void 0;
+      this.summaryChoiceIndex = 0;
+      this.customSummaryMode = false;
+      this.customInstructions = "";
+    }
+    runSummaryAction(action) {
+      if (action === "custom") {
+        if (!this.customSummaryMode) {
+          this.customSummaryMode = true;
+          this.summaryChoiceIndex = 2;
+          this.render();
+          return;
+        }
+        this.navigatePending("custom");
+        return;
+      }
+      if (action === "summarize") {
+        this.navigatePending("summarize");
+        return;
+      }
+      if (action === "none") {
+        this.navigatePending("none");
+      }
+    }
+    navigatePending(choice) {
+      const entryId = this.pendingSummaryEntryId;
+      if (!entryId) {
+        return;
+      }
+      const customInstructions = this.customInstructions.trim();
+      this.closeSummaryDialog();
+      this.options.postMessage({
+        type: "selectTreeEntry",
+        entryId,
+        summarize: choice !== "none",
+        ...choice === "custom" && customInstructions ? { customInstructions } : {}
+      });
+    }
+    getSummaryChoice(index) {
+      return index === 1 ? "summarize" : index === 2 ? "custom" : "none";
+    }
+    renderAndFocusSummaryChoice() {
+      this.render();
+      requestAnimationFrame(() => {
+        this.options.sessionsElement.querySelector(".sessions__tree-summary-choice--active")?.focus({ preventScroll: true });
+      });
+    }
+    scrollSelectedIntoView() {
+      const item = document.getElementById("tree-" + this.selectedIndex);
+      if (!item) {
+        return;
+      }
+      item.scrollIntoView({ block: "nearest" });
+      const footer = this.options.sessionsElement.querySelector(".sessions__tree-footer");
+      const containerRect = this.options.sessionsElement.getBoundingClientRect();
+      const itemRect = item.getBoundingClientRect();
+      const footerTop = footer?.getBoundingClientRect().top ?? containerRect.bottom;
+      const bottomOverlap = itemRect.bottom - footerTop;
+      if (bottomOverlap > 0) {
+        this.options.sessionsElement.scrollTop += bottomOverlap + 6;
+        return;
+      }
+      const topOverlap = containerRect.top - itemRect.top;
+      if (topOverlap > 0) {
+        this.options.sessionsElement.scrollTop -= topOverlap + 6;
+      }
     }
     clampIndex(index) {
       const state2 = this.options.getState();
@@ -2813,7 +3110,21 @@ ${after}`;
       }
       return Math.max(0, Math.min(index, count - 1));
     }
+    wrapIndex(index, count) {
+      if (count <= 0) {
+        return 0;
+      }
+      return (index % count + count) % count;
+    }
   };
+  function findLastIndex(items, predicate) {
+    for (let index = items.length - 1; index >= 0; index -= 1) {
+      if (predicate(items[index])) {
+        return index;
+      }
+    }
+    return -1;
+  }
 
   // src/webview/sessions/topSessionControls.ts
   var TopSessionControls = class {
@@ -2830,6 +3141,7 @@ ${after}`;
     }
     attachEventListeners() {
       this.options.sessionToggleButton.addEventListener("click", () => this.toggleSessionView());
+      this.options.treeToggleButton.addEventListener("click", () => this.toggleTreeView());
       this.options.toolbarTitleElement.addEventListener("dblclick", (event) => this.startSessionNameEdit(event));
       this.options.sessionMenuButton.addEventListener("click", (event) => this.toggleSessionCommandMenu(event));
       this.options.sessionHelpButton.addEventListener("click", (event) => this.toggleSessionHelpPopover(event));
@@ -2849,10 +3161,16 @@ ${after}`;
       if (this.handleSessionCommandMenuKeydown(event)) {
         return true;
       }
-      if ((event.target === this.options.sessionToggleButton || event.target === this.options.sessionHelpButton) && (event.key === "Enter" || event.key === " ")) {
+      if ((event.target === this.options.sessionToggleButton || event.target === this.options.treeToggleButton || event.target === this.options.sessionHelpButton) && (event.key === "Enter" || event.key === " ")) {
         event.preventDefault();
         event.stopPropagation();
-        event.target === this.options.sessionToggleButton ? this.toggleSessionView() : this.toggleSessionHelpPopover();
+        if (event.target === this.options.sessionToggleButton) {
+          this.toggleSessionView();
+        } else if (event.target === this.options.treeToggleButton) {
+          this.toggleTreeView();
+        } else {
+          this.toggleSessionHelpPopover();
+        }
         return true;
       }
       if (this.hasSessionHelpPopoverOpen() && event.key === "Escape") {
@@ -2907,6 +3225,10 @@ ${after}`;
       this.options.sessionToggleButton.setAttribute("aria-label", sessionToggleLabel);
       setTooltipText2(this.options.sessionToggleButton, sessionToggleLabel);
       this.options.sessionToggleButton.classList.toggle("pi-toolbar__sessions--back", isListView);
+      const treeToggleLabel = isListView ? "Back to chat" : "Show tree";
+      this.options.treeToggleButton.setAttribute("aria-label", treeToggleLabel);
+      setTooltipText2(this.options.treeToggleButton, treeToggleLabel);
+      this.options.treeToggleButton.classList.toggle("pi-toolbar__tree--back", isListView);
     }
     cancelSessionNameEdit(options = {}) {
       if (!this.sessionNameEditing) {
@@ -3218,6 +3540,17 @@ ${after}`;
       }
       this.options.postMessage({ type: "showSessions" });
     }
+    toggleTreeView() {
+      const state2 = this.options.getState();
+      this.cancelSessionNameEdit();
+      if (state2.viewMode === "sessions" || state2.viewMode === "tree") {
+        this.closeSessionHelpPopover();
+        this.options.postMessage({ type: "hideSessions" });
+        this.options.focusPromptInput();
+        return;
+      }
+      this.options.postMessage({ type: "showTree" });
+    }
   };
   function setTooltipText2(element, text) {
     const tooltip = element.querySelector(".tau-icon-action-tooltip");
@@ -3243,6 +3576,7 @@ ${after}`;
         toolbarTimestampElement: options.toolbarTimestampElement,
         sessionNameInputElement: options.sessionNameInputElement,
         sessionToggleButton: options.sessionToggleButton,
+        treeToggleButton: options.treeToggleButton,
         sessionMenuWrapElement: options.sessionMenuWrapElement,
         sessionMenuButton: options.sessionMenuButton,
         sessionMenuElement: options.sessionMenuElement,
@@ -3295,6 +3629,13 @@ ${after}`;
         return true;
       }
       const state2 = this.options.getState();
+      if (state2.viewMode === "tree" && this.treeController.handleKeydown(event)) {
+        return true;
+      }
+      if (state2.viewMode === "tree" && event.key === "Escape") {
+        this.hideSessionList(event);
+        return true;
+      }
       const target = eventTargetElement3(event);
       const sessionSearchInput = target?.closest(".sessions__search-input");
       if (sessionSearchInput instanceof HTMLInputElement && state2.viewMode === "sessions") {
@@ -3477,6 +3818,9 @@ ${after}`;
     handleSessionsClick(event) {
       const state2 = this.options.getState();
       const target = eventTargetElement3(event);
+      if (state2.viewMode === "tree" && this.treeController.handleClick(target, event)) {
+        return;
+      }
       const sessionMenuButton2 = target?.closest(".sessions__menu-button");
       if (sessionMenuButton2) {
         event.preventDefault();
@@ -3540,6 +3884,9 @@ ${after}`;
       }
       if (state2.viewMode !== "sessions" && state2.viewMode !== "tree") {
         return false;
+      }
+      if (state2.viewMode === "tree" && this.treeController.handleKeydown(event)) {
+        return true;
       }
       if (this.openSessionListMenuIndex !== void 0 && this.handleSessionItemMenuKeydown(event)) {
         return true;
@@ -4214,6 +4561,7 @@ ${after}`;
     toolbarTimestampElement,
     sessionNameInputElement,
     sessionToggleButton,
+    treeToggleButton,
     sessionMenuWrapElement,
     sessionMenuButton,
     sessionMenuElement,
@@ -4265,6 +4613,7 @@ ${after}`;
   var toastHideTimeout;
   var pendingRenderFrame;
   var pendingReturnToChatAfterRender = false;
+  var sessionLane = "sessions";
   var sessionsController;
   var messagesController = new MessageListController({
     getState: () => state,
@@ -4311,6 +4660,7 @@ ${after}`;
     toolbarTimestampElement,
     sessionNameInputElement,
     sessionToggleButton,
+    treeToggleButton,
     sessionMenuWrapElement,
     sessionMenuButton,
     sessionMenuElement,
@@ -4365,6 +4715,7 @@ ${after}`;
     document.body.classList.toggle("tau-animations-disabled", !state.animationsEnabled);
     const wasListView = previousViewMode === "sessions" || previousViewMode === "tree";
     const isListView = state.viewMode === "sessions" || state.viewMode === "tree";
+    syncSessionLaneForStateChange(previousViewMode, state.viewMode);
     if (previousViewMode === "sessions" && state.viewMode !== "sessions") {
       sessionsController.rememberSessionListScrollPosition();
     }
@@ -4459,11 +4810,35 @@ ${after}`;
       }
     });
   }
+  function syncSessionLaneForStateChange(previousViewMode, nextViewMode) {
+    const nextLane = nextViewMode === "sessions" || nextViewMode === "tree" ? nextViewMode : previousViewMode === "sessions" || previousViewMode === "tree" ? previousViewMode : sessionLane;
+    if (nextLane === sessionLane) {
+      syncViewLaneClass();
+      return;
+    }
+    const enteringFromChat = previousViewMode === "chat" && (nextViewMode === "sessions" || nextViewMode === "tree");
+    sessionLane = nextLane;
+    if (enteringFromChat) {
+      viewElement.classList.add("pi-view--lane-jump");
+      syncViewLaneClass();
+      void viewElement.offsetWidth;
+      viewElement.classList.remove("pi-view--lane-jump");
+      return;
+    }
+    syncViewLaneClass();
+  }
+  function syncViewLaneClass() {
+    viewElement.classList.toggle("pi-view--lane-sessions", sessionLane === "sessions");
+    viewElement.classList.toggle("pi-view--lane-tree", sessionLane === "tree");
+  }
   function render() {
     const isListView = state.viewMode === "sessions" || state.viewMode === "tree";
     const shouldStickToBottom = !isListView && messagesController.isMessagesAtBottom();
     viewElement.classList.toggle("pi-view--list", isListView);
+    viewElement.classList.toggle("pi-view--sessions", state.viewMode === "sessions");
+    viewElement.classList.toggle("pi-view--tree", state.viewMode === "tree");
     viewElement.classList.toggle("pi-view--chat", !isListView);
+    syncViewLaneClass();
     messagesElement.hidden = false;
     sessionsElement.hidden = false;
     messagesElement.setAttribute("aria-hidden", isListView ? "true" : "false");

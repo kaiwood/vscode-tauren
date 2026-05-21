@@ -11,6 +11,7 @@ type TopSessionControlsOptions = {
   toolbarTimestampElement: HTMLElement;
   sessionNameInputElement: HTMLInputElement;
   sessionToggleButton: HTMLButtonElement;
+  treeToggleButton: HTMLButtonElement;
   sessionMenuWrapElement: HTMLElement;
   sessionMenuButton: HTMLButtonElement;
   sessionMenuElement: HTMLElement;
@@ -42,6 +43,7 @@ export class TopSessionControls {
 
   public attachEventListeners(): void {
     this.options.sessionToggleButton.addEventListener('click', () => this.toggleSessionView());
+    this.options.treeToggleButton.addEventListener('click', () => this.toggleTreeView());
     this.options.toolbarTitleElement.addEventListener('dblclick', (event) => this.startSessionNameEdit(event));
     this.options.sessionMenuButton.addEventListener('click', (event) => this.toggleSessionCommandMenu(event));
     this.options.sessionHelpButton.addEventListener('click', (event) => this.toggleSessionHelpPopover(event));
@@ -65,11 +67,19 @@ export class TopSessionControls {
       return true;
     }
 
-    if ((event.target === this.options.sessionToggleButton || event.target === this.options.sessionHelpButton)
+    if ((event.target === this.options.sessionToggleButton || event.target === this.options.treeToggleButton || event.target === this.options.sessionHelpButton)
       && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
       event.stopPropagation();
-      event.target === this.options.sessionToggleButton ? this.toggleSessionView() : this.toggleSessionHelpPopover();
+
+      if (event.target === this.options.sessionToggleButton) {
+        this.toggleSessionView();
+      } else if (event.target === this.options.treeToggleButton) {
+        this.toggleTreeView();
+      } else {
+        this.toggleSessionHelpPopover();
+      }
+
       return true;
     }
 
@@ -135,6 +145,11 @@ export class TopSessionControls {
     this.options.sessionToggleButton.setAttribute('aria-label', sessionToggleLabel);
     setTooltipText(this.options.sessionToggleButton, sessionToggleLabel);
     this.options.sessionToggleButton.classList.toggle('pi-toolbar__sessions--back', isListView);
+
+    const treeToggleLabel = isListView ? 'Back to chat' : 'Show tree';
+    this.options.treeToggleButton.setAttribute('aria-label', treeToggleLabel);
+    setTooltipText(this.options.treeToggleButton, treeToggleLabel);
+    this.options.treeToggleButton.classList.toggle('pi-toolbar__tree--back', isListView);
   }
 
   public cancelSessionNameEdit(options: { focusPrompt?: boolean } = {}): void {
@@ -537,6 +552,20 @@ export class TopSessionControls {
     }
 
     this.options.postMessage({ type: 'showSessions' });
+  }
+
+  private toggleTreeView(): void {
+    const state = this.options.getState();
+    this.cancelSessionNameEdit();
+
+    if (state.viewMode === 'sessions' || state.viewMode === 'tree') {
+      this.closeSessionHelpPopover();
+      this.options.postMessage({ type: 'hideSessions' });
+      this.options.focusPromptInput();
+      return;
+    }
+
+    this.options.postMessage({ type: 'showTree' });
   }
 }
 

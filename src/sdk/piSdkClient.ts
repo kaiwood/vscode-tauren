@@ -23,6 +23,7 @@ import type {
 import type { AgentSessionRuntime, SessionManager } from '@earendil-works/pi-coding-agent';
 import { createSdkExtensionUiContext } from './extensionUiBridge';
 import { mapSdkExtensionErrorToRpcEvent, mapSdkSessionEventToRpcEvent } from './piSdkEventMapper';
+import { flattenPiSessionTree, type FlattenableSessionTreeNode } from '../sessions/piSessionTree';
 import { loadPiSdk, type PiSdkLoader, type PiSdkModule } from './piSdkLoader';
 
 const sdkDisposedMessage = 'Pi SDK client disposed.';
@@ -233,6 +234,14 @@ export class PiSdkClient implements PiRpcClientLike {
   public async switchSession(sessionPath: string): Promise<PiSwitchSessionResult> {
     const runtime = await this.ensureRuntime();
     return await runtime.switchSession(sessionPath);
+  }
+
+  public async getSessionTree() {
+    const { session } = await this.ensureRuntime();
+    return flattenPiSessionTree(
+      session.sessionManager.getTree() as unknown as FlattenableSessionTreeNode[],
+      session.sessionManager.getLeafId()
+    );
   }
 
   public async navigateTree(

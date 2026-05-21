@@ -100,6 +100,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       getAnimationsEnabled: () => getAnimationsEnabledSetting(),
       getReadyScript: () => getReadyScriptSetting(),
       getReadyScriptEnabled: () => getReadyScriptEnabledSetting(),
+      supportsSessionTree: () => getUseSdkInsteadOfRpcSetting(),
       runReadyScript: (scriptPath, cwd) => {
         runReadyScript(scriptPath, cwd, {
           onError: (message) => this.showNotification(message, 'warning')

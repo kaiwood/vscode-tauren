@@ -26,6 +26,8 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
       return { type: 'newSession' };
     case 'showSessions':
       return { type: 'showSessions' };
+    case 'showTree':
+      return { type: 'showTree' };
     case 'hideSessions':
       return { type: 'hideSessions' };
     case 'refreshSessions':
@@ -52,7 +54,12 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
         : { type: 'unknown' };
     case 'selectTreeEntry':
       return typeof value.entryId === 'string' && value.entryId
-        ? { type: 'selectTreeEntry', entryId: value.entryId }
+        ? {
+          type: 'selectTreeEntry',
+          entryId: value.entryId,
+          ...(typeof value.summarize === 'boolean' ? { summarize: value.summarize } : {}),
+          ...(typeof value.customInstructions === 'string' ? { customInstructions: value.customInstructions } : {})
+        }
         : { type: 'unknown' };
     case 'setSessionName':
       return typeof value.name === 'string'
@@ -239,32 +246,6 @@ ${chatWebviewStyles}
         <span class="tau-icon-action-tooltip">Show sessions</span>
       </button>
       <div class="pi-toolbar__title"><span class="pi-toolbar__title-text">Pi</span><span class="pi-toolbar__timestamp" hidden></span><input class="pi-toolbar__title-input" type="text" aria-label="Session name" spellcheck="false" hidden></div>
-      <div class="pi-toolbar__help-wrap pi-toolbar__chat-help-wrap">
-        <button class="pi-toolbar__help-button pi-toolbar__chat-help-button" type="button" aria-label="Chat shortcuts" aria-haspopup="dialog" aria-expanded="false" aria-controls="chat-shortcuts">
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="5.75" stroke="currentColor" stroke-width="1.25"/>
-            <path d="M6.55 6.35C6.64 5.48 7.28 4.9 8.12 4.9C9.02 4.9 9.65 5.48 9.65 6.27C9.65 6.84 9.38 7.24 8.82 7.62C8.25 8.01 8.03 8.35 8.03 8.95V9.18" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>
-            <circle cx="8" cy="11.1" r="0.65" fill="currentColor"/>
-          </svg>
-          <span class="tau-icon-action-tooltip">Chat shortcuts</span>
-        </button>
-        <div id="chat-shortcuts" class="pi-toolbar__help-popover pi-toolbar__chat-help-popover" role="dialog" aria-label="Chat shortcuts" hidden>
-          <div class="pi-toolbar__help-title">Chat shortcuts</div>
-          <dl class="pi-toolbar__help-list">
-            <div><dt>Enter</dt><dd>Send message</dd></div>
-            <div><dt>Shift+Enter</dt><dd>Insert newline</dd></div>
-            <div><dt>/</dt><dd>Show slash commands</dd></div>
-            <div><dt>Esc</dt><dd>Open session list</dd></div>
-            <div><dt>PageUp / PageDown</dt><dd>Scroll transcript</dd></div>
-            <div><dt>Ctrl+PageUp / Ctrl+PageDown</dt><dd>Scroll transcript by line</dd></div>
-            <div><dt>Model button</dt><dd>Change model or thinking</dd></div>
-            <div><dt>Changes</dt><dd>Show session changes</dd></div>
-            <div><dt>Stop</dt><dd>Stop current response</dd></div>
-            <div><dt>Steer</dt><dd>Send guidance to the running response</dd></div>
-            <div><dt>Follow-up</dt><dd>Queue the text as the next prompt</dd></div>
-          </dl>
-        </div>
-      </div>
       <div class="pi-toolbar__menu-wrap">
         <button class="pi-toolbar__menu-button" type="button" aria-label="Session commands" aria-haspopup="menu" aria-expanded="false" aria-controls="session-command-menu">
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -330,6 +311,32 @@ ${chatWebviewStyles}
           </button>
         </div>
       </div>
+      <div class="pi-toolbar__help-wrap pi-toolbar__chat-help-wrap">
+        <button class="pi-toolbar__help-button pi-toolbar__chat-help-button" type="button" aria-label="Chat shortcuts" aria-haspopup="dialog" aria-expanded="false" aria-controls="chat-shortcuts">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="5.75" stroke="currentColor" stroke-width="1.25"/>
+            <path d="M6.55 6.35C6.64 5.48 7.28 4.9 8.12 4.9C9.02 4.9 9.65 5.48 9.65 6.27C9.65 6.84 9.38 7.24 8.82 7.62C8.25 8.01 8.03 8.35 8.03 8.95V9.18" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>
+            <circle cx="8" cy="11.1" r="0.65" fill="currentColor"/>
+          </svg>
+          <span class="tau-icon-action-tooltip">Chat shortcuts</span>
+        </button>
+        <div id="chat-shortcuts" class="pi-toolbar__help-popover pi-toolbar__chat-help-popover" role="dialog" aria-label="Chat shortcuts" hidden>
+          <div class="pi-toolbar__help-title">Chat shortcuts</div>
+          <dl class="pi-toolbar__help-list">
+            <div><dt>Enter</dt><dd>Send message</dd></div>
+            <div><dt>Shift+Enter</dt><dd>Insert newline</dd></div>
+            <div><dt>/</dt><dd>Show slash commands</dd></div>
+            <div><dt>Esc</dt><dd>Open session list</dd></div>
+            <div><dt>PageUp / PageDown</dt><dd>Scroll transcript</dd></div>
+            <div><dt>Ctrl+PageUp / Ctrl+PageDown</dt><dd>Scroll transcript by line</dd></div>
+            <div><dt>Model button</dt><dd>Change model or thinking</dd></div>
+            <div><dt>Changes</dt><dd>Show session changes</dd></div>
+            <div><dt>Stop</dt><dd>Stop current response</dd></div>
+            <div><dt>Steer</dt><dd>Send guidance to the running response</dd></div>
+            <div><dt>Follow-up</dt><dd>Queue the text as the next prompt</dd></div>
+          </dl>
+        </div>
+      </div>
       <div class="pi-toolbar__help-wrap pi-toolbar__session-help-wrap" hidden>
         <button class="pi-toolbar__help-button pi-toolbar__session-help-button" type="button" aria-label="Session list shortcuts" aria-haspopup="dialog" aria-expanded="false" aria-controls="session-shortcuts">
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -354,6 +361,12 @@ ${chatWebviewStyles}
           </dl>
         </div>
       </div>
+      <button class="pi-toolbar__tree" type="button" aria-label="Show tree">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M6.75 4.5L11.25 9L6.75 13.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="tau-icon-action-tooltip">Show tree</span>
+      </button>
     </header>
     <div class="pi-toast" role="status" aria-live="polite" hidden></div>
     <section class="messages" aria-live="polite" aria-label="Pi conversation">

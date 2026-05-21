@@ -5,6 +5,7 @@ export type WebviewDom = {
   toolbarTimestampElement: HTMLElement;
   sessionNameInputElement: HTMLInputElement;
   sessionToggleButton: HTMLButtonElement;
+  treeToggleButton: HTMLButtonElement;
   sessionMenuWrapElement: HTMLElement;
   sessionMenuButton: HTMLButtonElement;
   sessionMenuElement: HTMLElement;
@@ -46,6 +47,7 @@ export function getWebviewDom(): WebviewDom {
     toolbarTimestampElement: queryRequired<HTMLElement>('.pi-toolbar__timestamp'),
     sessionNameInputElement: queryRequired<HTMLInputElement>('.pi-toolbar__title-input'),
     sessionToggleButton: queryRequired<HTMLButtonElement>('.pi-toolbar__sessions'),
+    treeToggleButton: queryRequired<HTMLButtonElement>('.pi-toolbar__tree'),
     sessionMenuWrapElement: queryRequired<HTMLElement>('.pi-toolbar__menu-wrap'),
     sessionMenuButton: queryRequired<HTMLButtonElement>('.pi-toolbar__menu-button'),
     sessionMenuElement: queryRequired<HTMLElement>('.pi-toolbar__menu'),

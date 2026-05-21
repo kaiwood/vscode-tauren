@@ -6,7 +6,7 @@ export function getSessionDisplayName(session: SessionItem): string {
   return name || firstMessage || shortenPath(session.cwd) || 'Untitled session';
 }
 
-export function buildSessionTreePrefix(session: Pick<SessionItem, 'depth' | 'ancestorContinues' | 'isLast'>): string {
+export function buildSessionTreePrefix(session: { depth?: number; ancestorContinues?: boolean[]; isLast?: boolean }): string {
   const depth = Number(session.depth) || 0;
 
   if (depth <= 0) {

@@ -74,6 +74,7 @@ export class PiChatController {
       extensionUi: options.extensionUi,
       getCwd: options.getCwd,
       getPiPath: options.getPiPath,
+      supportsSessionTree: options.supportsSessionTree,
       initialSessionFile: options.initialSessionFile,
       listSessions: options.listSessions,
       listSessionTree: options.listSessionTree,
@@ -214,6 +215,14 @@ export class PiChatController {
       case 'showSessions':
         this.sessionView.showSessions();
         return;
+      case 'showTree':
+        if (!this.sessionView.canNavigateTree()) {
+          this.session.addSystemMessage('/tree currently requires Tau SDK mode. Enable tau.useSdkInsteadOfRpc to navigate the live session tree.');
+          this.postState();
+          return;
+        }
+        this.sessionView.showTree();
+        return;
       case 'hideSessions':
         this.sessionView.hideSessions();
         return;
@@ -236,7 +245,10 @@ export class PiChatController {
         await this.sessionView.setSessionItemName(message.sessionPath, message.name);
         return;
       case 'selectTreeEntry':
-        await this.sessionView.navigateTree(message.entryId);
+        await this.sessionView.navigateTree(message.entryId, {
+          summarize: message.summarize,
+          customInstructions: message.customInstructions
+        });
         return;
       case 'setSessionName':
         await this.slashCommandController.setSessionNameFromWebview(message.name);

@@ -44,6 +44,7 @@ type SessionViewControllerOptions = Pick<
   | 'extensionUi'
   | 'getCwd'
   | 'getPiPath'
+  | 'supportsSessionTree'
   | 'listSessions'
   | 'listSessionTree'
   | 'onSessionFileChange'
@@ -136,6 +137,10 @@ export class SessionViewController {
     void this.refreshSessions();
   }
 
+  public canNavigateTree(): boolean {
+    return this.options.supportsSessionTree?.() ?? false;
+  }
+
   public showTree(): void {
     this.viewMode = 'tree';
     this.treeError = '';
@@ -217,8 +222,10 @@ export class SessionViewController {
     this.options.postState();
 
     try {
-      const listSessionTree = this.options.listSessionTree ?? listPiSessionTree;
-      const treeItems = await listSessionTree(sessionFile);
+      const client = this.options.getClient();
+      const treeItems = typeof client.getSessionTree === 'function'
+        ? await client.getSessionTree()
+        : await (this.options.listSessionTree ?? listPiSessionTree)(sessionFile);
 
       if (!this.isCurrentTreeRefresh(refreshId, sessionFile)) {
         return;
@@ -237,7 +244,10 @@ export class SessionViewController {
     }
   }
 
-  public async navigateTree(entryId: string): Promise<void> {
+  public async navigateTree(
+    entryId: string,
+    options: { summarize?: boolean; customInstructions?: string } = {}
+  ): Promise<void> {
     if (this.options.isBusy()) {
       this.options.showNotification('Wait for Pi to finish before navigating the session tree.', 'warning');
       return;
@@ -248,7 +258,10 @@ export class SessionViewController {
     this.options.postState();
 
     try {
-      const result = await this.options.getClient().navigateTree(entryId, { summarize: false });
+      const result = await this.options.getClient().navigateTree(entryId, {
+        summarize: options.summarize ?? false,
+        ...(options.customInstructions ? { customInstructions: options.customInstructions } : {})
+      });
 
       if (result.cancelled) {
         return;

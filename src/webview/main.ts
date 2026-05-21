@@ -17,6 +17,7 @@ const {
   toolbarTimestampElement,
   sessionNameInputElement,
   sessionToggleButton,
+  treeToggleButton,
   sessionMenuWrapElement,
   sessionMenuButton,
   sessionMenuElement,
@@ -70,6 +71,7 @@ let state: WebviewState = { ...initialWebviewState };
 let toastHideTimeout: ReturnType<typeof setTimeout> | undefined;
 let pendingRenderFrame: number | undefined;
 let pendingReturnToChatAfterRender = false;
+let sessionLane: 'sessions' | 'tree' = 'sessions';
 
 let sessionsController: SessionViewController;
 
@@ -120,6 +122,7 @@ sessionsController = new SessionViewController({
   toolbarTimestampElement,
   sessionNameInputElement,
   sessionToggleButton,
+  treeToggleButton,
   sessionMenuWrapElement,
   sessionMenuButton,
   sessionMenuElement,
@@ -183,6 +186,8 @@ window.addEventListener('message', (event) => {
   document.body.classList.toggle('tau-animations-disabled', !state.animationsEnabled);
   const wasListView = previousViewMode === 'sessions' || previousViewMode === 'tree';
   const isListView = state.viewMode === 'sessions' || state.viewMode === 'tree';
+
+  syncSessionLaneForStateChange(previousViewMode, state.viewMode);
 
   if (previousViewMode === 'sessions' && state.viewMode !== 'sessions') {
     sessionsController.rememberSessionListScrollPosition();
@@ -308,12 +313,49 @@ function scheduleRender(options: { returnToChat?: boolean } = {}): void {
   });
 }
 
+function syncSessionLaneForStateChange(
+  previousViewMode: WebviewState['viewMode'],
+  nextViewMode: WebviewState['viewMode']
+): void {
+  const nextLane = nextViewMode === 'sessions' || nextViewMode === 'tree'
+    ? nextViewMode
+    : previousViewMode === 'sessions' || previousViewMode === 'tree'
+    ? previousViewMode
+    : sessionLane;
+
+  if (nextLane === sessionLane) {
+    syncViewLaneClass();
+    return;
+  }
+
+  const enteringFromChat = previousViewMode === 'chat' && (nextViewMode === 'sessions' || nextViewMode === 'tree');
+  sessionLane = nextLane;
+
+  if (enteringFromChat) {
+    viewElement.classList.add('pi-view--lane-jump');
+    syncViewLaneClass();
+    void viewElement.offsetWidth;
+    viewElement.classList.remove('pi-view--lane-jump');
+    return;
+  }
+
+  syncViewLaneClass();
+}
+
+function syncViewLaneClass(): void {
+  viewElement.classList.toggle('pi-view--lane-sessions', sessionLane === 'sessions');
+  viewElement.classList.toggle('pi-view--lane-tree', sessionLane === 'tree');
+}
+
 function render(): void {
   const isListView = state.viewMode === 'sessions' || state.viewMode === 'tree';
   const shouldStickToBottom = !isListView && messagesController.isMessagesAtBottom();
 
   viewElement.classList.toggle('pi-view--list', isListView);
+  viewElement.classList.toggle('pi-view--sessions', state.viewMode === 'sessions');
+  viewElement.classList.toggle('pi-view--tree', state.viewMode === 'tree');
   viewElement.classList.toggle('pi-view--chat', !isListView);
+  syncViewLaneClass();
   messagesElement.hidden = false;
   sessionsElement.hidden = false;
   messagesElement.setAttribute('aria-hidden', isListView ? 'true' : 'false');
