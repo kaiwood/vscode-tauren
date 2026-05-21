@@ -33,11 +33,6 @@ type SessionCandidate = {
   cwd?: string;
 };
 
-type SessionCandidates = {
-  project: SessionCandidate[];
-  all: SessionCandidate[];
-};
-
 type ParsedToolCall = {
   toolName: 'edit' | 'write';
   args: Record<string, unknown>;
@@ -60,11 +55,9 @@ export async function traceOrigin(
 
   const sessions = await getSessionCandidates(options);
   const selectionInputs = normalizedInputs.filter((input) => input.kind === 'selection');
-  const pathScopedMatch = await traceOriginInSessions(sessions.project, normalizedInputs, { allowContentOnly: false });
+  const pathScopedMatch = await traceOriginInSessions(sessions, normalizedInputs, { allowContentOnly: false });
   const earliest = pathScopedMatch
-    ?? await traceOriginInSessions(sessions.project, selectionInputs, { allowContentOnly: true })
-    ?? await traceOriginInSessions(sessions.all, normalizedInputs, { allowContentOnly: false })
-    ?? await traceOriginInSessions(sessions.all, selectionInputs, { allowContentOnly: true });
+    ?? await traceOriginInSessions(sessions, selectionInputs, { allowContentOnly: true });
 
   if (!earliest) {
     return undefined;
@@ -79,6 +72,10 @@ async function traceOriginInSessions(
   inputs: TraceOriginInput[],
   options: { allowContentOnly: boolean }
 ): Promise<(TraceOriginMatch & { timestampMs: number }) | undefined> {
+  if (sessions.length === 0 || inputs.length === 0) {
+    return undefined;
+  }
+
   let earliest: (TraceOriginMatch & { timestampMs: number }) | undefined;
 
   for (const session of sessions) {
@@ -96,29 +93,17 @@ async function traceOriginInSessions(
   return earliest;
 }
 
-async function getSessionCandidates(options: TraceOriginOptions): Promise<SessionCandidates> {
+async function getSessionCandidates(options: TraceOriginOptions): Promise<SessionCandidate[]> {
   if (options.sessionFiles) {
-    const sessions = dedupeSessions(options.sessionFiles.map((sessionPath) => ({ path: sessionPath })));
-    return { project: sessions, all: sessions };
+    return dedupeSessions(options.sessionFiles.map((sessionPath) => ({ path: sessionPath })));
   }
 
-  const [projectSessions, allSessions] = await Promise.all([
-    listPiSessions({ cwd: options.cwd, currentSessionFile: options.currentSessionFile }),
-    listPiSessions({ env: {} })
-  ]);
-
-  const project = dedupeSessions(projectSessions.map((session) => ({
+  const sessions = await listPiSessions({ cwd: options.cwd, currentSessionFile: options.currentSessionFile });
+  return dedupeSessions(sessions.map((session) => ({
     path: session.path,
     id: session.id,
     cwd: session.cwd
   })));
-  const all = dedupeSessions([...project, ...allSessions.map((session) => ({
-    path: session.path,
-    id: session.id,
-    cwd: session.cwd
-  }))]);
-
-  return { project, all };
 }
 
 function dedupeSessions(sessions: SessionCandidate[]): SessionCandidate[] {
