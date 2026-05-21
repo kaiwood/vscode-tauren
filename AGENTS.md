@@ -54,24 +54,26 @@ Do not add transient notes, guesses, one-off debugging observations, or broad ge
 - `src/diff/sessionDiffUri.ts` owns Tau session diff URI scheme/context helpers shared by the diff viewer and prompt-context extraction.
 - `src/diff/sessionDiffStorage.ts` owns VS Code storage and file-watcher helpers for session diff snapshots/stat refresh.
 - `src/commands/slashCommands.ts` owns shared local slash command metadata used by both the extension host and browser webview.
-- `src/rpc/client.ts` owns the `pi --mode rpc` subprocess, request/response tracking, stderr collection, and process cleanup; `src/rpc/protocol.ts` owns strict JSONL parsing/serialization; `src/rpc/types.ts` owns shared RPC and Pi result types.
+- `src/rpc/client.ts` owns the default `pi --mode rpc` subprocess, request/response tracking, stderr collection, and process cleanup; `src/rpc/protocol.ts` owns strict JSONL parsing/serialization; `src/rpc/types.ts` owns shared transport-facing Pi result types used by both RPC and SDK adapters.
+- `src/sdk/piSdkClient.ts`, `src/sdk/piSdkLoader.ts`, `src/sdk/piSdkEventMapper.ts`, and `src/sdk/extensionUiBridge.ts` own the experimental in-process Pi SDK transport selected by `tau.useSdkInsteadOfRpc`; keep it behind the existing `PiRpcClientLike` client abstraction until there is a deliberate broader rename/refactor.
 - Third-party webview browser bundles are vendored in `resources/vendor`; generated first-party webview bundles live in `resources/webview`; keep browser-only libraries out of runtime `dependencies` unless extension-host code imports them.
 - Shiki and `vscode-shiki-bridge` are runtime dependencies because syntax highlighting runs in the extension host, not as a vendored webview browser bundle.
-- `.vscodeignore` must not exclude runtime `dependencies`; installed VSIX builds do not have the workspace `node_modules` available. Let `vsce` include production dependencies such as Shiki and its transitive packages.
+- `.vscodeignore` must not exclude runtime `dependencies`; installed VSIX builds do not have the workspace `node_modules` available. Let `vsce` include production dependencies such as Shiki, the Pi SDK, and their transitive packages.
 - The extension host still compiles with direct `tsc`; browser-side webview code is bundled separately with esbuild through `npm run compile:webview`.
 
 ## Pi Integration
 
-- Prefer `pi --mode rpc` for extension integration.
+- Prefer `pi --mode rpc` as the default extension integration; keep RPC working when changing transport-facing code.
+- The experimental SDK transport is enabled only by `tau.useSdkInsteadOfRpc` and runs Pi in-process through the bundled `@earendil-works/pi-coding-agent` dependency.
 - Do not use `pi -p` / `--print` for the chat UI; it is one-shot and exits after a prompt.
 - Do not use `pi --mode json` for the main chat UI; it streams events for a command-line prompt but is less suitable for a persistent IDE frontend.
-- Do not add `@earendil-works/pi-coding-agent` SDK as a runtime dependency unless there is a clear reason to move away from the already configured CLI.
+- SDK mode ignores `tau.piPath`; that setting only applies to the RPC subprocess transport.
 - Start Pi in the background when the sidebar opens, receives webview `ready`, is focused, or becomes visible so live model/context metadata is available before first interaction.
-- Use the first VS Code workspace folder as the Pi process `cwd`.
+- Use the first VS Code workspace folder as the Pi process/runtime `cwd`.
 - Treat the Pi agent as the source of truth for current model/settings; cached model, model-list, and context metadata are only first-paint placeholders and must be visibly refreshing until live RPC data confirms or replaces them.
 - Preserve cached model/model-list metadata across new sessions, clear session-scoped context usage, and refresh live metadata immediately after starting the new session.
 - Keep default Pi tool and session behavior unless the user explicitly asks for safer or ephemeral behavior.
-- Stop the child process when the extension provider is disposed.
+- Stop the child process or dispose the SDK runtime when the extension provider is disposed.
 
 ## Pi RPC Protocol Rules
 
