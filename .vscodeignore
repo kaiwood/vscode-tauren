@@ -22,3 +22,6 @@ plan/**
 
 # Build metadata
 out/**/*.map
+
+# SDK source dependency is bundled into out/sdk/piSdkBundle.mjs
+node_modules/@earendil-works/pi-coding-agent/**

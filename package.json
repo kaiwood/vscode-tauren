@@ -207,6 +207,11 @@
           "default": "pi",
           "description": "Command used to launch Pi. Use an executable name or path, optionally with arguments, for example: pi, /opt/homebrew/bin/pi, npx pi, or \"/path with spaces/pi\"."
         },
+        "tau.useSdkInsteadOfRpc": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Use SDK instead of RPC (experimental). When enabled, Tau runs Pi in-process through the bundled Pi SDK instead of launching the `pi` command."
+        },
         "tau.outputColors": {
           "type": "boolean",
           "default": true,
@@ -233,14 +238,16 @@
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('out', { recursive: true, force: true })\"",
     "vscode:prepublish": "npm run compile",
-    "compile": "npm run clean && npm run compile:webview && tsc -p ./",
+    "compile": "npm run clean && npm run compile:webview && npm run compile:sdk && tsc -p ./",
     "compile:webview": "esbuild src/webview/main.ts --bundle --format=iife --target=es2022 --outfile=resources/webview/chat.js",
     "sync:vendor": "node scripts/sync-vendor-deps.js",
     "install:local": "npm run compile && npx --yes @vscode/vsce package --out tau-local.vsix && code --install-extension tau-local.vsix --force && node scripts/restart-vscode-extension-host.js",
     "test": "npm run compile -- --pretty false && vscode-test",
-    "watch": "node scripts/watch.js"
+    "watch": "npm run compile:sdk && node scripts/watch.js",
+    "compile:sdk": "node scripts/build-sdk-bundle.js"
   },
   "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.75.4",
     "@types/mocha": "^10.0.10",
     "@types/node": "^24.0.0",
     "@types/vscode": "^1.118.0",

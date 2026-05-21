@@ -110,9 +110,9 @@ export class TauSessionManager {
     void this.active().controller.refreshSessionDiffStats();
   }
 
-  public handlePiPathChanged(): void {
+  public handleClientConfigurationChanged(): void {
     for (const session of this.sessions) {
-      session.controller.handlePiPathChanged();
+      session.controller.handleClientConfigurationChanged();
     }
   }
 

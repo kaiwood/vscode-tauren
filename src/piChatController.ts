@@ -360,7 +360,7 @@ export class PiChatController {
     void this.refreshSessionMeta({ startClient: true });
   }
 
-  public handlePiPathChanged(): void {
+  public handleClientConfigurationChanged(): void {
     if (!this.clientManager.hasClient) {
       return;
     }

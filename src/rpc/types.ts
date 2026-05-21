@@ -107,9 +107,14 @@ export type PiModel = {
 export type PiSessionState = {
   model?: PiModel | null;
   thinkingLevel?: string;
+  isStreaming?: boolean;
+  isCompacting?: boolean;
+  steeringMode?: string;
+  followUpMode?: string;
   sessionFile?: string;
   sessionId?: string;
   sessionName?: string;
+  autoCompactionEnabled?: boolean;
   messageCount?: number;
   pendingMessageCount?: number;
 };
@@ -122,6 +127,7 @@ export type PiCommand = {
   name?: string;
   description?: string;
   source?: string;
+  sourceInfo?: unknown;
   location?: string;
   path?: string;
 };
@@ -137,7 +143,15 @@ export type PiSessionStats = {
   userMessages?: number;
   assistantMessages?: number;
   toolCalls?: number;
+  toolResults?: number;
   totalMessages?: number;
+  tokens?: {
+    input?: number;
+    output?: number;
+    cacheRead?: number;
+    cacheWrite?: number;
+    total?: number;
+  };
   cost?: number;
   contextUsage?: {
     tokens?: number | null;

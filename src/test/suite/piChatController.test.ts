@@ -858,7 +858,7 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
-  test('pi path changes restart an idle client with the next configured path', async () => {
+  test('client configuration changes restart an idle client with the next configured path', async () => {
     let piPath = 'old-pi';
     const oldClient = new FakePiClient();
     const newClient = new FakePiClient();
@@ -873,7 +873,7 @@ suite('PiChatController', () => {
     assert.strictEqual(oldClient.disposed, false);
 
     piPath = 'new-pi';
-    harness.controller.handlePiPathChanged();
+    harness.controller.handleClientConfigurationChanged();
     await flushPromises();
 
     assert.strictEqual(oldClient.disposed, true);
@@ -884,7 +884,7 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
-  test('pi path changes wait for a busy run to publish its session file before reconnecting', async () => {
+  test('client configuration changes wait for a busy run to publish its session file before reconnecting', async () => {
     let piPath = 'old-pi';
     const oldClient = new FakePiClient({
       state: {
@@ -902,7 +902,7 @@ suite('PiChatController', () => {
     await harness.controller.handleWebviewMessage({ type: 'submit', text: 'hello Pi' });
 
     piPath = 'new-pi';
-    harness.controller.handlePiPathChanged();
+    harness.controller.handleClientConfigurationChanged();
 
     assert.strictEqual(oldClient.disposed, false);
     assert.strictEqual(harness.createCalls, 1);
@@ -2010,7 +2010,7 @@ suite('PiChatController', () => {
     await flushPromises();
 
     piPath = '/opt/pi-next';
-    harness.controller.handlePiPathChanged();
+    harness.controller.handleClientConfigurationChanged();
     await flushPromises();
     await flushPromises();
 
