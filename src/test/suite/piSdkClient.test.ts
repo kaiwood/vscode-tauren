@@ -46,6 +46,20 @@ suite('PiSdkClient', () => {
     harness.client.dispose();
   });
 
+  test('clears failed runtime startup so a later call can retry', async () => {
+    const harness = createSdkHarness({ loadSdkFailures: 1 });
+
+    await assert.rejects(harness.client.getState(), /SDK load failed/);
+
+    assert.strictEqual(harness.client.isRunning(), false);
+
+    const state = await harness.client.getState();
+
+    assert.strictEqual(state.sessionFile, '/sessions/current.jsonl');
+    assert.strictEqual(harness.client.isRunning(), true);
+    harness.client.dispose();
+  });
+
   test('opens the configured session file when provided', async () => {
     const harness = createSdkHarness({ sessionFile: '/sessions/resumed.jsonl' });
 
@@ -168,6 +182,7 @@ type SessionManagerCall =
 type HarnessOptions = {
   sessionFile?: string;
   replacementSession?: FakeSession;
+  loadSdkFailures?: number;
 };
 
 class FakeSession {
@@ -321,6 +336,7 @@ function createSdkHarness(options: HarnessOptions = {}): {
 } {
   const session = new FakeSession();
   const createdSessionManagers: SessionManagerCall[] = [];
+  let remainingLoadSdkFailures = options.loadSdkFailures ?? 0;
   const sdk = {
     getAgentDir: () => '/agent',
     SettingsManager: {
@@ -351,7 +367,13 @@ function createSdkHarness(options: HarnessOptions = {}): {
     client: new PiSdkClient({
       cwd: '/workspace',
       sessionFile: options.sessionFile,
-      loadSdk: async () => sdk
+      loadSdk: async () => {
+        if (remainingLoadSdkFailures > 0) {
+          remainingLoadSdkFailures -= 1;
+          throw new Error('SDK load failed');
+        }
+        return sdk;
+      }
     }),
     session,
     createdSessionManagers

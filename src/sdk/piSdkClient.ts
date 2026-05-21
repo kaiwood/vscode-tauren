@@ -300,7 +300,16 @@ export class PiSdkClient implements PiRpcClientLike {
       return this.runtime;
     }
 
-    this.runtimePromise ??= this.createRuntime();
+    if (!this.runtimePromise) {
+      const runtimePromise = this.createRuntime().catch((error) => {
+        if (this.runtimePromise === runtimePromise) {
+          this.runtimePromise = undefined;
+        }
+        throw error;
+      });
+      this.runtimePromise = runtimePromise;
+    }
+
     this.runtime = await this.runtimePromise;
     return this.runtime;
   }
