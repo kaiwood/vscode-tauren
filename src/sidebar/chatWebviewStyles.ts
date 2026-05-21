@@ -793,6 +793,29 @@ const sessionListStyles = /* css */ `    .sessions__search {
       color: var(--vscode-descriptionForeground);
     }
 
+    .sessions__tree-title--summary {
+      align-items: stretch;
+      overflow: visible;
+      white-space: normal;
+    }
+
+    .sessions__tree-summary-activity {
+      display: block;
+      min-width: 0;
+      max-width: 100%;
+      text-align: left;
+    }
+
+    .sessions__tree-summary-activity .activity__summary,
+    .sessions__tree-summary-activity .activity__body {
+      display: block;
+    }
+
+    .sessions__tree-summary-activity-body {
+      overflow: visible;
+      text-overflow: clip;
+    }
+
     .sessions__item--active .sessions__tree-prefix,
     .sessions__item--active .sessions__tree-label {
       color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));

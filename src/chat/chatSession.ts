@@ -37,7 +37,7 @@ export type ChatMessage = {
   role: 'user' | 'assistant' | 'system';
   text: string;
   error?: boolean;
-  variant?: 'thinking';
+  variant?: 'thinking' | 'branchSummary';
   activities?: ChatActivity[];
 };
 

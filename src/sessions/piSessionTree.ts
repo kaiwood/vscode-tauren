@@ -355,7 +355,7 @@ function formatEntry(entry: RawEntry, toolCallsById: Map<string, ToolCallInfo>):
   }
 
   if (entry.type === 'branch_summary') {
-    return { role: 'summary', text: summarizeText(entry.summary) };
+    return { role: 'summary', text: formatBranchSummary(entry.summary) };
   }
 
   if (entry.type === 'compaction') {
@@ -368,6 +368,11 @@ function formatEntry(entry: RawEntry, toolCallsById: Map<string, ToolCallInfo>):
   }
 
   return { role: entry.type ?? 'entry', text: entry.type ?? '' };
+}
+
+function formatBranchSummary(summary: unknown): string {
+  const text = extractPiMessageText(summary, { separator: ' ' }).trim();
+  return text ? `Returned from branch.\n\n${text}` : 'Returned from branch.';
 }
 
 function summarizeMessage(message: Record<string, unknown>): string {

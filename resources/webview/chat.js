@@ -1794,10 +1794,14 @@
   }
   function createMessageElement(message, showRole, messageIndex, options = {}) {
     const article = document.createElement("article");
-    article.className = `message message--${message.role}${message.error ? " message--error" : ""}${message.variant === "thinking" ? " message--thinking" : ""}`;
+    article.className = `message message--${message.role}${message.error ? " message--error" : ""}${getMessageVariantClass(message)}`;
+    if (message.variant === "branchSummary") {
+      article.append(createBranchSummaryActivityElement(message.text || "", messageIndex, options));
+      return article;
+    }
     const body = document.createElement("div");
     body.className = "message__body";
-    if (message.role === "assistant" && !message.error) {
+    if (shouldRenderMarkdown(message)) {
       renderMarkdownInto(body, message.text || "", options);
     } else {
       body.textContent = message.text || "";
@@ -1829,6 +1833,9 @@
     return article;
   }
   function updateMessageBodyElement(article, message, options = {}) {
+    if (message.variant === "branchSummary") {
+      return updateBranchSummaryActivityElement(article, message.text || "");
+    }
     const body = getDirectMessageBodyElement(article);
     if (!body) {
       return false;
@@ -1837,7 +1844,7 @@
     if (message.role === "assistant" && Array.isArray(message.activities) && message.activities.length > 0) {
       body.classList.add("message__body--after-activities");
     }
-    if (message.role === "assistant" && !message.error) {
+    if (shouldRenderMarkdown(message)) {
       renderMarkdownInto(body, message.text || "", options);
     } else {
       body.textContent = message.text || "";
@@ -1851,6 +1858,43 @@
       }
     }
     return void 0;
+  }
+  function getMessageVariantClass(message) {
+    return message.variant === "thinking" ? " message--thinking" : "";
+  }
+  function shouldRenderMarkdown(message) {
+    return message.role === "assistant" && !message.error;
+  }
+  function createBranchSummaryActivityElement(text, messageIndex, options) {
+    const body = stripBranchSummaryPrefix(text);
+    return createActivityElement({
+      id: typeof messageIndex === "number" ? `branch-summary-${messageIndex}` : "branch-summary",
+      kind: "message",
+      title: "Branch summary",
+      status: "info",
+      body: createBranchSummaryPreview(body),
+      expandedBody: body,
+      code: true
+    }, messageIndex, options);
+  }
+  function updateBranchSummaryActivityElement(article, text) {
+    article.replaceChildren(createBranchSummaryActivityElement(text, void 0, {}));
+    return true;
+  }
+  function createBranchSummaryPreview(text) {
+    const previewLineCount = 4;
+    const lines = text.split("\n");
+    if (lines.length <= previewLineCount) {
+      return text;
+    }
+    return [
+      ...lines.slice(0, previewLineCount),
+      `... (${lines.length - previewLineCount} more lines)`
+    ].join("\n");
+  }
+  function stripBranchSummaryPrefix(text) {
+    const prefix = "Returned from branch.\n\n";
+    return text.startsWith(prefix) ? text.slice(prefix.length) : text;
   }
   function canCopyAssistantMessage(message) {
     return message.role === "assistant" && !message.error && message.variant !== "thinking" && Boolean(message.text);
@@ -1915,20 +1959,21 @@
         renderMarkdownInto(body, bodyText);
       }
       const overflowToggle = bodyCanVisuallyExpand && !bodyExpanded && !bodyToggle ? { label: "Show full output", activityId, messageIndex, expanded: false } : void 0;
-      details.append(activity.code ? createActivityBodyWrap(body, bodyText, getReadActivityPath(activity, bodyText), bodyToggle, overflowToggle) : body);
+      const copyBodyText = activity.title === "Branch summary" && typeof activity.expandedBody === "string" ? activity.expandedBody : bodyText;
+      details.append(activity.code ? createActivityBodyWrap(body, bodyText, getReadActivityPath(activity, bodyText), bodyToggle, overflowToggle, copyBodyText) : body);
       if (bodyExpanded && shouldScrollExpandedBodyToBottom(activity.body)) {
         scheduleActivityBodyScrollToBottom(body);
       }
     }
     return details;
   }
-  function createActivityBodyWrap(body, bodyText, filePath, bodyToggle, overflowToggle) {
+  function createActivityBodyWrap(body, bodyText, filePath, bodyToggle, overflowToggle, copyText = bodyText) {
     const wrap = document.createElement("div");
     wrap.className = "activity__body-wrap";
     const actions = document.createElement("div");
     actions.className = "activity__body-actions";
     const copyOutput = createIconActionButton("activity__body-action", "Copy output");
-    copyOutput.dataset.copyActivityOutput = bodyText;
+    copyOutput.dataset.copyActivityOutput = copyText;
     actions.append(copyOutput);
     if (filePath) {
       const openFile = document.createElement("button");
@@ -2629,14 +2674,28 @@ ${after}`;
     item.disabled = options.disabled;
     item.append(createTreePrefixElement(treeItem, index === options.selectedIndex));
     const title = document.createElement("span");
-    title.className = "sessions__title sessions__tree-title";
+    title.className = "sessions__title sessions__tree-title" + (treeItem.role === "summary" ? " sessions__tree-title--summary" : "");
     if (treeItem.label) {
       const label = document.createElement("span");
       label.className = "sessions__tree-label";
       label.textContent = `[${treeItem.label}]`;
       title.append(label);
     }
-    if (treeItem.role === "tool") {
+    if (treeItem.role === "summary") {
+      const summaryBox = document.createElement("span");
+      summaryBox.className = "activity activity--message activity--info sessions__tree-summary-activity";
+      const summaryHeader = document.createElement("span");
+      summaryHeader.className = "activity__summary";
+      const summaryTitle = document.createElement("span");
+      summaryTitle.className = "activity__title";
+      summaryTitle.textContent = "Branch summary";
+      summaryHeader.append(summaryTitle);
+      const summaryText = document.createElement("span");
+      summaryText.className = "activity__body sessions__tree-summary-activity-body";
+      summaryText.textContent = stripBranchSummaryPrefix2(treeItem.text || "(empty)");
+      summaryBox.append(summaryHeader, summaryText);
+      title.append(summaryBox);
+    } else if (treeItem.role === "tool") {
       const toolText = document.createElement("span");
       toolText.className = "sessions__title-text sessions__tree-content";
       toolText.textContent = treeItem.text || "[tool]";
@@ -2653,6 +2712,10 @@ ${after}`;
     }
     item.append(title);
     return item;
+  }
+  function stripBranchSummaryPrefix2(text) {
+    const prefix = "Returned from branch.\n\n";
+    return text.startsWith(prefix) ? text.slice(prefix.length) : text;
   }
   function createTreePrefixElement(treeItem, selected) {
     const prefix = document.createElement("span");

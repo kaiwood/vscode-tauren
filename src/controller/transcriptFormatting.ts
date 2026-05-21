@@ -94,7 +94,7 @@ export function formatAgentMessages(messages: PiAgentMessage[] | undefined): Cha
       const summary = typeof message.summary === 'string' ? message.summary : '';
 
       if (summary.trim()) {
-        transcript.push({ role: 'system', text: `Returned from branch.\n\n${summary}` });
+        transcript.push({ role: 'system', text: `Returned from branch.\n\n${summary}`, variant: 'branchSummary' });
       }
 
       lastAssistant = undefined;

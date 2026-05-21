@@ -38,6 +38,21 @@ suite('Pi session tree', () => {
     assert.deepStrictEqual(items.map((item) => item.entryId), ['u1']);
   });
 
+  test('formats branch summaries as returned-from-branch callouts', () => {
+    const items = flattenPiSessionTree([
+      {
+        entry: { id: 'u1', parentId: null, type: 'message', message: { role: 'user', content: 'Main branch' } },
+        children: [{
+          entry: { id: 's1', parentId: 'u1', type: 'branch_summary', summary: 'Summary of that exploration:\n\n## Goal\nFix PR #1.' },
+          children: []
+        }]
+      }
+    ], 's1');
+
+    assert.strictEqual(items[1].role, 'summary');
+    assert.strictEqual(items[1].text, 'Returned from branch.\n\nSummary of that exploration:\n\n## Goal\nFix PR #1.');
+  });
+
   test('formats tool results like Pi tree entries and hides assistant tool-call placeholders', () => {
     const items = flattenPiSessionTree([
       {

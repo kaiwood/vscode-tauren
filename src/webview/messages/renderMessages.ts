@@ -23,12 +23,17 @@ export function createMessageElement(
   options: MessageRenderOptions = {}
 ): HTMLElement {
   const article = document.createElement('article');
-  article.className = `message message--${message.role}${message.error ? ' message--error' : ''}${message.variant === 'thinking' ? ' message--thinking' : ''}`;
+  article.className = `message message--${message.role}${message.error ? ' message--error' : ''}${getMessageVariantClass(message)}`;
+
+  if (message.variant === 'branchSummary') {
+    article.append(createBranchSummaryActivityElement(message.text || '', messageIndex, options));
+    return article;
+  }
 
   const body = document.createElement('div');
   body.className = 'message__body';
 
-  if (message.role === 'assistant' && !message.error) {
+  if (shouldRenderMarkdown(message)) {
     renderMarkdownInto(body, message.text || '', options);
   } else {
     body.textContent = message.text || '';
@@ -73,6 +78,10 @@ export function updateMessageBodyElement(
   message: ChatMessage,
   options: MessageRenderOptions = {}
 ): boolean {
+  if (message.variant === 'branchSummary') {
+    return updateBranchSummaryActivityElement(article, message.text || '');
+  }
+
   const body = getDirectMessageBodyElement(article);
 
   if (!body) {
@@ -85,7 +94,7 @@ export function updateMessageBodyElement(
     body.classList.add('message__body--after-activities');
   }
 
-  if (message.role === 'assistant' && !message.error) {
+  if (shouldRenderMarkdown(message)) {
     renderMarkdownInto(body, message.text || '', options);
   } else {
     body.textContent = message.text || '';
@@ -102,6 +111,52 @@ function getDirectMessageBodyElement(article: HTMLElement): HTMLElement | undefi
   }
 
   return undefined;
+}
+
+function getMessageVariantClass(message: ChatMessage): string {
+  return message.variant === 'thinking' ? ' message--thinking' : '';
+}
+
+function shouldRenderMarkdown(message: ChatMessage): boolean {
+  return message.role === 'assistant' && !message.error;
+}
+
+function createBranchSummaryActivityElement(text: string, messageIndex: number | undefined, options: MessageRenderOptions): HTMLElement {
+  const body = stripBranchSummaryPrefix(text);
+
+  return createActivityElement({
+    id: typeof messageIndex === 'number' ? `branch-summary-${messageIndex}` : 'branch-summary',
+    kind: 'message',
+    title: 'Branch summary',
+    status: 'info',
+    body: createBranchSummaryPreview(body),
+    expandedBody: body,
+    code: true
+  }, messageIndex, options);
+}
+
+function updateBranchSummaryActivityElement(article: HTMLElement, text: string): boolean {
+  article.replaceChildren(createBranchSummaryActivityElement(text, undefined, {}));
+  return true;
+}
+
+function createBranchSummaryPreview(text: string): string {
+  const previewLineCount = 4;
+  const lines = text.split('\n');
+
+  if (lines.length <= previewLineCount) {
+    return text;
+  }
+
+  return [
+    ...lines.slice(0, previewLineCount),
+    `... (${lines.length - previewLineCount} more lines)`
+  ].join('\n');
+}
+
+function stripBranchSummaryPrefix(text: string): string {
+  const prefix = 'Returned from branch.\n\n';
+  return text.startsWith(prefix) ? text.slice(prefix.length) : text;
 }
 
 function canCopyAssistantMessage(message: ChatMessage): boolean {
@@ -194,7 +249,11 @@ function createActivityElement(activity: Activity, messageIndex: number | undefi
       ? { label: 'Show full output', activityId, messageIndex, expanded: false }
       : undefined;
 
-    details.append(activity.code ? createActivityBodyWrap(body, bodyText, getReadActivityPath(activity, bodyText), bodyToggle, overflowToggle) : body);
+    const copyBodyText = activity.title === 'Branch summary' && typeof activity.expandedBody === 'string'
+      ? activity.expandedBody
+      : bodyText;
+
+    details.append(activity.code ? createActivityBodyWrap(body, bodyText, getReadActivityPath(activity, bodyText), bodyToggle, overflowToggle, copyBodyText) : body);
 
     if (bodyExpanded && shouldScrollExpandedBodyToBottom(activity.body)) {
       scheduleActivityBodyScrollToBottom(body);
@@ -209,7 +268,8 @@ function createActivityBodyWrap(
   bodyText: string,
   filePath: string | undefined,
   bodyToggle: ActivityBodyToggle | undefined,
-  overflowToggle: ActivityBodyToggle | undefined
+  overflowToggle: ActivityBodyToggle | undefined,
+  copyText: string = bodyText
 ): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'activity__body-wrap';
@@ -218,7 +278,7 @@ function createActivityBodyWrap(
   actions.className = 'activity__body-actions';
 
   const copyOutput = createIconActionButton('activity__body-action', 'Copy output');
-  copyOutput.dataset.copyActivityOutput = bodyText;
+  copyOutput.dataset.copyActivityOutput = copyText;
   actions.append(copyOutput);
 
   if (filePath) {
