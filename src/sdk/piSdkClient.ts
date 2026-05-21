@@ -77,20 +77,71 @@ export class PiSdkClient implements PiRpcClientLike {
     return this.unavailable();
   }
 
-  public getState(): Promise<PiSessionState> {
-    return this.unavailable();
+  public async getState(): Promise<PiSessionState> {
+    const { session } = await this.ensureRuntime();
+
+    return {
+      model: session.model,
+      thinkingLevel: session.thinkingLevel,
+      isStreaming: session.isStreaming,
+      isCompacting: session.isCompacting,
+      steeringMode: session.steeringMode,
+      followUpMode: session.followUpMode,
+      sessionFile: session.sessionFile,
+      sessionId: session.sessionId,
+      sessionName: session.sessionName,
+      autoCompactionEnabled: session.autoCompactionEnabled,
+      messageCount: session.messages.length,
+      pendingMessageCount: session.pendingMessageCount
+    } as PiSessionState;
   }
 
-  public getSessionStats(): Promise<PiSessionStats> {
-    return this.unavailable();
+  public async getSessionStats(): Promise<PiSessionStats> {
+    const { session } = await this.ensureRuntime();
+
+    return {
+      ...session.getSessionStats(),
+      sessionName: session.sessionName
+    } as PiSessionStats;
   }
 
-  public getAvailableModels(): Promise<PiAvailableModels> {
-    return this.unavailable();
+  public async getAvailableModels(): Promise<PiAvailableModels> {
+    const { session } = await this.ensureRuntime();
+    return { models: session.modelRegistry.getAvailable() };
   }
 
-  public getCommands(): Promise<PiAvailableCommands> {
-    return this.unavailable();
+  public async getCommands(): Promise<PiAvailableCommands> {
+    const { session } = await this.ensureRuntime();
+    const commands: NonNullable<PiAvailableCommands['commands']> = [];
+
+    for (const command of session.extensionRunner.getRegisteredCommands()) {
+      commands.push({
+        name: command.invocationName,
+        description: command.description,
+        source: 'extension',
+        sourceInfo: command.sourceInfo
+      });
+    }
+
+    for (const template of session.promptTemplates) {
+      commands.push({
+        name: template.name,
+        description: template.description,
+        source: 'prompt',
+        sourceInfo: template.sourceInfo
+      });
+    }
+
+    for (const skill of session.resourceLoader.getSkills().skills) {
+      commands.push({
+        name: `skill:${skill.name}`,
+        description: skill.description,
+        source: 'skill',
+        sourceInfo: skill.sourceInfo
+      });
+    }
+
+    return { commands };
   }
 
   public setModel(_provider: string, _modelId: string): Promise<PiModel> {
@@ -113,12 +164,14 @@ export class PiSdkClient implements PiRpcClientLike {
     return this.unavailable();
   }
 
-  public getLastAssistantText(): Promise<PiLastAssistantText> {
-    return this.unavailable();
+  public async getLastAssistantText(): Promise<PiLastAssistantText> {
+    const { session } = await this.ensureRuntime();
+    return { text: session.getLastAssistantText() ?? null };
   }
 
-  public getMessages(): Promise<PiMessagesResult> {
-    return this.unavailable();
+  public async getMessages(): Promise<PiMessagesResult> {
+    const { session } = await this.ensureRuntime();
+    return { messages: session.messages as PiMessagesResult['messages'] };
   }
 
   public switchSession(_sessionPath: string): Promise<PiSwitchSessionResult> {

@@ -122,6 +122,7 @@ export type PiCommand = {
   name?: string;
   description?: string;
   source?: string;
+  sourceInfo?: unknown;
   location?: string;
   path?: string;
 };
