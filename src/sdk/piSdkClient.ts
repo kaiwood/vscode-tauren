@@ -25,7 +25,6 @@ import { createSdkExtensionUiContext } from './extensionUiBridge';
 import { mapSdkExtensionErrorToRpcEvent, mapSdkSessionEventToRpcEvent } from './piSdkEventMapper';
 import { loadPiSdk, type PiSdkLoader, type PiSdkModule } from './piSdkLoader';
 
-const unavailableMessage = 'Pi SDK integration is not available yet.';
 const sdkDisposedMessage = 'Pi SDK client disposed.';
 const sessionDirEnvVar = 'PI_CODING_AGENT_SESSION_DIR';
 
@@ -229,15 +228,20 @@ export class PiSdkClient implements PiRpcClientLike {
     return { messages: session.messages as PiMessagesResult['messages'] };
   }
 
-  public switchSession(_sessionPath: string): Promise<PiSwitchSessionResult> {
-    return this.unavailable();
+  public async switchSession(sessionPath: string): Promise<PiSwitchSessionResult> {
+    const runtime = await this.ensureRuntime();
+    return await runtime.switchSession(sessionPath);
   }
 
-  public navigateTree(
-    _entryId: string,
-    _options: { summarize?: boolean; customInstructions?: string } = {}
+  public async navigateTree(
+    entryId: string,
+    options: { summarize?: boolean; customInstructions?: string } = {}
   ): Promise<PiNavigateTreeResult> {
-    return this.unavailable();
+    const { session } = await this.ensureRuntime();
+    return await session.navigateTree(entryId, {
+      summarize: options.summarize ?? false,
+      ...(options.customInstructions ? { customInstructions: options.customInstructions } : {})
+    });
   }
 
   public async getForkMessages(): Promise<PiForkMessagesResult> {
@@ -245,12 +249,25 @@ export class PiSdkClient implements PiRpcClientLike {
     return { messages: session.getUserMessagesForForking() };
   }
 
-  public fork(_entryId: string): Promise<PiForkResult> {
-    return this.unavailable();
+  public async fork(entryId: string): Promise<PiForkResult> {
+    const runtime = await this.ensureRuntime();
+    const result = await runtime.fork(entryId);
+
+    return {
+      text: result.selectedText,
+      cancelled: result.cancelled
+    };
   }
 
-  public clone(): Promise<PiCloneResult> {
-    return this.unavailable();
+  public async clone(): Promise<PiCloneResult> {
+    const runtime = await this.ensureRuntime();
+    const leafId = runtime.session.sessionManager.getLeafId();
+
+    if (!leafId) {
+      throw new Error('Cannot clone session: no current entry selected');
+    }
+
+    return await runtime.fork(leafId, { position: 'at' });
   }
 
   public respondExtensionUiRequest(_response: ExtensionUiResponse): Promise<void> {
@@ -319,6 +336,9 @@ export class PiSdkClient implements PiRpcClientLike {
       throw new Error(sdkDisposedMessage);
     }
 
+    runtime.setRebindSession(async () => {
+      await this.bindRuntime(runtime);
+    });
     await this.bindRuntime(runtime);
     return runtime;
   }
@@ -335,28 +355,42 @@ export class PiSdkClient implements PiRpcClientLike {
   }
 
   private async bindRuntime(runtime: AgentSessionRuntime): Promise<void> {
-    await runtime.session.bindExtensions({
+    const { session } = runtime;
+
+    await session.bindExtensions({
       uiContext: createSdkExtensionUiContext(this.options.extensionUi),
+      commandContextActions: {
+        waitForIdle: () => session.agent.waitForIdle(),
+        newSession: (options) => runtime.newSession(options),
+        fork: async (entryId, options) => {
+          const result = await runtime.fork(entryId, options);
+          return { cancelled: result.cancelled };
+        },
+        navigateTree: (targetId, options) => session.navigateTree(targetId, {
+          summarize: options?.summarize,
+          customInstructions: options?.customInstructions,
+          replaceInstructions: options?.replaceInstructions,
+          label: options?.label
+        }),
+        switchSession: (sessionPath, options) => runtime.switchSession(sessionPath, options),
+        reload: async () => {
+          await session.reload();
+          await this.bindRuntime(runtime);
+        }
+      },
       onError: (error) => {
         this.emitEvent(mapSdkExtensionErrorToRpcEvent(error));
       }
     });
 
     this.unsubscribeSession?.();
-    this.unsubscribeSession = runtime.session.subscribe((event) => {
+    this.unsubscribeSession = session.subscribe((event) => {
       this.emitEvent(mapSdkSessionEventToRpcEvent(event));
     });
   }
 
   private loadSdk(): Promise<PiSdkModule> {
     return (this.options.loadSdk ?? loadPiSdk)();
-  }
-
-  private unavailable<T>(): Promise<T> {
-    void this.ensureRuntime().catch((error: unknown) => {
-      this.emitError(`Pi SDK startup failed: ${getErrorMessage(error)}`);
-    });
-    return Promise.reject(new Error(unavailableMessage));
   }
 
   private emitEvent(event: RpcEvent): void {
