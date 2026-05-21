@@ -209,12 +209,14 @@ export class PiSdkClient implements PiRpcClientLike {
     session.setSessionName(trimmedName);
   }
 
-  public compact(_customInstructions?: string): Promise<PiCompactResult> {
-    return this.unavailable();
+  public async compact(customInstructions?: string): Promise<PiCompactResult> {
+    const { session } = await this.ensureRuntime();
+    return await session.compact(customInstructions) as PiCompactResult;
   }
 
-  public exportHtml(_outputPath?: string): Promise<PiExportHtmlResult> {
-    return this.unavailable();
+  public async exportHtml(outputPath?: string): Promise<PiExportHtmlResult> {
+    const { session } = await this.ensureRuntime();
+    return { path: await session.exportToHtml(outputPath) };
   }
 
   public async getLastAssistantText(): Promise<PiLastAssistantText> {
@@ -238,8 +240,9 @@ export class PiSdkClient implements PiRpcClientLike {
     return this.unavailable();
   }
 
-  public getForkMessages(): Promise<PiForkMessagesResult> {
-    return this.unavailable();
+  public async getForkMessages(): Promise<PiForkMessagesResult> {
+    const { session } = await this.ensureRuntime();
+    return { messages: session.getUserMessagesForForking() };
   }
 
   public fork(_entryId: string): Promise<PiForkResult> {
