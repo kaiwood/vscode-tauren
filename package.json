@@ -16,6 +16,18 @@
   "categories": [
     "Other"
   ],
+  "keywords": [
+    "ai",
+    "agent",
+    "coding-agent",
+    "assistant",
+    "chat",
+    "pi",
+    "tau",
+    "session",
+    "diff",
+    "traceability"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
