@@ -20,9 +20,12 @@ import type {
   PiSwitchSessionResult,
   RpcEvent
 } from '../rpc/types';
-import type { PiSdkLoader } from './piSdkLoader';
+import type { AgentSessionRuntime, SessionManager } from '@earendil-works/pi-coding-agent';
+import { loadPiSdk, type PiSdkLoader, type PiSdkModule } from './piSdkLoader';
 
 const unavailableMessage = 'Pi SDK integration is not available yet.';
+const sdkDisposedMessage = 'Pi SDK client disposed.';
+const sessionDirEnvVar = 'PI_CODING_AGENT_SESSION_DIR';
 
 export type PiSdkClientOptions = PiRpcClientOptions & {
   extensionUi?: ExtensionUiRequestUi;
@@ -31,18 +34,32 @@ export type PiSdkClientOptions = PiRpcClientOptions & {
 };
 
 export class PiSdkClient implements PiRpcClientLike {
-  public constructor(_options: PiSdkClientOptions = {}) {}
+  private runtime: AgentSessionRuntime | undefined;
+  private runtimePromise: Promise<AgentSessionRuntime> | undefined;
+  private disposed = false;
+  private readonly eventListeners = new Set<(event: RpcEvent) => void>();
+  private readonly errorListeners = new Set<(message: string) => void>();
+
+  public constructor(private readonly options: PiSdkClientOptions = {}) {}
 
   public isRunning(): boolean {
-    return false;
+    return !this.disposed && Boolean(this.runtime || this.runtimePromise);
   }
 
-  public onEvent(_listener: (event: RpcEvent) => void): () => void {
-    return () => {};
+  public onEvent(listener: (event: RpcEvent) => void): () => void {
+    this.eventListeners.add(listener);
+
+    return () => {
+      this.eventListeners.delete(listener);
+    };
   }
 
-  public onError(_listener: (message: string) => void): () => void {
-    return () => {};
+  public onError(listener: (message: string) => void): () => void {
+    this.errorListeners.add(listener);
+
+    return () => {
+      this.errorListeners.delete(listener);
+    };
   }
 
   public prompt(_message: string, _streamingBehavior?: PiPromptStreamingBehavior): Promise<void> {
@@ -128,9 +145,98 @@ export class PiSdkClient implements PiRpcClientLike {
     return Promise.resolve();
   }
 
-  public dispose(): void {}
+  public dispose(): void {
+    if (this.disposed) {
+      return;
+    }
+
+    this.disposed = true;
+    const runtime = this.runtime;
+    this.runtime = undefined;
+    this.runtimePromise = undefined;
+    void runtime?.dispose().catch((error: unknown) => {
+      this.emitError(`Pi SDK dispose failed: ${getErrorMessage(error)}`);
+    });
+  }
+
+  private async ensureRuntime(): Promise<AgentSessionRuntime> {
+    if (this.disposed) {
+      throw new Error(sdkDisposedMessage);
+    }
+
+    if (this.runtime) {
+      return this.runtime;
+    }
+
+    this.runtimePromise ??= this.createRuntime();
+    this.runtime = await this.runtimePromise;
+    return this.runtime;
+  }
+
+  private async createRuntime(): Promise<AgentSessionRuntime> {
+    const sdk = await this.loadSdk();
+    const cwd = this.options.cwd ?? process.cwd();
+    const agentDir = sdk.getAgentDir();
+    const sessionManager = this.createSessionManager(sdk, cwd, agentDir);
+    const runtime = await sdk.createAgentSessionRuntime(async (runtimeOptions) => {
+      const services = await sdk.createAgentSessionServices({
+        cwd: runtimeOptions.cwd,
+        agentDir: runtimeOptions.agentDir
+      });
+      const created = await sdk.createAgentSessionFromServices({
+        services,
+        sessionManager: runtimeOptions.sessionManager,
+        sessionStartEvent: runtimeOptions.sessionStartEvent
+      });
+
+      return {
+        ...created,
+        services,
+        diagnostics: services.diagnostics
+      };
+    }, {
+      cwd: sessionManager.getCwd(),
+      agentDir,
+      sessionManager
+    });
+
+    if (this.disposed) {
+      await runtime.dispose();
+      throw new Error(sdkDisposedMessage);
+    }
+
+    return runtime;
+  }
+
+  private createSessionManager(sdk: PiSdkModule, cwd: string, agentDir: string): SessionManager {
+    const settingsManager = sdk.SettingsManager.create(cwd, agentDir);
+    const sessionDir = process.env[sessionDirEnvVar] || settingsManager.getSessionDir();
+
+    if (this.options.sessionFile) {
+      return sdk.SessionManager.open(this.options.sessionFile, sessionDir);
+    }
+
+    return sdk.SessionManager.create(cwd, sessionDir);
+  }
+
+  private loadSdk(): Promise<PiSdkModule> {
+    return (this.options.loadSdk ?? loadPiSdk)();
+  }
 
   private unavailable<T>(): Promise<T> {
+    void this.ensureRuntime().catch((error: unknown) => {
+      this.emitError(`Pi SDK startup failed: ${getErrorMessage(error)}`);
+    });
     return Promise.reject(new Error(unavailableMessage));
   }
+
+  private emitError(message: string): void {
+    for (const listener of this.errorListeners) {
+      listener(message);
+    }
+  }
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
