@@ -2,6 +2,7 @@ import type {
   ChatActivityBodyMode,
   ChatActivityInput
 } from '../chat/chatSession';
+import { formatCompactionTitle } from '../sessions/sessionFormatting';
 import type { RpcEvent } from '../rpc/types';
 
 const toolResultPreviewMaxLines = 8;
@@ -322,15 +323,22 @@ export function mapRpcActivity(
         body: formatKnownEventBody(event, ['type']),
         code: true
       }, fullCommunication));
-    case 'compaction_end':
+    case 'compaction_end': {
+      const result = isRecord(event.result) ? event.result : undefined;
+      const tokensBefore = getRecordNumber(result, 'tokensBefore');
+      const summary = getRecordString(result ?? {}, 'summary');
+      const errorMessage = getRecordString(event, 'errorMessage');
+      const status = errorMessage ? 'error' : 'completed';
+
       return updateActivity('compaction', compactActivity({
         kind: 'compaction',
-        title: 'Compacting context…',
-        status: 'completed',
-        summary: 'Completed',
-        body: formatKnownEventBody(event, ['type']),
-        code: true
+        title: status === 'completed' ? formatCompactionTitle(tokensBefore) : 'Compacting context…',
+        status,
+        ...(errorMessage || tokensBefore === undefined ? { summary: errorMessage ?? 'Completed' } : {}),
+        ...(summary ? { body: summary } : { body: formatKnownEventBody(event, ['type']) }),
+        code: !summary
       }, fullCommunication));
+    }
     case 'auto_retry_start':
       return updateActivity('auto-retry', compactActivity({
         kind: 'retry',
@@ -494,6 +502,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function getRecordString(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key];
   return typeof value === 'string' ? value : undefined;
+}
+
+function getRecordNumber(record: Record<string, unknown> | undefined, key: string): number | undefined {
+  const value = record?.[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 function getContentIndex(record: Record<string, unknown>): string {

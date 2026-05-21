@@ -63,6 +63,16 @@ export function formatForkMessageLabel(message: ForkMessageOption, index: number
   return `${index + 1}. ${truncateOneLine(message.text, 120)}`;
 }
 
+export function formatCompactionTitle(tokensBefore: number | undefined): string {
+  return typeof tokensBefore === 'number' && Number.isFinite(tokensBefore)
+    ? `Compacted ${formatInteger(tokensBefore)} tokens`
+    : 'Compacted session context';
+}
+
+export function formatCompactionSystemMessage(summary: string, tokensBefore: number | undefined): string {
+  return `${formatCompactionTitle(tokensBefore)}.${summary ? `\n\n${summary}` : ''}`;
+}
+
 export function formatSessionInfo(state: PiSessionState, stats: PiSessionStats): string {
   const lines = ['Session'];
   const sessionName = state.sessionName ?? stats.sessionName;

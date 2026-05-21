@@ -5,7 +5,7 @@ import {
 } from '../extensionUi/requestHandler';
 import type { PiRpcClientFactory, PiRpcClientLike } from '../rpc/clientTypes';
 import type { PiRpcClientOptions } from '../rpc/types';
-import { formatForkMessageLabel, formatForkMessages } from './sessionFormatting';
+import { formatCompactionTitle, formatForkMessageLabel, formatForkMessages } from './sessionFormatting';
 
 export type SessionClientActionUi = {
   extensionUi?: ExtensionUiRequestUi;
@@ -64,8 +64,8 @@ export async function cloneSessionWithClient(client: PiRpcClientLike, options: S
 }
 
 export async function compactSessionWithClient(client: PiRpcClientLike, options: SessionClientActionUi): Promise<void> {
-  await client.compact(undefined);
-  options.showToast?.('Compacted session.');
+  const result = await client.compact(undefined);
+  options.showToast?.(`${formatCompactionTitle(result.tokensBefore)}.`);
 }
 
 export async function exportSessionWithClient(client: PiRpcClientLike, options: SessionClientActionUi): Promise<void> {

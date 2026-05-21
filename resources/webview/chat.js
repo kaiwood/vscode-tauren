@@ -1799,6 +1799,10 @@
       article.append(createBranchSummaryActivityElement(message.text || "", messageIndex, options));
       return article;
     }
+    if (message.variant === "compactionSummary") {
+      article.append(createCompactionSummaryActivityElement(message.text || "", messageIndex, options));
+      return article;
+    }
     const body = document.createElement("div");
     body.className = "message__body";
     if (shouldRenderMarkdown(message)) {
@@ -1835,6 +1839,9 @@
   function updateMessageBodyElement(article, message, options = {}) {
     if (message.variant === "branchSummary") {
       return updateBranchSummaryActivityElement(article, message.text || "");
+    }
+    if (message.variant === "compactionSummary") {
+      return updateCompactionSummaryActivityElement(article, message.text || "");
     }
     const body = getDirectMessageBodyElement(article);
     if (!body) {
@@ -1881,6 +1888,20 @@
     article.replaceChildren(createBranchSummaryActivityElement(text, void 0, {}));
     return true;
   }
+  function createCompactionSummaryActivityElement(text, messageIndex, options) {
+    const { title, body } = splitCompactionSummary(text);
+    return createActivityElement({
+      id: typeof messageIndex === "number" ? `compaction-summary-${messageIndex}` : "compaction-summary",
+      kind: "compaction",
+      title,
+      status: "completed",
+      ...body ? { body } : {}
+    }, messageIndex, options);
+  }
+  function updateCompactionSummaryActivityElement(article, text) {
+    article.replaceChildren(createCompactionSummaryActivityElement(text, void 0, {}));
+    return true;
+  }
   function createBranchSummaryPreview(text) {
     const previewLineCount = 4;
     const lines = text.split("\n");
@@ -1895,6 +1916,19 @@
   function stripBranchSummaryPrefix(text) {
     const prefix = "Returned from branch.\n\n";
     return text.startsWith(prefix) ? text.slice(prefix.length) : text;
+  }
+  function splitCompactionSummary(text) {
+    const separator = "\n\n";
+    const separatorIndex = text.indexOf(separator);
+    if (separatorIndex < 0) {
+      return { title: stripTrailingPeriod(text.trim() || "Compacted session context") };
+    }
+    const title = stripTrailingPeriod(text.slice(0, separatorIndex).trim() || "Compacted session context");
+    const body = text.slice(separatorIndex + separator.length).trim();
+    return body ? { title, body } : { title };
+  }
+  function stripTrailingPeriod(text) {
+    return text.endsWith(".") ? text.slice(0, -1) : text;
   }
   function canCopyAssistantMessage(message) {
     return message.role === "assistant" && !message.error && message.variant !== "thinking" && Boolean(message.text);

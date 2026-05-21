@@ -1207,13 +1207,14 @@ suite('PiChatController', () => {
     assert.deepStrictEqual(client.prompts, []);
     assert.strictEqual(lastState(harness).messages[0].activities?.[1]?.title, 'Compaction in progress');
 
-    compactDeferred.resolve({ summary: 'Compacted summary' });
+    compactDeferred.resolve({ summary: 'Compacted summary', tokensBefore: 123333 });
     await compactPromise;
     await flushPromises();
 
     assert.strictEqual(client.compactCalls, 1);
     assert.strictEqual(lastState(harness).busy, false);
     assert.strictEqual(lastState(harness).messages.length, 1);
+    assert.strictEqual(lastState(harness).messages[0].activities?.[0]?.title, 'Compacted 123,333 tokens');
     assert.strictEqual(lastState(harness).messages[0].activities?.[0]?.status, 'completed');
     assert.strictEqual(lastState(harness).messages[0].activities?.[0]?.body, 'Compacted summary');
     harness.controller.dispose();

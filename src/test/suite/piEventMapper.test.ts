@@ -620,13 +620,28 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
+      mapRpcActivity({ type: 'compaction_end', result: { summary: 'Summary text', tokensBefore: 123333 } }),
+      {
+        type: 'activity_update',
+        sourceId: 'compaction',
+        activity: {
+          kind: 'compaction',
+          title: 'Compacted 123,333 tokens',
+          status: 'completed',
+          body: 'Summary text',
+          code: false
+        }
+      }
+    );
+
+    assert.deepStrictEqual(
       mapRpcActivity({ type: 'compaction_end', remainingTokens: 6000 }),
       {
         type: 'activity_update',
         sourceId: 'compaction',
         activity: {
           kind: 'compaction',
-          title: 'Compacting context…',
+          title: 'Compacted session context',
           status: 'completed',
           summary: 'Completed',
           body: '{\n  "remainingTokens": 6000\n}',

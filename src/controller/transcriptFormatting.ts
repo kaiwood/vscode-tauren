@@ -1,6 +1,7 @@
 import type { ChatActivityInput, ChatMessage } from '../chat/chatSession';
 import { formatToolExecutionActivity } from '../pi/eventMapper';
 import { extractPiMessageText } from '../pi/messageContent';
+import { formatCompactionSystemMessage } from '../sessions/sessionFormatting';
 import type { PiAgentMessage } from '../rpc/types';
 import { isRecord } from './typeGuards';
 
@@ -81,9 +82,10 @@ export function formatAgentMessages(messages: PiAgentMessage[] | undefined): Cha
 
     if (message.role === 'compactionSummary') {
       const summary = typeof message.summary === 'string' ? message.summary : '';
+      const tokensBefore = typeof message.tokensBefore === 'number' ? message.tokensBefore : undefined;
 
-      if (summary.trim()) {
-        transcript.push({ role: 'system', text: `Compacted session context.\n\n${summary}` });
+      if (summary.trim() || tokensBefore !== undefined) {
+        transcript.push({ role: 'system', text: formatCompactionSystemMessage(summary, tokensBefore), variant: 'compactionSummary' });
       }
 
       lastAssistant = undefined;

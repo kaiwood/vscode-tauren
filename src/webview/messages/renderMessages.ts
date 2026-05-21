@@ -30,6 +30,11 @@ export function createMessageElement(
     return article;
   }
 
+  if (message.variant === 'compactionSummary') {
+    article.append(createCompactionSummaryActivityElement(message.text || '', messageIndex, options));
+    return article;
+  }
+
   const body = document.createElement('div');
   body.className = 'message__body';
 
@@ -80,6 +85,10 @@ export function updateMessageBodyElement(
 ): boolean {
   if (message.variant === 'branchSummary') {
     return updateBranchSummaryActivityElement(article, message.text || '');
+  }
+
+  if (message.variant === 'compactionSummary') {
+    return updateCompactionSummaryActivityElement(article, message.text || '');
   }
 
   const body = getDirectMessageBodyElement(article);
@@ -140,6 +149,23 @@ function updateBranchSummaryActivityElement(article: HTMLElement, text: string):
   return true;
 }
 
+function createCompactionSummaryActivityElement(text: string, messageIndex: number | undefined, options: MessageRenderOptions): HTMLElement {
+  const { title, body } = splitCompactionSummary(text);
+
+  return createActivityElement({
+    id: typeof messageIndex === 'number' ? `compaction-summary-${messageIndex}` : 'compaction-summary',
+    kind: 'compaction',
+    title,
+    status: 'completed',
+    ...(body ? { body } : {})
+  }, messageIndex, options);
+}
+
+function updateCompactionSummaryActivityElement(article: HTMLElement, text: string): boolean {
+  article.replaceChildren(createCompactionSummaryActivityElement(text, undefined, {}));
+  return true;
+}
+
 function createBranchSummaryPreview(text: string): string {
   const previewLineCount = 4;
   const lines = text.split('\n');
@@ -157,6 +183,24 @@ function createBranchSummaryPreview(text: string): string {
 function stripBranchSummaryPrefix(text: string): string {
   const prefix = 'Returned from branch.\n\n';
   return text.startsWith(prefix) ? text.slice(prefix.length) : text;
+}
+
+function splitCompactionSummary(text: string): { title: string; body?: string } {
+  const separator = '\n\n';
+  const separatorIndex = text.indexOf(separator);
+
+  if (separatorIndex < 0) {
+    return { title: stripTrailingPeriod(text.trim() || 'Compacted session context') };
+  }
+
+  const title = stripTrailingPeriod(text.slice(0, separatorIndex).trim() || 'Compacted session context');
+  const body = text.slice(separatorIndex + separator.length).trim();
+
+  return body ? { title, body } : { title };
+}
+
+function stripTrailingPeriod(text: string): string {
+  return text.endsWith('.') ? text.slice(0, -1) : text;
 }
 
 function canCopyAssistantMessage(message: ChatMessage): boolean {

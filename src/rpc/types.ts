@@ -51,7 +51,13 @@ export type ToolExecutionEndRpcEvent = RpcEventBase & {
 };
 export type QueueUpdateRpcEvent = RpcEventBase & { type: 'queue_update' };
 export type CompactionStartRpcEvent = RpcEventBase & { type: 'compaction_start' };
-export type CompactionEndRpcEvent = RpcEventBase & { type: 'compaction_end' };
+export type CompactionEndRpcEvent = RpcEventBase & {
+  type: 'compaction_end';
+  result?: PiCompactResult | null;
+  aborted?: boolean;
+  willRetry?: boolean;
+  errorMessage?: string;
+};
 export type AutoRetryStartRpcEvent = RpcEventBase & { type: 'auto_retry_start' };
 export type AutoRetryEndRpcEvent = RpcEventBase & { type: 'auto_retry_end'; success?: boolean };
 export type ExtensionUiRequestRpcEvent = RpcEventBase & {
@@ -208,6 +214,7 @@ export type PiAgentMessage = {
   content?: unknown;
   errorMessage?: string;
   summary?: string;
+  tokensBefore?: number;
   display?: unknown;
   toolCallId?: string;
   toolName?: string;
