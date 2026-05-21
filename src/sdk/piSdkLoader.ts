@@ -13,7 +13,10 @@ let piSdkModulePromise: Promise<PiSdkModule> | undefined;
 
 export function loadPiSdk(): Promise<PiSdkModule> {
   process.env.PI_PACKAGE_DIR ??= bundledSdkPackageDir;
-  piSdkModulePromise ??= importEsm(pathToFileURL(bundledSdkPath).href);
+  piSdkModulePromise ??= importEsm(pathToFileURL(bundledSdkPath).href).catch((error) => {
+    piSdkModulePromise = undefined;
+    throw error;
+  });
   return piSdkModulePromise;
 }
 
