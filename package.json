@@ -2,7 +2,7 @@
   "name": "tau",
   "displayName": "Tau",
   "description": "Transparent AI coding assistant with code traceability",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "publisher": "kaiwood",
   "repository": {
     "type": "git",
