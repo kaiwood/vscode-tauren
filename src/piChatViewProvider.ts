@@ -110,8 +110,8 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
     this.disposables.push(
       vscode.workspace.onDidChangeConfiguration((event) => {
-        if (event.affectsConfiguration('tau.piPath')) {
-          this.controller.handlePiPathChanged();
+        if (event.affectsConfiguration('tau.piPath') || event.affectsConfiguration('tau.useSdkInsteadOfRpc')) {
+          this.controller.handleClientConfigurationChanged();
         }
 
         if (event.affectsConfiguration('tau.outputColors') || event.affectsConfiguration('tau.animationsEnabled')) {
