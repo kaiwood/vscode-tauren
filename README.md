@@ -14,7 +14,7 @@ If your clanker followed Order 66 again, Tau will at least show you exactly what
 
 ## Features
 
-### Trace Origin
+### Trace Origin & Session Diffs
 
 Jump from code back to the historical agent session that created it.
 
@@ -27,13 +27,9 @@ Tau can reconnect:
 
 Even across refactors and file moves.
 
-[Gif of Trace origin]
+From there, session diffs make it easy to inspect exactly what changed during the session.
 
-### Session Diffs
-
-Create scrollable diffs showing all changes made during a session.
-
-[Gif of session diff]
+![Workflow Capture](resources/tau_capture.gif)
 
 ### What else?
 
@@ -45,8 +41,6 @@ Tau builds on top of Pi's existing capabilities:
 - transparent tool execution
 
 It also adds parallel session workflows, allowing you to switch between multiple active sessions without losing context.
-
-The focus is not to hide complexity, but to make agentic coding workflows easier to navigate.
 
 ## Requirements / Setup
 
