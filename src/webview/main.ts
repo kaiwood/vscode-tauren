@@ -1,6 +1,6 @@
 import { configureCodeHighlighting, handleCodeHighlightMessage, watchCodeHighlightThemeChanges } from './codeHighlighting';
 import { ComposerController } from './composer/composer';
-import { CustomUiController } from './custom/customUi';
+import { CustomUiController } from './customUI/customUi';
 import { getWebviewDom } from './dom';
 import { MessageListController } from './messages/messageList';
 import { SessionViewController } from './sessions/sessionView';

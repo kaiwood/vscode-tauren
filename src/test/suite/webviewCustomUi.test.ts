@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { CustomUiController, isTextInputKeyboardEvent, terminalDataForKeyboardEvent } from '../../webview/custom/customUi';
+import { CustomUiController, isTextInputKeyboardEvent, terminalDataForKeyboardEvent } from '../../webview/customUI/customUi';
 
 suite('Webview custom UI keyboard helpers', () => {
   test('keeps legacy terminal data for key press compatibility', () => {

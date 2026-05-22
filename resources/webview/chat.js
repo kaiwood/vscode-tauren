@@ -1532,7 +1532,7 @@
     return Math.max(0, Math.min(255, value));
   }
 
-  // src/webview/custom/customUi.ts
+  // src/webview/customUI/customUi.ts
   var cursorMarkerPattern = /\x1b_pi:c\x07/g;
   var nonCsiEscapePattern = /\x1b(?:\][^\x07]*(?:\x07|\x1b\\)|_[^\x07]*(?:\x07|\x1b\\)|\^[^\x07]*(?:\x07|\x1b\\)|P[^\x1b]*(?:\x1b\\)?)/g;
   var CustomUiController = class {
