@@ -81,6 +81,34 @@ suite('ChatSession', () => {
     });
   });
 
+  test('completeActivePrompt clears busy state and removes empty assistant placeholders', () => {
+    const session = new ChatSession();
+
+    session.beginSubmit('/extension-command');
+    session.completeActivePrompt();
+
+    assert.deepStrictEqual(session.snapshot(), {
+      messages: [{ role: 'user', text: '/extension-command' }],
+      busy: false
+    });
+  });
+
+  test('completeActivePrompt keeps non-empty assistant output', () => {
+    const session = new ChatSession();
+
+    session.beginSubmit('hello');
+    session.appendAssistantDelta('partial output');
+    session.completeActivePrompt();
+
+    assert.deepStrictEqual(session.snapshot(), {
+      messages: [
+        { role: 'user', text: 'hello' },
+        { role: 'assistant', text: 'partial output' }
+      ],
+      busy: false
+    });
+  });
+
   test('agent lifecycle updates busy state and clears the active assistant on end', () => {
     const session = new ChatSession();
 

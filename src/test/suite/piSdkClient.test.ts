@@ -98,6 +98,32 @@ suite('PiSdkClient', () => {
     harness.client.dispose();
   });
 
+  test('emits prompt handled when an SDK prompt completes without an agent run', async () => {
+    const harness = createSdkHarness();
+    const events: PiEvent[] = [];
+    harness.client.onEvent((event) => events.push(event));
+
+    await harness.client.prompt('/extension-command');
+
+    assert.deepStrictEqual(events, [{ type: 'prompt_handled' }]);
+    harness.client.dispose();
+  });
+
+  test('does not emit prompt handled after an SDK agent run starts', async () => {
+    const harness = createSdkHarness();
+    const events: PiEvent[] = [];
+    harness.client.onEvent((event) => events.push(event));
+    harness.session.promptImplementation = async (_message, options) => {
+      options?.preflightResult?.(true);
+      harness.session.emit({ type: 'agent_start' });
+    };
+
+    await harness.client.prompt('hello');
+
+    assert.deepStrictEqual(events, [{ type: 'agent_start' }]);
+    harness.client.dispose();
+  });
+
   test('implements model, command, history metadata, and live tree methods', async () => {
     const harness = createSdkHarness();
 

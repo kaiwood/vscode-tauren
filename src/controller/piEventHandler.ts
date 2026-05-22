@@ -95,6 +95,10 @@ export class PiEventHandler {
         this.options.session.addErrorMessage(formatExtensionError(event));
         this.options.postState();
         break;
+      case 'prompt_handled':
+        this.options.session.completeActivePrompt();
+        this.options.postState();
+        break;
       default:
         this.applyPiActivity(event);
         this.options.postState();

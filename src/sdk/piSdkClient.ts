@@ -39,6 +39,7 @@ export class PiSdkClient implements PiClient {
   private runtimePromise: Promise<AgentSessionRuntime> | undefined;
   private unsubscribeSession: (() => void) | undefined;
   private disposed = false;
+  private promptSawAgentStart = false;
   private readonly eventListeners = new Set<(event: PiEvent) => void>();
   private readonly errorListeners = new Set<(message: string) => void>();
 
@@ -66,6 +67,8 @@ export class PiSdkClient implements PiClient {
 
   public async prompt(message: string, streamingBehavior?: PiPromptStreamingBehavior): Promise<void> {
     const { session } = await this.ensureRuntime();
+
+    this.promptSawAgentStart = false;
 
     await new Promise<void>((resolve, reject) => {
       let settled = false;
@@ -100,6 +103,10 @@ export class PiSdkClient implements PiClient {
         }
       }).then(settleSuccess, settleError);
     });
+
+    if (!this.promptSawAgentStart && !session.isStreaming) {
+      this.emitEvent({ type: 'prompt_handled' });
+    }
   }
 
   public async abort(): Promise<void> {
@@ -408,6 +415,10 @@ export class PiSdkClient implements PiClient {
 
     this.unsubscribeSession?.();
     this.unsubscribeSession = session.subscribe((event) => {
+      if (event.type === 'agent_start') {
+        this.promptSawAgentStart = true;
+      }
+
       this.emitEvent(mapSdkSessionEventToPiEvent(event));
     });
   }

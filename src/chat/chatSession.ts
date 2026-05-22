@@ -126,6 +126,17 @@ export class ChatSession {
     this.activeThinkingIndexes.clear();
   }
 
+  public completeActivePrompt(): void {
+    if (this.activeAssistantIndex !== undefined && isEmptyAssistantMessage(this.transcript[this.activeAssistantIndex])) {
+      this.transcript.splice(this.activeAssistantIndex, 1);
+    }
+
+    this.busy = false;
+    this.activeAssistantIndex = undefined;
+    this.activeActivityIds.clear();
+    this.activeThinkingIndexes.clear();
+  }
+
   public setBusy(busy: boolean): void {
     this.busy = busy;
   }

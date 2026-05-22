@@ -5,6 +5,7 @@ All notable changes to Tau will be documented in this file.
 ## Unreleased
 
 - Added first-version Pi custom UI support for extensions that call `ctx.ui.custom()`.
+- Fixed handled Pi extension commands so they clear Tau's busy state after custom UI closes.
 - Added `Tau: Toggle Session List` for opening and closing the session list.
 - Renamed the session tree command to `Tau: Toggle Session Tree` and made it close the tree when already open.
 - Switched Tau to the bundled Pi SDK transport and removed the RPC/`piPath` configuration path.

@@ -1530,11 +1530,15 @@ const composerStyles = /* css */ `    .composer {
       will-change: opacity, transform, max-height;
     }
 
-    .composer--list-hidden,
-    .composer--custom-hidden {
+    .composer--list-hidden {
       opacity: 0;
       pointer-events: none;
       transform: translateY(32px);
+    }
+
+    .composer--custom-hidden {
+      opacity: 0.45;
+      pointer-events: none;
     }
 
     .composer--has-context {
@@ -2211,16 +2215,18 @@ const composerStyles = /* css */ `    .composer {
     }`;
 
 const customUiStyles = /* css */ `    .custom-ui {
-      position: relative;
-      grid-row: 3;
-      grid-column: 1;
+      position: absolute;
+      left: 20px;
+      right: 20px;
+      bottom: calc(1lh + 92px);
+      z-index: 4;
       display: grid;
       grid-template-rows: auto minmax(0, 1fr);
       gap: 6px;
       min-height: 96px;
       max-height: min(52vh, calc(100vh - 80px));
-      max-width: 100%;
-      margin: 0 20px 1lh;
+      max-width: calc(100% - 40px);
+      margin: 0;
       padding: 8px 9px 9px;
       overflow: hidden;
       color: var(--vscode-foreground);

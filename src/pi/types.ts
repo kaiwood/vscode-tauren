@@ -49,6 +49,7 @@ export type ExtensionErrorPiEvent = PiEventBase & {
   extensionPath?: string;
   error?: string;
 };
+export type PromptHandledPiEvent = PiEventBase & { type: 'prompt_handled' };
 
 export type KnownPiEvent =
   | AgentStartPiEvent
@@ -66,7 +67,8 @@ export type KnownPiEvent =
   | CompactionEndPiEvent
   | AutoRetryStartPiEvent
   | AutoRetryEndPiEvent
-  | ExtensionErrorPiEvent;
+  | ExtensionErrorPiEvent
+  | PromptHandledPiEvent;
 
 export type UnknownPiEvent = PiEventBase;
 
