@@ -60,14 +60,14 @@ export class SessionTreeController {
         this.options.sessionsElement.append(this.createLabelDialog());
       }
 
+      if (item.entryId === this.pendingSummaryEntryId) {
+        this.options.sessionsElement.append(this.createSummaryDialog());
+      }
+
       this.options.sessionsElement.append(createTreeItemElement(item, index, {
         selectedIndex: this.selectedIndex,
         disabled: state.busy || state.treeRefreshing
       }));
-
-      if (item.entryId === this.pendingSummaryEntryId) {
-        this.options.sessionsElement.append(this.createSummaryDialog());
-      }
     }
 
     const footer = document.createElement('div');
@@ -287,7 +287,10 @@ export class SessionTreeController {
         this.createCancelLink()
       );
       dialog.append(actions);
-      requestAnimationFrame(() => input.focus({ preventScroll: true }));
+      requestAnimationFrame(() => {
+      dialog.scrollIntoView({ block: 'nearest' });
+      input.focus({ preventScroll: true });
+    });
       return dialog;
     }
 
@@ -305,8 +308,8 @@ export class SessionTreeController {
 
     dialog.append(choices, this.createCancelLink());
     requestAnimationFrame(() => {
+      dialog.scrollIntoView({ block: 'nearest' });
       dialog.querySelector<HTMLButtonElement>('.sessions__tree-summary-choice--active')?.focus({ preventScroll: true });
-      document.getElementById('tree-' + this.selectedIndex)?.scrollIntoView({ block: 'nearest' });
     });
     return dialog;
   }

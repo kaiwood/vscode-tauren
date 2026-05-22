@@ -2941,13 +2941,13 @@ ${after}`;
         if (item.entryId === this.pendingLabelEntryId) {
           this.options.sessionsElement.append(this.createLabelDialog());
         }
+        if (item.entryId === this.pendingSummaryEntryId) {
+          this.options.sessionsElement.append(this.createSummaryDialog());
+        }
         this.options.sessionsElement.append(createTreeItemElement(item, index, {
           selectedIndex: this.selectedIndex,
           disabled: state2.busy || state2.treeRefreshing
         }));
-        if (item.entryId === this.pendingSummaryEntryId) {
-          this.options.sessionsElement.append(this.createSummaryDialog());
-        }
       }
       const footer = document.createElement("div");
       footer.className = "sessions__header sessions__tree-footer";
@@ -3125,7 +3125,10 @@ ${after}`;
           this.createCancelLink()
         );
         dialog.append(actions);
-        requestAnimationFrame(() => input.focus({ preventScroll: true }));
+        requestAnimationFrame(() => {
+          dialog.scrollIntoView({ block: "nearest" });
+          input.focus({ preventScroll: true });
+        });
         return dialog;
       }
       const choices = document.createElement("div");
@@ -3140,8 +3143,8 @@ ${after}`;
       });
       dialog.append(choices, this.createCancelLink());
       requestAnimationFrame(() => {
+        dialog.scrollIntoView({ block: "nearest" });
         dialog.querySelector(".sessions__tree-summary-choice--active")?.focus({ preventScroll: true });
-        document.getElementById("tree-" + this.selectedIndex)?.scrollIntoView({ block: "nearest" });
       });
       return dialog;
     }
