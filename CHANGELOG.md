@@ -4,6 +4,7 @@ All notable changes to Tau will be documented in this file.
 
 ## Unreleased
 
+- Show the session tree command in VS Code menus only when experimental SDK mode is enabled.
 - Widened the slash command overlay to align with the composer padding on both sides.
 - Display compaction token counts in `/compact`, compaction events, and restored compaction summaries.
 - Added an experimental `tau.useSdkInsteadOfRpc` setting that runs Pi through an in-process SDK adapter while keeping RPC as the default transport.
