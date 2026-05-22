@@ -2,122 +2,88 @@
 
 ## Purpose
 
-Guide future agents working on this VS Code extension.
-
-This project is a minimal TypeScript VS Code extension that provides a native sidebar UI for the Pi coding agent.
+Guide future agents working on Tau, a minimal TypeScript VS Code extension that provides a native sidebar UI for the Pi coding agent.
 
 ## Living Document
 
-Keep this file current when durable, project-specific learnings arrive.
+Update this file only for durable, project-specific guidance that prevents repeated research, preserves integration details, or records established local patterns. Do not add transient notes, guesses, one-off debugging observations, or generic coding advice.
 
-Update `AGENTS.md` when a new instruction would help future agents avoid repeated research, preserve working integration details, or follow an established local pattern.
+## Pi Docs Lookup
 
-Do not add transient notes, guesses, one-off debugging observations, or broad generic coding advice.
+Pi docs are installed with the SDK package. Prefer local package docs before web links:
 
-## Current Architecture
+- Docs: `node_modules/@earendil-works/pi-coding-agent/docs/`
+- Examples: `node_modules/@earendil-works/pi-coding-agent/examples/`
+- Start with `docs/index.md`; for transport work read `docs/sdk.md`, `docs/rpc.md`, `docs/json.md`, and related cross-references.
+- Topic docs include `extensions.md`, `themes.md`, `skills.md`, `prompt-templates.md`, `tui.md`, `keybindings.md`, `custom-provider.md`, `models.md`, `packages.md`, `sessions.md`, and `session-format.md`.
+- Use GitHub docs only as a fallback when local docs are unavailable or stale.
 
-- `package.json` defines a VS Code extension with an Activity Bar view container named `Tau`.
-- The extension is TypeScript, CommonJS, and compiles `src` to `out`.
-- `src/extension.ts` is only the activation entrypoint and command/view registration.
-- `src/piChatViewProvider.ts` owns VS Code webview/provider integration, focus handling, notifications, workspace `cwd` lookup, and Tau session manager lifecycle.
-- `src/sessions/tauSessionManager.ts` owns the open-session switcher model and coordinates multiple live `PiChatController` instances so background sessions can keep running; open-session controller state types stay local to that manager.
-- `src/sessions/sessionViewController.ts`, `src/sessions/sessionHistoryController.ts`, `src/sessions/sessionClientActions.ts`, and `src/sessions/sessionFormatting.ts` own extension-side session UI state/actions, history adoption, background session-client actions, and session formatting.
-- `src/piChatController.ts` owns Tau chat orchestration; controller helpers for parsing, type guards, error classification, shared controller option types, transcript formatting, Pi client lifecycle, local slash commands, and RPC event handling live under `src/controller/`.
-- `src/chat/chatSession.ts` owns pure in-memory transcript/session state and has no VS Code or Pi process dependencies.
-- `src/sidebar/chatWebview.ts` owns extension-host public sidebar webview HTML composition and message parsing.
-- `src/webviewProtocol/types.ts` owns extension-host/sidebar webview message, state, and protocol types shared by the provider, controller, sidebar HTML helpers, and tests.
-- `src/sidebar/chatWebviewStyles.ts` owns the static sidebar CSS string.
-- `src/highlighting/shikiCodeRenderer.ts` owns extension-host Shiki syntax rendering, VS Code theme/language registration resolution, fallback bundled Shiki themes/languages, and highlight-result caching.
-- Browser-side sidebar logic lives under `src/webview` and is bundled by esbuild to `resources/webview/chat.js`; keep generated webview assets in `resources/webview`.
-- `src/webview/main.ts` is only the browser-side composition entrypoint for shared state, top-level events, and the ready message.
-- `src/webview/composer/` owns browser-side composer UI state: textarea sizing, submit/stop controls, model/thinking picker, prompt context badges, slash menu, and diff summary controls.
-- `src/webview/messages/` owns browser-side message-list orchestration: incremental message rendering, message scrolling, busy status, and message click handling.
-- `src/webview/sessions/` owns browser-side session list/tree UI, session-list command menus, top session title/menu controls, row/menu element creation, and related keyboard navigation.
-- `src/webview/codeHighlighting.ts` owns browser-side asynchronous code-highlight requests/results for markdown code fences and read-tool code boxes; reuse it for future code/diff panes where practical.
-- `src/webview/composer/diffCounter.ts` owns browser-side session diff counter formatting and animation.
-- `src/webview/messages/renderMessages.ts`, `src/webview/messages/markdown.ts`, and `src/webview/messages/ansi.ts` own browser-side transcript rendering and markdown/ANSI output formatting.
-- `src/webview/sessions/sessionFormat.ts` and `src/webview/sessions/sessionItemCommands.ts` own browser-side session row formatting and command metadata.
-- `src/sidebar/nonce.ts` owns nonce generation for CSP-protected inline scripts.
-- `src/pi/eventMapper.ts` owns pure Pi RPC event-to-UI action mapping helpers.
-- `src/prompt/` owns one-shot IDE prompt context attachment types, state, normalization, labels, editor extraction, prompt formatting, and webview projection.
-- `src/readyScript/` owns ready-script running, arming/queued-run state transitions, and shared ready-script types.
-- `src/metadata/sessionMetadata.ts` owns session model/context/slash-command metadata state, refresh orchestration, formatting, and equality checks.
-- `src/metadata/types.ts` owns shared metadata/cache type shapes; `src/metadata/cache.ts` owns persisted session metadata cache parsing/writing, including legacy cached model metadata migration.
-- `src/extensionUi/requestHandler.ts` owns extension UI request routing through an injected VS Code UI adapter, safe cancellation, and stale request cleanup.
-- `src/sessions/piSessionList.ts` owns extension-side discovery/parsing of persisted Pi session JSONL files for the sidebar session switcher.
-- `src/sessions/piSessionTree.ts` owns extension-side parsing of persisted Pi session JSONL files for the in-session tree view.
-- `src/pi/messageContent.ts` owns tolerant Pi message content text extraction shared by transcript and session readers.
-- `src/pi/sessionJsonl.ts` owns tolerant Pi session JSONL record parsing shared by session-list, session-tree, and diff-history readers.
-- `src/diff/sessionDiffController.ts` owns `PiChatController`'s session diff lifecycle: current session file binding, snapshot restore/save, refresh deduping, and state-post callbacks.
-- `src/diff/sessionDiffTracker.ts` owns per-session changed-line baselines, net line diff stats, reconstructed per-file snapshot diffs, and recorded-edit fallback diffs for files modified through Pi edit/write tool executions; do not replace this with git diff for the sidebar counter or session changes view.
-- `src/diff/sessionDiffViewer.ts` owns the first native session changes viewer: read-only virtual snapshot documents plus the VS Code multi-file diff adapter. Keep the adapter isolated so a future custom annotated diff UI can replace it.
-- `src/diff/sessionDiffUri.ts` owns Tau session diff URI scheme/context helpers shared by the diff viewer and prompt-context extraction.
-- `src/diff/sessionDiffStorage.ts` owns VS Code storage and file-watcher helpers for session diff snapshots/stat refresh.
-- `src/commands/slashCommands.ts` owns shared local slash command metadata used by both the extension host and browser webview.
-- `src/rpc/client.ts` owns the default `pi --mode rpc` subprocess, request/response tracking, stderr collection, and process cleanup; `src/rpc/protocol.ts` owns strict JSONL parsing/serialization; `src/rpc/types.ts` owns shared transport-facing Pi result types used by both RPC and SDK adapters.
-- `src/sdk/piSdkClient.ts`, `src/sdk/piSdkLoader.ts`, `src/sdk/piSdkEventMapper.ts`, and `src/sdk/extensionUiBridge.ts` own the experimental in-process Pi SDK transport selected by `tau.useSdkInsteadOfRpc`; keep it behind the existing `PiRpcClientLike` client abstraction until there is a deliberate broader rename/refactor.
-- `scripts/piSdkBundleEntry.ts` and `scripts/build-sdk-bundle.js` produce the tree-shaken SDK runtime bundle at `out/sdk/piSdkBundle.mjs` plus SDK runtime assets under `resources/pi-sdk-runtime`; `@earendil-works/pi-coding-agent` is a build-time `devDependency`, not a packaged runtime dependency.
-- Third-party webview browser bundles are vendored in `resources/vendor`; generated first-party webview bundles live in `resources/webview`; keep browser-only libraries out of runtime `dependencies` unless extension-host code imports them.
-- Shiki and `vscode-shiki-bridge` are runtime dependencies because syntax highlighting runs in the extension host, not as a vendored webview browser bundle.
-- `.vscodeignore` must not exclude runtime `dependencies`; installed VSIX builds do not have the workspace `node_modules` available. Let `vsce` include production dependencies such as Shiki and its transitive packages, but keep build-time-only SDK source dependencies out of the VSIX.
-- The extension host still compiles with direct `tsc`; browser-side webview code is bundled separately with esbuild through `npm run compile:webview`, and SDK transport code is bundled separately through `npm run compile:sdk`.
+## Architecture Map
+
+- Extension shell: `package.json` defines the Tau Activity Bar view; TypeScript is CommonJS and compiles `src` to `out`; `src/extension.ts` only activates commands/views.
+- Provider/controller split: `src/piChatViewProvider.ts` owns VS Code webview/provider integration, focus/visibility, notifications, workspace `cwd`, and Tau session-manager lifecycle. `src/piChatController.ts` owns Tau chat orchestration; parsing, type guards, error classification, controller option types, transcript formatting, Pi client lifecycle, local slash commands, and RPC event handling live under `src/controller/`.
+- Session state: `src/chat/chatSession.ts` is pure in-memory transcript/session state with no VS Code or Pi process dependencies.
+- Open sessions: `src/sessions/tauSessionManager.ts` owns the open-session switcher and coordinates multiple live `PiChatController` instances so background sessions keep running; open-session controller state types stay local there. `sessionViewController.ts`, `sessionHistoryController.ts`, `sessionClientActions.ts`, and `sessionFormatting.ts` own extension-side session UI state/actions, history adoption, background session-client actions, and formatting. `piSessionList.ts` parses persisted Pi session JSONL for the sidebar switcher; `piSessionTree.ts` parses persisted JSONL for the in-session tree view.
+- Webview host: `src/sidebar/chatWebview.ts` owns extension-host sidebar HTML composition and message parsing; `chatWebviewStyles.ts` owns static sidebar CSS; `nonce.ts` owns CSP nonce generation. `src/webviewProtocol/types.ts` owns webview message/state/protocol types shared by the provider, controller, sidebar HTML helpers, and tests.
+- Browser webview: browser code lives under `src/webview` and bundles to `resources/webview/chat.js`; keep generated webview assets in `resources/webview`. `main.ts` is only composition/ready entrypoint. `composer/` owns textarea sizing, submit/stop, model/thinking picker, prompt context badges, slash menu, and diff-summary controls; `composer/diffCounter.ts` owns session diff-counter formatting/animation. `messages/` owns incremental rendering, scrolling, busy status, clicks, and, via `renderMessages.ts`, `markdown.ts`, and `ansi.ts`, transcript/markdown/ANSI formatting. `sessions/` owns session list/tree UI, command menus, title/menu controls, row/menu creation, keyboard navigation, and, via `sessionFormat.ts` and `sessionItemCommands.ts`, row formatting and command metadata. `codeHighlighting.ts` owns async code-highlight requests/results for markdown fences and read-tool boxes; reuse it for future code/diff panes where practical.
+- Highlighting: `src/highlighting/shikiCodeRenderer.ts` owns extension-host Shiki syntax rendering, VS Code theme/language registration resolution, fallback bundled Shiki themes/languages, and highlight-result caching.
+- Prompt/metadata/ready script: `src/prompt/` owns one-shot IDE prompt context attachment types, state, normalization, labels, editor extraction, prompt formatting, and webview projection. `src/metadata/sessionMetadata.ts` owns session model/context/slash-command metadata state, refresh orchestration, formatting, and equality checks; `types.ts` and `cache.ts` own shared metadata/cache shapes and persisted cache parsing/writing, including legacy model-cache migration. `src/readyScript/` owns ready-script running, arming/queued-run transitions, and shared types.
+- Pi data helpers: `src/pi/eventMapper.ts` maps Pi RPC events to UI actions. `src/pi/messageContent.ts` extracts tolerant Pi message text. `src/pi/sessionJsonl.ts` parses tolerant Pi session JSONL for session-list, session-tree, and diff-history readers.
+- Diff lifecycle: `src/diff/sessionDiffController.ts` owns `PiChatController` session diff lifecycle: session-file binding, snapshot restore/save, refresh dedupe, and state-post callbacks. `sessionDiffTracker.ts` owns per-session changed-line baselines, net line diff stats, reconstructed per-file snapshot diffs, and recorded-edit fallback diffs for Pi edit/write tool executions; do not replace this with git diff for the sidebar counter or session changes view. `sessionDiffViewer.ts` owns the read-only virtual snapshot documents plus VS Code multi-file diff adapter; keep the adapter isolated for a future custom annotated diff UI. `sessionDiffUri.ts` owns Tau diff URI scheme/context helpers shared by the diff viewer and prompt-context extraction; `sessionDiffStorage.ts` owns VS Code storage and file-watcher helpers for session diff snapshots/stat refresh.
+- Commands/UI bridge: `src/commands/slashCommands.ts` owns local slash-command metadata shared by the extension host and browser webview. `src/extensionUi/requestHandler.ts` routes extension UI requests through an injected VS Code UI adapter with safe cancellation and stale-request cleanup.
+- Pi transports: `src/rpc/client.ts` owns the `pi --mode rpc` subprocess, request/response tracking, stderr collection, and cleanup; `src/rpc/protocol.ts` owns strict JSONL parsing/serialization; `src/rpc/types.ts` owns transport-facing Pi result types shared by RPC and SDK adapters. `src/sdk/piSdkClient.ts`, `src/sdk/piSdkLoader.ts`, `src/sdk/piSdkEventMapper.ts`, and `src/sdk/extensionUiBridge.ts` own the in-process Pi SDK transport selected by `tau.useSdkInsteadOfRpc`; keep it behind `PiRpcClientLike` until a deliberate broader rename/refactor.
+- Bundling/dependencies: `scripts/piSdkBundleEntry.ts` and `scripts/build-sdk-bundle.js` produce `out/sdk/piSdkBundle.mjs` and SDK runtime assets under `resources/pi-sdk-runtime`; `@earendil-works/pi-coding-agent` is a build-time `devDependency`, not a packaged runtime dependency. Third-party webview browser bundles are vendored in `resources/vendor`; generated first-party webview bundles live in `resources/webview`; keep browser-only libraries out of runtime `dependencies` unless extension-host code imports them. Shiki and `vscode-shiki-bridge` are runtime dependencies because highlighting runs in the extension host. `.vscodeignore` must not exclude runtime `dependencies`; VSIX installs do not have workspace `node_modules`, so let `vsce` include production dependencies such as Shiki while excluding build-time-only SDK source dependencies. Extension host compiles with `tsc`; browser code with `npm run compile:webview`; SDK transport with `npm run compile:sdk`.
 
 ## Pi Integration
 
-- Prefer `pi --mode rpc` as the default extension integration; keep RPC working when changing transport-facing code.
-- The experimental SDK transport is enabled only by `tau.useSdkInsteadOfRpc` and runs Pi in-process through Tau's generated, tree-shaken Pi SDK bundle.
-- Do not use `pi -p` / `--print` for the chat UI; it is one-shot and exits after a prompt.
-- Do not use `pi --mode json` for the main chat UI; it streams events for a command-line prompt but is less suitable for a persistent IDE frontend.
+- Keep both transports healthy: RPC remains the default (`pi --mode rpc`), while `tau.useSdkInsteadOfRpc` runs Pi in-process through Tau's bundled/tree-shaken SDK bundle.
 - SDK mode ignores `tau.piPath`; that setting only applies to the RPC subprocess transport.
+- Do not use `pi -p` / `--print` for chat UI because it is one-shot and exits after a prompt.
+- Do not use `pi --mode json` for main chat UI; it streams events for a CLI prompt and is less suitable for a persistent IDE frontend.
 - Start Pi in the background when the sidebar opens, receives webview `ready`, is focused, or becomes visible so live model/context metadata is available before first interaction.
 - Use the first VS Code workspace folder as the Pi process/runtime `cwd`.
-- Treat the Pi agent as the source of truth for current model/settings; cached model, model-list, and context metadata are only first-paint placeholders and must be visibly refreshing until live RPC data confirms or replaces them.
-- Preserve cached model/model-list metadata across new sessions, clear session-scoped context usage, and refresh live metadata immediately after starting the new session.
-- Keep default Pi tool and session behavior unless the user explicitly asks for safer or ephemeral behavior.
-- Stop the child process or dispose the SDK runtime when the extension provider is disposed.
+- Treat Pi as the source of truth for current model/settings. Cached model, model-list, and context metadata are only first-paint placeholders and must visibly refresh until live data confirms or replaces them.
+- Across new sessions, preserve cached model/model-list metadata, clear session-scoped context usage, and refresh live metadata immediately.
+- Keep default Pi tool/session behavior unless the user explicitly asks for safer or ephemeral behavior.
+- Stop the RPC child process or dispose the SDK runtime when the extension provider is disposed.
 
 ## Pi RPC Protocol Rules
 
-- RPC mode is stdin/stdout JSONL.
-- Commands go to stdin, responses and events come from stdout.
-- Parse records by splitting only on LF (`\n`) and stripping a trailing CR (`\r`).
-- Do not use Node `readline` for RPC output; it is not protocol-compliant for Pi RPC framing.
+- RPC mode is stdin/stdout JSONL: commands go to stdin; responses/events come from stdout.
+- Parse records by splitting only on LF (`\n`) and stripping trailing CR (`\r`); do not use Node `readline` because it is not protocol-compliant for Pi RPC framing.
 - Prompt commands use `{ "type": "prompt", "message": "..." }` and should include an `id` for response correlation.
-- Restore sidebar history from Pi RPC `get_messages` after reconnecting to the persisted `sessionFile`; do not treat a locally cached transcript as the session source of truth.
 - Track responses by `id`; events do not include request ids.
+- Restore sidebar history from `get_messages` after reconnecting to the persisted `sessionFile`; do not treat locally cached transcript as the session source of truth.
 - Stream assistant text from `message_update` events where `assistantMessageEvent.type === "text_delta"`.
 - Treat `agent_start` as busy and `agent_end` as idle.
 - Surface failed command responses, parse failures, process exits, and stderr-backed startup failures in the UI.
-- Route `extension_ui_request` handling through `ExtensionUiRequestHandler`; `select`, `confirm`, and `input` use VS Code-native UI, while unsupported dialog methods still receive `extension_ui_response` with `{ cancelled: true }` so Pi does not hang.
-- Fire-and-forget `notify` requests can be shown with VS Code notifications.
+- Route `extension_ui_request` through `ExtensionUiRequestHandler`: `select`, `confirm`, and `input` use VS Code-native UI; unsupported dialog methods must still receive `extension_ui_response` with `{ cancelled: true }` so Pi does not hang. Fire-and-forget `notify` requests may show VS Code notifications.
 
 ## UI Guidelines
 
-- Keep the sidebar simple, clean, and VS Code-native.
-- Use VS Code theme CSS variables for colors, fonts, focus, inputs, buttons, and borders.
-- Code highlighting uses Shiki asynchronously through the extension host. Do not reintroduce highlight.js unless explicitly requested.
-- Keep Shiki highlighting failure-tolerant: code must remain readable as plain text if theme/language resolution or highlighting fails.
-- Preserve the bundled Shiki fallback path in `src/highlighting/shikiCodeRenderer.ts`; it prevents read boxes from silently losing highlighting when VS Code theme/grammar resolution is unreliable.
+- Keep the sidebar simple, clean, VS Code-native, and themed with VS Code CSS variables for colors, fonts, focus, inputs, buttons, and borders.
+- Code highlighting uses extension-host Shiki asynchronously; do not reintroduce highlight.js unless explicitly requested.
+- Keep Shiki failure-tolerant: code must remain readable as plain text if theme/language resolution or highlighting fails.
+- Preserve the bundled Shiki fallback in `src/highlighting/shikiCodeRenderer.ts`; it prevents read boxes from silently losing highlighting when VS Code theme/grammar resolution is unreliable.
 - Keep transcript state in memory until persistence is explicitly requested.
-- The sidebar `/resume` command opens the session switcher for switching session files. `/tree` is intentionally hidden/disabled for now; do not remove the existing session-tree implementation, because it is expected to resume later when Pi-side tree navigation support is available.
+- `/resume` opens the session switcher. `/tree` is intentionally hidden/disabled for now; do not remove the session-tree implementation because Pi-side tree navigation support is expected to resume later.
 - Disable submit while Pi is streaming; do not invent steering or follow-up queue behavior without a specific iteration goal.
-- Avoid broad frontend rewrites. Preserve the existing webview structure unless the task requires changing it.
+- Avoid broad frontend rewrites; preserve the current webview structure unless the task requires changing it.
 
 ## Development Workflow
 
-- For user-facing changes, add a concise entry to the `Unreleased` section in `CHANGELOG.md` so release notes stay current.
+- For user-facing changes, add a concise `Unreleased` entry to `CHANGELOG.md`.
 - Tests live in `src/test/suite` as TypeScript Mocha tests and run through `vscode-test`.
 - Keep automated tests independent from the real `pi` CLI; test RPC framing and event mapping with local helpers or fixtures.
 - Run `npm run compile` after TypeScript changes.
 - Run `npm test` after changes to `src/chat/chatSession.ts` or `src/pi/eventMapper.ts`.
-- Use `git diff --check` before finishing edits.
+- Run `git diff --check` before finishing edits.
 - For UI behavior changes, manually verify in the VS Code Extension Host when practical.
 - For syntax-highlighting changes, manually verify fresh and resumed read-tool boxes, markdown fenced code, theme switching, and unsupported-extension fallback.
-- Keep changes small and scoped to the requested iteration.
-- Do not touch unrelated files.
+- Keep changes small and scoped; do not touch unrelated files.
 
 ## References
 
-- Pi RPC docs: https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md
-- Pi JSON mode docs: https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/json.md
-- Pi SDK docs: https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/sdk.md
+- Local Pi docs: `node_modules/@earendil-works/pi-coding-agent/docs/`
+- Local Pi examples: `node_modules/@earendil-works/pi-coding-agent/examples/`
+- GitHub fallback: `https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/`
