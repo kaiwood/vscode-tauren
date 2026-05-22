@@ -48,6 +48,7 @@ suite('PiSdkClient', () => {
       contextUsage: { tokens: 100, contextWindow: 1000, percent: 10 }
     });
     assert.strictEqual(harness.session.bindCount, 1);
+    assert.deepStrictEqual(harness.initThemeCalls, [{ themeName: 'dark', enableWatcher: false }]);
     assert.deepStrictEqual(harness.createdSessionManagers, [{ type: 'create', cwd: '/workspace', sessionDir: '/configured-sessions' }]);
 
     harness.session.emit({ type: 'agent_start' });
@@ -408,11 +409,16 @@ function createSdkHarness(options: HarnessOptions = {}): {
   client: PiSdkClient;
   session: FakeSession;
   createdSessionManagers: SessionManagerCall[];
+  initThemeCalls: Array<{ themeName: string | undefined; enableWatcher: boolean }>;
 } {
   const session = new FakeSession();
   const createdSessionManagers: SessionManagerCall[] = [];
+  const initThemeCalls: Array<{ themeName: string | undefined; enableWatcher: boolean }> = [];
   let remainingLoadSdkFailures = options.loadSdkFailures ?? 0;
   const sdk = {
+    initTheme: (themeName?: string, enableWatcher = false) => {
+      initThemeCalls.push({ themeName, enableWatcher });
+    },
     getAgentDir: () => '/agent',
     SettingsManager: {
       create: () => ({ getSessionDir: () => '/configured-sessions' })
@@ -439,6 +445,7 @@ function createSdkHarness(options: HarnessOptions = {}): {
   } as unknown as PiSdkModule;
 
   return {
+    initThemeCalls,
     client: new PiSdkClient({
       cwd: '/workspace',
       sessionFile: options.sessionFile,

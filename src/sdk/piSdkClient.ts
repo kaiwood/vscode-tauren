@@ -334,6 +334,7 @@ export class PiSdkClient implements PiClient {
 
   private async createRuntime(): Promise<AgentSessionRuntime> {
     const sdk = await this.loadSdk();
+    sdk.initTheme?.('dark', false);
     const cwd = this.options.cwd ?? process.cwd();
     const agentDir = sdk.getAgentDir();
     const sessionManager = this.createSessionManager(sdk, cwd, agentDir);
