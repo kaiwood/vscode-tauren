@@ -8,6 +8,7 @@ All notable changes to Tau will be documented in this file.
 - Added session tree label display for Pi-labeled entries.
 - Added session tree label editing with `Shift+L`.
 - Fixed bundled SDK extension loading for Pi packages that import Pi peer modules, including `pi-web-access`.
+- Fixed slash command menu highlighting so mouse hover and keyboard selection do not conflict.
 
 ## 1.1.0
 

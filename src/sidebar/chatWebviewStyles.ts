@@ -1576,7 +1576,7 @@ const composerStyles = /* css */ `    .composer {
       cursor: pointer;
     }
 
-    .composer__slash-item:hover,
+    .composer__slash-menu--pointer-hover .composer__slash-item:hover,
     .composer__slash-item--active {
       color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
       background: var(--vscode-list-activeSelectionBackground, color-mix(in srgb, var(--vscode-foreground) 14%, transparent));
@@ -1597,7 +1597,7 @@ const composerStyles = /* css */ `    .composer {
     }
 
     .composer__slash-item--active .composer__slash-source,
-    .composer__slash-item:hover .composer__slash-source {
+    .composer__slash-menu--pointer-hover .composer__slash-item:hover .composer__slash-source {
       color: inherit;
       opacity: 0.78;
     }
@@ -1613,7 +1613,7 @@ const composerStyles = /* css */ `    .composer {
     }
 
     .composer__slash-item--active .composer__slash-description,
-    .composer__slash-item:hover .composer__slash-description {
+    .composer__slash-menu--pointer-hover .composer__slash-item:hover .composer__slash-description {
       color: inherit;
       opacity: 0.78;
     }

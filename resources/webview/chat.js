@@ -393,6 +393,7 @@
     appliedComposerTextRevision = 0;
     slashMenuOpen = false;
     slashMenuActiveIndex = 0;
+    slashMenuPointerHoverEnabled = false;
     slashMenuItems = [];
     slashMenuQuery = "";
     slashMenuDismissedQuery;
@@ -437,6 +438,7 @@
       this.options.slashMenuElement?.addEventListener("mousedown", (event) => {
         event.preventDefault();
       });
+      this.options.slashMenuElement?.addEventListener("pointermove", (event) => this.handleSlashMenuPointerMove(event));
       this.options.slashMenuElement?.addEventListener("click", (event) => {
         const item = eventTargetElement(event)?.closest(".composer__slash-item");
         if (!item) {
@@ -494,6 +496,7 @@
       this.slashMenuItems = [];
       this.slashMenuActiveIndex = 0;
       this.slashMenuQuery = "";
+      this.disableSlashMenuPointerHover();
       this.options.slashMenuElement?.removeAttribute("open");
       this.options.textarea.setAttribute("aria-expanded", "false");
       this.options.textarea.removeAttribute("aria-activedescendant");
@@ -607,6 +610,7 @@
       if (query !== this.slashMenuQuery) {
         this.slashMenuQuery = query;
         this.slashMenuActiveIndex = 0;
+        this.disableSlashMenuPointerHover();
         if (this.options.slashMenuElement) {
           this.options.slashMenuElement.scrollTop = 0;
         }
@@ -889,6 +893,7 @@
         }
         return false;
       }
+      this.disableSlashMenuPointerHover();
       if (event.key === "ArrowDown") {
         event.preventDefault();
         this.moveSlashMenuSelection(1);
@@ -1035,13 +1040,62 @@
       this.slashMenuActiveIndex = (this.slashMenuActiveIndex + delta + this.slashMenuItems.length) % this.slashMenuItems.length;
       this.renderSlashMenu(this.getSlashCommandQuery());
     }
-    syncSlashMenuActiveDescendant() {
+    enableSlashMenuPointerHover() {
+      if (this.slashMenuPointerHoverEnabled) {
+        return;
+      }
+      this.slashMenuPointerHoverEnabled = true;
+      this.options.slashMenuElement?.classList.add("composer__slash-menu--pointer-hover");
+    }
+    disableSlashMenuPointerHover() {
+      if (!this.slashMenuPointerHoverEnabled) {
+        return;
+      }
+      this.slashMenuPointerHoverEnabled = false;
+      this.options.slashMenuElement?.classList.remove("composer__slash-menu--pointer-hover");
+    }
+    handleSlashMenuPointerMove(event) {
+      if (!this.slashMenuOpen) {
+        return;
+      }
+      this.enableSlashMenuPointerHover();
+      const item = eventTargetElement(event)?.closest(".composer__slash-item");
+      if (!(item instanceof HTMLElement) || !this.options.slashMenuElement?.contains(item)) {
+        return;
+      }
+      const index = Number(item.getAttribute("data-index"));
+      if (!Number.isInteger(index) || !this.slashMenuItems[index]) {
+        return;
+      }
+      const previousIndex = this.slashMenuActiveIndex;
+      if (index === previousIndex) {
+        return;
+      }
+      this.slashMenuActiveIndex = index;
+      this.updateRenderedSlashMenuSelection(previousIndex);
+    }
+    updateRenderedSlashMenuSelection(previousIndex) {
+      this.updateRenderedSlashMenuItemSelection(previousIndex, false);
+      this.updateRenderedSlashMenuItemSelection(this.slashMenuActiveIndex, true);
+      this.syncSlashMenuActiveDescendant({ reveal: false });
+    }
+    updateRenderedSlashMenuItemSelection(index, selected) {
+      const item = document.getElementById("slash-command-" + index);
+      if (!item) {
+        return;
+      }
+      item.classList.toggle("composer__slash-item--active", selected);
+      item.setAttribute("aria-selected", selected ? "true" : "false");
+    }
+    syncSlashMenuActiveDescendant(options = {}) {
       if (!this.slashMenuOpen || this.slashMenuItems.length === 0) {
         this.options.textarea.removeAttribute("aria-activedescendant");
         return;
       }
       this.options.textarea.setAttribute("aria-activedescendant", "slash-command-" + this.slashMenuActiveIndex);
-      this.options.slashMenuElement?.querySelector(".composer__slash-item--active")?.scrollIntoView({ block: "nearest" });
+      if (options.reveal !== false) {
+        this.options.slashMenuElement?.querySelector(".composer__slash-item--active")?.scrollIntoView({ block: "nearest" });
+      }
     }
     acceptActiveSlashCommand() {
       const command = this.slashMenuItems[this.slashMenuActiveIndex];

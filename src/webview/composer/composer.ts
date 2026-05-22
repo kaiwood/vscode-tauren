@@ -49,6 +49,7 @@ export class ComposerController {
   private appliedComposerTextRevision = 0;
   private slashMenuOpen = false;
   private slashMenuActiveIndex = 0;
+  private slashMenuPointerHoverEnabled = false;
   private slashMenuItems: SlashCommand[] = [];
   private slashMenuQuery = '';
   private slashMenuDismissedQuery: string | undefined;
@@ -106,6 +107,8 @@ export class ComposerController {
     this.options.slashMenuElement?.addEventListener('mousedown', (event) => {
       event.preventDefault();
     });
+
+    this.options.slashMenuElement?.addEventListener('pointermove', (event) => this.handleSlashMenuPointerMove(event));
 
     this.options.slashMenuElement?.addEventListener('click', (event) => {
       const item = eventTargetElement(event)?.closest('.composer__slash-item');
@@ -179,6 +182,7 @@ export class ComposerController {
     this.slashMenuItems = [];
     this.slashMenuActiveIndex = 0;
     this.slashMenuQuery = '';
+    this.disableSlashMenuPointerHover();
     this.options.slashMenuElement?.removeAttribute('open');
     this.options.textarea.setAttribute('aria-expanded', 'false');
     this.options.textarea.removeAttribute('aria-activedescendant');
@@ -326,6 +330,7 @@ export class ComposerController {
     if (query !== this.slashMenuQuery) {
       this.slashMenuQuery = query;
       this.slashMenuActiveIndex = 0;
+      this.disableSlashMenuPointerHover();
       if (this.options.slashMenuElement) {
         this.options.slashMenuElement.scrollTop = 0;
       }
@@ -691,6 +696,8 @@ export class ComposerController {
       return false;
     }
 
+    this.disableSlashMenuPointerHover();
+
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       this.moveSlashMenuSelection(1);
@@ -879,14 +886,81 @@ export class ComposerController {
     this.renderSlashMenu(this.getSlashCommandQuery());
   }
 
-  private syncSlashMenuActiveDescendant(): void {
+  private enableSlashMenuPointerHover(): void {
+    if (this.slashMenuPointerHoverEnabled) {
+      return;
+    }
+
+    this.slashMenuPointerHoverEnabled = true;
+    this.options.slashMenuElement?.classList.add('composer__slash-menu--pointer-hover');
+  }
+
+  private disableSlashMenuPointerHover(): void {
+    if (!this.slashMenuPointerHoverEnabled) {
+      return;
+    }
+
+    this.slashMenuPointerHoverEnabled = false;
+    this.options.slashMenuElement?.classList.remove('composer__slash-menu--pointer-hover');
+  }
+
+  private handleSlashMenuPointerMove(event: PointerEvent): void {
+    if (!this.slashMenuOpen) {
+      return;
+    }
+
+    this.enableSlashMenuPointerHover();
+
+    const item = eventTargetElement(event)?.closest('.composer__slash-item');
+
+    if (!(item instanceof HTMLElement) || !this.options.slashMenuElement?.contains(item)) {
+      return;
+    }
+
+    const index = Number(item.getAttribute('data-index'));
+
+    if (!Number.isInteger(index) || !this.slashMenuItems[index]) {
+      return;
+    }
+
+    const previousIndex = this.slashMenuActiveIndex;
+
+    if (index === previousIndex) {
+      return;
+    }
+
+    this.slashMenuActiveIndex = index;
+    this.updateRenderedSlashMenuSelection(previousIndex);
+  }
+
+  private updateRenderedSlashMenuSelection(previousIndex: number): void {
+    this.updateRenderedSlashMenuItemSelection(previousIndex, false);
+    this.updateRenderedSlashMenuItemSelection(this.slashMenuActiveIndex, true);
+    this.syncSlashMenuActiveDescendant({ reveal: false });
+  }
+
+  private updateRenderedSlashMenuItemSelection(index: number, selected: boolean): void {
+    const item = document.getElementById('slash-command-' + index);
+
+    if (!item) {
+      return;
+    }
+
+    item.classList.toggle('composer__slash-item--active', selected);
+    item.setAttribute('aria-selected', selected ? 'true' : 'false');
+  }
+
+  private syncSlashMenuActiveDescendant(options: { reveal?: boolean } = {}): void {
     if (!this.slashMenuOpen || this.slashMenuItems.length === 0) {
       this.options.textarea.removeAttribute('aria-activedescendant');
       return;
     }
 
     this.options.textarea.setAttribute('aria-activedescendant', 'slash-command-' + this.slashMenuActiveIndex);
-    this.options.slashMenuElement?.querySelector('.composer__slash-item--active')?.scrollIntoView({ block: 'nearest' });
+
+    if (options.reveal !== false) {
+      this.options.slashMenuElement?.querySelector('.composer__slash-item--active')?.scrollIntoView({ block: 'nearest' });
+    }
   }
 
   private acceptActiveSlashCommand(): void {
