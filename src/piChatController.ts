@@ -329,6 +329,20 @@ export class PiChatController {
     await this.slashCommandController.handle({ name, args });
   }
 
+  public toggleSessionList(): void {
+    if (this.sessionView.isSessionListVisible) {
+      this.sessionView.hideSessions();
+      return;
+    }
+
+    if (this.session.isBusy) {
+      this.addBusySlashCommandNotice('resume');
+      return;
+    }
+
+    this.sessionView.toggleSessions();
+  }
+
   public toggleSessionTree(): void {
     if (this.sessionView.isTreeVisible) {
       this.sessionView.hideSessions();

@@ -12,6 +12,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('tau.fork', () => provider.fork()),
     vscode.commands.registerCommand('tau.clone', () => provider.clone()),
     vscode.commands.registerCommand('tau.showSessionTree', () => provider.toggleSessionTree()),
+    vscode.commands.registerCommand('tau.toggleSessionList', () => provider.toggleSessionList()),
     vscode.commands.registerCommand('tau.openSessionDiff', () => provider.openSessionDiff()),
     vscode.commands.registerCommand('tau.compactSession', () => provider.compactSession()),
     vscode.commands.registerCommand('tau.exportSession', () => provider.exportSession()),

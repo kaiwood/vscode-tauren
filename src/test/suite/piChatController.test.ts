@@ -1420,6 +1420,42 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
+  test('toggle session list opens and closes the session list', async () => {
+    const sessions: WebviewSessionItem[] = [{
+      path: '/sessions/current.jsonl',
+      id: 'current',
+      cwd: '/workspace',
+      created: '2026-01-01T00:00:00.000Z',
+      modified: '2026-01-01T00:01:00.000Z',
+      messageCount: 1,
+      firstMessage: 'Current question',
+      depth: 0,
+      isLast: true,
+      ancestorContinues: [],
+      current: true
+    }];
+    let listCalls = 0;
+    const harness = createControllerHarness([new FakePiClient()], {
+      listSessions: async () => {
+        listCalls += 1;
+        return sessions;
+      }
+    });
+
+    harness.controller.toggleSessionList();
+    await flushPromises();
+
+    assert.strictEqual(listCalls, 1);
+    assert.strictEqual(lastState(harness).viewMode, 'sessions');
+    assert.deepStrictEqual(lastState(harness).sessions, sessions);
+
+    harness.controller.toggleSessionList();
+
+    assert.strictEqual(listCalls, 1);
+    assert.strictEqual(lastState(harness).viewMode, undefined);
+    harness.controller.dispose();
+  });
+
   test('toggle session tree opens and closes the live session tree', async () => {
     const treeItems: WebviewTreeItem[] = [{
       entryId: 'entry-1',

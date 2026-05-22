@@ -93,6 +93,10 @@ export class SessionViewController {
     return this.sessions.length;
   }
 
+  public get isSessionListVisible(): boolean {
+    return this.viewMode === 'sessions';
+  }
+
   public get isTreeVisible(): boolean {
     return this.viewMode === 'tree';
   }
@@ -142,6 +146,15 @@ export class SessionViewController {
     this.treeError = '';
     this.options.postState();
     void this.refreshTree();
+  }
+
+  public toggleSessions(): void {
+    if (this.viewMode === 'sessions') {
+      this.hideSessions();
+      return;
+    }
+
+    this.showSessions();
   }
 
   public toggleTree(): void {

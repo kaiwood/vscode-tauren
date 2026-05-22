@@ -28,6 +28,7 @@ suite('Tau extension', () => {
     assert.ok(commands.includes('tau.fork'));
     assert.ok(commands.includes('tau.clone'));
     assert.ok(commands.includes('tau.showSessionTree'));
+    assert.ok(commands.includes('tau.toggleSessionList'));
     assert.ok(commands.includes('tau.openSessionDiff'));
     assert.ok(commands.includes('tau.compactSession'));
     assert.ok(commands.includes('tau.exportSession'));

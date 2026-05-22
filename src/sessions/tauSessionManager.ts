@@ -90,6 +90,10 @@ export class TauSessionManager {
     await this.active().controller.runLocalSlashCommand(name);
   }
 
+  public toggleSessionList(): void {
+    this.active().controller.toggleSessionList();
+  }
+
   public toggleSessionTree(): void {
     this.active().controller.toggleSessionTree();
   }

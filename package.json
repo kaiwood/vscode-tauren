@@ -58,6 +58,11 @@
         "category": "Tau"
       },
       {
+        "command": "tau.toggleSessionList",
+        "title": "Toggle Session List",
+        "category": "Tau"
+      },
+      {
         "command": "tau.openSessionDiff",
         "title": "Open Session Diff",
         "category": "Tau"
@@ -143,6 +148,9 @@
       "commandPalette": [
         {
           "command": "tau.showSessionTree"
+        },
+        {
+          "command": "tau.toggleSessionList"
         }
       ],
       "view/title": [
