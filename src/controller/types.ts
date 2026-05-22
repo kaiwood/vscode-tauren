@@ -3,6 +3,7 @@ import type { ExtensionUi } from '../extensionUi/types';
 import type { PiChatSessionMetaSnapshot } from '../metadata/types';
 import type { PiClientFactory } from '../pi/clientTypes';
 import type {
+  WebviewCustomUiTheme,
   WebviewSessionItem,
   WebviewStateMessage
 } from '../webviewProtocol/types';
@@ -17,6 +18,7 @@ export type PiChatControllerOptions = {
   getCwd?: () => string | undefined;
   getOutputColors?: () => boolean;
   getAnimationsEnabled?: () => boolean;
+  getCustomUiTheme?: () => WebviewCustomUiTheme;
   getReadyScript?: () => string | undefined;
   getReadyScriptEnabled?: () => boolean;
   runReadyScript?: (scriptPath: string, cwd: string | undefined) => void;

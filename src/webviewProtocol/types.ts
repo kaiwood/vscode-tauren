@@ -1,6 +1,7 @@
 import type { ChatState } from '../chat/chatSession';
 
 export type WebviewStreamingBehavior = 'steer' | 'followUp';
+export type WebviewCustomUiTheme = 'default' | 'crt' | 'amber' | 'matrix';
 
 export type WebviewPromptContextAttachment = {
   id: string;
@@ -115,6 +116,7 @@ export type WebviewStateMessage = ChatState & {
   slashCommandsRefreshing: boolean;
   outputColors: boolean;
   animationsEnabled: boolean;
+  customUiTheme: WebviewCustomUiTheme;
   welcomeDismissed?: boolean;
   promptContext?: WebviewPromptContextAttachment[];
   composerText?: string;
@@ -152,6 +154,7 @@ export type CreateWebviewStateMessageOptions = {
   slashCommandsRefreshing?: boolean;
   outputColors?: boolean;
   animationsEnabled?: boolean;
+  customUiTheme?: WebviewCustomUiTheme;
   welcomeDismissed?: boolean;
   promptContext?: WebviewPromptContextAttachment[];
   composer?: {

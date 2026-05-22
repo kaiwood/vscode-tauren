@@ -56,7 +56,8 @@ suite('Chat webview helpers', () => {
         slashCommands: [],
         slashCommandsRefreshing: false,
         outputColors: true,
-        animationsEnabled: true
+        animationsEnabled: true,
+        customUiTheme: 'default'
       }
     );
   });
@@ -82,7 +83,8 @@ suite('Chat webview helpers', () => {
         slashCommands: [],
         slashCommandsRefreshing: false,
         outputColors: true,
-        animationsEnabled: true
+        animationsEnabled: true,
+        customUiTheme: 'default'
       }
     );
   });

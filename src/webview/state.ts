@@ -18,6 +18,7 @@ export const initialWebviewState: WebviewState = {
   slashCommandsRefreshing: false,
   outputColors: true,
   animationsEnabled: true,
+  customUiTheme: 'default',
   welcomeDismissed: false,
   promptContext: [],
   composerText: '',
@@ -55,6 +56,7 @@ export function parseWebviewStateMessage(data: unknown): WebviewState {
     slashCommandsRefreshing: Boolean(record.slashCommandsRefreshing),
     outputColors: typeof record.outputColors === 'boolean' ? record.outputColors : true,
     animationsEnabled: typeof record.animationsEnabled === 'boolean' ? record.animationsEnabled : true,
+    customUiTheme: parseCustomUiTheme(record.customUiTheme),
     welcomeDismissed: Boolean(record.welcomeDismissed),
     promptContext: Array.isArray(record.promptContext) ? record.promptContext : [],
     composerText: typeof record.composerText === 'string' ? record.composerText : '',
@@ -70,6 +72,10 @@ export function parseWebviewStateMessage(data: unknown): WebviewState {
     treeError: typeof record.treeError === 'string' ? record.treeError : '',
     sessionLoading: Boolean(record.sessionLoading)
   };
+}
+
+function parseCustomUiTheme(value: unknown) {
+  return value === 'crt' || value === 'amber' || value === 'matrix' ? value : 'default';
 }
 
 function parseWorkspaceDiffStats(value: unknown): { addedLines: number; removedLines: number } {

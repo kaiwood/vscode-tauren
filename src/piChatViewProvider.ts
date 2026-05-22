@@ -4,7 +4,7 @@ import {
   createWebviewHtml,
   parseWebviewMessage
 } from './sidebar/chatWebview';
-import type { WebviewMessage, WebviewStateMessage } from './webviewProtocol/types';
+import type { WebviewCustomUiTheme, WebviewMessage, WebviewStateMessage } from './webviewProtocol/types';
 import { type PiClientFactory, type PiClient } from './pi/clientTypes';
 import type { PiClientOptions } from './pi/types';
 import { PiSdkClient } from './sdk/piSdkClient';
@@ -102,6 +102,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       getCwd: () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
       getOutputColors: () => getOutputColorsSetting(),
       getAnimationsEnabled: () => getAnimationsEnabledSetting(),
+      getCustomUiTheme: () => getCustomUiThemeSetting(),
       getReadyScript: () => getReadyScriptSetting(),
       getReadyScriptEnabled: () => getReadyScriptEnabledSetting(),
       runReadyScript: (scriptPath, cwd) => {
@@ -133,7 +134,11 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
     this.disposables.push(
       vscode.workspace.onDidChangeConfiguration((event) => {
-        if (event.affectsConfiguration('tau.outputColors') || event.affectsConfiguration('tau.animationsEnabled')) {
+        if (
+          event.affectsConfiguration('tau.outputColors')
+          || event.affectsConfiguration('tau.animationsEnabled')
+          || event.affectsConfiguration('tau.customUiTheme')
+        ) {
           this.controller.postState();
         }
 
@@ -436,6 +441,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   private withProviderState(message: WebviewStateMessage): WebviewStateMessage {
     return {
       ...message,
+      customUiTheme: getCustomUiThemeSetting(),
       welcomeDismissed: this.isWelcomeDismissed()
     };
   }
@@ -753,6 +759,11 @@ function getOutputColorsSetting(): boolean {
 
 function getAnimationsEnabledSetting(): boolean {
   return vscode.workspace.getConfiguration('tau').get<boolean>('animationsEnabled', true);
+}
+
+function getCustomUiThemeSetting(): WebviewCustomUiTheme {
+  const value = vscode.workspace.getConfiguration('tau').get<string>('customUiTheme', 'default');
+  return value === 'crt' || value === 'amber' || value === 'matrix' ? value : 'default';
 }
 
 function getReadyScriptSetting(): string | undefined {

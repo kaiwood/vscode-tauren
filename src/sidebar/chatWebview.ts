@@ -178,6 +178,7 @@ export function createWebviewStateMessage({
   slashCommandsRefreshing = false,
   outputColors = true,
   animationsEnabled = true,
+  customUiTheme = 'default',
   welcomeDismissed,
   promptContext = [],
   composer,
@@ -204,7 +205,8 @@ export function createWebviewStateMessage({
     slashCommands,
     slashCommandsRefreshing,
     outputColors,
-    animationsEnabled
+    animationsEnabled,
+    customUiTheme
   };
 
   if (welcomeDismissed !== undefined) {

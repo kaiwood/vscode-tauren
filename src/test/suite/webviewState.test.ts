@@ -7,6 +7,7 @@ suite('Webview state helpers', () => {
     assert.strictEqual(initialWebviewState.busy, false);
     assert.deepStrictEqual(initialWebviewState.workspaceDiffStats, { addedLines: 0, removedLines: 0 });
     assert.strictEqual(initialWebviewState.viewMode, 'chat');
+    assert.strictEqual(initialWebviewState.customUiTheme, 'default');
     assert.strictEqual(initialWebviewState.welcomeDismissed, false);
     assert.deepStrictEqual(initialWebviewState.sessions, []);
   });
@@ -28,6 +29,7 @@ suite('Webview state helpers', () => {
       workspaceDiffStats: { addedLines: 300, removedLines: 200 },
       slashCommands: [{ name: 'test', description: '', source: 'prompt' }],
       slashCommandsRefreshing: true,
+      customUiTheme: 'amber',
       welcomeDismissed: true,
       promptContext: [{ id: 'context-1', kind: 'file', label: 'file.ts', title: 'src/file.ts' }],
       composerText: 'draft',
@@ -48,6 +50,7 @@ suite('Webview state helpers', () => {
     assert.strictEqual(parsed.modelLabel, 'gpt-test');
     assert.deepStrictEqual(parsed.workspaceDiffStats, { addedLines: 300, removedLines: 200 });
     assert.strictEqual(parsed.viewMode, 'sessions');
+    assert.strictEqual(parsed.customUiTheme, 'amber');
     assert.strictEqual(parsed.welcomeDismissed, true);
     assert.strictEqual(parsed.sessions[0]?.path, '/session.jsonl');
     assert.strictEqual(parsed.treeItems[0]?.entryId, 'entry-1');
@@ -60,6 +63,7 @@ suite('Webview state helpers', () => {
       modelLabel: 1,
       workspaceDiffStats: { addedLines: -1, removedLines: 'bad' },
       composerTextRevision: 'bad',
+      customUiTheme: 'bad',
       viewMode: 'unknown',
       sessions: 'bad'
     });
@@ -69,6 +73,7 @@ suite('Webview state helpers', () => {
     assert.deepStrictEqual(parsed.workspaceDiffStats, { addedLines: 0, removedLines: 0 });
     assert.strictEqual(parsed.composerTextRevision, 0);
     assert.strictEqual(parsed.viewMode, 'chat');
+    assert.strictEqual(parsed.customUiTheme, 'default');
     assert.strictEqual(parsed.welcomeDismissed, false);
     assert.deepStrictEqual(parsed.sessions, []);
   });

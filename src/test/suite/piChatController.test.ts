@@ -877,7 +877,8 @@ suite('PiChatController', () => {
       slashCommands: [],
       slashCommandsRefreshing: false,
       outputColors: true,
-      animationsEnabled: true
+      animationsEnabled: true,
+      customUiTheme: 'default'
     });
     harness.controller.dispose();
   });

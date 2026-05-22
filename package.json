@@ -219,6 +219,23 @@
           "default": true,
           "description": "Enable animations in the Tau sidebar. Reduced-motion preferences still disable motion."
         },
+        "tau.customUiTheme": {
+          "type": "string",
+          "default": "default",
+          "enum": [
+            "default",
+            "crt",
+            "amber",
+            "matrix"
+          ],
+          "enumDescriptions": [
+            "Use Tau's default custom UI styling.",
+            "Use a green phosphor CRT-style custom UI terminal.",
+            "Use an amber monochrome custom UI terminal.",
+            "Use a high-contrast green matrix-style custom UI terminal."
+          ],
+          "description": "Choose the visual theme for Pi custom UI terminal panels."
+        },
         "tau.readyScript": {
           "type": "string",
           "default": "",

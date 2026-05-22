@@ -2359,6 +2359,188 @@ const customUiStyles = /* css */ `    .custom-ui {
       min-height: 1.35em;
       white-space: pre;
     }
+
+    body[class*="tau-custom-ui-theme-"] .custom-ui__header,
+    body[class*="tau-custom-ui-theme-"] .custom-ui__output {
+      position: relative;
+      z-index: 1;
+    }
+
+    body.tau-custom-ui-theme-crt .custom-ui,
+    body.tau-custom-ui-theme-amber .custom-ui,
+    body.tau-custom-ui-theme-matrix .custom-ui {
+      --tau-custom-ui-screen: #061008;
+      --tau-custom-ui-bezel: #101510;
+      --tau-custom-ui-text: #9cff9c;
+      --tau-custom-ui-dim: #64b764;
+      --tau-custom-ui-accent: #c8ffc8;
+      --tau-custom-ui-glow: rgba(132, 255, 132, 0.28);
+      --tau-custom-ui-scanline: rgba(255, 255, 255, 0.045);
+      --tau-custom-ui-vignette: rgba(0, 0, 0, 0.42);
+      --vscode-terminal-ansiBlack: #031006;
+      --vscode-terminal-ansiRed: #91d991;
+      --vscode-terminal-ansiGreen: #8cff8c;
+      --vscode-terminal-ansiYellow: #b8ffb8;
+      --vscode-terminal-ansiBlue: #6bdc6b;
+      --vscode-terminal-ansiMagenta: #9cff9c;
+      --vscode-terminal-ansiCyan: #adffad;
+      --vscode-terminal-ansiWhite: #d8ffd8;
+      --vscode-terminal-ansiBrightBlack: #4f8f4f;
+      --vscode-terminal-ansiBrightRed: #c8ffc8;
+      --vscode-terminal-ansiBrightGreen: #b6ffb6;
+      --vscode-terminal-ansiBrightYellow: #dbffdb;
+      --vscode-terminal-ansiBrightBlue: #95ff95;
+      --vscode-terminal-ansiBrightMagenta: #c8ffc8;
+      --vscode-terminal-ansiBrightCyan: #d5ffd5;
+      --vscode-terminal-ansiBrightWhite: #f0fff0;
+      color: var(--tau-custom-ui-text);
+      background:
+        linear-gradient(180deg, color-mix(in srgb, var(--tau-custom-ui-bezel) 82%, white 10%), var(--tau-custom-ui-bezel)) padding-box,
+        linear-gradient(180deg, color-mix(in srgb, var(--tau-custom-ui-accent) 38%, transparent), rgba(0, 0, 0, 0.72)) border-box;
+      border: 3px solid transparent;
+      border-radius: 18px;
+      box-shadow:
+        0 14px 34px rgba(0, 0, 0, 0.42),
+        inset 0 1px 0 rgba(255, 255, 255, 0.14),
+        inset 0 -16px 26px rgba(0, 0, 0, 0.34);
+      text-shadow: 0 0 6px var(--tau-custom-ui-glow);
+    }
+
+    body.tau-custom-ui-theme-crt .custom-ui::before,
+    body.tau-custom-ui-theme-amber .custom-ui::before,
+    body.tau-custom-ui-theme-matrix .custom-ui::before,
+    body.tau-custom-ui-theme-crt .custom-ui::after,
+    body.tau-custom-ui-theme-amber .custom-ui::after,
+    body.tau-custom-ui-theme-matrix .custom-ui::after {
+      content: "";
+      position: absolute;
+      inset: 7px;
+      pointer-events: none;
+      border-radius: 12px;
+    }
+
+    body.tau-custom-ui-theme-crt .custom-ui::before,
+    body.tau-custom-ui-theme-amber .custom-ui::before,
+    body.tau-custom-ui-theme-matrix .custom-ui::before {
+      z-index: 0;
+      background:
+        radial-gradient(ellipse at center, transparent 0%, transparent 58%, var(--tau-custom-ui-vignette) 100%),
+        var(--tau-custom-ui-screen);
+      box-shadow:
+        inset 0 0 22px rgba(0, 0, 0, 0.78),
+        inset 0 0 4px var(--tau-custom-ui-glow),
+        0 0 18px color-mix(in srgb, var(--tau-custom-ui-accent) 18%, transparent);
+    }
+
+    body.tau-custom-ui-theme-crt .custom-ui::after,
+    body.tau-custom-ui-theme-amber .custom-ui::after,
+    body.tau-custom-ui-theme-matrix .custom-ui::after {
+      z-index: 2;
+      background:
+        repeating-linear-gradient(
+          to bottom,
+          var(--tau-custom-ui-scanline) 0,
+          var(--tau-custom-ui-scanline) 1px,
+          transparent 2px,
+          transparent 4px
+        );
+      mix-blend-mode: screen;
+      opacity: 0.65;
+    }
+
+    body.tau-custom-ui-theme-crt .custom-ui__header,
+    body.tau-custom-ui-theme-amber .custom-ui__header,
+    body.tau-custom-ui-theme-matrix .custom-ui__header {
+      color: var(--tau-custom-ui-dim);
+      padding: 0 4px;
+      font-family: var(--vscode-editor-font-family, monospace);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    body.tau-custom-ui-theme-crt .custom-ui__output,
+    body.tau-custom-ui-theme-amber .custom-ui__output,
+    body.tau-custom-ui-theme-matrix .custom-ui__output {
+      margin: 0 2px 2px;
+      padding: 8px 10px;
+      color: var(--tau-custom-ui-text);
+      scrollbar-color: var(--tau-custom-ui-dim) transparent;
+    }
+
+    body.tau-custom-ui-theme-crt .custom-ui__close,
+    body.tau-custom-ui-theme-amber .custom-ui__close,
+    body.tau-custom-ui-theme-matrix .custom-ui__close {
+      color: var(--tau-custom-ui-dim);
+    }
+
+    body.tau-custom-ui-theme-crt .custom-ui__close:hover,
+    body.tau-custom-ui-theme-crt .custom-ui__close:focus-visible,
+    body.tau-custom-ui-theme-amber .custom-ui__close:hover,
+    body.tau-custom-ui-theme-amber .custom-ui__close:focus-visible,
+    body.tau-custom-ui-theme-matrix .custom-ui__close:hover,
+    body.tau-custom-ui-theme-matrix .custom-ui__close:focus-visible {
+      color: var(--tau-custom-ui-accent);
+      background: color-mix(in srgb, var(--tau-custom-ui-accent) 12%, transparent);
+    }
+
+    body.tau-custom-ui-theme-crt .custom-ui__cursor,
+    body.tau-custom-ui-theme-amber .custom-ui__cursor,
+    body.tau-custom-ui-theme-matrix .custom-ui__cursor {
+      background: var(--tau-custom-ui-accent);
+      box-shadow: 0 0 10px var(--tau-custom-ui-glow);
+    }
+
+    body.tau-custom-ui-theme-amber .custom-ui {
+      --tau-custom-ui-screen: #120b02;
+      --tau-custom-ui-bezel: #16110a;
+      --tau-custom-ui-text: #ffbf4d;
+      --tau-custom-ui-dim: #b9822a;
+      --tau-custom-ui-accent: #ffd27a;
+      --tau-custom-ui-glow: rgba(255, 176, 0, 0.28);
+      --tau-custom-ui-scanline: rgba(255, 190, 77, 0.06);
+      --vscode-terminal-ansiBlack: #120b02;
+      --vscode-terminal-ansiRed: #e0a34a;
+      --vscode-terminal-ansiGreen: #ffbf4d;
+      --vscode-terminal-ansiYellow: #ffd27a;
+      --vscode-terminal-ansiBlue: #c98b2c;
+      --vscode-terminal-ansiMagenta: #e6aa4a;
+      --vscode-terminal-ansiCyan: #ffc766;
+      --vscode-terminal-ansiWhite: #ffe2a3;
+      --vscode-terminal-ansiBrightBlack: #8f6222;
+      --vscode-terminal-ansiBrightRed: #ffd27a;
+      --vscode-terminal-ansiBrightGreen: #ffd27a;
+      --vscode-terminal-ansiBrightYellow: #ffe7b3;
+      --vscode-terminal-ansiBrightBlue: #f0ae42;
+      --vscode-terminal-ansiBrightMagenta: #ffd27a;
+      --vscode-terminal-ansiBrightCyan: #ffe0a0;
+      --vscode-terminal-ansiBrightWhite: #fff3d6;
+    }
+
+    body.tau-custom-ui-theme-matrix .custom-ui {
+      --tau-custom-ui-screen: #020703;
+      --tau-custom-ui-bezel: #07100a;
+      --tau-custom-ui-text: #00ff66;
+      --tau-custom-ui-dim: #00a84c;
+      --tau-custom-ui-accent: #8dffb4;
+      --tau-custom-ui-glow: rgba(0, 255, 102, 0.34);
+      --tau-custom-ui-scanline: rgba(0, 255, 102, 0.052);
+      --vscode-terminal-ansiBlack: #020703;
+      --vscode-terminal-ansiRed: #00b84a;
+      --vscode-terminal-ansiGreen: #00ff66;
+      --vscode-terminal-ansiYellow: #74ff9d;
+      --vscode-terminal-ansiBlue: #00c853;
+      --vscode-terminal-ansiMagenta: #35e878;
+      --vscode-terminal-ansiCyan: #8dffb4;
+      --vscode-terminal-ansiWhite: #caffda;
+      --vscode-terminal-ansiBrightBlack: #007c38;
+      --vscode-terminal-ansiBrightRed: #54ff8a;
+      --vscode-terminal-ansiBrightGreen: #83ffaa;
+      --vscode-terminal-ansiBrightYellow: #b9ffd0;
+      --vscode-terminal-ansiBrightBlue: #29ff75;
+      --vscode-terminal-ansiBrightMagenta: #7dffa6;
+      --vscode-terminal-ansiBrightCyan: #b8ffd0;
+      --vscode-terminal-ansiBrightWhite: #effff3;
+    }
 `;
 
 const reducedMotionStyles = /* css */ `    body.vscode-reduce-motion *,

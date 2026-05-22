@@ -1,4 +1,5 @@
 export type WebviewStreamingBehavior = 'steer' | 'followUp';
+export type CustomUiTheme = 'default' | 'crt' | 'amber' | 'matrix';
 export type ViewMode = 'chat' | 'sessions' | 'tree';
 export type SessionItemCommand = 'rename' | 'fork' | 'clone' | 'compact' | 'export' | 'delete';
 
@@ -103,6 +104,7 @@ export type WebviewState = {
   slashCommandsRefreshing: boolean;
   outputColors: boolean;
   animationsEnabled: boolean;
+  customUiTheme: CustomUiTheme;
   welcomeDismissed: boolean;
   promptContext: PromptContextAttachment[];
   composerText: string;

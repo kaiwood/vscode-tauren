@@ -427,6 +427,7 @@ export class PiChatController {
       slashCommandsRefreshing: metadataState.slashCommandsRefreshing,
       outputColors: this.options.getOutputColors?.() ?? true,
       animationsEnabled: this.options.getAnimationsEnabled?.() ?? true,
+      customUiTheme: this.options.getCustomUiTheme?.() ?? 'default',
       promptContext: this.promptContext.getWebviewAttachments(),
       composer: this.pendingComposerText
         ? {

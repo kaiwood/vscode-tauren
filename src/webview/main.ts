@@ -203,6 +203,7 @@ window.addEventListener('message', (event) => {
   const hasComposerTextUpdate = nextState.composerTextRevision > 0;
   state = nextState;
   document.body.classList.toggle('tau-animations-disabled', !state.animationsEnabled);
+  applyCustomUiTheme(state.customUiTheme);
   const wasListView = previousViewMode === 'sessions' || previousViewMode === 'tree';
   const isListView = state.viewMode === 'sessions' || state.viewMode === 'tree';
 
@@ -310,6 +311,12 @@ function showToast(message: string, kind: 'success' | 'warning' | 'error' = 'suc
 
 function parseToastKind(value: unknown): 'success' | 'warning' | 'error' {
   return value === 'warning' || value === 'error' ? value : 'success';
+}
+
+function applyCustomUiTheme(theme: WebviewState['customUiTheme']): void {
+  for (const name of ['default', 'crt', 'amber', 'matrix']) {
+    document.body.classList.toggle(`tau-custom-ui-theme-${name}`, name === theme);
+  }
 }
 
 function createToastIcon(kind: 'success' | 'warning' | 'error'): HTMLElement {
