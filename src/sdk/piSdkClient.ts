@@ -1,7 +1,6 @@
-import type { ExtensionUiRequestUi } from '../extensionUi/requestHandler';
-import type { PiRpcClientLike } from '../rpc/clientTypes';
+import type { ExtensionUi } from '../extensionUi/types';
+import type { PiClient } from '../pi/clientTypes';
 import type {
-  ExtensionUiResponse,
   PiAvailableCommands,
   PiAvailableModels,
   PiCloneResult,
@@ -14,34 +13,33 @@ import type {
   PiModel,
   PiNavigateTreeResult,
   PiPromptStreamingBehavior,
-  PiRpcClientOptions,
+  PiClientOptions,
   PiSessionState,
   PiSessionStats,
   PiSwitchSessionResult,
-  RpcEvent
-} from '../rpc/types';
+  PiEvent
+} from '../pi/types';
 import type { AgentSessionRuntime, SessionManager } from '@earendil-works/pi-coding-agent';
 import { createSdkExtensionUiContext } from './extensionUiBridge';
-import { mapSdkExtensionErrorToRpcEvent, mapSdkSessionEventToRpcEvent } from './piSdkEventMapper';
+import { mapSdkExtensionErrorToPiEvent, mapSdkSessionEventToPiEvent } from './piSdkEventMapper';
 import { flattenPiSessionTree, type FlattenableSessionTreeNode } from '../sessions/piSessionTree';
 import { loadPiSdk, type PiSdkLoader, type PiSdkModule } from './piSdkLoader';
 
 const sdkDisposedMessage = 'Pi SDK client disposed.';
 const sessionDirEnvVar = 'PI_CODING_AGENT_SESSION_DIR';
 
-export type PiSdkClientOptions = PiRpcClientOptions & {
-  extensionUi?: ExtensionUiRequestUi;
+export type PiSdkClientOptions = PiClientOptions & {
+  extensionUi?: ExtensionUi;
   loadSdk?: PiSdkLoader;
   showNotification?: (message: string, notifyType: string) => void;
 };
 
-export class PiSdkClient implements PiRpcClientLike {
+export class PiSdkClient implements PiClient {
   private runtime: AgentSessionRuntime | undefined;
   private runtimePromise: Promise<AgentSessionRuntime> | undefined;
   private unsubscribeSession: (() => void) | undefined;
   private disposed = false;
-  private reportedCustomPiPathWarning = false;
-  private readonly eventListeners = new Set<(event: RpcEvent) => void>();
+  private readonly eventListeners = new Set<(event: PiEvent) => void>();
   private readonly errorListeners = new Set<(message: string) => void>();
 
   public constructor(private readonly options: PiSdkClientOptions = {}) {}
@@ -50,7 +48,7 @@ export class PiSdkClient implements PiRpcClientLike {
     return !this.disposed && Boolean(this.runtime || this.runtimePromise);
   }
 
-  public onEvent(listener: (event: RpcEvent) => void): () => void {
+  public onEvent(listener: (event: PiEvent) => void): () => void {
     this.eventListeners.add(listener);
 
     return () => {
@@ -90,6 +88,8 @@ export class PiSdkClient implements PiRpcClientLike {
 
       void session.prompt(message, {
         ...(streamingBehavior ? { streamingBehavior } : {}),
+        // Preserve Pi extension compatibility: Tau historically reached Pi through RPC,
+        // and extensions may branch on the upstream input source literal.
         source: 'rpc',
         preflightResult: (success) => {
           if (success) {
@@ -286,10 +286,6 @@ export class PiSdkClient implements PiRpcClientLike {
     return await runtime.fork(leafId, { position: 'at' });
   }
 
-  public respondExtensionUiRequest(_response: ExtensionUiResponse): Promise<void> {
-    return Promise.resolve();
-  }
-
   public dispose(): void {
     if (this.disposed) {
       return;
@@ -330,7 +326,6 @@ export class PiSdkClient implements PiRpcClientLike {
   }
 
   private async createRuntime(): Promise<AgentSessionRuntime> {
-    this.reportIgnoredPiPathIfNeeded();
     const sdk = await this.loadSdk();
     const cwd = this.options.cwd ?? process.cwd();
     const agentDir = sdk.getAgentDir();
@@ -407,27 +402,18 @@ export class PiSdkClient implements PiRpcClientLike {
         }
       },
       onError: (error) => {
-        this.emitEvent(mapSdkExtensionErrorToRpcEvent(error));
+        this.emitEvent(mapSdkExtensionErrorToPiEvent(error));
       }
     });
 
     this.unsubscribeSession?.();
     this.unsubscribeSession = session.subscribe((event) => {
-      this.emitEvent(mapSdkSessionEventToRpcEvent(event));
+      this.emitEvent(mapSdkSessionEventToPiEvent(event));
     });
   }
 
   private loadSdk(): Promise<PiSdkModule> {
     return (this.options.loadSdk ?? loadPiSdk)();
-  }
-
-  private reportIgnoredPiPathIfNeeded(): void {
-    if (!this.options.piPath || this.reportedCustomPiPathWarning) {
-      return;
-    }
-
-    this.reportedCustomPiPathWarning = true;
-    this.notify('Tau SDK mode uses the bundled Pi SDK and ignores tau.piPath.', 'warning');
   }
 
   private reportRuntimeDiagnostics(runtime: AgentSessionRuntime): void {
@@ -448,7 +434,7 @@ export class PiSdkClient implements PiRpcClientLike {
     this.options.showNotification?.(message, notifyType);
   }
 
-  private emitEvent(event: RpcEvent): void {
+  private emitEvent(event: PiEvent): void {
     for (const listener of this.eventListeners) {
       listener(event);
     }

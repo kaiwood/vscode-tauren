@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import { PiSdkClient } from '../../sdk/piSdkClient';
 import { createSdkExtensionUiContext } from '../../sdk/extensionUiBridge';
 import { loadPiSdk, resetPiSdkLoaderForTests, type PiSdkModule } from '../../sdk/piSdkLoader';
-import type { RpcEvent } from '../../rpc/types';
+import type { PiEvent } from '../../pi/types';
 
 suite('PiSdkClient', () => {
   test('loads the bundled SDK runtime', async () => {
@@ -25,9 +25,9 @@ suite('PiSdkClient', () => {
     }
   });
 
-  test('starts lazily and maps SDK session events to RPC events', async () => {
+  test('starts lazily and maps SDK session events to Pi events', async () => {
     const harness = createSdkHarness();
-    const events: RpcEvent[] = [];
+    const events: PiEvent[] = [];
 
     harness.client.onEvent((event) => events.push(event));
 
@@ -93,7 +93,7 @@ suite('PiSdkClient', () => {
 
     await harness.client.prompt('hello', 'followUp');
 
-    assert.deepStrictEqual(harness.session.promptCalls, [{ message: 'hello', streamingBehavior: 'followUp' }]);
+    assert.deepStrictEqual(harness.session.promptCalls, [{ message: 'hello', streamingBehavior: 'followUp', source: 'rpc' }]);
     promptDeferred.resolve();
     harness.client.dispose();
   });
@@ -158,7 +158,7 @@ suite('PiSdkClient', () => {
   test('rebinds extensions and listeners after session replacement', async () => {
     const replacement = new FakeSession({ sessionFile: '/sessions/replacement.jsonl' });
     const harness = createSdkHarness({ replacementSession: replacement });
-    const events: RpcEvent[] = [];
+    const events: PiEvent[] = [];
     harness.client.onEvent((event) => events.push(event));
 
     await harness.client.getState();
@@ -196,6 +196,7 @@ suite('PiSdkClient', () => {
 
 type PromptOptions = {
   streamingBehavior?: 'steer' | 'followUp';
+  source?: string;
   preflightResult?: (success: boolean) => void;
 };
 
@@ -225,7 +226,7 @@ class FakeSession {
   public readonly labelChanges: Array<{ entryId: string; label: string | undefined }> = [];
   public readonly messages = [{ role: 'assistant', content: 'last answer' }];
   public readonly availableModels = [this.model];
-  public readonly promptCalls: Array<{ message: string; streamingBehavior?: string }> = [];
+  public readonly promptCalls: Array<{ message: string; streamingBehavior?: string; source?: string }> = [];
   public promptImplementation: (message: string, options?: PromptOptions) => Promise<void> = async (_message, options) => {
     options?.preflightResult?.(true);
   };
@@ -272,7 +273,7 @@ class FakeSession {
   public readonly agent = {
     waitForIdle: async () => undefined
   };
-  private readonly listeners = new Set<(event: RpcEvent) => void>();
+  private readonly listeners = new Set<(event: PiEvent) => void>();
 
   public constructor(public readonly options: { sessionFile: string } = { sessionFile: '/sessions/current.jsonl' }) {}
 
@@ -284,19 +285,23 @@ class FakeSession {
     this.bindCount += 1;
   }
 
-  public subscribe(listener: (event: RpcEvent) => void): () => void {
+  public subscribe(listener: (event: PiEvent) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
 
-  public emit(event: RpcEvent): void {
+  public emit(event: PiEvent): void {
     for (const listener of [...this.listeners]) {
       listener(event);
     }
   }
 
   public async prompt(message: string, options?: PromptOptions): Promise<void> {
-    this.promptCalls.push({ message, ...(options?.streamingBehavior ? { streamingBehavior: options.streamingBehavior } : {}) });
+    this.promptCalls.push({
+      message,
+      ...(options?.streamingBehavior ? { streamingBehavior: options.streamingBehavior } : {}),
+      ...(options?.source ? { source: options.source } : {})
+    });
     await this.promptImplementation(message, options);
   }
 

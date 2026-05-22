@@ -5,16 +5,12 @@ import type {
   WebviewStateMessage
 } from './webviewProtocol/types';
 import { StatePublisher } from './controller/statePublisher';
-import {
-  createCancellingExtensionUi,
-  ExtensionUiRequestHandler
-} from './extensionUi/requestHandler';
-import type { PiRpcClientLike } from './rpc/clientTypes';
+import type { PiClient } from './pi/clientTypes';
 import type { PiChatControllerOptions } from './controller/types';
 import type {
   PiPromptStreamingBehavior,
-  RpcEvent
-} from './rpc/types';
+  PiEvent
+} from './pi/types';
 import { formatPromptForPi as formatPromptForPiMessage } from './prompt/formatting';
 import { PromptContextStore } from './prompt/contextStore';
 import type { PiPromptContextAttachment, PiPromptContextInput } from './prompt/types';
@@ -24,15 +20,12 @@ import {
   SessionMetadataState
 } from './metadata/sessionMetadata';
 import { SessionDiffController } from './diff/sessionDiffController';
-import {
-  getErrorMessage,
-  isClientLifecycleError
-} from './controller/errors';
+import { getErrorMessage } from './controller/errors';
 import { parseLocalSlashCommand } from './controller/slashCommandParsing';
 import { LocalSlashCommandController } from './controller/localSlashCommandController';
 import { SessionHistoryController } from './sessions/sessionHistoryController';
 import { PiClientManager } from './controller/piClientManager';
-import { PiRpcEventHandler } from './controller/piRpcEventHandler';
+import { PiEventHandler } from './controller/piEventHandler';
 import { SessionViewController } from './sessions/sessionViewController';
 
 export type { PiChatControllerOptions } from './controller/types';
@@ -53,11 +46,10 @@ export class PiChatController {
   private abortRequested = false;
   private abortNoticeAdded = false;
   private readonly sessionDiffController: SessionDiffController;
-  private readonly rpcEventHandler: PiRpcEventHandler;
+  private readonly piEventHandler: PiEventHandler;
   private readonly readyScriptState = new ReadyScriptState();
   private readonly session = new ChatSession();
   private readonly statePublisher: StatePublisher<WebviewStateMessage>;
-  private readonly extensionUiRequestHandler: ExtensionUiRequestHandler;
 
   public constructor(private readonly options: PiChatControllerOptions) {
     this.sessionDiffController = new SessionDiffController({
@@ -73,11 +65,8 @@ export class PiChatController {
       deleteSession: options.deleteSession,
       extensionUi: options.extensionUi,
       getCwd: options.getCwd,
-      getPiPath: options.getPiPath,
-      supportsSessionTree: options.supportsSessionTree,
       initialSessionFile: options.initialSessionFile,
       listSessions: options.listSessions,
-      listSessionTree: options.listSessionTree,
       onSessionFileChange: options.onSessionFileChange,
       showNotification: options.showNotification,
       showSessionChanges: options.showSessionChanges,
@@ -100,13 +89,12 @@ export class PiChatController {
     this.clientManager = new PiClientManager({
       createClient: options.createClient,
       getCwd: options.getCwd,
-      getPiPath: options.getPiPath,
       getCurrentSessionFile: () => this.sessionView.currentSessionFile,
       getSessionGeneration: () => this.session.generation,
-      onEvent: (event) => this.handleRpcEvent(event),
+      onEvent: (event) => this.handlePiEvent(event),
       onError: (message) => this.handleClientError(message)
     });
-    this.rpcEventHandler = new PiRpcEventHandler({
+    this.piEventHandler = new PiEventHandler({
       session: this.session,
       postState: () => this.postState(),
       scheduleState: () => this.statePublisher.schedule(),
@@ -121,16 +109,14 @@ export class PiChatController {
       refreshMetadataAfterAgentEnd: () => this.refreshSessionMetaAfterAgentEnd(),
       isAbortRequested: () => this.abortRequested,
       appendAbortNoticeIfNeeded: () => this.appendAbortNoticeIfNeeded(),
-      resetAbortState: () => this.resetAbortState(),
-      handleExtensionUiRequest: (event) => this.handleExtensionUiRequest(event)
+      resetAbortState: () => this.resetAbortState()
     });
     this.sessionHistory = new SessionHistoryController({
       initialSessionFile: options.initialSessionFile,
       session: this.session,
       sessionView: this.sessionView,
-      rpcEventHandler: this.rpcEventHandler,
+      piEventHandler: this.piEventHandler,
       getClient: () => this.getClient(),
-      startNewExtensionUiGeneration: () => this.extensionUiRequestHandler.startNewGeneration(),
       invalidateMetadata: () => this.sessionMetadataRefresh.invalidate(),
       resetSessionMeta: () => this.resetSessionMeta(),
       refreshSessionDiffStats: () => void this.refreshSessionDiffStats(),
@@ -188,15 +174,9 @@ export class PiChatController {
       },
       options.stateScheduler
     );
-    this.extensionUiRequestHandler = new ExtensionUiRequestHandler({
-      ui: options.extensionUi ?? createCancellingExtensionUi(options.showNotification),
-      respond: (response) => this.getExistingClient()?.respondExtensionUiRequest(response),
-      onError: (message) => this.handleClientError(message)
-    });
   }
 
   public dispose(): void {
-    this.extensionUiRequestHandler.dispose();
     this.statePublisher.dispose();
     this.disposeClient();
   }
@@ -216,11 +196,6 @@ export class PiChatController {
         this.sessionView.showSessions();
         return;
       case 'showTree':
-        if (!this.sessionView.canNavigateTree()) {
-          this.session.addSystemMessage('/tree currently requires Tau SDK mode. Enable tau.useSdkInsteadOfRpc to navigate the live session tree.');
-          this.postState();
-          return;
-        }
         this.sessionView.showTree();
         return;
       case 'hideSessions':
@@ -360,8 +335,7 @@ export class PiChatController {
       return;
     }
 
-    this.extensionUiRequestHandler.startNewGeneration();
-    this.rpcEventHandler.reset();
+    this.piEventHandler.reset();
     this.resetAbortState();
     this.session.startNewSession();
     this.sessionView.startNewSession(options.viewMode ?? 'chat');
@@ -373,23 +347,6 @@ export class PiChatController {
     this.disposeClient();
     this.postState();
     void this.refreshSessionMeta({ startClient: true });
-  }
-
-  public handleClientConfigurationChanged(): void {
-    if (!this.clientManager.hasClient) {
-      return;
-    }
-
-    this.clientManager.requestRestartWhenIdle();
-
-    if (this.session.isBusy) {
-      return;
-    }
-
-    void this.refreshSessionMeta({ force: true }).then(
-      () => this.restartClientForConfigurationChangeIfIdle(),
-      () => this.restartClientForConfigurationChangeIfIdle()
-    );
   }
 
   public postState(): void {
@@ -606,7 +563,6 @@ export class PiChatController {
   }
 
   private prepareForClientDispose(): void {
-    this.extensionUiRequestHandler.startNewGeneration();
     this.resetReadyScriptArming();
   }
 
@@ -644,57 +600,28 @@ export class PiChatController {
     return true;
   }
 
-  private getExistingClient(): PiRpcClientLike | undefined {
+  private getExistingClient(): PiClient | undefined {
     return this.clientManager.getExistingClient();
   }
 
-  private getClient(): PiRpcClientLike {
+  private getClient(): PiClient {
     return this.clientManager.getClient();
   }
 
-  private handleRpcEvent(event: RpcEvent): void {
-    this.rpcEventHandler.handleEvent(event);
+  private handlePiEvent(event: PiEvent): void {
+    this.piEventHandler.handleEvent(event);
   }
 
   private refreshSessionMetaAfterAgentEnd(): void {
-    void this.refreshSessionMeta().then(
-      () => this.restartClientForConfigurationChangeIfIdle(),
-      () => this.restartClientForConfigurationChangeIfIdle()
-    );
-  }
-
-  private handleExtensionUiRequest(event: RpcEvent): void {
-    void this.extensionUiRequestHandler.handle(event);
+    void this.refreshSessionMeta();
   }
 
   private handleClientError(message: string): void {
-    if (isClientLifecycleError(message)) {
-      this.extensionUiRequestHandler.startNewGeneration();
-    }
-
     this.session.addErrorMessage(message);
     this.session.setBusy(false);
     this.slashCommandController.clearCompacting();
     this.sessionMetadata.clearRefreshing();
     this.sessionHistory.setLoading(false);
     this.postState();
-    this.restartClientForConfigurationChangeIfIdle();
-  }
-
-  private restartClientForConfigurationChangeIfIdle(): void {
-    if (!this.clientManager.restartIfIdle(this.session.isBusy, () => this.prepareForClientDispose())) {
-      return;
-    }
-
-    this.afterClientRestartForConfigurationChange();
-  }
-
-  private afterClientRestartForConfigurationChange(): void {
-    this.sessionMetadataRefresh.invalidate();
-    this.postState();
-    void Promise.all([
-      this.refreshSessionMeta({ startClient: true, force: true }),
-      this.refreshSlashCommands({ startClient: true, force: true })
-    ]).then(undefined, () => undefined);
   }
 }

@@ -1,4 +1,4 @@
-import type { RpcEvent } from '../rpc/types';
+import type { PiEvent } from '../pi/types';
 
 export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -16,18 +16,7 @@ export function isAbortMessage(message: string): boolean {
   return message.trim().toLowerCase() === 'aborted';
 }
 
-export function isClientLifecycleError(message: string): boolean {
-  const normalized = message.trim().toLowerCase();
-
-  return normalized.startsWith('pi rpc process exited')
-    || normalized.startsWith('failed to start pi rpc process')
-    || normalized.startsWith('failed to parse pi rpc output')
-    || normalized.startsWith('received malformed pi rpc output')
-    || normalized.includes('pi rpc process is not running')
-    || normalized.includes('pi rpc client disposed');
-}
-
-export function isMessageUpdateStart(event: RpcEvent): boolean {
+export function isMessageUpdateStart(event: PiEvent): boolean {
   const assistantMessageEvent = event.assistantMessageEvent;
 
   return typeof assistantMessageEvent === 'object'

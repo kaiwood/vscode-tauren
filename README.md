@@ -44,20 +44,15 @@ It also adds parallel session workflows, allowing you to switch between multiple
 
 ## Requirements / Setup
 
-Install Pi if you haven't already:
+Tau bundles the Pi SDK for runtime use. It still uses Pi-compatible credentials, so set up authentication the same way you would for terminal use:
 
 ```sh
 npm install -g @earendil-works/pi-coding-agent
-```
-
-Then set it up the same way you would for terminal use:
-
-```sh
 pi
 /login
 ```
 
-For more information, read the [documentation here](https://pi.dev/docs/latest).
+You can also use Pi-supported environment credentials. For more information, read the [documentation here](https://pi.dev/docs/latest).
 
 ## Using Tau
 

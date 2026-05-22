@@ -3,7 +3,7 @@ import type {
   ChatActivityInput
 } from '../chat/chatSession';
 import { formatCompactionTitle } from '../sessions/sessionFormatting';
-import type { RpcEvent } from '../rpc/types';
+import type { PiEvent } from '../pi/types';
 
 const toolResultPreviewMaxLines = 8;
 const toolResultPreviewMaxCharacters = 2400;
@@ -46,13 +46,13 @@ export type ActivityRemoveAction = {
   sourceId: string;
 };
 
-export type RpcActivityAction =
+export type PiActivityAction =
   | ActivityUpdateAction
   | ActivityAddAction
   | ActivityRemoveAction
   | { type: 'ignore' };
 
-export type RpcMappingOptions = {
+export type PiMappingOptions = {
   fullCommunication?: boolean;
 };
 
@@ -86,9 +86,9 @@ export function formatToolExecutionActivity({
 }
 
 export function mapMessageUpdate(
-  event: RpcEvent,
+  event: PiEvent,
   streamId = 0,
-  options: RpcMappingOptions = { fullCommunication: true }
+  options: PiMappingOptions = { fullCommunication: true }
 ): MessageUpdateAction {
   const fullCommunication = options.fullCommunication !== false;
   const assistantMessageEvent = event.assistantMessageEvent;
@@ -212,7 +212,7 @@ export function mapMessageUpdate(
       }
 
       return addActivity({
-        kind: 'rpc',
+        kind: 'pi',
         title: updateType ? `Message update: ${updateType}` : 'Message update',
         status: 'info',
         body: formatJson(assistantMessageEvent),
@@ -221,10 +221,10 @@ export function mapMessageUpdate(
   }
 }
 
-export function mapRpcActivity(
-  event: RpcEvent,
-  options: RpcMappingOptions = { fullCommunication: true }
-): RpcActivityAction {
+export function mapPiActivity(
+  event: PiEvent,
+  options: PiMappingOptions = { fullCommunication: true }
+): PiActivityAction {
   const fullCommunication = options.fullCommunication !== false;
 
   switch (event.type) {
@@ -355,19 +355,6 @@ export function mapRpcActivity(
         body: formatKnownEventBody(event, ['type']),
         code: true
       }, fullCommunication));
-    case 'extension_ui_request':
-      if (!fullCommunication) {
-        return { type: 'ignore' };
-      }
-
-      return addActivity({
-        kind: 'extension_ui',
-        title: `Extension UI: ${getRecordString(event, 'method') ?? 'request'}`,
-        status: 'info',
-        summary: summarizeExtensionUiRequest(event),
-        body: formatKnownEventBody(event, ['type']),
-        code: true
-      });
     case 'extension_error':
       return addActivity(compactActivity({
         kind: 'extension_error',
@@ -378,7 +365,6 @@ export function mapRpcActivity(
         code: true
       }, fullCommunication));
     case 'message_update':
-    case 'response':
       return { type: 'ignore' };
     default:
       if (!fullCommunication) {
@@ -386,8 +372,8 @@ export function mapRpcActivity(
       }
 
       return addActivity({
-        kind: 'rpc',
-        title: `RPC event: ${event.type}`,
+        kind: 'pi',
+        title: `Pi event: ${event.type}`,
         status: 'info',
         body: formatJson(event),
         code: true
@@ -395,15 +381,7 @@ export function mapRpcActivity(
   }
 }
 
-export function getFailedResponseError(event: RpcEvent): string | undefined {
-  if (event.success !== false) {
-    return undefined;
-  }
-
-  return typeof event.error === 'string' ? event.error : 'Pi command failed.';
-}
-
-export function formatExtensionError(event: RpcEvent): string {
+export function formatExtensionError(event: PiEvent): string {
   const extensionPath = typeof event.extensionPath === 'string' ? event.extensionPath : 'extension';
   const error = typeof event.error === 'string' ? event.error : 'Unknown extension error.';
 
@@ -433,7 +411,7 @@ function mapToolCallEnd(
   });
 }
 
-function mapToolExecutionStart(event: RpcEvent, _fullCommunication: boolean): ActivityUpdateAction | { type: 'ignore' } {
+function mapToolExecutionStart(event: PiEvent, _fullCommunication: boolean): ActivityUpdateAction | { type: 'ignore' } {
   return updateActivity(getToolExecutionSourceId(event), formatToolExecutionActivity({
     toolName: getToolName(event),
     args: event.args,
@@ -441,7 +419,7 @@ function mapToolExecutionStart(event: RpcEvent, _fullCommunication: boolean): Ac
   }));
 }
 
-function mapToolExecutionUpdate(event: RpcEvent, _fullCommunication: boolean): ActivityUpdateAction | { type: 'ignore' } {
+function mapToolExecutionUpdate(event: PiEvent, _fullCommunication: boolean): ActivityUpdateAction | { type: 'ignore' } {
   return updateActivity(getToolExecutionSourceId(event), formatToolExecutionActivity({
     toolName: getToolName(event),
     args: event.args,
@@ -450,7 +428,7 @@ function mapToolExecutionUpdate(event: RpcEvent, _fullCommunication: boolean): A
   }));
 }
 
-function mapToolExecutionEnd(event: RpcEvent, _fullCommunication: boolean): ActivityUpdateAction | { type: 'ignore' } {
+function mapToolExecutionEnd(event: PiEvent, _fullCommunication: boolean): ActivityUpdateAction | { type: 'ignore' } {
   const isError = event.isError === true;
 
   return updateActivity(getToolExecutionSourceId(event), formatToolExecutionActivity({
@@ -536,7 +514,7 @@ function getPartialThinkingContent(record: Record<string, unknown>): string | un
   return getRecordString(content, 'thinking');
 }
 
-function getToolExecutionSourceId(event: RpcEvent): string {
+function getToolExecutionSourceId(event: PiEvent): string {
   const toolCallId = getRecordString(event, 'toolCallId');
 
   if (toolCallId) {
@@ -546,7 +524,7 @@ function getToolExecutionSourceId(event: RpcEvent): string {
   return `tool:${getToolName(event)}:current`;
 }
 
-function getToolName(event: RpcEvent): string {
+function getToolName(event: PiEvent): string {
   return getRecordString(event, 'toolName') ?? 'tool';
 }
 
@@ -755,13 +733,6 @@ function formatMessageRole(message: unknown): string {
   return `${role.slice(0, 1).toUpperCase()}${role.slice(1)}`;
 }
 
-function summarizeExtensionUiRequest(event: RpcEvent): string | undefined {
-  return getRecordString(event, 'title')
-    ?? getRecordString(event, 'message')
-    ?? getRecordString(event, 'statusText')
-    ?? getRecordString(event, 'text');
-}
-
 function summarizeToolArgs(value: unknown): string | undefined {
   if (!isRecord(value)) {
     return summarizeValue(value);
@@ -782,7 +753,7 @@ function summarizeValue(value: unknown): string | undefined {
   return compactText(formatBodyValue(value));
 }
 
-function formatKnownEventBody(event: RpcEvent, omittedKeys: string[]): string | undefined {
+function formatKnownEventBody(event: PiEvent, omittedKeys: string[]): string | undefined {
   const details: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(event)) {

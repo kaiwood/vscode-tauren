@@ -1,41 +1,31 @@
-import type { PiRpcClientFactory, PiRpcClientLike } from '../rpc/clientTypes';
-import type { PiRpcClientOptions, RpcEvent } from '../rpc/types';
+import type { PiClientFactory, PiClient } from '../pi/clientTypes';
+import type { PiClientOptions, PiEvent } from '../pi/types';
 
 type DisposableLike = {
   dispose(): void;
 };
 
 export type PiClientManagerOptions = {
-  createClient: PiRpcClientFactory;
+  createClient: PiClientFactory;
   getCwd?: () => string | undefined;
-  getPiPath?: () => string | undefined;
   getCurrentSessionFile: () => string | undefined;
   getSessionGeneration: () => number;
-  onEvent: (event: RpcEvent) => void;
+  onEvent: (event: PiEvent) => void;
   onError: (message: string) => void;
 };
 
 export class PiClientManager {
-  private client: PiRpcClientLike | undefined;
+  private client: PiClient | undefined;
   private nextSessionFile: string | undefined;
-  private restartWhenIdle = false;
   private readonly disposables: DisposableLike[] = [];
 
   public constructor(private readonly options: PiClientManagerOptions) {}
-
-  public get hasClient(): boolean {
-    return Boolean(this.client);
-  }
 
   public setNextSessionFile(sessionFile: string | undefined): void {
     this.nextSessionFile = sessionFile;
   }
 
-  public requestRestartWhenIdle(): void {
-    this.restartWhenIdle = true;
-  }
-
-  public getExistingClient(): PiRpcClientLike | undefined {
+  public getExistingClient(): PiClient | undefined {
     if (!this.client?.isRunning()) {
       return undefined;
     }
@@ -43,7 +33,7 @@ export class PiClientManager {
     return this.client;
   }
 
-  public getClient(): PiRpcClientLike {
+  public getClient(): PiClient {
     if (this.client) {
       return this.client;
     }
@@ -51,12 +41,7 @@ export class PiClientManager {
     const sessionFile = this.nextSessionFile ?? this.options.getCurrentSessionFile();
     this.nextSessionFile = undefined;
 
-    const clientOptions: PiRpcClientOptions = { cwd: this.options.getCwd?.() };
-    const piPath = this.options.getPiPath?.();
-
-    if (piPath) {
-      clientOptions.piPath = piPath;
-    }
+    const clientOptions: PiClientOptions = { cwd: this.options.getCwd?.() };
 
     if (sessionFile) {
       clientOptions.sessionFile = sessionFile;
@@ -80,21 +65,6 @@ export class PiClientManager {
     );
 
     return client;
-  }
-
-  public restartIfIdle(busy: boolean, beforeRestart?: () => void): boolean {
-    if (!this.restartWhenIdle || busy) {
-      return false;
-    }
-
-    this.restartNow(beforeRestart);
-    return true;
-  }
-
-  public restartNow(beforeRestart?: () => void): void {
-    this.restartWhenIdle = false;
-    beforeRestart?.();
-    this.disposeClient();
   }
 
   public disposeClient(): void {

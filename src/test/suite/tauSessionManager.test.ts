@@ -1,17 +1,16 @@
 import * as assert from 'assert';
 import { TauSessionManager, type TauSessionManagerOptions } from '../../sessions/tauSessionManager';
 import type { WebviewSessionItem, WebviewStateMessage, WebviewTreeItem } from '../../webviewProtocol/types';
-import type { PiRpcClientLike } from '../../rpc/clientTypes';
+import type { PiClient } from '../../pi/clientTypes';
 import type {
-  ExtensionUiResponse,
   PiAgentMessage,
   PiCommand,
   PiModel,
-  PiRpcClientOptions,
+  PiClientOptions,
   PiSessionState,
   PiSessionStats,
-  RpcEvent
-} from '../../rpc/types';
+  PiEvent
+} from '../../pi/types';
 
 suite('TauSessionManager', () => {
   test('tracks background session live status, unread state, and active persistence', async () => {
@@ -236,7 +235,7 @@ type ManagerHarness = {
   manager: TauSessionManager;
   states: WebviewStateMessage[];
   notifications: { message: string; type: string }[];
-  clientOptions: PiRpcClientOptions[];
+  clientOptions: PiClientOptions[];
   readonly createCalls: number;
 };
 
@@ -245,7 +244,6 @@ type ManagerHarnessOptions = {
   initialSessionFile?: string;
   onSessionFileChange?: (sessionFile: string | undefined) => void;
   listSessions?: TauSessionManagerOptions['listSessions'];
-  listSessionTree?: (sessionFile: string | undefined) => Promise<WebviewTreeItem[]>;
   loadSessionDiffSnapshot?: TauSessionManagerOptions['loadSessionDiffSnapshot'];
 };
 
@@ -255,7 +253,7 @@ function createManagerHarness(
 ): ManagerHarness {
   const states: WebviewStateMessage[] = [];
   const notifications: { message: string; type: string }[] = [];
-  const clientOptions: PiRpcClientOptions[] = [];
+  const clientOptions: PiClientOptions[] = [];
   const pendingClients = [...clients];
   let createCalls = 0;
 
@@ -273,7 +271,6 @@ function createManagerHarness(
     initialSessionFile: options.initialSessionFile,
     onSessionFileChange: options.onSessionFileChange,
     listSessions: options.listSessions,
-    listSessionTree: options.listSessionTree,
     loadSessionDiffSnapshot: options.loadSessionDiffSnapshot,
     extensionUi: {
       notify: (message, type) => notifications.push({ message, type }),
@@ -326,12 +323,11 @@ function lastState(harness: ManagerHarness): WebviewStateMessage {
   return harness.states[harness.states.length - 1];
 }
 
-class FakePiClient implements PiRpcClientLike {
+class FakePiClient implements PiClient {
   public disposed = false;
   public readonly prompts: string[] = [];
   public readonly forkedEntries: string[] = [];
-  public readonly extensionUiResponses: ExtensionUiResponse[] = [];
-  private readonly eventListeners = new Set<(event: RpcEvent) => void>();
+  private readonly eventListeners = new Set<(event: PiEvent) => void>();
   private readonly errorListeners = new Set<(message: string) => void>();
 
   public constructor(private readonly options: { state?: PiSessionState } = {}) {}
@@ -340,7 +336,7 @@ class FakePiClient implements PiRpcClientLike {
     return !this.disposed;
   }
 
-  public onEvent(listener: (event: RpcEvent) => void): () => void {
+  public onEvent(listener: (event: PiEvent) => void): () => void {
     this.eventListeners.add(listener);
 
     return () => {
@@ -411,6 +407,12 @@ class FakePiClient implements PiRpcClientLike {
     return { cancelled: false };
   }
 
+  public async getSessionTree(): Promise<WebviewTreeItem[]> {
+    return [];
+  }
+
+  public async setTreeEntryLabel(): Promise<void> {}
+
   public async navigateTree(): Promise<{ editorText?: string; cancelled?: boolean; aborted?: boolean }> {
     return { cancelled: false };
   }
@@ -428,15 +430,11 @@ class FakePiClient implements PiRpcClientLike {
     return { cancelled: false };
   }
 
-  public async respondExtensionUiRequest(response: ExtensionUiResponse): Promise<void> {
-    this.extensionUiResponses.push(response);
-  }
-
   public dispose(): void {
     this.disposed = true;
   }
 
-  public emit(event: RpcEvent): void {
+  public emit(event: PiEvent): void {
     for (const listener of [...this.eventListeners]) {
       listener(event);
     }

@@ -7,19 +7,18 @@ import {
   type PiChatControllerOptions,
   type PiChatSessionMetaSnapshot
 } from '../../piChatController';
-import type { PiRpcClientLike } from '../../rpc/clientTypes';
+import type { PiClient } from '../../pi/clientTypes';
 import type { WebviewSessionItem, WebviewStateMessage, WebviewTreeItem } from '../../webviewProtocol/types';
 import type { StatePublisherScheduler } from '../../controller/statePublisher';
 import type {
-  ExtensionUiResponse,
   PiAgentMessage,
   PiCommand,
   PiModel,
-  PiRpcClientOptions,
+  PiClientOptions,
   PiSessionState,
   PiSessionStats,
-  RpcEvent
-} from '../../rpc/types';
+  PiEvent
+} from '../../pi/types';
 
 suite('PiChatController', () => {
   test('webview ready starts one live metadata refresh and dedupes repeated ready messages', async () => {
@@ -848,79 +847,6 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
-  test('submit passes configured Pi path to the client', async () => {
-    const client = new FakePiClient();
-    const harness = createControllerHarness([client], { cwd: '/workspace', piPath: 'npx pi' });
-
-    await harness.controller.handleWebviewMessage({ type: 'submit', text: 'hello Pi' });
-
-    assert.deepStrictEqual(harness.clientOptions, [{ cwd: '/workspace', piPath: 'npx pi' }]);
-    harness.controller.dispose();
-  });
-
-  test('client configuration changes restart an idle client with the next configured path', async () => {
-    let piPath = 'old-pi';
-    const oldClient = new FakePiClient();
-    const newClient = new FakePiClient();
-    const harness = createControllerHarness([oldClient, newClient], {
-      cwd: '/workspace',
-      getPiPath: () => piPath
-    });
-
-    await harness.controller.handleWebviewMessage({ type: 'refreshMetadata' });
-
-    assert.deepStrictEqual(harness.clientOptions, [{ cwd: '/workspace', piPath: 'old-pi' }]);
-    assert.strictEqual(oldClient.disposed, false);
-
-    piPath = 'new-pi';
-    harness.controller.handleClientConfigurationChanged();
-    await flushPromises();
-
-    assert.strictEqual(oldClient.disposed, true);
-    assert.strictEqual(harness.createCalls, 2);
-    assert.deepStrictEqual(harness.clientOptions[1], { cwd: '/workspace', piPath: 'new-pi' });
-    assert.strictEqual(newClient.stateCalls, 1);
-    assert.strictEqual(newClient.commandsCalls, 1);
-    harness.controller.dispose();
-  });
-
-  test('client configuration changes wait for a busy run to publish its session file before reconnecting', async () => {
-    let piPath = 'old-pi';
-    const oldClient = new FakePiClient({
-      state: {
-        model: { provider: 'openai', id: 'gpt-test', reasoning: false },
-        thinkingLevel: 'off',
-        sessionFile: '/sessions/current.jsonl'
-      }
-    });
-    const newClient = new FakePiClient();
-    const harness = createControllerHarness([oldClient, newClient], {
-      cwd: '/workspace',
-      getPiPath: () => piPath
-    });
-
-    await harness.controller.handleWebviewMessage({ type: 'submit', text: 'hello Pi' });
-
-    piPath = 'new-pi';
-    harness.controller.handleClientConfigurationChanged();
-
-    assert.strictEqual(oldClient.disposed, false);
-    assert.strictEqual(harness.createCalls, 1);
-
-    oldClient.emit({ type: 'agent_end' });
-    await flushPromises();
-
-    assert.strictEqual(oldClient.disposed, true);
-    assert.strictEqual(harness.createCalls, 2);
-    assert.deepStrictEqual(harness.clientOptions[1], {
-      cwd: '/workspace',
-      piPath: 'new-pi',
-      sessionFile: '/sessions/current.jsonl'
-    });
-    assert.strictEqual(newClient.stateCalls, 1);
-    harness.controller.dispose();
-  });
-
   test('submit creates a client and sends the trimmed prompt', async () => {
     const client = new FakePiClient();
     const harness = createControllerHarness([client], { cwd: '/workspace' });
@@ -1235,7 +1161,7 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
-  test('abort sends RPC abort while keeping the current turn busy until agent events arrive', async () => {
+  test('abort sends Pi abort while keeping the current turn busy until agent events arrive', async () => {
     const promptDeferred = createDeferred<void>();
     const client = new FakePiClient({ promptResult: promptDeferred.promise });
     const harness = createControllerHarness([client]);
@@ -1294,7 +1220,7 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
-  test('supported built-in slash commands route to RPC commands', async () => {
+  test('supported built-in slash commands route to Pi commands', async () => {
     const client = new FakePiClient();
     const harness = createControllerHarness([client]);
 
@@ -1445,52 +1371,7 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
-  test('tree slash command reports that SDK mode is required when unsupported', async () => {
-    const client = new FakePiClient();
-    const harness = createControllerHarness([client]);
-
-    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/tree' });
-
-    assert.strictEqual(harness.createCalls, 0);
-    assert.deepStrictEqual(client.prompts, []);
-    assert.strictEqual(lastState(harness).viewMode, undefined);
-    assert.match(lastState(harness).messages.at(-1)?.text ?? '', /requires Tau SDK mode/);
-    harness.controller.dispose();
-  });
-
-  test('show tree toolbar action reports that SDK mode is required when unsupported', async () => {
-    const client = new FakePiClient();
-    const harness = createControllerHarness([client]);
-
-    await harness.controller.handleWebviewMessage({ type: 'showTree' });
-
-    assert.strictEqual(harness.createCalls, 0);
-    assert.deepStrictEqual(client.prompts, []);
-    assert.strictEqual(lastState(harness).viewMode, undefined);
-    assert.match(lastState(harness).messages.at(-1)?.text ?? '', /requires Tau SDK mode/);
-    harness.controller.dispose();
-  });
-
-  test('unsupported tree slash command does not refresh the session tree', async () => {
-    const treeRefreshCalls: Array<string | undefined> = [];
-    const harness = createControllerHarness([new FakePiClient()], {
-      initialSessionFile: '/sessions/current.jsonl',
-      listSessionTree: async (sessionFile) => {
-        treeRefreshCalls.push(sessionFile);
-        return [];
-      }
-    });
-
-    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/tree' });
-    await flushPromises();
-
-    assert.deepStrictEqual(treeRefreshCalls, []);
-    assert.deepStrictEqual(lastState(harness).treeItems, []);
-    assert.strictEqual(lastState(harness).treeRefreshing, false);
-    harness.controller.dispose();
-  });
-
-  test('tree slash command opens the live SDK session tree when supported', async () => {
+  test('tree slash command opens the live session tree', async () => {
     const treeItems: WebviewTreeItem[] = [{
       entryId: 'entry-1',
       role: 'user',
@@ -1502,9 +1383,7 @@ suite('PiChatController', () => {
       ancestorContinues: []
     }];
     const client = new FakePiClient({ treeItems });
-    const harness = createControllerHarness([client], {
-      supportsSessionTree: () => true
-    });
+    const harness = createControllerHarness([client]);
 
     await harness.controller.handleWebviewMessage({ type: 'submit', text: '/tree' });
     await flushPromises();
@@ -1517,7 +1396,7 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
-  test('show tree toolbar action opens the live SDK session tree when supported', async () => {
+  test('show tree toolbar action opens the live session tree', async () => {
     const treeItems: WebviewTreeItem[] = [{
       entryId: 'entry-1',
       role: 'user',
@@ -1529,9 +1408,7 @@ suite('PiChatController', () => {
       ancestorContinues: []
     }];
     const client = new FakePiClient({ treeItems });
-    const harness = createControllerHarness([client], {
-      supportsSessionTree: () => true
-    });
+    const harness = createControllerHarness([client]);
 
     await harness.controller.handleWebviewMessage({ type: 'showTree' });
     await flushPromises();
@@ -1674,7 +1551,7 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
-  test('reload slash command restarts Pi when RPC reload is unavailable', async () => {
+  test('reload slash command restarts Pi when reload is unavailable', async () => {
     const oldClient = new FakePiClient({
       reloadError: new Error('Unknown command: reload'),
       state: {
@@ -1700,7 +1577,7 @@ suite('PiChatController', () => {
     assert.strictEqual(newClient.commandsCalls, 1);
     assert.deepStrictEqual(lastState(harness).messages, [
       { role: 'system', text: 'Reloading Pi resources...' },
-      { role: 'system', text: 'Reloaded Tau by restarting Pi RPC. Skills, prompts, extensions, and metadata were rediscovered. Current persisted session was reconnected.' }
+      { role: 'system', text: 'Reloaded Tau by restarting Pi. Skills, prompts, extensions, and metadata were rediscovered. Current persisted session was reconnected.' }
     ]);
     assert.deepStrictEqual(lastState(harness).slashCommands, [
       { name: 'skill:new-skill', description: 'Newly added skill', source: 'skill', location: 'project', path: undefined }
@@ -2039,125 +1916,6 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
-  test('extension UI select requests are routed through the configured UI', async () => {
-    const client = new FakePiClient();
-    const selectCalls: { title: string; options: string[] }[] = [];
-    const harness = createControllerHarness([client], {
-      extensionUi: {
-        notify: () => {},
-        select: (title, options) => {
-          selectCalls.push({ title, options });
-          return 'Allow';
-        },
-        confirm: async () => undefined,
-        input: async () => undefined
-      }
-    });
-
-    await harness.controller.handleWebviewMessage({ type: 'refreshMetadata' });
-    client.emit({
-      type: 'extension_ui_request',
-      method: 'select',
-      id: 'select-1',
-      title: 'Allow command?',
-      options: ['Allow', 'Block']
-    });
-    await flushPromises();
-
-    assert.deepStrictEqual(selectCalls, [{ title: 'Allow command?', options: ['Allow', 'Block'] }]);
-    assert.deepStrictEqual(client.extensionUiResponses, [{ id: 'select-1', value: 'Allow' }]);
-    harness.controller.dispose();
-  });
-
-  test('client replacement cancels pending extension UI requests and ignores late UI results', async () => {
-    const firstClient = new FakePiClient();
-    const secondClient = new FakePiClient();
-    const selectDeferred = createDeferred<string | undefined>();
-    let piPath: string | undefined;
-    const harness = createControllerHarness([firstClient, secondClient], {
-      getPiPath: () => piPath,
-      extensionUi: {
-        notify: () => {},
-        select: async () => selectDeferred.promise,
-        confirm: async () => undefined,
-        input: async () => undefined
-      }
-    });
-
-    await harness.controller.handleWebviewMessage({ type: 'refreshMetadata' });
-    firstClient.emit({
-      type: 'extension_ui_request',
-      method: 'select',
-      id: 'select-1',
-      title: 'Allow command?',
-      options: ['Allow', 'Block']
-    });
-    await flushPromises();
-
-    piPath = '/opt/pi-next';
-    harness.controller.handleClientConfigurationChanged();
-    await flushPromises();
-    await flushPromises();
-
-    assert.deepStrictEqual(firstClient.extensionUiResponses, [{ id: 'select-1', cancelled: true }]);
-    assert.strictEqual(firstClient.disposed, true);
-    assert.strictEqual(harness.createCalls, 2);
-
-    selectDeferred.resolve('Allow');
-    await flushPromises();
-
-    assert.deepStrictEqual(firstClient.extensionUiResponses, [{ id: 'select-1', cancelled: true }]);
-    assert.deepStrictEqual(secondClient.extensionUiResponses, []);
-    harness.controller.dispose();
-  });
-
-  test('client lifecycle errors invalidate pending extension UI requests before a client restarts', async () => {
-    const client = new FakePiClient();
-    const selectDeferred = createDeferred<string | undefined>();
-    const harness = createControllerHarness([client], {
-      extensionUi: {
-        notify: () => {},
-        select: async () => selectDeferred.promise,
-        confirm: async () => undefined,
-        input: async () => undefined
-      }
-    });
-
-    await harness.controller.handleWebviewMessage({ type: 'refreshMetadata' });
-    client.emit({
-      type: 'extension_ui_request',
-      method: 'select',
-      id: 'select-1',
-      title: 'Allow command?',
-      options: ['Allow', 'Block']
-    });
-    await flushPromises();
-
-    client.disposed = true;
-    client.emitError('Pi RPC process exited with code 1.');
-    await flushPromises();
-
-    client.disposed = false;
-    selectDeferred.resolve('Allow');
-    await flushPromises();
-
-    assert.deepStrictEqual(client.extensionUiResponses, []);
-    harness.controller.dispose();
-  });
-
-  test('unmatched failed responses are added to the transcript', async () => {
-    const client = new FakePiClient();
-    const harness = createControllerHarness([client]);
-
-    await harness.controller.handleWebviewMessage({ type: 'refreshMetadata' });
-    client.emit({ type: 'response', success: false, error: 'command failed' });
-
-    assert.deepStrictEqual(lastState(harness).messages, [
-      { role: 'system', text: 'command failed', error: true }
-    ]);
-    harness.controller.dispose();
-  });
-
   test('agent end refreshes metadata', async () => {
     const client = new FakePiClient({
       state: {
@@ -2290,14 +2048,12 @@ type ControllerHarness = {
   states: WebviewStateMessage[];
   notifications: { message: string; type: string }[];
   toasts: string[];
-  clientOptions: PiRpcClientOptions[];
+  clientOptions: PiClientOptions[];
   readonly createCalls: number;
 };
 
 type ControllerHarnessOptions = {
   cwd?: string;
-  piPath?: string;
-  getPiPath?: () => string | undefined;
   extensionUi?: PiChatControllerOptions['extensionUi'];
   stateScheduler?: StatePublisherScheduler;
   initialSessionMeta?: PiChatSessionMetaSnapshot;
@@ -2305,12 +2061,10 @@ type ControllerHarnessOptions = {
   onSessionMetaChange?: (metadata: PiChatSessionMetaSnapshot) => void;
   onSessionFileChange?: (sessionFile: string | undefined) => void;
   listSessions?: (cwd: string | undefined, currentSessionFile: string | undefined) => Promise<WebviewSessionItem[]>;
-  listSessionTree?: (sessionFile: string | undefined) => Promise<WebviewTreeItem[]>;
   deleteSession?: (sessionPath: string, displayName: string) => Promise<boolean>;
   showSessionChanges?: (sessionPath: string, displayName: string) => Promise<void>;
   getReadyScript?: () => string | undefined;
   getReadyScriptEnabled?: () => boolean;
-  supportsSessionTree?: () => boolean;
   runReadyScript?: PiChatControllerOptions['runReadyScript'];
 };
 
@@ -2321,7 +2075,7 @@ function createControllerHarness(
   const states: WebviewStateMessage[] = [];
   const notifications: { message: string; type: string }[] = [];
   const toasts: string[] = [];
-  const clientOptions: PiRpcClientOptions[] = [];
+  const clientOptions: PiClientOptions[] = [];
   const pendingClients = [...clients];
   let createCalls = 0;
 
@@ -2334,7 +2088,6 @@ function createControllerHarness(
       return client;
     },
     getCwd: () => options.cwd,
-    getPiPath: options.getPiPath ?? (() => options.piPath),
     postState: (message) => {
       states.push(message);
     },
@@ -2351,12 +2104,10 @@ function createControllerHarness(
     onSessionMetaChange: options.onSessionMetaChange,
     onSessionFileChange: options.onSessionFileChange,
     listSessions: options.listSessions,
-    listSessionTree: options.listSessionTree,
     deleteSession: options.deleteSession,
     showSessionChanges: options.showSessionChanges,
     getReadyScript: options.getReadyScript,
     getReadyScriptEnabled: options.getReadyScriptEnabled,
-    supportsSessionTree: options.supportsSessionTree,
     runReadyScript: options.runReadyScript
   };
 
@@ -2437,7 +2188,7 @@ class FakeStateScheduler implements StatePublisherScheduler {
   }
 }
 
-class FakePiClient implements PiRpcClientLike {
+class FakePiClient implements PiClient {
   public disposed = false;
   public stateCalls = 0;
   public modelsCalls = 0;
@@ -2448,7 +2199,6 @@ class FakePiClient implements PiRpcClientLike {
   public prompts: string[] = [];
   public promptStreamingBehaviors: Array<'steer' | 'followUp' | undefined> = [];
   public sessionNames: string[] = [];
-  public extensionUiResponses: ExtensionUiResponse[] = [];
   public state: PiSessionState;
   public models: PiModel[];
   public stats: PiSessionStats;
@@ -2482,7 +2232,7 @@ class FakePiClient implements PiRpcClientLike {
   public treeItems: WebviewTreeItem[];
   public treeCalls = 0;
   public navigatedTrees: Array<{ entryId: string; options?: { summarize?: boolean; customInstructions?: string } }> = [];
-  private readonly eventListeners = new Set<(event: RpcEvent) => void>();
+  private readonly eventListeners = new Set<(event: PiEvent) => void>();
   private readonly errorListeners = new Set<(message: string) => void>();
 
   public constructor(options: FakePiClientOptions = {}) {
@@ -2520,7 +2270,7 @@ class FakePiClient implements PiRpcClientLike {
     return !this.disposed;
   }
 
-  public onEvent(listener: (event: RpcEvent) => void): () => void {
+  public onEvent(listener: (event: PiEvent) => void): () => void {
     this.eventListeners.add(listener);
 
     return () => {
@@ -2601,6 +2351,8 @@ class FakePiClient implements PiRpcClientLike {
     return this.treeItems;
   }
 
+  public async setTreeEntryLabel(): Promise<void> {}
+
   public async switchSession(sessionPath: string): Promise<{ cancelled?: boolean }> {
     this.switchedSessions.push(sessionPath);
 
@@ -2670,15 +2422,11 @@ class FakePiClient implements PiRpcClientLike {
     return { text: null };
   }
 
-  public async respondExtensionUiRequest(response: ExtensionUiResponse): Promise<void> {
-    this.extensionUiResponses.push(response);
-  }
-
   public dispose(): void {
     this.disposed = true;
   }
 
-  public emit(event: RpcEvent): void {
+  public emit(event: PiEvent): void {
     for (const listener of [...this.eventListeners]) {
       listener(event);
     }

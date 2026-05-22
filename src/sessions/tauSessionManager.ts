@@ -110,12 +110,6 @@ export class TauSessionManager {
     void this.active().controller.refreshSessionDiffStats();
   }
 
-  public handleClientConfigurationChanged(): void {
-    for (const session of this.sessions) {
-      session.controller.handleClientConfigurationChanged();
-    }
-  }
-
   private createSession(options: { initial?: boolean; activate?: boolean; sessionFile?: string } = {}): OpenSession {
     const previousActive = this.activeSessionId ? this.active() : undefined;
     const id = `open-${++this.sessionSequence}`;

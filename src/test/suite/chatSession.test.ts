@@ -258,8 +258,8 @@ suite('ChatSession', () => {
 
     session.beginSubmit('show activity');
     session.addActivity({
-      kind: 'rpc',
-      title: 'Large RPC event',
+      kind: 'pi',
+      title: 'Large Pi event',
       status: 'info',
       body: longBody,
       expandedBody: longExpandedBody
@@ -301,8 +301,8 @@ suite('ChatSession', () => {
 
     session.beginSubmit('show activity');
     session.addActivity({
-      kind: 'rpc',
-      title: 'Short RPC event',
+      kind: 'pi',
+      title: 'Short Pi event',
       status: 'info',
       body: 'short body'
     });
@@ -357,8 +357,8 @@ suite('ChatSession', () => {
 
     session.beginSubmit('copy activity');
     session.addActivity({
-      kind: 'rpc',
-      title: 'RPC event',
+      kind: 'pi',
+      title: 'Pi event',
       status: 'info',
       body: 'original'
     });
@@ -397,7 +397,7 @@ suite('ChatSession', () => {
 
     session.beginSubmit('first');
     session.upsertActivity('source', {
-      kind: 'rpc',
+      kind: 'pi',
       title: 'First',
       status: 'info'
     });
@@ -405,7 +405,7 @@ suite('ChatSession', () => {
     session.beginSubmit('second');
 
     const id = session.upsertActivity('source', {
-      kind: 'rpc',
+      kind: 'pi',
       title: 'Second',
       status: 'info'
     });

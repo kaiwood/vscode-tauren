@@ -1951,7 +1951,7 @@
   }
   function createActivityElement(activity, messageIndex, options) {
     const details = document.createElement("details");
-    details.className = `activity activity--${activity.kind || "rpc"} activity--${activity.status || "info"}`;
+    details.className = `activity activity--${activity.kind || "pi"} activity--${activity.status || "info"}`;
     const activityId = typeof activity.id === "string" ? activity.id : "";
     const savedOpenState = activityExpansion.get(activityId);
     details.open = typeof savedOpenState === "boolean" ? savedOpenState : activity.status === "running" || shouldKeepActivityOpen(activity);

@@ -2,7 +2,7 @@ import type { ChatActivityInput, ChatMessage } from '../chat/chatSession';
 import { formatToolExecutionActivity } from '../pi/eventMapper';
 import { extractPiMessageText } from '../pi/messageContent';
 import { formatCompactionSystemMessage } from '../sessions/sessionFormatting';
-import type { PiAgentMessage } from '../rpc/types';
+import type { PiAgentMessage } from '../pi/types';
 import { isRecord } from './typeGuards';
 
 export type RestoredToolCall = {

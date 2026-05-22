@@ -234,7 +234,7 @@ function createActivityListElement(activities: Activity[], messageIndex: number 
 
 function createActivityElement(activity: Activity, messageIndex: number | undefined, options: MessageRenderOptions): HTMLElement {
   const details = document.createElement('details');
-  details.className = `activity activity--${activity.kind || 'rpc'} activity--${activity.status || 'info'}`;
+  details.className = `activity activity--${activity.kind || 'pi'} activity--${activity.status || 'info'}`;
 
   const activityId = typeof activity.id === 'string' ? activity.id : '';
   const savedOpenState = activityExpansion.get(activityId);

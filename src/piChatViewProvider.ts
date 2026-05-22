@@ -5,11 +5,10 @@ import {
   parseWebviewMessage
 } from './sidebar/chatWebview';
 import type { WebviewMessage, WebviewStateMessage } from './webviewProtocol/types';
-import { type PiRpcClientFactory, type PiRpcClientLike } from './rpc/clientTypes';
-import { PiRpcClient } from './rpc/client';
-import type { PiRpcClientOptions } from './rpc/types';
+import { type PiClientFactory, type PiClient } from './pi/clientTypes';
+import type { PiClientOptions } from './pi/types';
 import { PiSdkClient } from './sdk/piSdkClient';
-import type { ExtensionUiRequestUi } from './extensionUi/requestHandler';
+import type { ExtensionUi } from './extensionUi/types';
 import { createSessionDiffStatsFileWatcher, readSessionDiffSnapshot, writeSessionDiffSnapshot } from './diff/sessionDiffStorage';
 import { SessionDiffViewer } from './diff/sessionDiffViewer';
 import { ShikiCodeRenderer } from './highlighting/shikiCodeRenderer';
@@ -23,7 +22,7 @@ import { traceOrigin, type TraceOriginInput, type TraceOriginMatch } from './ori
 import { readCachedSessionMeta, writeCachedSessionMeta } from './metadata/cache';
 
 export const chatViewType = 'tau.chatView';
-export type { PiRpcClientLike } from './rpc/clientTypes';
+export type { PiClient } from './pi/clientTypes';
 
 const currentSessionFileStorageKey = 'tau.currentSessionFile';
 const welcomeDismissedStorageKey = 'tau.welcomeDismissed';
@@ -33,23 +32,19 @@ const contextUsagePollingIntervalMs = 2000;
 const sessionDiffStatsRefreshDelayMs = 250;
 
 type ConfiguredPiClientDependencies = {
-  extensionUi: ExtensionUiRequestUi;
+  extensionUi: ExtensionUi;
   showNotification: (message: string, notifyType: string) => void;
 };
 
 function createConfiguredPiClient(
-  options: PiRpcClientOptions,
+  options: PiClientOptions,
   dependencies: ConfiguredPiClientDependencies
-): PiRpcClientLike {
-  if (getUseSdkInsteadOfRpcSetting()) {
-    return new PiSdkClient({
-      ...options,
-      extensionUi: dependencies.extensionUi,
-      showNotification: dependencies.showNotification
-    });
-  }
-
-  return new PiRpcClient(options);
+): PiClient {
+  return new PiSdkClient({
+    ...options,
+    extensionUi: dependencies.extensionUi,
+    showNotification: dependencies.showNotification
+  });
 }
 
 export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
@@ -71,11 +66,11 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
   public constructor(
     private readonly extensionUri: vscode.Uri,
-    createClient: PiRpcClientFactory | undefined = undefined,
+    createClient: PiClientFactory | undefined = undefined,
     private readonly workspaceState?: vscode.Memento,
     private readonly globalState?: vscode.Memento
   ) {
-    const extensionUi: ExtensionUiRequestUi = {
+    const extensionUi: ExtensionUi = {
       notify: (message, notifyType) => this.showNotification(message, notifyType),
       select: (title, options) => vscode.window.showQuickPick(options, {
         title,
@@ -87,7 +82,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
         placeHolder: placeholder
       })
     };
-    const configuredCreateClient = createClient ?? ((options: PiRpcClientOptions) => createConfiguredPiClient(options, {
+    const configuredCreateClient = createClient ?? ((options: PiClientOptions) => createConfiguredPiClient(options, {
       extensionUi,
       showNotification: (message, notifyType) => this.showNotification(message, notifyType)
     }));
@@ -95,12 +90,10 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     this.controller = new TauSessionManager({
       createClient: configuredCreateClient,
       getCwd: () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
-      getPiPath: () => getPiPathSetting(),
       getOutputColors: () => getOutputColorsSetting(),
       getAnimationsEnabled: () => getAnimationsEnabledSetting(),
       getReadyScript: () => getReadyScriptSetting(),
       getReadyScriptEnabled: () => getReadyScriptEnabledSetting(),
-      supportsSessionTree: () => getUseSdkInsteadOfRpcSetting(),
       runReadyScript: (scriptPath, cwd) => {
         runReadyScript(scriptPath, cwd, {
           onError: (message) => this.showNotification(message, 'warning')
@@ -130,10 +123,6 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
     this.disposables.push(
       vscode.workspace.onDidChangeConfiguration((event) => {
-        if (event.affectsConfiguration('tau.piPath') || event.affectsConfiguration('tau.useSdkInsteadOfRpc')) {
-          this.controller.handleClientConfigurationChanged();
-        }
-
         if (event.affectsConfiguration('tau.outputColors') || event.affectsConfiguration('tau.animationsEnabled')) {
           this.controller.postState();
         }
@@ -713,15 +702,6 @@ function getPathBasename(filePath: string): string {
   const normalizedPath = filePath.replace(/\\/g, '/');
   const lastSlashIndex = normalizedPath.lastIndexOf('/');
   return lastSlashIndex === -1 ? normalizedPath : normalizedPath.slice(lastSlashIndex + 1);
-}
-
-function getPiPathSetting(): string | undefined {
-  const value = vscode.workspace.getConfiguration('tau').get<string>('piPath', 'pi').trim();
-  return value && value !== 'pi' ? value : undefined;
-}
-
-export function getUseSdkInsteadOfRpcSetting(): boolean {
-  return vscode.workspace.getConfiguration('tau').get<boolean>('useSdkInsteadOfRpc', false);
 }
 
 function getOutputColorsSetting(): boolean {

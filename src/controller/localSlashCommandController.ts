@@ -1,7 +1,7 @@
 import type { ChatSession } from '../chat/chatSession';
-import type { ExtensionUiRequestUi } from '../extensionUi/requestHandler';
-import type { PiRpcClientLike } from '../rpc/clientTypes';
-import type { PiSessionState, PiSessionStats } from '../rpc/types';
+import type { ExtensionUi } from '../extensionUi/types';
+import type { PiClient } from '../pi/clientTypes';
+import type { PiSessionState, PiSessionStats } from '../pi/types';
 import { SessionMetadataState } from '../metadata/sessionMetadata';
 import { isSupportedBuiltinSlashCommand } from '../commands/slashCommands';
 import { getErrorMessage, isUnsupportedReloadCommandError } from './errors';
@@ -21,11 +21,11 @@ export type LocalSlashCommandControllerOptions = {
   session: ChatSession;
   sessionMetadata: SessionMetadataState;
   sessionView: SessionViewController;
-  extensionUi?: ExtensionUiRequestUi;
+  extensionUi?: ExtensionUi;
   showNotification: (message: string, notifyType: string) => void;
   showToast?: (message: string, kind?: 'success' | 'warning' | 'error') => void;
   writeClipboard?: (text: string) => PromiseLike<void> | Promise<void> | void;
-  getClient: () => PiRpcClientLike;
+  getClient: () => PiClient;
   postState: () => void;
   refreshSessionMeta: (options?: { startClient?: boolean; force?: boolean }) => Promise<void>;
   refreshSlashCommands: (options?: { startClient?: boolean; force?: boolean }) => Promise<void>;
@@ -50,12 +50,6 @@ export class LocalSlashCommandController {
   }
 
   public async handle(command: LocalSlashCommand): Promise<void> {
-    if (command.name === 'tree' && !this.options.sessionView.canNavigateTree()) {
-      this.options.session.addSystemMessage('/tree currently requires Tau SDK mode. Enable tau.useSdkInsteadOfRpc to navigate the live session tree.');
-      this.options.postState();
-      return;
-    }
-
     if (!isSupportedBuiltinSlashCommand(command.name)) {
       this.options.session.addSystemMessage(`/${command.name} is a Pi terminal command that is not supported in the VS Code sidebar yet.`);
       this.options.postState();
@@ -399,8 +393,8 @@ export class LocalSlashCommandController {
 
     this.options.session.addSystemMessage(restartedClient
       ? restoredSession
-        ? 'Reloaded Tau by restarting Pi RPC. Skills, prompts, extensions, and metadata were rediscovered. Current persisted session was reconnected.'
-        : 'Reloaded Tau by restarting Pi RPC. Skills, prompts, extensions, and metadata were rediscovered. No persisted session was available to reconnect.'
+        ? 'Reloaded Tau by restarting Pi. Skills, prompts, extensions, and metadata were rediscovered. Current persisted session was reconnected.'
+        : 'Reloaded Tau by restarting Pi. Skills, prompts, extensions, and metadata were rediscovered. No persisted session was available to reconnect.'
       : 'Reloaded keybindings, extensions, skills, prompts, and themes.');
     this.options.postState();
   }

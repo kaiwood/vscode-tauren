@@ -142,8 +142,7 @@
       ],
       "commandPalette": [
         {
-          "command": "tau.showSessionTree",
-          "when": "config.tau.useSdkInsteadOfRpc"
+          "command": "tau.showSessionTree"
         }
       ],
       "view/title": [
@@ -164,7 +163,7 @@
         },
         {
           "command": "tau.showSessionTree",
-          "when": "view == tau.chatView && !tau.busy && config.tau.useSdkInsteadOfRpc",
+          "when": "view == tau.chatView && !tau.busy",
           "group": "tau@10"
         },
         {
@@ -202,16 +201,6 @@
       "title": "Tau",
       "type": "object",
       "properties": {
-        "tau.piPath": {
-          "type": "string",
-          "default": "pi",
-          "description": "Command used to launch Pi. Use an executable name or path, optionally with arguments, for example: pi, /opt/homebrew/bin/pi, npx pi, or \"/path with spaces/pi\"."
-        },
-        "tau.useSdkInsteadOfRpc": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "Use SDK instead of RPC (experimental). When enabled, Tau runs Pi in-process through the bundled Pi SDK instead of launching the `pi` command."
-        },
         "tau.outputColors": {
           "type": "boolean",
           "default": true,

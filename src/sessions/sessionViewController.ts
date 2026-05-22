@@ -1,11 +1,10 @@
-import { listPiSessionTree } from './piSessionTree';
 import type {
   WebviewSessionItem,
   WebviewSessionItemCommand,
   WebviewTreeItem
 } from '../webviewProtocol/types';
 import type { PiChatControllerOptions } from '../controller/types';
-import type { PiRpcClientLike } from '../rpc/clientTypes';
+import type { PiClient } from '../pi/clientTypes';
 import { getErrorMessage } from '../controller/errors';
 import {
   cloneSessionWithClient,
@@ -43,10 +42,7 @@ type SessionViewControllerOptions = Pick<
   | 'deleteSession'
   | 'extensionUi'
   | 'getCwd'
-  | 'getPiPath'
-  | 'supportsSessionTree'
   | 'listSessions'
-  | 'listSessionTree'
   | 'onSessionFileChange'
   | 'showNotification'
   | 'showSessionChanges'
@@ -55,7 +51,7 @@ type SessionViewControllerOptions = Pick<
   initialSessionFile?: string;
   applySessionFile: (sessionFile: string | undefined) => void;
   adoptReplacedSession: (options?: { fallbackSessionFile?: string; refreshSessions?: boolean }) => Promise<void>;
-  getClient: () => PiRpcClientLike;
+  getClient: () => PiClient;
   handleCompactCurrentSession: () => Promise<void>;
   isBusy: () => boolean;
   postState: () => void;
@@ -135,10 +131,6 @@ export class SessionViewController {
     this.sessionsError = '';
     this.options.postState();
     void this.refreshSessions();
-  }
-
-  public canNavigateTree(): boolean {
-    return this.options.supportsSessionTree?.() ?? false;
   }
 
   public showTree(): void {
@@ -222,10 +214,7 @@ export class SessionViewController {
     this.options.postState();
 
     try {
-      const client = this.options.getClient();
-      const treeItems = typeof client.getSessionTree === 'function'
-        ? await client.getSessionTree()
-        : await (this.options.listSessionTree ?? listPiSessionTree)(sessionFile);
+      const treeItems = await this.options.getClient().getSessionTree();
 
       if (!this.isCurrentTreeRefresh(refreshId, sessionFile)) {
         return;
@@ -250,16 +239,9 @@ export class SessionViewController {
       return;
     }
 
-    const setTreeEntryLabel = this.options.getClient().setTreeEntryLabel;
-
-    if (typeof setTreeEntryLabel !== 'function') {
-      this.options.showNotification('Editing session tree labels requires Tau SDK mode.', 'warning');
-      return;
-    }
-
     try {
       const trimmedLabel = label.trim();
-      await setTreeEntryLabel(entryId, trimmedLabel || undefined);
+      await this.options.getClient().setTreeEntryLabel(entryId, trimmedLabel || undefined);
       this.treeItems = this.treeItems.map((item) => item.entryId === entryId
         ? trimmedLabel
           ? { ...item, label: trimmedLabel }
@@ -305,7 +287,7 @@ export class SessionViewController {
     } catch (error) {
       const message = getErrorMessage(error);
       this.treeError = message.includes('Unknown command') || message.includes('Unsupported command')
-        ? 'This Pi version does not expose session tree navigation over RPC yet.'
+        ? 'This Pi version does not expose session tree navigation yet.'
         : message;
       this.options.postState();
     } finally {
@@ -717,10 +699,8 @@ export class SessionViewController {
 
   private getBackgroundSessionClientOptions(): BackgroundSessionClientOptions {
     return {
-      ...this.getSessionClientActionUi(),
       createClient: this.options.createClient,
       getCwd: () => this.options.getCwd?.(),
-      getPiPath: () => this.options.getPiPath?.(),
       onError: (message) => {
         this.sessionsError = message;
         this.options.postState();

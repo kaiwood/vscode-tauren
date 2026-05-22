@@ -1,5 +1,5 @@
 import type { WebviewSessionItem } from '../webviewProtocol/types';
-import type { PiForkMessage, PiSessionState, PiSessionStats } from '../rpc/types';
+import type { PiForkMessage, PiSessionState, PiSessionStats } from '../pi/types';
 import { formatContextUsage, formatInteger } from '../metadata/sessionMetadata';
 
 export type ForkMessageOption = {

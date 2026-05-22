@@ -1,9 +1,8 @@
 import * as assert from 'assert';
 import {
   formatExtensionError,
-  getFailedResponseError,
   mapMessageUpdate,
-  mapRpcActivity
+  mapPiActivity
 } from '../../pi/eventMapper';
 
 suite('Pi event mapper', () => {
@@ -136,7 +135,7 @@ suite('Pi event mapper', () => {
       {
         type: 'activity_add',
         activity: {
-          kind: 'rpc',
+          kind: 'pi',
           title: 'Message update: tool_call',
           status: 'info',
           body: '{\n  "type": "tool_call"\n}',
@@ -260,9 +259,9 @@ suite('Pi event mapper', () => {
     );
   });
 
-  test('mapRpcActivity maps agent lifecycle', () => {
+  test('mapPiActivity maps agent lifecycle', () => {
     assert.deepStrictEqual(
-      mapRpcActivity({ type: 'agent_start' }),
+      mapPiActivity({ type: 'agent_start' }),
       {
         type: 'activity_update',
         sourceId: 'agent',
@@ -276,7 +275,7 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
-      mapRpcActivity({ type: 'agent_end', messages: [{}, {}] }),
+      mapPiActivity({ type: 'agent_end', messages: [{}, {}] }),
       {
         type: 'activity_update',
         sourceId: 'agent',
@@ -290,9 +289,9 @@ suite('Pi event mapper', () => {
     );
   });
 
-  test('mapRpcActivity maps turn and message events', () => {
+  test('mapPiActivity maps turn and message events', () => {
     assert.deepStrictEqual(
-      mapRpcActivity({ type: 'turn_start' }),
+      mapPiActivity({ type: 'turn_start' }),
       {
         type: 'activity_add',
         activity: {
@@ -304,7 +303,7 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
-      mapRpcActivity({ type: 'turn_end', toolResults: [{}] }),
+      mapPiActivity({ type: 'turn_end', toolResults: [{}] }),
       {
         type: 'activity_add',
         activity: {
@@ -319,7 +318,7 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
-      mapRpcActivity({ type: 'message_start', message: { role: 'assistant', content: 'hi' } }),
+      mapPiActivity({ type: 'message_start', message: { role: 'assistant', content: 'hi' } }),
       {
         type: 'activity_add',
         activity: {
@@ -333,7 +332,7 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
-      mapRpcActivity({ type: 'message_end', message: { role: 'assistant' } }),
+      mapPiActivity({ type: 'message_end', message: { role: 'assistant' } }),
       {
         type: 'activity_add',
         activity: {
@@ -369,9 +368,9 @@ suite('Pi event mapper', () => {
     );
   });
 
-  test('mapRpcActivity maps tool execution lifecycle', () => {
+  test('mapPiActivity maps tool execution lifecycle', () => {
     assert.deepStrictEqual(
-      mapRpcActivity({
+      mapPiActivity({
         type: 'tool_execution_start',
         toolCallId: 'call-1',
         toolName: 'bash',
@@ -389,7 +388,7 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
-      mapRpcActivity({
+      mapPiActivity({
         type: 'tool_execution_update',
         toolCallId: 'call-1',
         toolName: 'bash',
@@ -410,7 +409,7 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
-      mapRpcActivity({
+      mapPiActivity({
         type: 'tool_execution_end',
         toolCallId: 'call-1',
         toolName: 'bash',
@@ -432,9 +431,9 @@ suite('Pi event mapper', () => {
     );
   });
 
-  test('mapRpcActivity formats common tools and previews long output', () => {
+  test('mapPiActivity formats common tools and previews long output', () => {
     assert.deepStrictEqual(
-      mapRpcActivity({
+      mapPiActivity({
         type: 'tool_execution_end',
         toolCallId: 'call-read',
         toolName: 'read',
@@ -456,7 +455,7 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
-      mapRpcActivity({
+      mapPiActivity({
         type: 'tool_execution_end',
         toolCallId: 'call-bash',
         toolName: 'bash',
@@ -478,7 +477,7 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
-      mapRpcActivity({
+      mapPiActivity({
         type: 'tool_execution_end',
         toolCallId: 'call-edit',
         toolName: 'edit',
@@ -503,9 +502,9 @@ suite('Pi event mapper', () => {
     );
   });
 
-  test('mapRpcActivity keeps concise tool execution visible when full communication is disabled', () => {
+  test('mapPiActivity keeps concise tool execution visible when full communication is disabled', () => {
     assert.deepStrictEqual(
-      mapRpcActivity({
+      mapPiActivity({
         type: 'tool_execution_start',
         toolCallId: 'call-1',
         toolName: 'bash',
@@ -523,7 +522,7 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
-      mapRpcActivity({
+      mapPiActivity({
         type: 'tool_execution_update',
         toolCallId: 'call-1',
         toolName: 'bash',
@@ -544,7 +543,7 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
-      mapRpcActivity({
+      mapPiActivity({
         type: 'tool_execution_end',
         toolCallId: 'call-1',
         toolName: 'bash',
@@ -562,7 +561,7 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
-      mapRpcActivity({
+      mapPiActivity({
         type: 'tool_execution_end',
         toolCallId: 'call-1',
         toolName: 'bash',
@@ -584,14 +583,14 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
-      mapRpcActivity({ type: 'turn_start' }, { fullCommunication: false }),
+      mapPiActivity({ type: 'turn_start' }, { fullCommunication: false }),
       { type: 'ignore' }
     );
   });
 
-  test('mapRpcActivity maps queue, compaction, and retry events', () => {
+  test('mapPiActivity maps queue, compaction, and retry events', () => {
     assert.deepStrictEqual(
-      mapRpcActivity({ type: 'queue_update', queueLength: 2 }),
+      mapPiActivity({ type: 'queue_update', queueLength: 2 }),
       {
         type: 'activity_add',
         activity: {
@@ -605,7 +604,7 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
-      mapRpcActivity({ type: 'compaction_start', remainingTokens: 4000 }),
+      mapPiActivity({ type: 'compaction_start', remainingTokens: 4000 }),
       {
         type: 'activity_update',
         sourceId: 'compaction',
@@ -620,7 +619,7 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
-      mapRpcActivity({ type: 'compaction_end', result: { summary: 'Summary text', tokensBefore: 123333 } }),
+      mapPiActivity({ type: 'compaction_end', result: { summary: 'Summary text', tokensBefore: 123333 } }),
       {
         type: 'activity_update',
         sourceId: 'compaction',
@@ -635,7 +634,7 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
-      mapRpcActivity({ type: 'compaction_end', remainingTokens: 6000 }),
+      mapPiActivity({ type: 'compaction_end', remainingTokens: 6000 }),
       {
         type: 'activity_update',
         sourceId: 'compaction',
@@ -651,7 +650,7 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
-      mapRpcActivity({ type: 'auto_retry_start', attempt: 2 }),
+      mapPiActivity({ type: 'auto_retry_start', attempt: 2 }),
       {
         type: 'activity_update',
         sourceId: 'auto-retry',
@@ -666,7 +665,7 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
-      mapRpcActivity({ type: 'auto_retry_end', success: false }),
+      mapPiActivity({ type: 'auto_retry_end', success: false }),
       {
         type: 'activity_update',
         sourceId: 'auto-retry',
@@ -681,28 +680,9 @@ suite('Pi event mapper', () => {
     );
   });
 
-  test('mapRpcActivity maps extension UI and unknown events', () => {
+  test('mapPiActivity maps extension errors and unknown events', () => {
     assert.deepStrictEqual(
-      mapRpcActivity({
-        type: 'extension_ui_request',
-        method: 'confirm',
-        title: 'Allow command?'
-      }),
-      {
-        type: 'activity_add',
-        activity: {
-          kind: 'extension_ui',
-          title: 'Extension UI: confirm',
-          status: 'info',
-          summary: 'Allow command?',
-          body: '{\n  "method": "confirm",\n  "title": "Allow command?"\n}',
-          code: true
-        }
-      }
-    );
-
-    assert.deepStrictEqual(
-      mapRpcActivity({
+      mapPiActivity({
         type: 'extension_error',
         extensionPath: 'tool',
         error: 'boom'
@@ -721,12 +701,12 @@ suite('Pi event mapper', () => {
     );
 
     assert.deepStrictEqual(
-      mapRpcActivity({ type: 'future_event', value: 1 }),
+      mapPiActivity({ type: 'future_event', value: 1 }),
       {
         type: 'activity_add',
         activity: {
-          kind: 'rpc',
-          title: 'RPC event: future_event',
+          kind: 'pi',
+          title: 'Pi event: future_event',
           status: 'info',
           body: '{\n  "type": "future_event",\n  "value": 1\n}',
           code: true
@@ -735,36 +715,8 @@ suite('Pi event mapper', () => {
     );
   });
 
-  test('mapRpcActivity ignores message updates and responses', () => {
-    assert.deepStrictEqual(mapRpcActivity({ type: 'message_update' }), { type: 'ignore' });
-    assert.deepStrictEqual(mapRpcActivity({ type: 'response' }), { type: 'ignore' });
-  });
-
-  test('getFailedResponseError maps failed unmatched responses only', () => {
-    assert.strictEqual(
-      getFailedResponseError({
-        type: 'response',
-        success: false,
-        error: 'failed'
-      }),
-      'failed'
-    );
-
-    assert.strictEqual(
-      getFailedResponseError({
-        type: 'response',
-        success: false
-      }),
-      'Pi command failed.'
-    );
-
-    assert.strictEqual(
-      getFailedResponseError({
-        type: 'response',
-        success: true
-      }),
-      undefined
-    );
+  test('mapPiActivity ignores message updates', () => {
+    assert.deepStrictEqual(mapPiActivity({ type: 'message_update' }), { type: 'ignore' });
   });
 
   test('formatExtensionError includes extension path and error fallback', () => {

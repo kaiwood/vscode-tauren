@@ -1,8 +1,8 @@
 import type { ChatSession } from '../chat/chatSession';
-import type { PiRpcClientLike } from '../rpc/clientTypes';
-import type { PiSessionState, PiSessionStats } from '../rpc/types';
+import type { PiClient } from '../pi/clientTypes';
+import type { PiSessionState, PiSessionStats } from '../pi/types';
 import { formatAgentMessages } from '../controller/transcriptFormatting';
-import type { PiRpcEventHandler } from '../controller/piRpcEventHandler';
+import type { PiEventHandler } from '../controller/piEventHandler';
 import { getSessionFile } from './sessionFormatting';
 import type { SessionViewController } from './sessionViewController';
 
@@ -10,9 +10,8 @@ export type SessionHistoryControllerOptions = {
   initialSessionFile?: string;
   session: ChatSession;
   sessionView: SessionViewController;
-  rpcEventHandler: PiRpcEventHandler;
-  getClient: () => PiRpcClientLike;
-  startNewExtensionUiGeneration: () => void;
+  piEventHandler: PiEventHandler;
+  getClient: () => PiClient;
   invalidateMetadata: () => void;
   resetSessionMeta: () => void;
   refreshSessionDiffStats: () => void;
@@ -49,15 +48,14 @@ export class SessionHistoryController {
   public async adoptReplacedSession(options: { fallbackSessionFile?: string; refreshSessions?: boolean } = {}): Promise<void> {
     const client = this.options.getClient();
 
-    this.options.startNewExtensionUiGeneration();
-    this.options.rpcEventHandler.reset();
+    this.options.piEventHandler.reset();
     this.options.invalidateMetadata();
     this.shouldRestoreInitialSessionHistory = false;
     this.loading = true;
     this.options.resetSessionMeta();
 
-    let messagesResult: Awaited<ReturnType<PiRpcClientLike['getMessages']>>;
-    let stateResult: Awaited<ReturnType<PiRpcClientLike['getState']>> | undefined;
+    let messagesResult: Awaited<ReturnType<PiClient['getMessages']>>;
+    let stateResult: Awaited<ReturnType<PiClient['getState']>> | undefined;
 
     try {
       [messagesResult, stateResult] = await Promise.all([
@@ -75,7 +73,7 @@ export class SessionHistoryController {
       : options.fallbackSessionFile;
     this.applyCurrentSessionFile(sessionFile);
     this.applyCurrentSessionName(stateResult?.sessionName);
-    this.options.rpcEventHandler.clearLiveToolCalls();
+    this.options.piEventHandler.clearLiveToolCalls();
     this.options.session.replaceMessages(formatAgentMessages(messagesResult.messages));
     this.loading = false;
     this.options.sessionView.showChat({ clearSessionsError: true });
@@ -90,7 +88,7 @@ export class SessionHistoryController {
   }
 
   public async restoreInitialSessionHistory(
-    client: Pick<PiRpcClientLike, 'getMessages'>,
+    client: Pick<PiClient, 'getMessages'>,
     _sessionGeneration: number,
     isCurrent: () => boolean
   ): Promise<void> {
@@ -98,7 +96,7 @@ export class SessionHistoryController {
       return;
     }
 
-    let result: Awaited<ReturnType<PiRpcClientLike['getMessages']>>;
+    let result: Awaited<ReturnType<PiClient['getMessages']>>;
 
     try {
       result = await client.getMessages();
@@ -122,7 +120,7 @@ export class SessionHistoryController {
       const messages = formatAgentMessages(result.messages);
 
       if (messages.length > 0) {
-        this.options.rpcEventHandler.clearLiveToolCalls();
+        this.options.piEventHandler.clearLiveToolCalls();
         this.options.session.replaceMessages(messages);
       }
     }

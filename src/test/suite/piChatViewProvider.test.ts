@@ -1,15 +1,14 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { PiChatViewProvider, type PiRpcClientLike } from '../../piChatViewProvider';
+import { PiChatViewProvider, type PiClient } from '../../piChatViewProvider';
 import type { WebviewStateMessage } from '../../webviewProtocol/types';
 import type {
-  ExtensionUiResponse,
   PiAgentMessage,
   PiModel,
   PiSessionState,
   PiSessionStats,
-  RpcEvent
-} from '../../rpc/types';
+  PiEvent
+} from '../../pi/types';
 
 suite('PiChatViewProvider', () => {
   test('posts cached legacy model metadata and persists refreshed session metadata', async () => {
@@ -334,7 +333,7 @@ class FakeMemento implements vscode.Memento {
   }
 }
 
-class FakePiClient implements PiRpcClientLike {
+class FakePiClient implements PiClient {
   public stateCalls = 0;
   public modelsCalls = 0;
   public statsCalls = 0;
@@ -351,7 +350,7 @@ class FakePiClient implements PiRpcClientLike {
     this.messages = options.messages ?? [];
   }
 
-  public onEvent(_listener: (event: RpcEvent) => void): () => void {
+  public onEvent(_listener: (event: PiEvent) => void): () => void {
     return () => {};
   }
 
@@ -396,6 +395,12 @@ class FakePiClient implements PiRpcClientLike {
     return { cancelled: false };
   }
 
+  public async getSessionTree(): Promise<[]> {
+    return [];
+  }
+
+  public async setTreeEntryLabel(_entryId: string, _label: string | undefined): Promise<void> {}
+
   public async navigateTree(_entryId: string): Promise<{ editorText?: string; cancelled?: boolean; aborted?: boolean }> {
     return { cancelled: false };
   }
@@ -431,8 +436,6 @@ class FakePiClient implements PiRpcClientLike {
   public async getLastAssistantText(): Promise<{ text: null }> {
     return { text: null };
   }
-
-  public async respondExtensionUiRequest(_response: ExtensionUiResponse): Promise<void> {}
 
   public dispose(): void {
     this.disposed = true;

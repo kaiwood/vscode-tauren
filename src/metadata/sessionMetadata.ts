@@ -1,5 +1,5 @@
 import type { WebviewModelOption, WebviewSlashCommand } from '../webviewProtocol/types';
-import type { PiCommand, PiMessagesResult, PiModel, PiSessionState, PiSessionStats } from '../rpc/types';
+import type { PiCommand, PiMessagesResult, PiModel, PiSessionState, PiSessionStats } from '../pi/types';
 import type {
   PiChatContextUsage,
   PiChatModelMeta,

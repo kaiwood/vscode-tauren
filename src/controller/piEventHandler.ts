@@ -1,14 +1,13 @@
 import type { ChatSession } from '../chat/chatSession';
 import {
   formatExtensionError,
-  getFailedResponseError,
   mapMessageUpdate,
-  mapRpcActivity,
+  mapPiActivity,
   type ActivityAddAction,
   type ActivityRemoveAction,
   type ActivityUpdateAction
 } from '../pi/eventMapper';
-import type { RpcEvent } from '../rpc/types';
+import type { PiEvent } from '../pi/types';
 import { isAbortMessage, isMessageUpdateStart } from './errors';
 import { getRecordString, isRecord } from './typeGuards';
 
@@ -18,26 +17,25 @@ type LiveToolCall = {
   args?: unknown;
 };
 
-export type PiRpcEventHandlerOptions = {
+export type PiEventHandlerOptions = {
   session: ChatSession;
   postState: () => void;
   scheduleState: () => void;
   refreshSessionDiffStats: () => void;
-  addToolExecution: (event: RpcEvent) => void;
+  addToolExecution: (event: PiEvent) => void;
   armQueuedReadyScriptRun: () => void;
   runReadyScriptAfterAgentEnd: () => void;
   refreshMetadataAfterAgentEnd: () => void;
   isAbortRequested: () => boolean;
   appendAbortNoticeIfNeeded: () => void;
   resetAbortState: () => void;
-  handleExtensionUiRequest: (event: RpcEvent) => void;
 };
 
-export class PiRpcEventHandler {
+export class PiEventHandler {
   private assistantStreamId = 0;
   private readonly liveToolCallsById = new Map<string, LiveToolCall>();
 
-  public constructor(private readonly options: PiRpcEventHandlerOptions) {}
+  public constructor(private readonly options: PiEventHandlerOptions) {}
 
   public reset(): void {
     this.assistantStreamId = 0;
@@ -48,20 +46,20 @@ export class PiRpcEventHandler {
     this.liveToolCallsById.clear();
   }
 
-  public handleEvent(event: RpcEvent): void {
+  public handleEvent(event: PiEvent): void {
     switch (event.type) {
       case 'agent_start':
         this.options.armQueuedReadyScriptRun();
         this.options.session.handleAgentStart();
         this.options.refreshSessionDiffStats();
-        this.applyRpcActivity(event);
+        this.applyPiActivity(event);
         this.options.postState();
         break;
       case 'message_update':
         this.handleMessageUpdate(event);
         break;
       case 'agent_end':
-        this.applyRpcActivity(event);
+        this.applyPiActivity(event);
         this.options.appendAbortNoticeIfNeeded();
         this.options.session.handleAgentEnd();
         this.options.resetAbortState();
@@ -76,11 +74,11 @@ export class PiRpcEventHandler {
       case 'message_end':
       case 'tool_execution_start':
       case 'tool_execution_update':
-        this.applyRpcActivity(event);
+        this.applyPiActivity(event);
         this.options.postState();
         break;
       case 'tool_execution_end':
-        this.applyRpcActivity(event);
+        this.applyPiActivity(event);
         this.options.addToolExecution(this.enrichLiveToolExecutionEvent(event));
         this.options.postState();
         break;
@@ -89,30 +87,22 @@ export class PiRpcEventHandler {
       case 'compaction_end':
       case 'auto_retry_start':
       case 'auto_retry_end':
-        this.applyRpcActivity(event);
-        this.options.postState();
-        break;
-      case 'extension_ui_request':
-        this.applyRpcActivity(event);
-        this.options.handleExtensionUiRequest(event);
+        this.applyPiActivity(event);
         this.options.postState();
         break;
       case 'extension_error':
-        this.applyRpcActivity(event);
+        this.applyPiActivity(event);
         this.options.session.addErrorMessage(formatExtensionError(event));
         this.options.postState();
         break;
-      case 'response':
-        this.handleUnmatchedResponse(event);
-        break;
       default:
-        this.applyRpcActivity(event);
+        this.applyPiActivity(event);
         this.options.postState();
         break;
     }
   }
 
-  private handleMessageUpdate(event: RpcEvent): void {
+  private handleMessageUpdate(event: PiEvent): void {
     this.rememberLiveToolCall(event);
 
     const action = mapMessageUpdate(event, this.getMessageUpdateStreamId(event), {
@@ -173,12 +163,12 @@ export class PiRpcEventHandler {
     }
   }
 
-  private applyRpcActivity(event: RpcEvent): void {
+  private applyPiActivity(event: PiEvent): void {
     if (!this.options.session.isBusy && event.type !== 'agent_start') {
       return;
     }
 
-    const action = mapRpcActivity(this.enrichLiveToolExecutionEvent(event), {
+    const action = mapPiActivity(this.enrichLiveToolExecutionEvent(event), {
       fullCommunication: false
     });
 
@@ -201,7 +191,7 @@ export class PiRpcEventHandler {
     this.options.session.addActivity(action.activity);
   }
 
-  private rememberLiveToolCall(event: RpcEvent): void {
+  private rememberLiveToolCall(event: PiEvent): void {
     const assistantMessageEvent = event.assistantMessageEvent;
 
     if (!isRecord(assistantMessageEvent) || assistantMessageEvent.type !== 'toolcall_end') {
@@ -224,7 +214,7 @@ export class PiRpcEventHandler {
     });
   }
 
-  private enrichLiveToolExecutionEvent(event: RpcEvent): RpcEvent {
+  private enrichLiveToolExecutionEvent(event: PiEvent): PiEvent {
     if (
       event.type !== 'tool_execution_start'
       && event.type !== 'tool_execution_update'
@@ -247,22 +237,11 @@ export class PiRpcEventHandler {
     };
   }
 
-  private getMessageUpdateStreamId(event: RpcEvent): number {
+  private getMessageUpdateStreamId(event: PiEvent): number {
     if (isMessageUpdateStart(event)) {
       this.assistantStreamId += 1;
     }
 
     return this.assistantStreamId;
-  }
-
-  private handleUnmatchedResponse(event: RpcEvent): void {
-    const error = getFailedResponseError(event);
-
-    if (!error) {
-      return;
-    }
-
-    this.options.session.addErrorMessage(error);
-    this.options.postState();
   }
 }

@@ -1,10 +1,10 @@
 import type { Theme } from '@earendil-works/pi-coding-agent';
 import type { ExtensionUIContext, ExtensionUIDialogOptions } from '@earendil-works/pi-coding-agent';
-import { createCancellingExtensionUi, type ExtensionUiRequestUi } from '../extensionUi/requestHandler';
+import { createCancellingExtensionUi, type ExtensionUi } from '../extensionUi/types';
 
 const emptyTheme = {} as Theme;
 
-export function createSdkExtensionUiContext(ui?: ExtensionUiRequestUi): ExtensionUIContext {
+export function createSdkExtensionUiContext(ui?: ExtensionUi): ExtensionUIContext {
   const resolvedUi = ui ?? createCancellingExtensionUi(() => undefined);
 
   return {
@@ -57,7 +57,7 @@ export function createSdkExtensionUiContext(ui?: ExtensionUiRequestUi): Extensio
       return undefined;
     },
     setTheme() {
-      return { success: false, error: 'Theme switching not supported in Tau SDK mode' };
+      return { success: false, error: 'Theme switching is not supported in Tau' };
     },
     getToolsExpanded() {
       return false;
