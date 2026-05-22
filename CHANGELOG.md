@@ -7,6 +7,7 @@ All notable changes to Tau will be documented in this file.
 - Switched Tau to the bundled Pi SDK transport and removed the RPC/`piPath` configuration path.
 - Added session tree label display for Pi-labeled entries.
 - Added session tree label editing with `Shift+L`.
+- Fixed bundled SDK extension loading for Pi packages that import Pi peer modules, including `pi-web-access`.
 
 ## 1.1.0
 

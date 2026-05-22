@@ -6,8 +6,15 @@ const path = require('path');
 
 const root = path.resolve(__dirname, '..');
 const piPackageDir = path.join(root, 'node_modules', '@earendil-works', 'pi-coding-agent');
-const outputFile = path.join(root, 'out', 'sdk', 'piSdkBundle.mjs');
+const outputDir = path.join(root, 'out', 'sdk');
+const outputFile = path.join(outputDir, 'piSdkBundle.mjs');
 const runtimeDir = path.join(root, 'resources', 'pi-sdk-runtime');
+const extensionPeerPackages = [
+  'typebox',
+  '@earendil-works/pi-agent-core',
+  '@earendil-works/pi-ai',
+  '@earendil-works/pi-tui'
+];
 
 function assertPiSdkInstalled() {
   if (!fs.existsSync(path.join(piPackageDir, 'package.json'))) {
@@ -18,6 +25,12 @@ function assertPiSdkInstalled() {
 function copyFile(source, target) {
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.copyFileSync(source, target);
+}
+
+function copyDirectory(sourceDir, targetDir) {
+  fs.rmSync(targetDir, { recursive: true, force: true });
+  fs.mkdirSync(path.dirname(targetDir), { recursive: true });
+  fs.cpSync(sourceDir, targetDir, { recursive: true, dereference: true });
 }
 
 function copyFiles(sourceDir, targetDir, predicate) {
@@ -33,6 +46,45 @@ function copyFiles(sourceDir, targetDir, predicate) {
     if (entry.isFile() && predicate(source)) {
       copyFile(source, target);
     }
+  }
+}
+
+function getPackagePath(nodeModulesDir, packageName) {
+  return path.join(nodeModulesDir, ...packageName.split('/'));
+}
+
+function copyPackageWithDependencies(packageName, copied = new Set()) {
+  if (copied.has(packageName)) {
+    return;
+  }
+  copied.add(packageName);
+
+  const sourceNodeModules = path.join(piPackageDir, 'node_modules');
+  const targetNodeModules = path.join(outputDir, 'node_modules');
+  const sourcePath = getPackagePath(sourceNodeModules, packageName);
+  const packageJsonPath = path.join(sourcePath, 'package.json');
+
+  if (!fs.existsSync(packageJsonPath)) {
+    if (packageName.startsWith('@types/')) {
+      return;
+    }
+    throw new Error(`Missing bundled SDK extension dependency: ${packageName}`);
+  }
+
+  copyDirectory(sourcePath, getPackagePath(targetNodeModules, packageName));
+
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+  for (const dependencyName of Object.keys(packageJson.dependencies ?? {})) {
+    copyPackageWithDependencies(dependencyName, copied);
+  }
+}
+
+function copyExtensionPeerPackages() {
+  fs.rmSync(path.join(outputDir, 'node_modules'), { recursive: true, force: true });
+  const copied = new Set();
+
+  for (const packageName of extensionPeerPackages) {
+    copyPackageWithDependencies(packageName, copied);
   }
 }
 
@@ -87,6 +139,7 @@ async function main() {
   });
 
   copySdkRuntimeAssets();
+  copyExtensionPeerPackages();
 }
 
 main().catch((error) => {
