@@ -508,6 +508,11 @@ const viewLayoutStyles = /* css */ `    .messages,
       pointer-events: auto;
     }
 
+    .pi-view--chat.pi-view--tree-opening .sessions,
+    .pi-view--chat.pi-view--tree-closing .sessions {
+      transform: translate3d(100%, 0, 0);
+    }
+
     .pi-view--lane-jump .sessions {
       transition: none;
     }

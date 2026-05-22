@@ -4920,6 +4920,7 @@ ${after}`;
   messagesContentElement.replaceChildren(...Array.from(messagesElement.childNodes));
   messagesElement.append(messagesContentElement, busyStatusElement);
   var state = { ...initialWebviewState };
+  var renderedViewMode = state.viewMode;
   var toastHideTimeout;
   var pendingRenderFrame;
   var pendingReturnToChatAfterRender = false;
@@ -5025,7 +5026,7 @@ ${after}`;
     document.body.classList.toggle("tau-animations-disabled", !state.animationsEnabled);
     const wasListView = previousViewMode === "sessions" || previousViewMode === "tree";
     const isListView = state.viewMode === "sessions" || state.viewMode === "tree";
-    syncSessionLaneForStateChange(previousViewMode, state.viewMode);
+    syncSessionLaneForStateChange(renderedViewMode, state.viewMode);
     if (previousViewMode === "sessions" && state.viewMode !== "sessions") {
       sessionsController.rememberSessionListScrollPosition();
     }
@@ -5120,15 +5121,33 @@ ${after}`;
       }
     });
   }
-  function syncSessionLaneForStateChange(previousViewMode, nextViewMode) {
-    const nextLane = nextViewMode === "sessions" || nextViewMode === "tree" ? nextViewMode : previousViewMode === "sessions" || previousViewMode === "tree" ? previousViewMode : sessionLane;
-    if (nextLane === sessionLane) {
-      syncViewLaneClass();
+  function syncSessionLaneForStateChange(renderedMode, nextViewMode) {
+    const wasTreeOpen = renderedMode === "tree";
+    const isTreeOpen = nextViewMode === "tree";
+    if (!wasTreeOpen && isTreeOpen) {
+      setSessionLane("tree", { jump: true });
       return;
     }
-    const enteringFromChat = previousViewMode === "chat" && (nextViewMode === "sessions" || nextViewMode === "tree");
-    sessionLane = nextLane;
-    if (enteringFromChat) {
+    if (wasTreeOpen && !isTreeOpen) {
+      setSessionLane("tree", { jump: false });
+      return;
+    }
+    const wasSessionPaneOpen = renderedMode === "sessions";
+    const isSessionPaneOpen = nextViewMode === "sessions";
+    if (!wasSessionPaneOpen && isSessionPaneOpen) {
+      setSessionLane("sessions", { jump: true });
+      return;
+    }
+    if (wasSessionPaneOpen && !isSessionPaneOpen) {
+      setSessionLane("sessions", { jump: false });
+      return;
+    }
+    syncViewLaneClass();
+  }
+  function setSessionLane(lane, options) {
+    const changed = sessionLane !== lane;
+    sessionLane = lane;
+    if (options.jump && changed) {
       viewElement.classList.add("pi-view--lane-jump");
       syncViewLaneClass();
       void viewElement.offsetWidth;
@@ -5144,11 +5163,15 @@ ${after}`;
   function render() {
     const isListView = state.viewMode === "sessions" || state.viewMode === "tree";
     const shouldStickToBottom = !isListView && messagesController.isMessagesAtBottom();
+    const isOpeningTree = renderedViewMode !== "tree" && state.viewMode === "tree";
+    const isClosingTree = renderedViewMode === "tree" && state.viewMode !== "tree";
+    syncViewLaneClass();
+    viewElement.classList.toggle("pi-view--tree-opening", isOpeningTree);
+    viewElement.classList.toggle("pi-view--tree-closing", isClosingTree);
     viewElement.classList.toggle("pi-view--list", isListView);
     viewElement.classList.toggle("pi-view--sessions", state.viewMode === "sessions");
     viewElement.classList.toggle("pi-view--tree", state.viewMode === "tree");
     viewElement.classList.toggle("pi-view--chat", !isListView);
-    syncViewLaneClass();
     messagesElement.hidden = false;
     sessionsElement.hidden = false;
     messagesElement.setAttribute("aria-hidden", isListView ? "true" : "false");
@@ -5159,6 +5182,7 @@ ${after}`;
     form.classList.toggle("composer--list-hidden", isListView);
     form.setAttribute("aria-hidden", isListView ? "true" : "false");
     form.inert = isListView;
+    renderedViewMode = state.viewMode;
     sessionsController.syncForRender(isListView);
     syncChatHelpForRender(isListView);
     if (isListView) {
