@@ -1537,14 +1537,15 @@ const composerStyles = /* css */ `    .composer {
 
     .composer__slash-menu {
       position: absolute;
-      left: 9px;
+      left: 0;
+      right: 0;
       bottom: calc(100% + 6px);
       z-index: 3;
       display: none;
-      width: min(360px, calc(100vw - 24px));
+      width: auto;
       max-height: min(280px, 45vh);
       overflow-y: auto;
-      padding: 4px;
+      padding: 5px;
       color: var(--vscode-foreground);
       background: var(--vscode-dropdown-background, var(--vscode-editorWidget-background));
       border: 1px solid var(--vscode-dropdown-border, var(--vscode-input-border, transparent));
@@ -1565,7 +1566,7 @@ const composerStyles = /* css */ `    .composer {
       gap: 2px 8px;
       width: 100%;
       min-width: 0;
-      padding: 6px 7px;
+      padding: 6px 9px;
       color: inherit;
       background: transparent;
       border: 0;
@@ -1618,7 +1619,7 @@ const composerStyles = /* css */ `    .composer {
     }
 
     .composer__slash-empty {
-      padding: 7px 8px;
+      padding: 7px 9px;
       color: var(--vscode-descriptionForeground);
       font-size: 12px;
     }
