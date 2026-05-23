@@ -145,11 +145,17 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
     this.disposables.push(
       vscode.workspace.onDidChangeConfiguration((event) => {
+        const affectsRemoteImages = event.affectsConfiguration('tau.allowRemoteImages');
+
+        if (affectsRemoteImages) {
+          this.refreshWebviewHtml();
+        }
+
         if (
           event.affectsConfiguration('tau.outputColors')
           || event.affectsConfiguration('tau.animationsEnabled')
           || event.affectsConfiguration('tau.customUiTheme')
-          || event.affectsConfiguration('tau.allowRemoteImages')
+          || affectsRemoteImages
         ) {
           this.controller.postState();
         }
@@ -194,25 +200,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       localResourceRoots: getWebviewLocalResourceRoots(this.extensionUri)
     };
 
-    const markdownItUri = webviewView.webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, 'resources', 'vendor', 'markdown-it.min.js')
-    );
-    const domPurifyUri = webviewView.webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, 'resources', 'vendor', 'purify.min.js')
-    );
-    const webviewScriptUri = webviewView.webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, 'resources', 'webview', 'chat.js')
-    );
-
-    webviewView.webview.html = createWebviewHtml({
-      markdownItScriptUri: markdownItUri.toString(),
-      domPurifyScriptUri: domPurifyUri.toString(),
-      webviewScriptUri: webviewScriptUri.toString(),
-      cspSource: webviewView.webview.cspSource
-    }, {
-      welcomeDismissed: this.isWelcomeDismissed(),
-      devRenderInstrumentation: this.devRenderInstrumentation
-    });
+    this.renderWebviewHtml(webviewView);
 
     this.webviewDisposables.push(
       webviewView.onDidDispose(() => {
@@ -248,6 +236,39 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     this.refreshLiveMetadata();
     this.controller.refreshSessionDiffStats();
     this.startContextUsagePolling();
+  }
+
+  private refreshWebviewHtml(): void {
+    if (!this.webviewView) {
+      return;
+    }
+
+    this.webviewReady = false;
+    this.controller.setCustomUiViewAttached(false);
+    this.renderWebviewHtml(this.webviewView);
+  }
+
+  private renderWebviewHtml(webviewView: vscode.WebviewView): void {
+    const markdownItUri = webviewView.webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'resources', 'vendor', 'markdown-it.min.js')
+    );
+    const domPurifyUri = webviewView.webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'resources', 'vendor', 'purify.min.js')
+    );
+    const webviewScriptUri = webviewView.webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'resources', 'webview', 'chat.js')
+    );
+
+    webviewView.webview.html = createWebviewHtml({
+      markdownItScriptUri: markdownItUri.toString(),
+      domPurifyScriptUri: domPurifyUri.toString(),
+      webviewScriptUri: webviewScriptUri.toString(),
+      cspSource: webviewView.webview.cspSource
+    }, {
+      welcomeDismissed: this.isWelcomeDismissed(),
+      devRenderInstrumentation: this.devRenderInstrumentation,
+      allowRemoteImages: getAllowRemoteImagesSetting()
+    });
   }
 
   public async focus(): Promise<void> {

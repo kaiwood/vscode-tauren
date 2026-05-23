@@ -213,4 +213,5 @@ export type WebviewScriptUris = {
 export type CreateWebviewHtmlOptions = {
   welcomeDismissed?: boolean;
   devRenderInstrumentation?: boolean;
+  allowRemoteImages?: boolean;
 };

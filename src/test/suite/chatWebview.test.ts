@@ -363,4 +363,18 @@ suite('Chat webview helpers', () => {
     assert.ok(dismissedHtml.includes('<p class="empty-state">Ask Pi about this workspace.</p>'));
     assert.ok(!dismissedHtml.includes('Don\'t show again'));
   });
+
+  test('createWebviewHtml omits HTTPS images from CSP when remote images are disabled', () => {
+    const html = createWebviewHtml({
+      markdownItScriptUri: 'vscode-resource://markdown-it.js',
+      domPurifyScriptUri: 'vscode-resource://dompurify.js',
+      webviewScriptUri: 'vscode-resource://chat.js',
+      cspSource: 'vscode-webview-resource:'
+    }, {
+      allowRemoteImages: false
+    });
+
+    assert.ok(html.includes('img-src data: vscode-webview-resource:;'));
+    assert.ok(!html.includes('img-src data: https: vscode-webview-resource:;'));
+  });
 });

@@ -283,14 +283,17 @@ export function createWebviewStateMessage({
 
 export function createWebviewHtml(scriptUris: WebviewScriptUris, options: CreateWebviewHtmlOptions = {}): string {
   const nonce = createNonce();
-  const cspSource = scriptUris.cspSource ?? 'vscode-resource:';
+  const cspSource = escapeHtmlAttribute(scriptUris.cspSource ?? 'vscode-resource:');
+  const imageSources = options.allowRemoteImages === false
+    ? `data: ${cspSource}`
+    : `data: https: ${cspSource}`;
 
   return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https: ${escapeHtmlAttribute(cspSource)}; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${imageSources}; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
   <title>Pi</title>
   <style>
 ${chatWebviewStyles}

@@ -4,6 +4,7 @@ All notable changes to Tau will be documented in this file.
 
 ## Unreleased
 
+- Tightened remote image blocking so disabling `tau.allowRemoteImages` also removes HTTPS image sources from the webview CSP.
 - Reduced Pi custom UI render churn by coalescing repeated updates to frame-paced rendering.
 - Improved long chat performance by sending incremental message updates to the webview and pruning stale render caches.
 - Fixed custom UI free-text answers so delayed prompt focus cannot steal typing from the active questionnaire.
