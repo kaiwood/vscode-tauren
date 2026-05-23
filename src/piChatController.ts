@@ -27,6 +27,7 @@ import { SessionHistoryController } from './sessions/sessionHistoryController';
 import { PiClientManager } from './controller/piClientManager';
 import { PiEventHandler } from './controller/piEventHandler';
 import { SessionViewController } from './sessions/sessionViewController';
+import { getWorkspaceCwdState } from './workspace/cwdSafety';
 
 export type { PiChatControllerOptions } from './controller/types';
 export type { PiChatContextUsage, PiChatModelMeta, PiChatSessionMetaSnapshot } from './metadata/sessionMetadata';
@@ -50,6 +51,8 @@ export class PiChatController {
   private readonly readyScriptState = new ReadyScriptState();
   private readonly session = new ChatSession();
   private readonly statePublisher: StatePublisher<WebviewStateMessage>;
+  private workspaceWaitingNoticeAdded = false;
+  private workspaceWarningNoticeAdded = false;
 
   public constructor(private readonly options: PiChatControllerOptions) {
     this.sessionDiffController = new SessionDiffController({
@@ -132,7 +135,7 @@ export class PiChatController {
     this.sessionMetadataRefresh = new SessionMetadataRefreshController({
       state: this.sessionMetadata,
       getSessionGeneration: () => this.session.generation,
-      getClient: ({ startClient }) => startClient ? this.getClient() : this.getExistingClient(),
+      getClient: ({ startClient }) => startClient ? this.getClientForMetadataRefresh() : this.getExistingClient(),
       restoreInitialSessionHistory: (client, sessionGeneration, isCurrent) => this.sessionHistory.restoreInitialSessionHistory(client, sessionGeneration, isCurrent),
       applySessionState: (state) => this.sessionHistory.applySessionStateIdentity(state),
       applySessionStatsIdentity: (stats) => this.sessionHistory.applySessionStatsIdentity(stats),
@@ -284,6 +287,10 @@ export class PiChatController {
 
     if (localSlashCommand) {
       await this.slashCommandController.handle(localSlashCommand);
+      return;
+    }
+
+    if (!this.ensureWorkspaceReadyForClient()) {
       return;
     }
 
@@ -452,6 +459,46 @@ export class PiChatController {
 
   public refreshSessionMeta(options: { startClient?: boolean; force?: boolean } = {}): Promise<void> {
     return this.sessionMetadataRefresh.refreshSessionMeta(options);
+  }
+
+  public noteWorkspacePending(): void {
+    this.addWorkspaceWaitingNotice(false);
+  }
+
+  public noteWorkspacePendingWarning(): void {
+    this.addWorkspaceWaitingNotice(true);
+  }
+
+  public noteWorkspaceAvailable(cwd: string): void {
+    if (this.workspaceWaitingNoticeAdded || this.workspaceWarningNoticeAdded) {
+      if (this.sessionHistory.needsInitialHistoryRestore) {
+        this.session.replaceMessages([]);
+      } else {
+        this.session.addSystemMessage(`VS Code workspace is ready: ${cwd}. Starting Pi.`);
+      }
+
+      this.workspaceWaitingNoticeAdded = false;
+      this.workspaceWarningNoticeAdded = false;
+      this.postState();
+    }
+
+    void this.refreshSessionMeta({ startClient: true, force: true });
+  }
+
+  public restartForWorkspaceChange(cwd: string, sessionFile: string | undefined): void {
+    this.disposeClient();
+    this.piEventHandler.reset();
+    this.resetAbortState();
+    this.session.startNewSession();
+    this.sessionView.startNewSession('chat');
+    this.sessionDiffController.reset(undefined);
+    this.clientManager.setNextSessionFile(sessionFile);
+    this.sessionHistory.startNewSession();
+    this.resetReadyScriptArming();
+    this.resetSessionMeta();
+    this.session.addSystemMessage(`Workspace changed to ${cwd}. Restarting Pi for the new workspace.`);
+    this.postState();
+    void this.refreshSessionMeta({ startClient: true, force: true });
   }
 
   public refreshContextUsage(options: { startClient?: boolean; silent?: boolean } = {}): Promise<void> {
@@ -633,8 +680,54 @@ export class PiChatController {
     return this.clientManager.getExistingClient();
   }
 
+  private getClientForMetadataRefresh(): PiClient | undefined {
+    if (!this.ensureWorkspaceReadyForClient()) {
+      this.sessionHistory.setLoading(false);
+      return undefined;
+    }
+
+    return this.getClient();
+  }
+
   private getClient(): PiClient {
+    if (!this.ensureWorkspaceReadyForClient()) {
+      throw new Error('Tau is waiting for VS Code to provide a workspace folder before starting Pi.');
+    }
+
     return this.clientManager.getClient();
+  }
+
+  private ensureWorkspaceReadyForClient(): boolean {
+    const state = getWorkspaceCwdState(this.options.getCwd?.());
+
+    if (state.status === 'ready') {
+      return true;
+    }
+
+    if (state.status === 'pending') {
+      this.addWorkspaceWaitingNotice(false);
+    } else {
+      this.handleClientError(`Tau cannot start Pi because ${state.reason}. Open a project folder and try again.`);
+    }
+
+    return false;
+  }
+
+  private addWorkspaceWaitingNotice(warn: boolean): void {
+    if (!this.workspaceWaitingNoticeAdded) {
+      this.session.addSystemMessage('Waiting for VS Code to provide the workspace folder before starting Pi.');
+      this.workspaceWaitingNoticeAdded = true;
+    }
+
+    if (warn && !this.workspaceWarningNoticeAdded) {
+      this.session.addSystemMessage('Still waiting for VS Code workspace folders. Pi will start automatically when the workspace is available.');
+      this.workspaceWarningNoticeAdded = true;
+    }
+
+    this.session.setBusy(false);
+    this.sessionMetadata.clearRefreshing();
+    this.sessionHistory.setLoading(false);
+    this.postState();
   }
 
   private handlePiEvent(event: PiEvent): void {

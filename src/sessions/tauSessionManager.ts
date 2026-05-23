@@ -118,6 +118,37 @@ export class TauSessionManager {
     void this.active().controller.refreshSessionDiffStats();
   }
 
+  public noteWorkspacePending(): void {
+    this.active().controller.noteWorkspacePending();
+  }
+
+  public noteWorkspacePendingWarning(): void {
+    this.active().controller.noteWorkspacePendingWarning();
+  }
+
+  public noteWorkspaceAvailable(cwd: string): void {
+    this.active().controller.noteWorkspaceAvailable(cwd);
+  }
+
+  public restartForWorkspaceChange(cwd: string, sessionFile: string | undefined): void {
+    for (const session of this.sessions) {
+      if (session.id !== this.activeSessionId) {
+        this.clearInactiveDisposal(session);
+        session.controller.dispose();
+      }
+    }
+
+    const active = this.active();
+    this.sessions.splice(0, this.sessions.length, active);
+    this.sessionCatalog = [];
+    active.sessionFile = sessionFile;
+    active.title = sessionFile ? 'Loading session' : 'New session';
+    active.unread = false;
+    active.status = 'idle';
+    active.inactiveSince = undefined;
+    active.controller.restartForWorkspaceChange(cwd, sessionFile);
+  }
+
   private createSession(options: { initial?: boolean; activate?: boolean; sessionFile?: string } = {}): OpenSession {
     const previousActive = this.activeSessionId ? this.active() : undefined;
     const id = `open-${++this.sessionSequence}`;

@@ -89,10 +89,10 @@ suite('PiSdkClient', () => {
     const notifications: Array<{ message: string; notifyType: string }> = [];
     const harness = createSdkHarness({ cwd: undefined, notifications });
 
-    await assert.rejects(harness.client.getState(), /no workspace folder is open/);
+    await assert.rejects(harness.client.getState(), /no workspace folder is available yet/);
 
     assert.strictEqual(harness.createdSessionManagers.length, 0);
-    assert.match(notifications[0]?.message ?? '', /no workspace folder is open/);
+    assert.match(notifications[0]?.message ?? '', /no workspace folder is available yet/);
     assert.strictEqual(notifications[0]?.notifyType, 'warning');
     harness.client.dispose();
   });

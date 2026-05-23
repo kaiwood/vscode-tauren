@@ -35,7 +35,9 @@ suite('PiChatViewProvider', () => {
     const provider = new PiChatViewProvider(
       vscode.Uri.file('/extension'),
       () => client,
-      workspaceState
+      workspaceState,
+      undefined,
+      () => '/workspace'
     );
     const view = new FakeWebviewView();
 
@@ -136,7 +138,9 @@ suite('PiChatViewProvider', () => {
         clientOptions.push(options);
         return client;
       },
-      workspaceState
+      workspaceState,
+      undefined,
+      () => '/workspace'
     );
     const view = new FakeWebviewView();
 
@@ -144,7 +148,7 @@ suite('PiChatViewProvider', () => {
     await flushPromises();
 
     assert.deepStrictEqual(clientOptions, [
-      { cwd: undefined, sessionFile: '/sessions/current.jsonl' }
+      { cwd: '/workspace', sessionFile: '/sessions/current.jsonl' }
     ]);
     assert.deepStrictEqual(lastPostedState(view).messages, [
       { role: 'user', text: 'Restored prompt' }

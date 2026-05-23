@@ -267,7 +267,7 @@ function createManagerHarness(
     },
     postState: (message) => states.push(message),
     showNotification: (message, type) => notifications.push({ message, type }),
-    getCwd: () => options.cwd,
+    getCwd: () => options.cwd === undefined && Object.prototype.hasOwnProperty.call(options, 'cwd') ? undefined : options.cwd ?? '/workspace',
     initialSessionFile: options.initialSessionFile,
     onSessionFileChange: options.onSessionFileChange,
     listSessions: options.listSessions,

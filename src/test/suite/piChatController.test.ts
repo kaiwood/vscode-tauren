@@ -59,6 +59,53 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
+  test('webview ready waits when workspace cwd is not available yet', async () => {
+    const sessionFiles: Array<string | undefined> = [];
+    const harness = createControllerHarness([new FakePiClient()], {
+      cwd: undefined,
+      initialSessionFile: '/sessions/current.jsonl',
+      onSessionFileChange: (sessionFile) => sessionFiles.push(sessionFile)
+    });
+
+    await harness.controller.handleWebviewMessage({ type: 'ready' });
+    await flushPromises();
+
+    assert.strictEqual(harness.createCalls, 0);
+    assert.deepStrictEqual(sessionFiles, []);
+    assert.deepStrictEqual(lastState(harness).messages, [
+      { role: 'system', text: 'Waiting for VS Code to provide the workspace folder before starting Pi.' }
+    ]);
+    assert.strictEqual(lastState(harness).sessionLoading, undefined);
+    harness.controller.dispose();
+  });
+
+  test('workspace availability resumes the pending initial session', async () => {
+    let cwd: string | undefined;
+    const client = new FakePiClient({
+      state: {
+        sessionFile: '/sessions/current.jsonl',
+        model: { provider: 'openai', id: 'live-model', reasoning: false },
+        thinkingLevel: 'off'
+      },
+      messages: [{ role: 'user', content: 'Restored prompt' }]
+    });
+    const harness = createControllerHarness([client], {
+      getCwd: () => cwd,
+      initialSessionFile: '/sessions/current.jsonl'
+    });
+
+    await harness.controller.handleWebviewMessage({ type: 'ready' });
+    await flushPromises();
+    cwd = '/workspace';
+    harness.controller.noteWorkspaceAvailable(cwd);
+    await flushPromises();
+    await flushPromises();
+
+    assert.deepStrictEqual(harness.clientOptions, [{ cwd: '/workspace', sessionFile: '/sessions/current.jsonl' }]);
+    assert.deepStrictEqual(lastState(harness).messages, [{ role: 'user', text: 'Restored prompt' }]);
+    harness.controller.dispose();
+  });
+
   test('ready script does not run after live state refresh succeeds', async () => {
     const readyScripts: Array<{ scriptPath: string; cwd: string | undefined }> = [];
     const client = new FakePiClient();
@@ -670,7 +717,7 @@ suite('PiChatController', () => {
     assert.strictEqual(lastState(harness).currentSessionFile, '');
     assert.deepStrictEqual(lastState(harness).messages, []);
     assert.deepStrictEqual(sessionFiles, [undefined]);
-    assert.deepStrictEqual(harness.clientOptions, [{ cwd: undefined }]);
+    assert.deepStrictEqual(harness.clientOptions, [{ cwd: '/workspace' }]);
     harness.controller.dispose();
   });
 
@@ -1696,7 +1743,7 @@ suite('PiChatController', () => {
     await flushPromises();
 
     assert.deepStrictEqual(sessionFiles, [undefined]);
-    assert.deepStrictEqual(harness.clientOptions, [{ cwd: undefined }]);
+    assert.deepStrictEqual(harness.clientOptions, [{ cwd: '/workspace' }]);
     harness.controller.dispose();
   });
 
@@ -2120,6 +2167,7 @@ type ControllerHarness = {
 
 type ControllerHarnessOptions = {
   cwd?: string;
+  getCwd?: () => string | undefined;
   extensionUi?: PiChatControllerOptions['extensionUi'];
   stateScheduler?: StatePublisherScheduler;
   initialSessionMeta?: PiChatSessionMetaSnapshot;
@@ -2153,7 +2201,7 @@ function createControllerHarness(
       assert.ok(client, 'Expected a fake client to be available');
       return client;
     },
-    getCwd: () => options.cwd,
+    getCwd: options.getCwd ?? (() => options.cwd === undefined && Object.prototype.hasOwnProperty.call(options, 'cwd') ? undefined : options.cwd ?? '/workspace'),
     postState: (message) => {
       states.push(message);
     },
