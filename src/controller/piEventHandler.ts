@@ -33,12 +33,24 @@ export type PiEventHandlerOptions = {
 
 export class PiEventHandler {
   private assistantStreamId = 0;
+  private agentActive = false;
+  private autoRetryActive = false;
+  private compactionActive = false;
+  private waitingForAgentRestartAfterCompaction = false;
+  private waitingForAutoRetryStart = false;
+  private readyScriptTimer: ReturnType<typeof setImmediate> | undefined;
   private readonly liveToolCallsById = new Map<string, LiveToolCall>();
 
   public constructor(private readonly options: PiEventHandlerOptions) {}
 
   public reset(): void {
+    this.clearReadyScriptTimer();
     this.assistantStreamId = 0;
+    this.agentActive = false;
+    this.autoRetryActive = false;
+    this.compactionActive = false;
+    this.waitingForAgentRestartAfterCompaction = false;
+    this.waitingForAutoRetryStart = false;
     this.liveToolCallsById.clear();
   }
 
@@ -49,6 +61,10 @@ export class PiEventHandler {
   public handleEvent(event: PiEvent): void {
     switch (event.type) {
       case 'agent_start':
+        this.clearReadyScriptTimer();
+        this.agentActive = true;
+        this.waitingForAgentRestartAfterCompaction = false;
+        this.waitingForAutoRetryStart = false;
         this.options.armQueuedReadyScriptRun();
         this.options.session.handleAgentStart();
         this.options.refreshSessionDiffStats();
@@ -59,14 +75,18 @@ export class PiEventHandler {
         this.handleMessageUpdate(event);
         break;
       case 'agent_end':
+        this.agentActive = false;
         this.applyPiActivity(event);
         this.options.appendAbortNoticeIfNeeded();
         this.options.session.handleAgentEnd();
         this.options.resetAbortState();
-        this.options.runReadyScriptAfterAgentEnd();
+        if (event.willRetry === true) {
+          this.waitingForAutoRetryStart = true;
+          this.options.session.setBusy(true);
+        }
         this.options.refreshSessionDiffStats();
         this.options.postState();
-        this.options.refreshMetadataAfterAgentEnd();
+        this.scheduleReadyScriptWhenPiIdle();
         break;
       case 'turn_start':
       case 'turn_end':
@@ -83,12 +103,39 @@ export class PiEventHandler {
         this.options.postState();
         break;
       case 'queue_update':
-      case 'compaction_start':
-      case 'compaction_end':
-      case 'auto_retry_start':
-      case 'auto_retry_end':
         this.applyPiActivity(event);
         this.options.postState();
+        break;
+      case 'compaction_start':
+        this.clearReadyScriptTimer();
+        this.compactionActive = true;
+        this.options.session.setBusy(true);
+        this.applyPiActivity(event);
+        this.options.postState();
+        break;
+      case 'compaction_end':
+        this.compactionActive = false;
+        this.waitingForAgentRestartAfterCompaction = event.willRetry === true;
+        if (this.waitingForAgentRestartAfterCompaction) {
+          this.options.session.setBusy(true);
+        }
+        this.applyPiActivity(event);
+        this.options.postState();
+        this.scheduleReadyScriptWhenPiIdle();
+        break;
+      case 'auto_retry_start':
+        this.clearReadyScriptTimer();
+        this.waitingForAutoRetryStart = false;
+        this.autoRetryActive = true;
+        this.options.session.setBusy(true);
+        this.applyPiActivity(event);
+        this.options.postState();
+        break;
+      case 'auto_retry_end':
+        this.autoRetryActive = false;
+        this.applyPiActivity(event);
+        this.options.postState();
+        this.scheduleReadyScriptWhenPiIdle();
         break;
       case 'extension_error':
         this.applyPiActivity(event);
@@ -165,6 +212,49 @@ export class PiEventHandler {
         this.options.postState();
       }
     }
+  }
+
+  private scheduleReadyScriptWhenPiIdle(): void {
+    this.clearReadyScriptTimer();
+
+    const timer = setImmediate(() => {
+      this.readyScriptTimer = undefined;
+      this.finishPiWorkIfIdle();
+    });
+
+    if (typeof timer === 'object' && typeof timer.unref === 'function') {
+      timer.unref();
+    }
+
+    this.readyScriptTimer = timer;
+  }
+
+  private clearReadyScriptTimer(): void {
+    if (!this.readyScriptTimer) {
+      return;
+    }
+
+    clearImmediate(this.readyScriptTimer);
+    this.readyScriptTimer = undefined;
+  }
+
+  private finishPiWorkIfIdle(): void {
+    if (this.isPiWorkPending()) {
+      return;
+    }
+
+    this.options.session.handleAgentEnd();
+    this.options.runReadyScriptAfterAgentEnd();
+    this.options.postState();
+    this.options.refreshMetadataAfterAgentEnd();
+  }
+
+  private isPiWorkPending(): boolean {
+    return this.agentActive
+      || this.autoRetryActive
+      || this.compactionActive
+      || this.waitingForAgentRestartAfterCompaction
+      || this.waitingForAutoRetryStart;
   }
 
   private applyPiActivity(event: PiEvent): void {

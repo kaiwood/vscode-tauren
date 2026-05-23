@@ -167,6 +167,88 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
+  test('ready script waits for auto-retry to finish', async () => {
+    const readyScripts: Array<{ scriptPath: string; cwd: string | undefined }> = [];
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client], {
+      cwd: '/workspace',
+      getReadyScript: () => 'scripts/ready.sh',
+      runReadyScript: (scriptPath, cwd) => readyScripts.push({ scriptPath, cwd })
+    });
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: 'retry this' });
+    client.emit({ type: 'agent_start' });
+    client.emit({ type: 'agent_end', messages: [], willRetry: true });
+    await flushPromises();
+
+    assert.deepStrictEqual(readyScripts, []);
+    assert.strictEqual(lastState(harness).busy, true);
+
+    client.emit({ type: 'auto_retry_start' });
+    client.emit({ type: 'agent_start' });
+    client.emit({ type: 'auto_retry_end', success: true });
+    client.emit({ type: 'agent_end', messages: [] });
+    await flushPromises();
+
+    assert.deepStrictEqual(readyScripts, [{ scriptPath: 'scripts/ready.sh', cwd: '/workspace' }]);
+    assert.strictEqual(lastState(harness).busy, false);
+    harness.controller.dispose();
+  });
+
+  test('ready script waits for post-agent compaction to finish', async () => {
+    const readyScripts: Array<{ scriptPath: string; cwd: string | undefined }> = [];
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client], {
+      cwd: '/workspace',
+      getReadyScript: () => 'scripts/ready.sh',
+      runReadyScript: (scriptPath, cwd) => readyScripts.push({ scriptPath, cwd })
+    });
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: 'compact this' });
+    client.emit({ type: 'agent_start' });
+    client.emit({ type: 'agent_end', messages: [] });
+    client.emit({ type: 'compaction_start' });
+    await flushPromises();
+
+    assert.deepStrictEqual(readyScripts, []);
+    assert.strictEqual(lastState(harness).busy, true);
+
+    client.emit({ type: 'compaction_end', result: {}, willRetry: false });
+    await flushPromises();
+
+    assert.deepStrictEqual(readyScripts, [{ scriptPath: 'scripts/ready.sh', cwd: '/workspace' }]);
+    assert.strictEqual(lastState(harness).busy, false);
+    harness.controller.dispose();
+  });
+
+  test('ready script waits for compaction-triggered retry to finish', async () => {
+    const readyScripts: Array<{ scriptPath: string; cwd: string | undefined }> = [];
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client], {
+      cwd: '/workspace',
+      getReadyScript: () => 'scripts/ready.sh',
+      runReadyScript: (scriptPath, cwd) => readyScripts.push({ scriptPath, cwd })
+    });
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: 'overflow compact this' });
+    client.emit({ type: 'agent_start' });
+    client.emit({ type: 'agent_end', messages: [] });
+    client.emit({ type: 'compaction_start' });
+    client.emit({ type: 'compaction_end', result: {}, willRetry: true });
+    await flushPromises();
+
+    assert.deepStrictEqual(readyScripts, []);
+    assert.strictEqual(lastState(harness).busy, true);
+
+    client.emit({ type: 'agent_start' });
+    client.emit({ type: 'agent_end', messages: [] });
+    await flushPromises();
+
+    assert.deepStrictEqual(readyScripts, [{ scriptPath: 'scripts/ready.sh', cwd: '/workspace' }]);
+    assert.strictEqual(lastState(harness).busy, false);
+    harness.controller.dispose();
+  });
+
   test('queued follow-up arms the ready script only after the follow-up run starts', async () => {
     const readyScripts: Array<{ scriptPath: string; cwd: string | undefined }> = [];
     const client = new FakePiClient();

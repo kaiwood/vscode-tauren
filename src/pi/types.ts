@@ -5,7 +5,7 @@ export type PiEventBase = Record<string, unknown> & {
 };
 
 export type AgentStartPiEvent = PiEventBase & { type: 'agent_start' };
-export type AgentEndPiEvent = PiEventBase & { type: 'agent_end'; messages?: unknown };
+export type AgentEndPiEvent = PiEventBase & { type: 'agent_end'; messages?: unknown; willRetry?: boolean };
 export type TurnStartPiEvent = PiEventBase & { type: 'turn_start' };
 export type TurnEndPiEvent = PiEventBase & { type: 'turn_end'; toolResults?: unknown };
 export type MessageStartPiEvent = PiEventBase & { type: 'message_start'; message?: unknown };

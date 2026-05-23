@@ -4,6 +4,7 @@ All notable changes to Tau will be documented in this file.
 
 ## Unreleased
 
+- Fixed `tau.readyScript` so it waits for Pi auto-retry and compaction work before running.
 - Kept Pi custom UI scoped to its originating open session, including background sessions.
 - Added a `tau.confirmSessionDeletion` setting to optionally skip session deletion confirmation.
 - Allowed session renaming while Pi is working, including running open sessions.
