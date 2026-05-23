@@ -96,6 +96,59 @@ suite('TauSessionManager', () => {
     harness.manager.dispose();
   });
 
+  test('keeps background custom UI visible when another session already has one', async () => {
+    const firstClient = new FakePiClient({ state: { sessionFile: '/sessions/one.jsonl' } });
+    const secondClient = new FakePiClient({ state: { sessionFile: '/sessions/two.jsonl' } });
+    const harness = createManagerHarness([firstClient, secondClient], {
+      initialSessionFile: '/sessions/one.jsonl',
+      listSessions: async (_cwd, currentSessionFile) => createSessionItems(currentSessionFile)
+    });
+    harness.manager.setCustomUiViewAttached(true);
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'run in the background' });
+    await harness.manager.handleWebviewMessage({ type: 'newSession' });
+    await flushPromises();
+
+    const activePromise = harness.clientOptions[1].extensionUi?.custom?.<string>(() => ({
+      render: () => ['active custom ui'],
+      invalidate: () => undefined
+    }));
+    await flushPromises();
+
+    const backgroundPromise = harness.clientOptions[0].extensionUi?.custom?.<string>(() => ({
+      render: () => ['background custom ui'],
+      invalidate: () => undefined
+    }));
+    await flushPromises();
+
+    assert.ok(activePromise);
+    assert.ok(backgroundPromise);
+    harness.customUiMessages.length = 0;
+
+    await harness.manager.handleWebviewMessage({ type: 'selectSession', sessionPath: '/sessions/one.jsonl' });
+    await flushPromises();
+
+    const show = harness.customUiMessages.find((message): message is { type: 'customUiShow'; id: string } => message.type === 'customUiShow');
+    assert.ok(show);
+    assert.ok(harness.customUiMessages.some((message) => message.type === 'customUiRender' && message.id === show.id && message.lines[0] === 'background custom ui'));
+
+    let webviewActiveId: string | undefined;
+    for (const message of harness.customUiMessages) {
+      if (message.type === 'customUiShow') {
+        webviewActiveId = message.id;
+      }
+
+      if (message.type === 'customUiHide' && message.id === webviewActiveId) {
+        webviewActiveId = undefined;
+      }
+    }
+
+    assert.strictEqual(webviewActiveId, show.id);
+    harness.manager.dispose();
+    assert.strictEqual(await activePromise, undefined);
+    assert.strictEqual(await backgroundPromise, undefined);
+  });
+
   test('keeps session list data after selecting an unopened session', async () => {
     const harness = createManagerHarness([new FakePiClient({ state: { sessionFile: '/sessions/two.jsonl' } })], {
       listSessions: async (_cwd, currentSessionFile) => createSessionItems(currentSessionFile)

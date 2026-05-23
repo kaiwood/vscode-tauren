@@ -280,7 +280,8 @@ export class TauSessionManager {
       postMessage: customUi.postMessage,
       getOutputColors: customUi.getOutputColors,
       notify: (message, notifyType) => this.options.showNotification(message, notifyType),
-      onActiveChange: (active) => this.handleCustomUiActiveChange(id, active)
+      onActiveChange: (active) => this.handleCustomUiActiveChange(id, active),
+      idPrefix: `custom-ui-${id}`
     });
     host.setAttached(false);
     return host;

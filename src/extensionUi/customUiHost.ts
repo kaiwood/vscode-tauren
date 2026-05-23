@@ -34,6 +34,7 @@ export type ExtensionCustomUiHostOptions = {
   getOutputColors(): boolean;
   notify(message: string, notifyType: string): void;
   onActiveChange?(active: boolean): void;
+  idPrefix?: string;
 };
 
 const defaultColumns = 80;
@@ -54,7 +55,7 @@ export class ExtensionCustomUiHost {
 
     this.cancelActive();
 
-    const id = `custom-ui-${this.nextId++}`;
+    const id = `${this.options.idPrefix ?? 'custom-ui'}-${this.nextId++}`;
     const terminal: CustomUiTerminal = { columns: defaultColumns, rows: defaultRows };
 
     return new Promise<T | undefined>((resolve) => {
