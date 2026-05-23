@@ -628,16 +628,6 @@
       this.syncComposer({ preserveBottom: true });
       this.options.focusPromptInput();
     }
-    runSessionSlashCommand(command) {
-      const state2 = this.options.getState();
-      if (state2.busy) {
-        return;
-      }
-      this.closeSlashMenu();
-      this.options.cancelSessionNameEdit();
-      this.options.postMessage({ type: "submit", text: "/" + command });
-      this.options.focusPromptInput();
-    }
     handlePromptEscape() {
       if (document.activeElement !== this.options.textarea) {
         return false;
@@ -2085,20 +2075,11 @@
       sessionNameInputElement: queryRequired(".pi-toolbar__title-input"),
       sessionToggleButton: queryRequired(".pi-toolbar__sessions"),
       treeToggleButton: queryRequired(".pi-toolbar__tree"),
-      sessionMenuWrapElement: queryRequired(".pi-toolbar__menu-wrap"),
-      sessionMenuButton: queryRequired(".pi-toolbar__menu-button"),
-      sessionMenuElement: queryRequired(".pi-toolbar__menu"),
-      sessionMenuItemElements: queryAll(".pi-toolbar__menu-item"),
-      chatHelpWrapElement: queryRequired(".pi-toolbar__chat-help-wrap"),
-      chatHelpButton: queryRequired(".pi-toolbar__chat-help-button"),
-      chatHelpPopoverElement: queryRequired(".pi-toolbar__chat-help-popover"),
+      helpOverlayElement: queryRequired(".pi-help-overlay"),
+      helpCloseButton: queryRequired(".pi-help-overlay__close"),
       settingsElement: queryRequired(".settings-surface"),
       settingsBodyElement: queryRequired(".settings-surface__body"),
       settingsBackButton: queryRequired(".settings-surface__back"),
-      sessionHelpWrapElement: queryRequired(".pi-toolbar__session-help-wrap"),
-      sessionHelpButton: queryRequired(".pi-toolbar__session-help-button"),
-      sessionHelpPopoverElement: queryRequired(".pi-toolbar__session-help-popover"),
-      sessionNewButton: queryRequired(".pi-toolbar__new-session"),
       toastElement: queryRequired(".pi-toast"),
       messagesElement: queryRequired(".messages"),
       sessionsElement: queryRequired(".sessions"),
@@ -4095,8 +4076,6 @@ ${after}`;
     options;
     sessionNameEditing = false;
     sessionNameEditInitialValue = "";
-    sessionMenuCommandIndex = 0;
-    sessionHelpOpenedFromShortcut = false;
     get isSessionNameEditing() {
       return this.sessionNameEditing;
     }
@@ -4104,47 +4083,17 @@ ${after}`;
       this.options.sessionToggleButton.addEventListener("click", () => this.toggleSessionView());
       this.options.treeToggleButton.addEventListener("click", () => this.toggleTreeView());
       this.options.toolbarTitleElement.addEventListener("dblclick", (event) => this.startSessionNameEdit(event));
-      this.options.sessionMenuButton.addEventListener("click", (event) => this.toggleSessionCommandMenu(event));
-      this.options.sessionNewButton.addEventListener("click", (event) => this.startNewSession(event));
-      this.options.sessionHelpButton.addEventListener("click", (event) => this.toggleSessionHelpPopover(event));
-      for (const item of this.options.sessionMenuItemElements) {
-        item.addEventListener("click", () => this.runSessionMenuCommand(item.getAttribute("data-session-command")));
-        item.addEventListener("pointerenter", () => this.setSessionMenuItemHover(item, true));
-        item.addEventListener("pointerleave", () => this.setSessionMenuItemHover(item, false));
-        item.addEventListener("focus", () => {
-          this.updateSessionMenuCommandIndex(item);
-          this.setSessionMenuItemHover(item, true);
-        });
-        item.addEventListener("blur", () => this.setSessionMenuItemHover(item, false));
-      }
       this.options.sessionNameInputElement.addEventListener("blur", () => this.cancelSessionNameEdit());
     }
     handleGlobalKeydown(event) {
-      if (this.handleSessionCommandMenuKeydown(event)) {
-        return true;
-      }
-      if (event.target === this.options.sessionNewButton && (event.key === "Enter" || event.key === " ")) {
-        event.preventDefault();
-        event.stopPropagation();
-        this.startNewSession();
-        return true;
-      }
-      if ((event.target === this.options.sessionToggleButton || event.target === this.options.treeToggleButton || event.target === this.options.sessionHelpButton) && (event.key === "Enter" || event.key === " ")) {
+      if ((event.target === this.options.sessionToggleButton || event.target === this.options.treeToggleButton) && (event.key === "Enter" || event.key === " ")) {
         event.preventDefault();
         event.stopPropagation();
         if (event.target === this.options.sessionToggleButton) {
           this.toggleSessionView();
-        } else if (event.target === this.options.treeToggleButton) {
-          this.toggleTreeView();
         } else {
-          this.toggleSessionHelpPopover();
+          this.toggleTreeView();
         }
-        return true;
-      }
-      if (this.hasSessionHelpPopoverOpen() && event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        this.closeSessionHelpPopover({ focusButton: !this.sessionHelpOpenedFromShortcut });
         return true;
       }
       if (!this.sessionNameEditing || event.target !== this.options.sessionNameInputElement) {
@@ -4181,17 +4130,6 @@ ${after}`;
       this.options.toolbarTitleElement.classList.toggle("pi-toolbar__title--editing", this.sessionNameEditing);
       this.options.toolbarTitleTextElement.hidden = this.sessionNameEditing;
       this.options.sessionNameInputElement.hidden = !this.sessionNameEditing;
-      this.options.sessionMenuWrapElement.hidden = isFrontHidden;
-      this.options.sessionNewButton.hidden = state2.viewMode !== "sessions";
-      this.options.sessionHelpWrapElement.hidden = state2.viewMode !== "sessions";
-      this.options.sessionMenuButton.disabled = this.sessionNameEditing;
-      this.syncSessionCommandMenuItems();
-      if (isFrontHidden || this.sessionNameEditing) {
-        this.closeSessionCommandMenu();
-      }
-      if (state2.viewMode !== "sessions") {
-        this.closeSessionHelpPopover();
-      }
       const sessionToggleLabel = isListView ? "Back to chat" : "Show sessions";
       this.options.sessionToggleButton.setAttribute("aria-label", sessionToggleLabel);
       setTooltipText2(this.options.sessionToggleButton, sessionToggleLabel);
@@ -4210,53 +4148,12 @@ ${after}`;
         this.options.focusPromptInput();
       }
     }
-    closeSessionCommandMenu(options = {}) {
-      if (this.options.sessionMenuElement.hidden) {
-        return;
-      }
-      this.options.sessionMenuElement.hidden = true;
-      this.options.sessionMenuButton.setAttribute("aria-expanded", "false");
-      for (const item of this.options.sessionMenuItemElements) {
-        this.setSessionMenuItemHover(item, false);
-      }
-      if (options.focusButton && !this.options.sessionMenuWrapElement.hidden) {
-        this.options.sessionMenuButton.focus({ preventScroll: true });
-      }
+    closeSessionCommandMenu() {
     }
-    openSessionHelpPopover(options = {}) {
-      const state2 = this.options.getState();
-      if (state2.viewMode !== "sessions") {
-        return;
-      }
-      this.closeSessionCommandMenu();
-      this.sessionHelpOpenedFromShortcut = Boolean(options.fromShortcut);
-      this.options.sessionHelpPopoverElement.hidden = false;
-      this.options.sessionHelpButton.setAttribute("aria-expanded", "true");
-    }
-    closeSessionHelpPopover(options = {}) {
-      if (this.options.sessionHelpPopoverElement.hidden) {
-        return;
-      }
-      this.options.sessionHelpPopoverElement.hidden = true;
-      this.options.sessionHelpButton.setAttribute("aria-expanded", "false");
-      this.sessionHelpOpenedFromShortcut = false;
-      if (options.focusButton && !this.options.sessionHelpWrapElement.hidden) {
-        this.options.sessionHelpButton.focus({ preventScroll: true });
-      }
-    }
-    handleWindowClick(target) {
-      if (!target || !this.options.sessionMenuWrapElement.contains(target)) {
-        this.closeSessionCommandMenu();
-      }
-      if (!target || !this.options.sessionHelpWrapElement.contains(target)) {
-        this.closeSessionHelpPopover();
-      }
+    handleWindowClick(_target) {
     }
     hasSessionCommandMenuOpen() {
-      return !this.options.sessionMenuElement.hidden;
-    }
-    hasSessionHelpPopoverOpen() {
-      return !this.options.sessionHelpPopoverElement.hidden;
+      return false;
     }
     startSessionNameEdit(event) {
       const state2 = this.options.getState();
@@ -4267,12 +4164,10 @@ ${after}`;
       }
       this.options.closeSlashMenu();
       this.options.closeModelMenu();
-      this.closeSessionCommandMenu();
-      const initialName = this.options.getCurrentSessionName();
       this.sessionNameEditing = true;
-      this.sessionNameEditInitialValue = initialName;
-      this.options.sessionNameInputElement.value = initialName;
-      this.options.sessionNameInputElement.placeholder = initialName ? "" : this.options.getCurrentSessionTitle();
+      this.sessionNameEditInitialValue = this.options.getCurrentSessionName();
+      this.options.sessionNameInputElement.value = this.sessionNameEditInitialValue;
+      this.options.sessionNameInputElement.placeholder = this.sessionNameEditInitialValue ? "" : this.options.getCurrentSessionTitle();
       this.syncSessionNameEditor();
       requestAnimationFrame(() => {
         this.options.sessionNameInputElement.focus({ preventScroll: true });
@@ -4284,7 +4179,7 @@ ${after}`;
         return;
       }
       const nextName = this.options.sessionNameInputElement.value.trim();
-      const previousName = this.sessionNameEditInitialValue;
+      const previousName = this.sessionNameEditInitialValue.trim();
       this.stopSessionNameEdit();
       if (nextName !== previousName) {
         this.options.postMessage({ type: "setSessionName", name: nextName });
@@ -4295,7 +4190,6 @@ ${after}`;
       this.sessionNameEditing = false;
       this.sessionNameEditInitialValue = "";
       this.options.sessionNameInputElement.value = "";
-      this.options.sessionNameInputElement.placeholder = "";
       this.syncSessionNameEditor();
     }
     syncSessionNameEditor() {
@@ -4303,219 +4197,11 @@ ${after}`;
       this.options.toolbarTitleTextElement.hidden = this.sessionNameEditing;
       this.options.toolbarTimestampElement.hidden = this.sessionNameEditing || !this.options.toolbarTimestampElement.textContent;
       this.options.sessionNameInputElement.hidden = !this.sessionNameEditing;
-      this.options.sessionMenuButton.disabled = this.sessionNameEditing;
-    }
-    startNewSession(event) {
-      const state2 = this.options.getState();
-      event?.preventDefault();
-      event?.stopPropagation();
-      if (state2.viewMode !== "sessions") {
-        return;
-      }
-      this.closeSessionCommandMenu();
-      this.closeSessionHelpPopover();
-      this.options.postMessage({ type: "newSession" });
-      this.options.focusPromptInput();
-    }
-    toggleSessionCommandMenu(event) {
-      event?.preventDefault();
-      event?.stopPropagation();
-      if (!this.options.sessionMenuElement.hidden) {
-        this.closeSessionCommandMenu();
-        return;
-      }
-      this.openSessionCommandMenu();
-    }
-    toggleSessionHelpPopover(event) {
-      const state2 = this.options.getState();
-      event?.preventDefault();
-      event?.stopPropagation();
-      if (state2.viewMode !== "sessions") {
-        return;
-      }
-      const isOpen = !this.options.sessionHelpPopoverElement.hidden;
-      if (isOpen) {
-        this.closeSessionHelpPopover();
-        return;
-      }
-      this.openSessionHelpPopover();
-    }
-    syncSessionCommandMenuItems() {
-      const state2 = this.options.getState();
-      for (const item of this.options.sessionMenuItemElements) {
-        const command = item.getAttribute("data-session-command");
-        item.disabled = this.sessionNameEditing || state2.busy && command !== "rename" || command === "delete" && !this.options.getCurrentSessionPath();
-      }
-    }
-    handleSessionCommandMenuKeydown(event) {
-      const target = event.target instanceof Node ? event.target : void 0;
-      const isMenuButtonTarget = event.target === this.options.sessionMenuButton;
-      const isMenuTarget = Boolean(target && this.options.sessionMenuElement.contains(target));
-      const isMenuOpen = this.hasSessionCommandMenuOpen();
-      if (isMenuButtonTarget && !isMenuOpen) {
-        if (event.key === "Enter" || event.key === " " || event.key === "ArrowDown") {
-          event.preventDefault();
-          event.stopPropagation();
-          this.openSessionCommandMenu({ focusMenu: true });
-          return true;
-        }
-        if (event.key === "ArrowUp") {
-          event.preventDefault();
-          event.stopPropagation();
-          this.openSessionCommandMenu({ focusMenu: true, focusLast: true });
-          return true;
-        }
-        return false;
-      }
-      if (!isMenuOpen || !isMenuButtonTarget && !isMenuTarget) {
-        return false;
-      }
-      if (event.key === "Tab") {
-        this.closeSessionCommandMenu();
-        return false;
-      }
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        this.closeSessionCommandMenu({ focusButton: true });
-        return true;
-      }
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        event.stopPropagation();
-        isMenuTarget ? this.moveSessionCommandMenuSelection(1) : this.focusFirstSessionCommandMenuItem();
-        return true;
-      }
-      if (event.key === "ArrowUp") {
-        event.preventDefault();
-        event.stopPropagation();
-        isMenuTarget ? this.moveSessionCommandMenuSelection(-1) : this.focusLastSessionCommandMenuItem();
-        return true;
-      }
-      if (event.key === "Home") {
-        event.preventDefault();
-        event.stopPropagation();
-        this.focusFirstSessionCommandMenuItem();
-        return true;
-      }
-      if (event.key === "End") {
-        event.preventDefault();
-        event.stopPropagation();
-        this.focusLastSessionCommandMenuItem();
-        return true;
-      }
-      if (isMenuTarget && (event.key === "Enter" || event.key === " ")) {
-        event.preventDefault();
-        event.stopPropagation();
-        this.runFocusedSessionMenuCommand(event.target);
-        return true;
-      }
-      return false;
-    }
-    openSessionCommandMenu(options = {}) {
-      const state2 = this.options.getState();
-      if (state2.viewMode === "sessions" || state2.viewMode === "tree" || this.sessionNameEditing) {
-        return;
-      }
-      this.options.closeSlashMenu();
-      this.options.closeModelMenu();
-      this.closeSessionHelpPopover();
-      this.syncSessionCommandMenuItems();
-      this.sessionMenuCommandIndex = options.focusLast ? this.getLastEnabledSessionCommandMenuIndex() : this.getFirstEnabledSessionCommandMenuIndex();
-      this.options.sessionMenuElement.hidden = false;
-      this.options.sessionMenuButton.setAttribute("aria-expanded", "true");
-      if (options.focusMenu) {
-        requestAnimationFrame(() => this.focusSessionCommandMenuItem(this.sessionMenuCommandIndex));
-      }
-    }
-    moveSessionCommandMenuSelection(delta) {
-      const enabledIndexes = this.getEnabledSessionCommandMenuIndexes();
-      if (enabledIndexes.length === 0) {
-        return;
-      }
-      const currentPosition = enabledIndexes.indexOf(this.sessionMenuCommandIndex);
-      const nextPosition = currentPosition >= 0 ? (currentPosition + delta + enabledIndexes.length) % enabledIndexes.length : delta > 0 ? 0 : enabledIndexes.length - 1;
-      this.sessionMenuCommandIndex = enabledIndexes[nextPosition];
-      this.focusSessionCommandMenuItem(this.sessionMenuCommandIndex);
-    }
-    focusFirstSessionCommandMenuItem() {
-      this.sessionMenuCommandIndex = this.getFirstEnabledSessionCommandMenuIndex();
-      this.focusSessionCommandMenuItem(this.sessionMenuCommandIndex);
-    }
-    focusLastSessionCommandMenuItem() {
-      this.sessionMenuCommandIndex = this.getLastEnabledSessionCommandMenuIndex();
-      this.focusSessionCommandMenuItem(this.sessionMenuCommandIndex);
-    }
-    focusSessionCommandMenuItem(index) {
-      const item = this.options.sessionMenuItemElements[index];
-      if (!item || item.disabled) {
-        return;
-      }
-      item.focus({ preventScroll: true });
-    }
-    getFirstEnabledSessionCommandMenuIndex() {
-      return this.getEnabledSessionCommandMenuIndexes()[0] ?? 0;
-    }
-    getLastEnabledSessionCommandMenuIndex() {
-      const enabledIndexes = this.getEnabledSessionCommandMenuIndexes();
-      return enabledIndexes[enabledIndexes.length - 1] ?? 0;
-    }
-    getEnabledSessionCommandMenuIndexes() {
-      return this.options.sessionMenuItemElements.map((item, index) => item.disabled ? void 0 : index).filter((index) => index !== void 0);
-    }
-    updateSessionMenuCommandIndex(item) {
-      const index = this.options.sessionMenuItemElements.indexOf(item);
-      if (index >= 0 && !item.disabled) {
-        this.sessionMenuCommandIndex = index;
-      }
-    }
-    runFocusedSessionMenuCommand(target) {
-      const targetItem = target instanceof Element ? target.closest(".pi-toolbar__menu-item") : void 0;
-      const item = targetItem instanceof HTMLButtonElement && this.options.sessionMenuElement.contains(targetItem) && !targetItem.disabled ? targetItem : this.options.sessionMenuItemElements[this.sessionMenuCommandIndex];
-      if (!item || item.disabled) {
-        return;
-      }
-      this.runSessionMenuCommand(item.getAttribute("data-session-command"));
-    }
-    setSessionMenuItemHover(item, hovered) {
-      item.classList.toggle("pi-toolbar__menu-item--hover", hovered);
-    }
-    runSessionMenuCommand(command) {
-      if (command === "rename") {
-        this.closeSessionCommandMenu();
-        this.startSessionNameEdit();
-        return;
-      }
-      if (command === "fork" || command === "clone") {
-        this.closeSessionCommandMenu();
-        this.options.runSessionSlashCommand(command);
-        return;
-      }
-      if (command === "delete") {
-        this.closeSessionCommandMenu();
-        this.deleteCurrentSession();
-        return;
-      }
-      if (command !== "reload" && command !== "compact" && command !== "export") {
-        return;
-      }
-      this.closeSessionCommandMenu();
-      this.options.postMessage({ type: "submit", text: "/" + command });
-      this.options.focusPromptInput();
-    }
-    deleteCurrentSession() {
-      const sessionPath = this.options.getCurrentSessionPath();
-      if (!sessionPath) {
-        return;
-      }
-      this.options.postMessage({ type: "deleteSession", sessionPath });
-      this.options.focusPromptInput();
     }
     toggleSessionView() {
       const state2 = this.options.getState();
       this.cancelSessionNameEdit();
       if (state2.viewMode === "sessions" || state2.viewMode === "tree") {
-        this.closeSessionHelpPopover();
         this.options.postMessage({ type: "hideSessions" });
         this.options.focusPromptInput();
         return;
@@ -4526,7 +4212,6 @@ ${after}`;
       const state2 = this.options.getState();
       this.cancelSessionNameEdit();
       if (state2.viewMode === "sessions" || state2.viewMode === "tree") {
-        this.closeSessionHelpPopover();
         this.options.postMessage({ type: "hideSessions" });
         this.options.focusPromptInput();
         return;
@@ -4559,21 +4244,11 @@ ${after}`;
         sessionNameInputElement: options.sessionNameInputElement,
         sessionToggleButton: options.sessionToggleButton,
         treeToggleButton: options.treeToggleButton,
-        sessionMenuWrapElement: options.sessionMenuWrapElement,
-        sessionMenuButton: options.sessionMenuButton,
-        sessionMenuElement: options.sessionMenuElement,
-        sessionMenuItemElements: options.sessionMenuItemElements,
-        sessionHelpWrapElement: options.sessionHelpWrapElement,
-        sessionHelpButton: options.sessionHelpButton,
-        sessionHelpPopoverElement: options.sessionHelpPopoverElement,
-        sessionNewButton: options.sessionNewButton,
         focusPromptInput: options.focusPromptInput,
         closeSlashMenu: options.closeSlashMenu,
         closeModelMenu: options.closeModelMenu,
-        runSessionSlashCommand: options.runSessionSlashCommand,
         getCurrentSessionTitle: () => this.getCurrentSessionTitle(),
         getCurrentSessionName: () => this.getCurrentSessionName(),
-        getCurrentSessionPath: () => this.getCurrentSessionPath(),
         getCurrentSessionTimestamp: () => this.getCurrentSessionTimestamp()
       });
     }
@@ -4806,11 +4481,11 @@ ${after}`;
       if (state2.viewMode === "tree" && this.treeController.handleClick(target, event)) {
         return;
       }
-      const sessionMenuButton2 = target?.closest(".sessions__menu-button");
-      if (sessionMenuButton2) {
+      const sessionMenuButton = target?.closest(".sessions__menu-button");
+      if (sessionMenuButton) {
         event.preventDefault();
         event.stopPropagation();
-        const item2 = sessionMenuButton2.closest(".sessions__item");
+        const item2 = sessionMenuButton.closest(".sessions__item");
         const index2 = Number(item2?.getAttribute("data-index"));
         this.toggleSessionItemMenu(index2);
         return;
@@ -4880,7 +4555,7 @@ ${after}`;
         event.preventDefault();
         event.stopPropagation();
         this.closeSessionItemMenus();
-        this.topControls.openSessionHelpPopover({ fromShortcut: true });
+        this.options.openHelpOverlay();
         return true;
       }
       if (event.key === "Escape") {
@@ -5436,10 +5111,6 @@ ${after}`;
       const state2 = this.options.getState();
       return (this.getCurrentSession()?.name ?? state2.currentSessionName ?? "").trim();
     }
-    getCurrentSessionPath() {
-      const state2 = this.options.getState();
-      return (this.getCurrentSession()?.path ?? state2.currentSessionFile ?? "").trim();
-    }
     getCurrentSessionTimestamp() {
       return this.getCurrentSession()?.modified ?? "";
     }
@@ -5854,20 +5525,11 @@ ${after}`;
     sessionNameInputElement,
     sessionToggleButton,
     treeToggleButton,
-    sessionMenuWrapElement,
-    sessionMenuButton,
-    sessionMenuElement,
-    sessionMenuItemElements,
-    chatHelpWrapElement,
-    chatHelpButton,
-    chatHelpPopoverElement,
+    helpOverlayElement,
+    helpCloseButton,
     settingsElement,
     settingsBodyElement,
     settingsBackButton,
-    sessionHelpWrapElement,
-    sessionHelpButton,
-    sessionHelpPopoverElement,
-    sessionNewButton,
     toastElement,
     messagesElement,
     sessionsElement,
@@ -5978,24 +5640,16 @@ ${after}`;
     sessionNameInputElement,
     sessionToggleButton,
     treeToggleButton,
-    sessionMenuWrapElement,
-    sessionMenuButton,
-    sessionMenuElement,
-    sessionMenuItemElements,
-    sessionHelpWrapElement,
-    sessionHelpButton,
-    sessionHelpPopoverElement,
-    sessionNewButton,
     focusPromptInput,
     closeSlashMenu: () => composerController.closeSlashMenu(),
     closeModelMenu: () => composerController.closeModelMenu(),
-    runSessionSlashCommand: (command) => composerController.runSessionSlashCommand(command)
+    openHelpOverlay
   });
   composerController.attachEventListeners();
   sessionsController.attachEventListeners();
   settingsController.attachEventListeners();
   customUiController.attachEventListeners();
-  chatHelpButton.addEventListener("click", toggleChatHelpPopover);
+  helpCloseButton.addEventListener("click", () => closeHelpOverlay());
   newSessionButton.addEventListener("click", startNewSession);
   diffSummaryElement.addEventListener("click", showCurrentChanges);
   messagesElement.addEventListener("click", (event) => messagesController.handleMessageClick(event));
@@ -6018,6 +5672,10 @@ ${after}`;
     }
     if (event.data?.type === "toggleStreamingBehavior") {
       composerController.toggleStreamingBehavior();
+      return;
+    }
+    if (event.data?.type === "toggleHelpOverlay") {
+      toggleHelpOverlay();
       return;
     }
     if (event.data?.type === "toast") {
@@ -6073,7 +5731,7 @@ ${after}`;
     const target = eventTargetNode(event);
     composerController.handleWindowClick(target);
     sessionsController.handleWindowClick(target, eventTargetElement4(event));
-    handleChatHelpWindowClick(target);
+    handleHelpWindowClick(target);
   });
   window.addEventListener("keydown", (event) => {
     if (customUiController.handleGlobalKeydown(event)) {
@@ -6085,7 +5743,7 @@ ${after}`;
     if (sessionsController.handleGlobalKeydown(event)) {
       return;
     }
-    if (event.key === "Escape" && handleChatHelpEscape(event)) {
+    if (event.key === "Escape" && handleHelpEscape(event)) {
       return;
     }
     if (event.key === "Escape" && handleChatEscape(event)) {
@@ -6181,7 +5839,6 @@ ${after}`;
     sessionsController.syncForRender(isListView);
     settingsController.syncForRender(isListView);
     customUiController.syncForRender(isListView || isSettingsVisible);
-    syncChatHelpForRender(isListView || isSettingsVisible);
     if (isSettingsVisible) {
       busyStatusElement.hidden = true;
       composerController.closeSlashMenu();
@@ -6215,54 +5872,40 @@ ${after}`;
       messagesController.scheduleMessagesToBottom();
     }
   }
-  function syncChatHelpForRender(isListView) {
-    chatHelpWrapElement.hidden = isListView;
-    if (isListView) {
-      closeChatHelpPopover();
+  function toggleHelpOverlay() {
+    if (hasHelpOverlayOpen()) {
+      closeHelpOverlay();
+      return;
     }
+    openHelpOverlay();
   }
-  function toggleChatHelpPopover(event) {
-    event?.preventDefault();
-    event?.stopPropagation();
-    if (state.viewMode !== "chat") {
-      return;
-    }
-    if (hasChatHelpPopoverOpen()) {
-      closeChatHelpPopover();
-      return;
-    }
+  function openHelpOverlay() {
     composerController.closeSlashMenu();
     composerController.closeModelMenu();
     sessionsController.closeSessionCommandMenu();
-    chatHelpPopoverElement.hidden = false;
-    chatHelpButton.setAttribute("aria-expanded", "true");
+    sessionsController.closeSessionItemMenus();
+    helpOverlayElement.hidden = false;
+    requestAnimationFrame(() => helpOverlayElement.focus({ preventScroll: true }));
   }
-  function closeChatHelpPopover(options = {}) {
-    if (chatHelpPopoverElement.hidden) {
-      return;
-    }
-    chatHelpPopoverElement.hidden = true;
-    chatHelpButton.setAttribute("aria-expanded", "false");
-    if (options.focusButton && !chatHelpWrapElement.hidden) {
-      chatHelpButton.focus({ preventScroll: true });
-    }
+  function closeHelpOverlay() {
+    helpOverlayElement.hidden = true;
   }
-  function handleChatHelpWindowClick(target) {
-    if (!target || !chatHelpWrapElement.contains(target)) {
-      closeChatHelpPopover();
+  function handleHelpWindowClick(target) {
+    if (hasHelpOverlayOpen() && (!target || !helpOverlayElement.contains(target))) {
+      closeHelpOverlay();
     }
   }
-  function handleChatHelpEscape(event) {
-    if (!hasChatHelpPopoverOpen()) {
+  function handleHelpEscape(event) {
+    if (!hasHelpOverlayOpen()) {
       return false;
     }
     event.preventDefault();
     event.stopPropagation();
-    closeChatHelpPopover({ focusButton: true });
+    closeHelpOverlay();
     return true;
   }
-  function hasChatHelpPopoverOpen() {
-    return !chatHelpPopoverElement.hidden;
+  function hasHelpOverlayOpen() {
+    return !helpOverlayElement.hidden;
   }
   function handleChatEscape(event) {
     const hadSlashMenu = composerController.hasSlashMenuOpen();

@@ -36,6 +36,7 @@ suite('Tau extension', () => {
     assert.ok(commands.includes('tau.copyLastResponse'));
     assert.ok(commands.includes('tau.openModelPicker'));
     assert.ok(commands.includes('tau.toggleSettings'));
+    assert.ok(commands.includes('tau.toggleHelp'));
     assert.ok(commands.includes('tau.stop'));
     assert.ok(commands.includes('tau.toggleSteerFollowUp'));
     assert.ok(commands.includes('tau.addContext'));

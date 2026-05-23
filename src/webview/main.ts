@@ -20,20 +20,11 @@ const {
   sessionNameInputElement,
   sessionToggleButton,
   treeToggleButton,
-  sessionMenuWrapElement,
-  sessionMenuButton,
-  sessionMenuElement,
-  sessionMenuItemElements,
-  chatHelpWrapElement,
-  chatHelpButton,
-  chatHelpPopoverElement,
+  helpOverlayElement,
+  helpCloseButton,
   settingsElement,
   settingsBodyElement,
   settingsBackButton,
-  sessionHelpWrapElement,
-  sessionHelpButton,
-  sessionHelpPopoverElement,
-  sessionNewButton,
   toastElement,
   messagesElement,
   sessionsElement,
@@ -152,18 +143,10 @@ sessionsController = new SessionViewController({
   sessionNameInputElement,
   sessionToggleButton,
   treeToggleButton,
-  sessionMenuWrapElement,
-  sessionMenuButton,
-  sessionMenuElement,
-  sessionMenuItemElements,
-  sessionHelpWrapElement,
-  sessionHelpButton,
-  sessionHelpPopoverElement,
-  sessionNewButton,
   focusPromptInput,
   closeSlashMenu: () => composerController.closeSlashMenu(),
   closeModelMenu: () => composerController.closeModelMenu(),
-  runSessionSlashCommand: (command) => composerController.runSessionSlashCommand(command)
+  openHelpOverlay
 });
 
 composerController.attachEventListeners();
@@ -171,7 +154,7 @@ sessionsController.attachEventListeners();
 settingsController.attachEventListeners();
 customUiController.attachEventListeners();
 
-chatHelpButton.addEventListener('click', toggleChatHelpPopover);
+helpCloseButton.addEventListener('click', () => closeHelpOverlay());
 newSessionButton.addEventListener('click', startNewSession);
 diffSummaryElement.addEventListener('click', showCurrentChanges);
 messagesElement.addEventListener('click', (event) => messagesController.handleMessageClick(event));
@@ -199,6 +182,11 @@ window.addEventListener('message', (event) => {
 
   if (event.data?.type === 'toggleStreamingBehavior') {
     composerController.toggleStreamingBehavior();
+    return;
+  }
+
+  if (event.data?.type === 'toggleHelpOverlay') {
+    toggleHelpOverlay();
     return;
   }
 
@@ -272,7 +260,7 @@ window.addEventListener('click', (event) => {
   const target = eventTargetNode(event);
   composerController.handleWindowClick(target);
   sessionsController.handleWindowClick(target, eventTargetElement(event));
-  handleChatHelpWindowClick(target);
+  handleHelpWindowClick(target);
 });
 
 window.addEventListener('keydown', (event) => {
@@ -288,7 +276,7 @@ window.addEventListener('keydown', (event) => {
     return;
   }
 
-  if (event.key === 'Escape' && handleChatHelpEscape(event)) {
+  if (event.key === 'Escape' && handleHelpEscape(event)) {
     return;
   }
 
@@ -402,7 +390,6 @@ function render(): void {
   sessionsController.syncForRender(isListView);
   settingsController.syncForRender(isListView);
   customUiController.syncForRender(isListView || isSettingsVisible);
-  syncChatHelpForRender(isListView || isSettingsVisible);
 
   if (isSettingsVisible) {
     busyStatusElement.hidden = true;
@@ -443,66 +430,47 @@ function render(): void {
   }
 }
 
-function syncChatHelpForRender(isListView: boolean): void {
-  chatHelpWrapElement.hidden = isListView;
-
-  if (isListView) {
-    closeChatHelpPopover();
+function toggleHelpOverlay(): void {
+  if (hasHelpOverlayOpen()) {
+    closeHelpOverlay();
+    return;
   }
+
+  openHelpOverlay();
 }
 
-function toggleChatHelpPopover(event?: MouseEvent): void {
-  event?.preventDefault();
-  event?.stopPropagation();
-
-  if (state.viewMode !== 'chat') {
-    return;
-  }
-
-  if (hasChatHelpPopoverOpen()) {
-    closeChatHelpPopover();
-    return;
-  }
-
+function openHelpOverlay(): void {
   composerController.closeSlashMenu();
   composerController.closeModelMenu();
   sessionsController.closeSessionCommandMenu();
-  chatHelpPopoverElement.hidden = false;
-  chatHelpButton.setAttribute('aria-expanded', 'true');
+  sessionsController.closeSessionItemMenus();
+  helpOverlayElement.hidden = false;
+  requestAnimationFrame(() => helpOverlayElement.focus({ preventScroll: true }));
 }
 
-function closeChatHelpPopover(options: { focusButton?: boolean } = {}): void {
-  if (chatHelpPopoverElement.hidden) {
-    return;
-  }
+function closeHelpOverlay(): void {
+  helpOverlayElement.hidden = true;
+}
 
-  chatHelpPopoverElement.hidden = true;
-  chatHelpButton.setAttribute('aria-expanded', 'false');
-
-  if (options.focusButton && !chatHelpWrapElement.hidden) {
-    chatHelpButton.focus({ preventScroll: true });
+function handleHelpWindowClick(target: Node | null): void {
+  if (hasHelpOverlayOpen() && (!target || !helpOverlayElement.contains(target))) {
+    closeHelpOverlay();
   }
 }
 
-function handleChatHelpWindowClick(target: Node | null): void {
-  if (!target || !chatHelpWrapElement.contains(target)) {
-    closeChatHelpPopover();
-  }
-}
-
-function handleChatHelpEscape(event: KeyboardEvent): boolean {
-  if (!hasChatHelpPopoverOpen()) {
+function handleHelpEscape(event: KeyboardEvent): boolean {
+  if (!hasHelpOverlayOpen()) {
     return false;
   }
 
   event.preventDefault();
   event.stopPropagation();
-  closeChatHelpPopover({ focusButton: true });
+  closeHelpOverlay();
   return true;
 }
 
-function hasChatHelpPopoverOpen(): boolean {
-  return !chatHelpPopoverElement.hidden;
+function hasHelpOverlayOpen(): boolean {
+  return !helpOverlayElement.hidden;
 }
 
 function handleChatEscape(event: KeyboardEvent): boolean {

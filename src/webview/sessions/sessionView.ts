@@ -27,18 +27,10 @@ export type SessionViewControllerOptions = {
   sessionNameInputElement: HTMLInputElement;
   sessionToggleButton: HTMLButtonElement;
   treeToggleButton: HTMLButtonElement;
-  sessionMenuWrapElement: HTMLElement;
-  sessionMenuButton: HTMLButtonElement;
-  sessionMenuElement: HTMLElement;
-  sessionMenuItemElements: HTMLButtonElement[];
-  sessionHelpWrapElement: HTMLElement;
-  sessionHelpButton: HTMLButtonElement;
-  sessionHelpPopoverElement: HTMLElement;
-  sessionNewButton: HTMLButtonElement;
   focusPromptInput: () => void;
   closeSlashMenu: () => void;
   closeModelMenu: () => void;
-  runSessionSlashCommand: (command: 'fork' | 'clone' | 'compact' | 'reload' | 'export') => void;
+  openHelpOverlay: () => void;
 };
 
 export class SessionViewController {
@@ -75,21 +67,11 @@ export class SessionViewController {
       sessionNameInputElement: options.sessionNameInputElement,
       sessionToggleButton: options.sessionToggleButton,
       treeToggleButton: options.treeToggleButton,
-      sessionMenuWrapElement: options.sessionMenuWrapElement,
-      sessionMenuButton: options.sessionMenuButton,
-      sessionMenuElement: options.sessionMenuElement,
-      sessionMenuItemElements: options.sessionMenuItemElements,
-      sessionHelpWrapElement: options.sessionHelpWrapElement,
-      sessionHelpButton: options.sessionHelpButton,
-      sessionHelpPopoverElement: options.sessionHelpPopoverElement,
-      sessionNewButton: options.sessionNewButton,
       focusPromptInput: options.focusPromptInput,
       closeSlashMenu: options.closeSlashMenu,
       closeModelMenu: options.closeModelMenu,
-      runSessionSlashCommand: options.runSessionSlashCommand,
       getCurrentSessionTitle: () => this.getCurrentSessionTitle(),
       getCurrentSessionName: () => this.getCurrentSessionName(),
-      getCurrentSessionPath: () => this.getCurrentSessionPath(),
       getCurrentSessionTimestamp: () => this.getCurrentSessionTimestamp()
     });
   }
@@ -463,7 +445,7 @@ export class SessionViewController {
       event.preventDefault();
       event.stopPropagation();
       this.closeSessionItemMenus();
-      this.topControls.openSessionHelpPopover({ fromShortcut: true });
+      this.options.openHelpOverlay();
       return true;
     }
 
@@ -1178,11 +1160,6 @@ export class SessionViewController {
   private getCurrentSessionName(): string {
     const state = this.options.getState();
     return (this.getCurrentSession()?.name ?? state.currentSessionName ?? '').trim();
-  }
-
-  private getCurrentSessionPath(): string {
-    const state = this.options.getState();
-    return (this.getCurrentSession()?.path ?? state.currentSessionFile ?? '').trim();
   }
 
   private getCurrentSessionTimestamp(): string {

@@ -288,128 +288,6 @@ ${chatWebviewStyles}
         <span class="tau-icon-action-tooltip">Show sessions</span>
       </button>
       <div class="pi-toolbar__title"><span class="pi-toolbar__title-text">Pi</span><span class="pi-toolbar__timestamp" hidden></span><input class="pi-toolbar__title-input" type="text" aria-label="Session name" spellcheck="false" hidden></div>
-      <div class="pi-toolbar__menu-wrap">
-        <button class="pi-toolbar__menu-button" type="button" aria-label="Session commands" aria-haspopup="menu" aria-expanded="false" aria-controls="session-command-menu">
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M5 8C5 8.55229 4.55228 9 4 9C3.44772 9 3 8.55229 3 8C3 7.44772 3.44772 7 4 7C4.55228 7 5 7.44772 5 8ZM9 8C9 8.55229 8.55229 9 8 9C7.44772 9 7 8.55229 7 8C7 7.44772 7.44772 7 8 7C8.55229 7 9 7.44772 9 8ZM12 9C12.5523 9 13 8.55229 13 8C13 7.44772 12.5523 7 12 7C11.4477 7 11 7.44772 11 8C11 8.55229 11.4477 9 12 9Z"/>
-          </svg>
-          <span class="tau-icon-action-tooltip">Session commands</span>
-        </button>
-        <div id="session-command-menu" class="pi-toolbar__menu" role="menu" hidden>
-          <button class="pi-toolbar__menu-item" type="button" role="menuitem" data-session-command="reload">
-            <span class="pi-toolbar__menu-label">Reload Pi</span>
-            <svg class="pi-toolbar__menu-icon" aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path d="M12.5 5.3A5 5 0 1 0 13 8" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M12.5 2.75V5.3H9.95" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-          <button class="pi-toolbar__menu-item" type="button" role="menuitem" data-session-command="rename">
-            <span class="pi-toolbar__menu-label">Rename session</span>
-            <svg class="pi-toolbar__menu-icon" aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path d="M4.1 11.9L5.45 11.6L11.15 5.9C11.55 5.5 11.55 4.85 11.15 4.45L10.9 4.2C10.5 3.8 9.85 3.8 9.45 4.2L3.75 9.9L3.45 11.25C3.37 11.65 3.7 11.98 4.1 11.9Z" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M8.85 4.8L10.55 6.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>
-            </svg>
-          </button>
-          <button class="pi-toolbar__menu-item" type="button" role="menuitem" data-session-command="fork">
-            <span class="pi-toolbar__menu-label">Fork session</span>
-            <svg class="pi-toolbar__menu-icon" aria-hidden="true" width="14" height="14" viewBox="0 0 19 19" fill="none">
-              <path d="M5.5 4.25V8.5C5.5 10.16 6.84 11.5 8.5 11.5H10.5" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M5.5 4.25V14.75" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
-              <path d="M10.25 8.5L13.25 11.5L10.25 14.5" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
-              <circle cx="5.5" cy="4.25" r="1.55" fill="currentColor"/>
-              <circle cx="5.5" cy="14.75" r="1.55" fill="currentColor"/>
-            </svg>
-          </button>
-          <button class="pi-toolbar__menu-item" type="button" role="menuitem" data-session-command="clone">
-            <span class="pi-toolbar__menu-label">Clone session</span>
-            <svg class="pi-toolbar__menu-icon" aria-hidden="true" width="14" height="14" viewBox="0 0 19 19" fill="none">
-              <rect x="4.25" y="6.25" width="8.5" height="8.5" rx="1.5" stroke="currentColor" stroke-width="1.35"/>
-              <path d="M7.25 4.25H13.25C14.08 4.25 14.75 4.92 14.75 5.75V11.75" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-          <button class="pi-toolbar__menu-item" type="button" role="menuitem" data-session-command="compact">
-            <span class="pi-toolbar__menu-label">Compact session</span>
-            <svg class="pi-toolbar__menu-icon" aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path d="M5 3.5H3.5V5" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M11 3.5H12.5V5" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M5 12.5H3.5V11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M11 12.5H12.5V11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M5.3 5.3L7.05 7.05M10.7 5.3L8.95 7.05M5.3 10.7L7.05 8.95M10.7 10.7L8.95 8.95" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-            </svg>
-          </button>
-          <button class="pi-toolbar__menu-item" type="button" role="menuitem" data-session-command="export">
-            <span class="pi-toolbar__menu-label">Export as HTML</span>
-            <svg class="pi-toolbar__menu-icon" aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path d="M8 3.5V10" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
-              <path d="M5.6 5.9L8 3.5L10.4 5.9" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M4 9.5V11.6C4 12.1 4.4 12.5 4.9 12.5H11.1C11.6 12.5 12 12.1 12 11.6V9.5" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
-            </svg>
-          </button>
-          <button class="pi-toolbar__menu-item" type="button" role="menuitem" data-session-command="delete">
-            <span class="pi-toolbar__menu-label">Move session to trash</span>
-            <svg class="pi-toolbar__menu-icon" aria-hidden="true" width="14" height="14" viewBox="0 0 16 16">
-              <path fill="currentColor" d="M6 2h4l1 1h3v1H2V3h3l1-1Zm-2 3h8l-.6 9.2A2 2 0 0 1 9.4 16H6.6a2 2 0 0 1-2-1.8L4 5Zm2 1v8h1V6H6Zm3 0v8h1V6H9Z"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div class="pi-toolbar__help-wrap pi-toolbar__chat-help-wrap">
-        <button class="pi-toolbar__help-button pi-toolbar__chat-help-button" type="button" aria-label="Chat shortcuts" aria-haspopup="dialog" aria-expanded="false" aria-controls="chat-shortcuts">
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="5.75" stroke="currentColor" stroke-width="1.25"/>
-            <path d="M6.55 6.35C6.64 5.48 7.28 4.9 8.12 4.9C9.02 4.9 9.65 5.48 9.65 6.27C9.65 6.84 9.38 7.24 8.82 7.62C8.25 8.01 8.03 8.35 8.03 8.95V9.18" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>
-            <circle cx="8" cy="11.1" r="0.65" fill="currentColor"/>
-          </svg>
-          <span class="tau-icon-action-tooltip">Chat shortcuts</span>
-        </button>
-        <div id="chat-shortcuts" class="pi-toolbar__help-popover pi-toolbar__chat-help-popover" role="dialog" aria-label="Chat shortcuts" hidden>
-          <div class="pi-toolbar__help-title">Chat shortcuts</div>
-          <dl class="pi-toolbar__help-list">
-            <div><dt>Enter</dt><dd>Send message</dd></div>
-            <div><dt>Shift+Enter</dt><dd>Insert newline</dd></div>
-            <div><dt>/</dt><dd>Show slash commands</dd></div>
-            <div><dt>Esc</dt><dd>Open session list</dd></div>
-            <div><dt>PageUp / PageDown</dt><dd>Scroll transcript</dd></div>
-            <div><dt>Ctrl+PageUp / Ctrl+PageDown</dt><dd>Scroll transcript by line</dd></div>
-            <div><dt>Model button</dt><dd>Change model or thinking</dd></div>
-            <div><dt>Changes</dt><dd>Show session changes</dd></div>
-            <div><dt>Stop</dt><dd>Stop current response</dd></div>
-            <div><dt>Steer</dt><dd>Send guidance to the running response</dd></div>
-            <div><dt>Follow-up</dt><dd>Queue the text as the next prompt</dd></div>
-          </dl>
-        </div>
-      </div>
-      <button class="pi-toolbar__new-session" type="button" aria-label="New session" hidden>
-        <svg aria-hidden="true" width="17" height="17" viewBox="0 0 19 19" fill="none">
-          <path d="M4.25 5.25C4.25 4.42 4.92 3.75 5.75 3.75H11.9C12.73 3.75 13.4 4.42 13.4 5.25V9.8C13.4 10.63 12.73 11.3 11.9 11.3H8.2L5.25 14.05V11.3C4.7 11.3 4.25 10.85 4.25 10.3V5.25Z" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>
-          <path d="M14.6 12.2L15.15 13.35L16.3 13.9L15.15 14.45L14.6 15.6L14.05 14.45L12.9 13.9L14.05 13.35L14.6 12.2Z" fill="currentColor"/>
-        </svg>
-        <span class="tau-icon-action-tooltip">New session</span>
-      </button>
-      <div class="pi-toolbar__help-wrap pi-toolbar__session-help-wrap" hidden>
-        <button class="pi-toolbar__help-button pi-toolbar__session-help-button" type="button" aria-label="Session list shortcuts" aria-haspopup="dialog" aria-expanded="false" aria-controls="session-shortcuts">
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="5.75" stroke="currentColor" stroke-width="1.25"/>
-            <path d="M6.55 6.35C6.64 5.48 7.28 4.9 8.12 4.9C9.02 4.9 9.65 5.48 9.65 6.27C9.65 6.84 9.38 7.24 8.82 7.62C8.25 8.01 8.03 8.35 8.03 8.95V9.18" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>
-            <circle cx="8" cy="11.1" r="0.65" fill="currentColor"/>
-          </svg>
-          <span class="tau-icon-action-tooltip">Session list shortcuts</span>
-        </button>
-        <div id="session-shortcuts" class="pi-toolbar__help-popover pi-toolbar__session-help-popover" role="dialog" aria-label="Session list shortcuts" hidden>
-          <div class="pi-toolbar__help-title">Session shortcuts</div>
-          <dl class="pi-toolbar__help-list">
-            <div><dt>Enter</dt><dd>Open selected session</dd></div>
-            <div><dt>?</dt><dd>Show shortcuts</dd></div>
-            <div><dt>R</dt><dd>Rename</dd></div>
-            <div><dt>F</dt><dd>Fork</dd></div>
-            <div><dt>C</dt><dd>Clone</dd></div>
-            <div><dt>Z</dt><dd>Compact</dd></div>
-            <div><dt>E</dt><dd>Export as HTML</dd></div>
-            <div><dt>Del / Backspace</dt><dd>Move to trash</dd></div>
-            <div><dt>Esc</dt><dd>Back to chat</dd></div>
-          </dl>
-        </div>
-      </div>
       <button class="pi-toolbar__tree" type="button" aria-label="Show tree">
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none">
           <path d="M6.75 4.5L11.25 9L6.75 13.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
@@ -418,6 +296,53 @@ ${chatWebviewStyles}
       </button>
     </header>
     <div class="pi-toast" role="status" aria-live="polite" hidden></div>
+    <section class="pi-help-overlay" role="dialog" aria-label="Tau help" tabindex="-1" hidden>
+      <header class="pi-help-overlay__header">
+        <div>
+          <div class="pi-help-overlay__eyebrow">Tau shortcuts</div>
+          <h2 class="pi-help-overlay__title">Help</h2>
+        </div>
+        <button class="pi-help-overlay__close" type="button" aria-label="Close help">×</button>
+      </header>
+      <div class="pi-help-overlay__body">
+        <section class="pi-help-overlay__section" aria-labelledby="chat-help-heading">
+          <h3 id="chat-help-heading" class="pi-help-overlay__section-title">Chat View</h3>
+          <table class="pi-help-overlay__table">
+            <thead><tr><th scope="col">Key</th><th scope="col">Function</th></tr></thead>
+            <tbody>
+              <tr><td><kbd>Enter</kbd></td><td>Send message</td></tr>
+              <tr><td><kbd>Shift</kbd>+<kbd>Enter</kbd></td><td>Insert newline</td></tr>
+              <tr><td><kbd>/</kbd></td><td>Show slash commands</td></tr>
+              <tr><td><kbd>Esc</kbd></td><td>Open session list</td></tr>
+              <tr><td><kbd>PageUp</kbd> / <kbd>PageDown</kbd></td><td>Scroll transcript</td></tr>
+              <tr><td><kbd>Ctrl</kbd>+<kbd>PageUp</kbd> / <kbd>Ctrl</kbd>+<kbd>PageDown</kbd></td><td>Scroll transcript by line</td></tr>
+              <tr><td>Model button</td><td>Change model or thinking</td></tr>
+              <tr><td>Changes</td><td>Show session changes</td></tr>
+              <tr><td>Stop</td><td>Stop current response</td></tr>
+              <tr><td>Steer</td><td>Send guidance to the running response</td></tr>
+              <tr><td>Follow-up</td><td>Queue the text as the next prompt</td></tr>
+            </tbody>
+          </table>
+        </section>
+        <section class="pi-help-overlay__section" aria-labelledby="session-help-heading">
+          <h3 id="session-help-heading" class="pi-help-overlay__section-title">Session List</h3>
+          <table class="pi-help-overlay__table">
+            <thead><tr><th scope="col">Key</th><th scope="col">Function</th></tr></thead>
+            <tbody>
+              <tr><td><kbd>Enter</kbd></td><td>Open selected session</td></tr>
+              <tr><td><kbd>?</kbd></td><td>Show this help</td></tr>
+              <tr><td><kbd>R</kbd></td><td>Rename</td></tr>
+              <tr><td><kbd>F</kbd></td><td>Fork</td></tr>
+              <tr><td><kbd>C</kbd></td><td>Clone</td></tr>
+              <tr><td><kbd>Z</kbd></td><td>Compact</td></tr>
+              <tr><td><kbd>E</kbd></td><td>Export as HTML</td></tr>
+              <tr><td><kbd>Del</kbd> / <kbd>Backspace</kbd></td><td>Move to trash</td></tr>
+              <tr><td><kbd>Esc</kbd></td><td>Back to chat</td></tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+    </section>
     <div class="tau-chat-surface" aria-label="Pi chat surface">
       <div class="tau-chat-surface__face tau-chat-surface__front">
         <section class="messages" aria-live="polite" aria-label="Pi conversation">

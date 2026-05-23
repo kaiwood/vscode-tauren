@@ -99,6 +99,12 @@
         "icon": "$(gear)"
       },
       {
+        "command": "tau.toggleHelp",
+        "title": "Toggle Help",
+        "category": "Tau",
+        "icon": "$(question)"
+      },
+      {
         "command": "tau.stop",
         "title": "Stop Current Response",
         "category": "Tau"
@@ -194,6 +200,11 @@
           "command": "tau.toggleSettings",
           "when": "view == tau.chatView",
           "group": "navigation@40"
+        },
+        {
+          "command": "tau.toggleHelp",
+          "when": "view == tau.chatView",
+          "group": "navigation@50"
         },
         {
           "command": "tau.toggleSteerFollowUp",

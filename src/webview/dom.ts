@@ -6,20 +6,11 @@ export type WebviewDom = {
   sessionNameInputElement: HTMLInputElement;
   sessionToggleButton: HTMLButtonElement;
   treeToggleButton: HTMLButtonElement;
-  sessionMenuWrapElement: HTMLElement;
-  sessionMenuButton: HTMLButtonElement;
-  sessionMenuElement: HTMLElement;
-  sessionMenuItemElements: HTMLButtonElement[];
-  chatHelpWrapElement: HTMLElement;
-  chatHelpButton: HTMLButtonElement;
-  chatHelpPopoverElement: HTMLElement;
+  helpOverlayElement: HTMLElement;
+  helpCloseButton: HTMLButtonElement;
   settingsElement: HTMLElement;
   settingsBodyElement: HTMLElement;
   settingsBackButton: HTMLButtonElement;
-  sessionHelpWrapElement: HTMLElement;
-  sessionHelpButton: HTMLButtonElement;
-  sessionHelpPopoverElement: HTMLElement;
-  sessionNewButton: HTMLButtonElement;
   toastElement: HTMLElement;
   messagesElement: HTMLElement;
   sessionsElement: HTMLElement;
@@ -56,20 +47,11 @@ export function getWebviewDom(): WebviewDom {
     sessionNameInputElement: queryRequired<HTMLInputElement>('.pi-toolbar__title-input'),
     sessionToggleButton: queryRequired<HTMLButtonElement>('.pi-toolbar__sessions'),
     treeToggleButton: queryRequired<HTMLButtonElement>('.pi-toolbar__tree'),
-    sessionMenuWrapElement: queryRequired<HTMLElement>('.pi-toolbar__menu-wrap'),
-    sessionMenuButton: queryRequired<HTMLButtonElement>('.pi-toolbar__menu-button'),
-    sessionMenuElement: queryRequired<HTMLElement>('.pi-toolbar__menu'),
-    sessionMenuItemElements: queryAll<HTMLButtonElement>('.pi-toolbar__menu-item'),
-    chatHelpWrapElement: queryRequired<HTMLElement>('.pi-toolbar__chat-help-wrap'),
-    chatHelpButton: queryRequired<HTMLButtonElement>('.pi-toolbar__chat-help-button'),
-    chatHelpPopoverElement: queryRequired<HTMLElement>('.pi-toolbar__chat-help-popover'),
+    helpOverlayElement: queryRequired<HTMLElement>('.pi-help-overlay'),
+    helpCloseButton: queryRequired<HTMLButtonElement>('.pi-help-overlay__close'),
     settingsElement: queryRequired<HTMLElement>('.settings-surface'),
     settingsBodyElement: queryRequired<HTMLElement>('.settings-surface__body'),
     settingsBackButton: queryRequired<HTMLButtonElement>('.settings-surface__back'),
-    sessionHelpWrapElement: queryRequired<HTMLElement>('.pi-toolbar__session-help-wrap'),
-    sessionHelpButton: queryRequired<HTMLButtonElement>('.pi-toolbar__session-help-button'),
-    sessionHelpPopoverElement: queryRequired<HTMLElement>('.pi-toolbar__session-help-popover'),
-    sessionNewButton: queryRequired<HTMLButtonElement>('.pi-toolbar__new-session'),
     toastElement: queryRequired<HTMLElement>('.pi-toast'),
     messagesElement: queryRequired<HTMLElement>('.messages'),
     sessionsElement: queryRequired<HTMLElement>('.sessions'),

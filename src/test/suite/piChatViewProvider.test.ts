@@ -233,6 +233,28 @@ suite('PiChatViewProvider', () => {
     provider.dispose();
   });
 
+  test('posts help toggle messages to the webview', async () => {
+    const provider = new PiChatViewProvider(
+      vscode.Uri.file('/extension'),
+      () => new FakePiClient({ state: {} }),
+      undefined,
+      undefined,
+      () => '/workspace'
+    );
+    const view = new FakeWebviewView();
+
+    provider.resolveWebviewView(view.asWebviewView());
+    view.webview.fireMessage({ type: 'ready' });
+    await flushPromises();
+    view.webview.messages.length = 0;
+
+    await provider.toggleHelp();
+    await flushPromises();
+
+    assert.ok(view.webview.messages.some((message) => isMessageType(message, 'toggleHelpOverlay')));
+    provider.dispose();
+  });
+
   test('deletes sessions without confirmation when configured', async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tau-delete-session-'));
     const sessionFile = path.join(tempDir, 'session.jsonl');
@@ -571,6 +593,13 @@ function isWebviewStateMessage(value: unknown): value is WebviewStateMessage {
     && value !== null
     && 'type' in value
     && value.type === 'state';
+}
+
+function isMessageType(value: unknown, type: string): boolean {
+  return typeof value === 'object'
+    && value !== null
+    && 'type' in value
+    && value.type === type;
 }
 
 async function flushPromises(): Promise<void> {

@@ -352,19 +352,6 @@ export class ComposerController {
     this.options.focusPromptInput();
   }
 
-  public runSessionSlashCommand(command: 'fork' | 'clone' | 'compact' | 'reload' | 'export'): void {
-    const state = this.options.getState();
-
-    if (state.busy) {
-      return;
-    }
-
-    this.closeSlashMenu();
-    this.options.cancelSessionNameEdit();
-    this.options.postMessage({ type: 'submit', text: '/' + command });
-    this.options.focusPromptInput();
-  }
-
   public handlePromptEscape(): boolean {
     if (document.activeElement !== this.options.textarea) {
       return false;

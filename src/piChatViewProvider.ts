@@ -57,6 +57,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
   private pendingInputFocus = false;
   private pendingModelPickerOpen = false;
   private pendingStreamingBehaviorToggle = false;
+  private pendingHelpToggle = false;
   private webviewReady = false;
   private readonly pendingToastMessages: Array<{ message: string; kind: 'success' | 'warning' | 'error' }> = [];
   private readonly controller: TauSessionManager;
@@ -332,6 +333,20 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     this.startContextUsagePolling();
   }
 
+  public async toggleHelp(): Promise<void> {
+    if (this.webviewView?.visible) {
+      this.webviewView.show(false);
+    } else {
+      await vscode.commands.executeCommand(`${chatViewType}.focus`);
+    }
+
+    this.pendingHelpToggle = true;
+    this.postHelpToggleSoon();
+    this.refreshLiveMetadata();
+    this.controller.refreshSessionDiffStats();
+    this.startContextUsagePolling();
+  }
+
   public async stop(): Promise<void> {
     await this.controller.handleWebviewMessage({ type: 'abort' });
   }
@@ -437,6 +452,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       this.postInputFocusSoon();
       this.postModelPickerOpenSoon();
       this.postStreamingBehaviorToggleSoon();
+      this.postHelpToggleSoon();
       this.postPendingToasts();
       return;
     }
@@ -623,6 +639,19 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
   private postStreamingBehaviorToggleSoon(): void {
     setTimeout(() => this.postStreamingBehaviorToggle(), 0);
+  }
+
+  private postHelpToggle(): void {
+    if (!this.pendingHelpToggle || !this.webviewView || !this.webviewReady) {
+      return;
+    }
+
+    this.pendingHelpToggle = false;
+    void this.webviewView.webview.postMessage({ type: 'toggleHelpOverlay' });
+  }
+
+  private postHelpToggleSoon(): void {
+    setTimeout(() => this.postHelpToggle(), 0);
   }
 
   private postPendingToasts(): void {
