@@ -555,7 +555,7 @@ const viewLayoutStyles = /* css */ `    .tau-chat-surface,
       will-change: transform, opacity;
     }
 
-    .tau-chat-surface__front {
+    .tau-chat-surface__main {
       position: relative;
       display: grid;
       grid-template-columns: minmax(0, 1fr);
@@ -566,20 +566,20 @@ const viewLayoutStyles = /* css */ `    .tau-chat-surface,
       pointer-events: auto;
     }
 
-    .tau-chat-surface__back {
+    .tau-chat-surface__settings {
       overflow: hidden;
       transform: rotateY(-180deg);
       opacity: 0;
       pointer-events: none;
     }
 
-    .pi-view--settings .tau-chat-surface__front {
+    .tau-view--chat-face-settings .tau-chat-surface__main {
       transform: rotateY(180deg);
       opacity: 0;
       pointer-events: none;
     }
 
-    .pi-view--settings .tau-chat-surface__back {
+    .tau-view--chat-face-settings .tau-chat-surface__settings {
       transform: rotateY(0deg);
       opacity: 1;
       pointer-events: auto;
@@ -618,47 +618,47 @@ const viewLayoutStyles = /* css */ `    .tau-chat-surface,
       transform: translate3d(100%, 0, 0);
     }
 
-    .pi-view--chat .tau-chat-surface {
+    .tau-view--lane-chat .tau-chat-surface {
       transform: translate3d(0, 0, 0);
       pointer-events: auto;
     }
 
-    .pi-view--chat .sessions {
+    .tau-view--lane-chat .sessions {
       transform: translate3d(-100%, 0, 0);
       pointer-events: none;
     }
 
-    .pi-view--chat .session-tree {
+    .tau-view--lane-chat .session-tree {
       transform: translate3d(100%, 0, 0);
       pointer-events: none;
     }
 
-    .pi-view--sessions .tau-chat-surface {
+    .tau-view--lane-sessions .tau-chat-surface {
       transform: translate3d(100%, 0, 0);
       pointer-events: none;
     }
 
-    .pi-view--sessions .sessions {
+    .tau-view--lane-sessions .sessions {
       transform: translate3d(0, 0, 0);
       pointer-events: auto;
     }
 
-    .pi-view--sessions .session-tree {
+    .tau-view--lane-sessions .session-tree {
       transform: translate3d(100%, 0, 0);
       pointer-events: none;
     }
 
-    .pi-view--tree .tau-chat-surface {
+    .tau-view--lane-tree .tau-chat-surface {
       transform: translate3d(-100%, 0, 0);
       pointer-events: none;
     }
 
-    .pi-view--tree .sessions {
+    .tau-view--lane-tree .sessions {
       transform: translate3d(-100%, 0, 0);
       pointer-events: none;
     }
 
-    .pi-view--tree .session-tree {
+    .tau-view--lane-tree .session-tree {
       transform: translate3d(0, 0, 0);
       pointer-events: auto;
     }

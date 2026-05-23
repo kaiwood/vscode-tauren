@@ -1,30 +1,32 @@
+import type { NavigationController } from '../navigation/navigationController';
 import type { WebviewSettingsSection, WebviewSettingsViewState } from '../webviewProtocol/types';
 
 const defaultSettingsSection: WebviewSettingsSection = 'providers';
 
 export class SettingsViewController {
-  private surfaceSide: 'front' | 'settings' = 'front';
   private activeSection: WebviewSettingsSection = defaultSettingsSection;
 
-  public constructor(private readonly postState: () => void) {}
+  public constructor(
+    private readonly navigation: NavigationController,
+    private readonly postState: () => void
+  ) {}
 
   public get isSettingsVisible(): boolean {
-    return this.surfaceSide === 'settings';
+    return this.navigation.isSettingsVisible;
   }
 
   public getWebviewState(): WebviewSettingsViewState | undefined {
-    if (this.surfaceSide === 'front' && this.activeSection === defaultSettingsSection) {
+    if (this.activeSection === defaultSettingsSection) {
       return undefined;
     }
 
     return {
-      surfaceSide: this.surfaceSide,
       activeSection: this.activeSection
     };
   }
 
   public toggleSettings(): void {
-    if (this.surfaceSide === 'settings') {
+    if (this.navigation.isSettingsVisible) {
       this.hideSettings();
       return;
     }
@@ -33,24 +35,11 @@ export class SettingsViewController {
   }
 
   public showSettings(): void {
-    if (this.surfaceSide === 'settings') {
-      return;
-    }
-
-    this.surfaceSide = 'settings';
-    this.postState();
+    this.navigation.showChatFace('settings');
   }
 
   public hideSettings(options: { post?: boolean } = {}): void {
-    if (this.surfaceSide === 'front') {
-      return;
-    }
-
-    this.surfaceSide = 'front';
-
-    if (options.post !== false) {
-      this.postState();
-    }
+    this.navigation.hideChatFace(options);
   }
 
   public setActiveSection(section: WebviewSettingsSection): void {

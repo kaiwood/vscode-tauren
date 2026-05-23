@@ -501,9 +501,9 @@ suite('PiChatController', () => {
       }))
     });
 
-    await harness.controller.handleWebviewMessage({ type: 'showSessions' });
+    await harness.controller.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
 
-    assert.strictEqual(lastState(harness).viewMode, 'sessions');
+    assert.strictEqual(lastState(harness).lane, 'sessions');
     assert.strictEqual(lastState(harness).sessionsRefreshing, false);
     assert.deepStrictEqual(lastState(harness).sessions, sessions);
 
@@ -513,7 +513,7 @@ suite('PiChatController', () => {
     assert.deepStrictEqual(client.switchedSessions, ['/sessions/next.jsonl']);
     assert.strictEqual(client.messagesCalls, 1);
     assert.deepStrictEqual(sessionFiles, ['/sessions/next.jsonl']);
-    assert.strictEqual(lastState(harness).viewMode, undefined);
+    assert.strictEqual(lastState(harness).lane, undefined);
     assert.deepStrictEqual(lastState(harness).messages, [
       { role: 'user', text: 'Next question' },
       { role: 'assistant', text: 'Next answer' }
@@ -561,7 +561,7 @@ suite('PiChatController', () => {
       }
     });
 
-    await harness.controller.handleWebviewMessage({ type: 'showSessions' });
+    await harness.controller.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
     await harness.controller.handleWebviewMessage({ type: 'deleteSession', sessionPath: '/sessions/old.jsonl' });
 
     assert.deepStrictEqual(deleted, [{ path: '/sessions/old.jsonl', name: 'Old work' }]);
@@ -610,7 +610,7 @@ suite('PiChatController', () => {
       }
     });
 
-    await harness.controller.handleWebviewMessage({ type: 'showSessions' });
+    await harness.controller.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
     await harness.controller.handleWebviewMessage({ type: 'sessionItemCommand', sessionPath: '/sessions/old.jsonl', command: 'showChanges' });
 
     assert.deepStrictEqual(shownChanges, [{ path: '/sessions/old.jsonl', name: 'Old work' }]);
@@ -654,13 +654,13 @@ suite('PiChatController', () => {
       listSessions: async () => sessions
     });
 
-    await harness.controller.handleWebviewMessage({ type: 'showSessions' });
+    await harness.controller.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
     await harness.controller.handleWebviewMessage({ type: 'sessionItemCommand', sessionPath: '/sessions/old.jsonl', command: 'clone' });
 
     assert.strictEqual(cloneClient.cloneCalls, 1);
     assert.strictEqual(cloneClient.disposed, true);
     assert.deepStrictEqual(harness.clientOptions, [{ cwd: '/workspace', sessionFile: '/sessions/old.jsonl' }]);
-    assert.strictEqual(lastState(harness).viewMode, 'sessions');
+    assert.strictEqual(lastState(harness).lane, 'sessions');
     assert.deepStrictEqual(harness.toasts, ['Cloned session.']);
     harness.controller.dispose();
   });
@@ -701,14 +701,14 @@ suite('PiChatController', () => {
       ]
     });
 
-    await harness.controller.handleWebviewMessage({ type: 'showSessions' });
+    await harness.controller.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
     oldSessionName = 'Renamed old';
     await harness.controller.handleWebviewMessage({ type: 'setSessionItemName', sessionPath: '/sessions/old.jsonl', name: ' Renamed old ' });
 
     assert.deepStrictEqual(renameClient.sessionNames, ['Renamed old']);
     assert.strictEqual(renameClient.disposed, true);
     assert.deepStrictEqual(harness.clientOptions, [{ cwd: '/workspace', sessionFile: '/sessions/old.jsonl' }]);
-    assert.strictEqual(lastState(harness).viewMode, 'sessions');
+    assert.strictEqual(lastState(harness).lane, 'sessions');
     assert.strictEqual(lastState(harness).sessions?.[1]?.name, 'Renamed old');
     assert.deepStrictEqual(harness.toasts, ['Session renamed.']);
     harness.controller.dispose();
@@ -738,7 +738,7 @@ suite('PiChatController', () => {
       ]
     });
 
-    await harness.controller.handleWebviewMessage({ type: 'showSessions' });
+    await harness.controller.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
     const renamePromise = harness.controller.handleWebviewMessage({ type: 'setSessionItemName', sessionPath: '/sessions/old.jsonl', name: ' Renamed old ' });
     await flushPromises();
 
@@ -777,7 +777,7 @@ suite('PiChatController', () => {
       ]
     });
 
-    await harness.controller.handleWebviewMessage({ type: 'showSessions' });
+    await harness.controller.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
     await harness.controller.handleWebviewMessage({ type: 'setSessionItemName', sessionPath: '/sessions/old.jsonl', name: ' Renamed old ' });
 
     assert.deepStrictEqual(renameClient.sessionNames, ['Renamed old']);
@@ -811,13 +811,13 @@ suite('PiChatController', () => {
       }
     });
 
-    await harness.controller.handleWebviewMessage({ type: 'showSessions' });
+    await harness.controller.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
     await harness.controller.handleWebviewMessage({ type: 'deleteSession', sessionPath: '/sessions/current.jsonl' });
     await flushPromises();
 
     assert.deepStrictEqual(deleted, [{ path: '/sessions/current.jsonl', name: 'Current question' }]);
     assert.deepStrictEqual(harness.toasts, ['Session moved to Trash.']);
-    assert.strictEqual(lastState(harness).viewMode, 'sessions');
+    assert.strictEqual(lastState(harness).lane, 'sessions');
     assert.strictEqual(lastState(harness).currentSessionFile, '');
     assert.deepStrictEqual(lastState(harness).messages, []);
     assert.deepStrictEqual(sessionFiles, [undefined]);
@@ -840,7 +840,7 @@ suite('PiChatController', () => {
 
     assert.deepStrictEqual(deleted, [{ path: '/sessions/current.jsonl', name: 'current.jsonl' }]);
     assert.deepStrictEqual(harness.toasts, ['Session moved to Trash.']);
-    assert.strictEqual(lastState(harness).viewMode, 'sessions');
+    assert.strictEqual(lastState(harness).lane, 'sessions');
     assert.strictEqual(lastState(harness).currentSessionFile, '');
     harness.controller.dispose();
   });
@@ -869,7 +869,7 @@ suite('PiChatController', () => {
       }
     });
 
-    await harness.controller.handleWebviewMessage({ type: 'showSessions' });
+    await harness.controller.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
     await harness.controller.handleWebviewMessage({ type: 'deleteSession', sessionPath: '/sessions/current.jsonl' });
 
     assert.deepStrictEqual(deleted, []);
@@ -1615,7 +1615,7 @@ suite('PiChatController', () => {
 
     assert.strictEqual(harness.createCalls, 1);
     assert.strictEqual(client.treeCalls, 1);
-    assert.strictEqual(lastState(harness).viewMode, 'tree');
+    assert.strictEqual(lastState(harness).lane, 'tree');
     assert.deepStrictEqual(lastState(harness).treeItems, treeItems);
     assert.strictEqual(lastState(harness).treeRefreshing, false);
     harness.controller.dispose();
@@ -1635,12 +1635,12 @@ suite('PiChatController', () => {
     const client = new FakePiClient({ treeItems });
     const harness = createControllerHarness([client]);
 
-    await harness.controller.handleWebviewMessage({ type: 'showTree' });
+    await harness.controller.handleWebviewMessage({ type: 'showLane', lane: 'tree' });
     await flushPromises();
 
     assert.strictEqual(harness.createCalls, 1);
     assert.strictEqual(client.treeCalls, 1);
-    assert.strictEqual(lastState(harness).viewMode, 'tree');
+    assert.strictEqual(lastState(harness).lane, 'tree');
     assert.deepStrictEqual(lastState(harness).treeItems, treeItems);
     harness.controller.dispose();
   });
@@ -1650,11 +1650,11 @@ suite('PiChatController', () => {
 
     harness.controller.toggleSettings();
 
-    assert.strictEqual(lastState(harness).surfaceSide, 'settings');
+    assert.strictEqual(lastState(harness).chatFace, 'settings');
 
     harness.controller.toggleSettings();
 
-    assert.strictEqual(lastState(harness).surfaceSide, undefined);
+    assert.strictEqual(lastState(harness).chatFace, undefined);
     harness.controller.dispose();
   });
 
@@ -1679,12 +1679,12 @@ suite('PiChatController', () => {
     harness.controller.toggleSessionList();
     await flushPromises();
 
-    assert.strictEqual(lastState(harness).viewMode, 'sessions');
+    assert.strictEqual(lastState(harness).lane, 'sessions');
 
     harness.controller.toggleSettings();
 
-    assert.strictEqual(lastState(harness).viewMode, undefined);
-    assert.strictEqual(lastState(harness).surfaceSide, 'settings');
+    assert.strictEqual(lastState(harness).lane, undefined);
+    assert.strictEqual(lastState(harness).chatFace, 'settings');
     harness.controller.dispose();
   });
 
@@ -1714,13 +1714,13 @@ suite('PiChatController', () => {
     await flushPromises();
 
     assert.strictEqual(listCalls, 1);
-    assert.strictEqual(lastState(harness).viewMode, 'sessions');
+    assert.strictEqual(lastState(harness).lane, 'sessions');
     assert.deepStrictEqual(lastState(harness).sessions, sessions);
 
     harness.controller.toggleSessionList();
 
     assert.strictEqual(listCalls, 1);
-    assert.strictEqual(lastState(harness).viewMode, undefined);
+    assert.strictEqual(lastState(harness).lane, undefined);
     harness.controller.dispose();
   });
 
@@ -1729,17 +1729,17 @@ suite('PiChatController', () => {
 
     harness.controller.toggleSessionList();
     await flushPromises();
-    assert.strictEqual(lastState(harness).viewMode, 'sessions');
+    assert.strictEqual(lastState(harness).lane, 'sessions');
 
     harness.controller.showChat();
-    assert.strictEqual(lastState(harness).viewMode, undefined);
+    assert.strictEqual(lastState(harness).lane, undefined);
 
     harness.controller.toggleSettings();
-    assert.strictEqual(lastState(harness).surfaceSide, 'settings');
+    assert.strictEqual(lastState(harness).chatFace, 'settings');
 
     harness.controller.showChat();
-    assert.strictEqual(lastState(harness).surfaceSide, undefined);
-    assert.strictEqual(lastState(harness).viewMode, undefined);
+    assert.strictEqual(lastState(harness).chatFace, undefined);
+    assert.strictEqual(lastState(harness).lane, undefined);
     harness.controller.dispose();
   });
 
@@ -1762,13 +1762,13 @@ suite('PiChatController', () => {
 
     assert.strictEqual(harness.createCalls, 1);
     assert.strictEqual(client.treeCalls, 1);
-    assert.strictEqual(lastState(harness).viewMode, 'tree');
+    assert.strictEqual(lastState(harness).lane, 'tree');
     assert.deepStrictEqual(lastState(harness).treeItems, treeItems);
 
     harness.controller.toggleSessionTree();
 
     assert.strictEqual(client.treeCalls, 1);
-    assert.strictEqual(lastState(harness).viewMode, undefined);
+    assert.strictEqual(lastState(harness).lane, undefined);
     harness.controller.dispose();
   });
 
@@ -1804,13 +1804,13 @@ suite('PiChatController', () => {
     harness.controller.toggleSessionList();
     await flushPromises();
 
-    assert.strictEqual(lastState(harness).viewMode, 'sessions');
+    assert.strictEqual(lastState(harness).lane, 'sessions');
 
     harness.controller.toggleSessionTree();
     await flushPromises();
 
     assert.strictEqual(client.treeCalls, 1);
-    assert.strictEqual(lastState(harness).viewMode, 'tree');
+    assert.strictEqual(lastState(harness).lane, 'tree');
     assert.deepStrictEqual(lastState(harness).treeItems, treeItems);
     harness.controller.dispose();
   });
@@ -1841,7 +1841,7 @@ suite('PiChatController', () => {
 
     assert.strictEqual(harness.createCalls, 0);
     assert.deepStrictEqual(client.prompts, []);
-    assert.strictEqual(lastState(harness).viewMode, 'sessions');
+    assert.strictEqual(lastState(harness).lane, 'sessions');
     harness.controller.dispose();
   });
 

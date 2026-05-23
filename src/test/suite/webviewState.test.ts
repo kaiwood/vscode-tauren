@@ -6,8 +6,8 @@ suite('Webview state helpers', () => {
     assert.deepStrictEqual(initialWebviewState.messages, []);
     assert.strictEqual(initialWebviewState.busy, false);
     assert.deepStrictEqual(initialWebviewState.workspaceDiffStats, { addedLines: 0, removedLines: 0 });
-    assert.strictEqual(initialWebviewState.viewMode, 'chat');
-    assert.strictEqual(initialWebviewState.surfaceSide, 'front');
+    assert.strictEqual(initialWebviewState.lane, 'chat');
+    assert.strictEqual(initialWebviewState.chatFace, 'main');
     assert.strictEqual(initialWebviewState.settingsSection, 'providers');
     assert.strictEqual(initialWebviewState.customUiTheme, 'default');
     assert.strictEqual(initialWebviewState.allowRemoteImages, true);
@@ -38,8 +38,8 @@ suite('Webview state helpers', () => {
       promptContext: [{ id: 'context-1', kind: 'file', label: 'file.ts', title: 'src/file.ts' }],
       composerText: 'draft',
       composerTextRevision: 2,
-      viewMode: 'sessions',
-      surfaceSide: 'settings',
+      lane: 'sessions',
+      chatFace: 'settings',
       settingsSection: 'runtime',
       sessions: [{ path: '/session.jsonl' }],
       sessionsRefreshing: true,
@@ -55,8 +55,8 @@ suite('Webview state helpers', () => {
     assert.strictEqual(parsed.busy, true);
     assert.strictEqual(parsed.modelLabel, 'gpt-test');
     assert.deepStrictEqual(parsed.workspaceDiffStats, { addedLines: 300, removedLines: 200 });
-    assert.strictEqual(parsed.viewMode, 'sessions');
-    assert.strictEqual(parsed.surfaceSide, 'settings');
+    assert.strictEqual(parsed.lane, 'sessions');
+    assert.strictEqual(parsed.chatFace, 'main');
     assert.strictEqual(parsed.settingsSection, 'runtime');
     assert.strictEqual(parsed.customUiTheme, 'modern');
     assert.strictEqual(parsed.allowRemoteImages, false);
@@ -64,6 +64,10 @@ suite('Webview state helpers', () => {
     assert.strictEqual(parsed.sessions[0]?.path, '/session.jsonl');
     assert.strictEqual(parsed.treeItems[0]?.entryId, 'entry-1');
     assert.strictEqual(parsed.sessionLoading, true);
+
+    const settingsParsed = parseWebviewStateMessage({ lane: 'chat', chatFace: 'settings' });
+    assert.strictEqual(settingsParsed.lane, 'chat');
+    assert.strictEqual(settingsParsed.chatFace, 'settings');
   });
 
   test('falls back for malformed fields', () => {
@@ -73,8 +77,8 @@ suite('Webview state helpers', () => {
       workspaceDiffStats: { addedLines: -1, removedLines: 'bad' },
       composerTextRevision: 'bad',
       customUiTheme: 'bad',
-      viewMode: 'unknown',
-      surfaceSide: 'bad',
+      lane: 'unknown',
+      chatFace: 'bad',
       settingsSection: 'bad',
       sessions: 'bad'
     });
@@ -83,8 +87,8 @@ suite('Webview state helpers', () => {
     assert.strictEqual(parsed.modelLabel, '');
     assert.deepStrictEqual(parsed.workspaceDiffStats, { addedLines: 0, removedLines: 0 });
     assert.strictEqual(parsed.composerTextRevision, 0);
-    assert.strictEqual(parsed.viewMode, 'chat');
-    assert.strictEqual(parsed.surfaceSide, 'front');
+    assert.strictEqual(parsed.lane, 'chat');
+    assert.strictEqual(parsed.chatFace, 'main');
     assert.strictEqual(parsed.settingsSection, 'providers');
     assert.strictEqual(parsed.customUiTheme, 'default');
     assert.strictEqual(parsed.allowRemoteImages, true);

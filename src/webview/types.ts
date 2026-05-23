@@ -1,7 +1,7 @@
 export type WebviewStreamingBehavior = 'steer' | 'followUp';
 export type CustomUiTheme = 'default' | 'modern' | 'crt' | 'amber' | 'matrix';
-export type ViewMode = 'chat' | 'sessions' | 'tree';
-export type SurfaceSide = 'front' | 'settings';
+export type Lane = 'chat' | 'sessions' | 'tree';
+export type ChatFace = 'main' | 'settings';
 export type SettingsSection = 'providers' | 'models' | 'runtime' | 'appearance' | 'advanced';
 export type SessionItemCommand = 'rename' | 'fork' | 'clone' | 'compact' | 'export' | 'delete';
 
@@ -122,8 +122,8 @@ export type WebviewState = {
   promptContext: PromptContextAttachment[];
   composerText: string;
   composerTextRevision: number;
-  viewMode: ViewMode;
-  surfaceSide: SurfaceSide;
+  lane: Lane;
+  chatFace: ChatFace;
   settingsSection: SettingsSection;
   sessions: SessionItem[];
   sessionsRefreshing: boolean;

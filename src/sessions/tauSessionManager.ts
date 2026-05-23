@@ -276,7 +276,7 @@ export class TauSessionManager {
     this.syncCustomUiAttachment();
     this.reconcileSessionDisposal();
     void session.controller.refreshSessionDiffStats();
-    void session.controller.handleWebviewMessage({ type: 'hideSessions' });
+    void session.controller.handleWebviewMessage({ type: 'showLane', lane: 'chat' });
     this.postState();
   }
 
@@ -337,7 +337,7 @@ export class TauSessionManager {
 
     const disposedInactiveSession = this.reconcileSessionDisposal();
 
-    if (id === this.activeSessionId || this.active().state?.viewMode === 'sessions' || disposedInactiveSession) {
+    if (id === this.activeSessionId || this.active().state?.lane === 'sessions' || disposedInactiveSession) {
       this.postState();
     }
   }
@@ -375,7 +375,7 @@ export class TauSessionManager {
 
     const disposedInactiveSession = this.reconcileSessionDisposal();
 
-    if (id === this.activeSessionId || this.active().state?.viewMode === 'sessions' || disposedInactiveSession) {
+    if (id === this.activeSessionId || this.active().state?.lane === 'sessions' || disposedInactiveSession) {
       this.postState();
     }
   }
@@ -587,7 +587,7 @@ function createEmptyState(): WebviewStateMessage {
     animationsEnabled: true,
     customUiTheme: 'default',
     promptContext: [],
-    viewMode: 'chat',
+    lane: 'chat',
     sessions: [],
     sessionsRefreshing: false,
     sessionsError: '',

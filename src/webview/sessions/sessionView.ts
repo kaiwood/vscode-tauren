@@ -100,11 +100,11 @@ export class SessionViewController {
 
     const state = this.options.getState();
 
-    if (state.viewMode === 'tree' && this.treeController.handleKeydown(event)) {
+    if (state.lane === 'tree' && this.treeController.handleKeydown(event)) {
       return true;
     }
 
-    if (state.viewMode === 'tree' && event.key === 'Escape') {
+    if (state.lane === 'tree' && event.key === 'Escape') {
       this.hideSessionList(event);
       return true;
     }
@@ -112,13 +112,13 @@ export class SessionViewController {
     const target = eventTargetElement(event);
     const sessionSearchInput = target?.closest('.sessions__search-input');
 
-    if (sessionSearchInput instanceof HTMLInputElement && state.viewMode === 'sessions') {
+    if (sessionSearchInput instanceof HTMLInputElement && state.lane === 'sessions') {
       return this.handleSessionSearchKeydown(event, sessionSearchInput);
     }
 
     const namedOnlyFilterButton = target?.closest('.sessions__named-filter');
 
-    if (namedOnlyFilterButton instanceof HTMLButtonElement && state.viewMode === 'sessions') {
+    if (namedOnlyFilterButton instanceof HTMLButtonElement && state.lane === 'sessions') {
       return this.handleNamedOnlyFilterKeydown(event);
     }
 
@@ -147,17 +147,17 @@ export class SessionViewController {
       return true;
     }
 
-    return (state.viewMode === 'sessions' || state.viewMode === 'tree') && this.handleSessionListKeydown(event);
+    return (state.lane === 'sessions' || state.lane === 'tree') && this.handleSessionListKeydown(event);
   }
 
   public startCurrentSessionNameEdit(): void {
     this.topControls.startSessionNameEdit();
   }
 
-  public syncForRender(isListView: boolean): void {
+  public syncForRender(isSessionLane: boolean): void {
     const state = this.options.getState();
 
-    if (state.viewMode !== 'sessions') {
+    if (state.lane !== 'sessions') {
       this.sessionSearchQuery = '';
       this.sessionNamedOnlyFilter = false;
       this.openSessionListMenuIndex = undefined;
@@ -165,7 +165,7 @@ export class SessionViewController {
       this.stopSessionListNameEdit();
     }
 
-    this.topControls.syncForRender(isListView);
+    this.topControls.syncForRender(isSessionLane);
   }
 
   public renderSessions(): void {
@@ -345,7 +345,7 @@ export class SessionViewController {
     const state = this.options.getState();
     const target = eventTargetElement(event);
 
-    if (state.viewMode === 'tree' && this.treeController.handleClick(target, event)) {
+    if (state.lane === 'tree' && this.treeController.handleClick(target, event)) {
       return;
     }
 
@@ -380,7 +380,7 @@ export class SessionViewController {
 
     this.closeSessionItemMenus();
     const index = Number(item.getAttribute('data-index'));
-    state.viewMode === 'tree' ? this.treeController.selectIndex(index) : this.selectSessionIndex(index);
+    state.lane === 'tree' ? this.treeController.selectIndex(index) : this.selectSessionIndex(index);
   }
 
   private getCurrentSessionTitle(): string {
@@ -433,11 +433,11 @@ export class SessionViewController {
       return false;
     }
 
-    if (state.viewMode !== 'sessions' && state.viewMode !== 'tree') {
+    if (state.lane !== 'sessions' && state.lane !== 'tree') {
       return false;
     }
 
-    if (state.viewMode === 'tree' && this.treeController.handleKeydown(event)) {
+    if (state.lane === 'tree' && this.treeController.handleKeydown(event)) {
       return true;
     }
 
@@ -445,7 +445,7 @@ export class SessionViewController {
       return true;
     }
 
-    if (state.viewMode === 'sessions' && event.key === '?') {
+    if (state.lane === 'sessions' && event.key === '?') {
       event.preventDefault();
       event.stopPropagation();
       this.closeSessionItemMenus();
@@ -463,7 +463,7 @@ export class SessionViewController {
       event.stopPropagation();
       this.disableSessionPointerHover();
       this.closeSessionItemMenus();
-      state.viewMode === 'tree' ? this.treeController.moveSelection(1) : this.moveSessionSelection(1);
+      state.lane === 'tree' ? this.treeController.moveSelection(1) : this.moveSessionSelection(1);
       return true;
     }
 
@@ -472,29 +472,29 @@ export class SessionViewController {
       event.stopPropagation();
       this.disableSessionPointerHover();
       this.closeSessionItemMenus();
-      state.viewMode === 'tree' ? this.treeController.moveSelection(-1) : this.moveSessionSelectionUpOrFocusSearch();
+      state.lane === 'tree' ? this.treeController.moveSelection(-1) : this.moveSessionSelectionUpOrFocusSearch();
       return true;
     }
 
-    if (state.viewMode === 'sessions' && event.key === 'ArrowRight') {
+    if (state.lane === 'sessions' && event.key === 'ArrowRight') {
       event.preventDefault();
       event.stopPropagation();
       this.openSessionItemMenu(this.sessionListSelectedIndex, { focusMenu: true });
       return true;
     }
 
-    if (state.viewMode === 'sessions' && this.handleSessionListCommandKey(event)) {
+    if (state.lane === 'sessions' && this.handleSessionListCommandKey(event)) {
       return true;
     }
 
     if (event.key === 'Enter') {
       event.preventDefault();
       event.stopPropagation();
-      state.viewMode === 'tree' ? this.treeController.selectCurrentIndex() : this.selectSessionIndex(this.sessionListSelectedIndex);
+      state.lane === 'tree' ? this.treeController.selectCurrentIndex() : this.selectSessionIndex(this.sessionListSelectedIndex);
       return true;
     }
 
-    if (state.viewMode === 'sessions' && (event.key === 'Delete' || event.key === 'Backspace')) {
+    if (state.lane === 'sessions' && (event.key === 'Delete' || event.key === 'Backspace')) {
       event.preventDefault();
       event.stopPropagation();
       this.deleteSessionIndex(this.sessionListSelectedIndex);
@@ -507,7 +507,7 @@ export class SessionViewController {
   private hideSessionList(event: KeyboardEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.options.postMessage({ type: 'hideSessions' });
+    this.options.postMessage({ type: 'showLane', lane: 'chat' });
     this.options.focusPromptInput();
   }
 
@@ -525,7 +525,7 @@ export class SessionViewController {
 
     const state = this.options.getState();
 
-    if (state.viewMode !== 'sessions') {
+    if (state.lane !== 'sessions') {
       return;
     }
 
@@ -696,7 +696,7 @@ export class SessionViewController {
   private openSessionItemMenu(index: number, options: { focusMenu?: boolean } = {}): void {
     const state = this.options.getState();
 
-    if (!Number.isInteger(index) || index < 0 || state.viewMode !== 'sessions' || !this.isSessionIndexVisible(index)) {
+    if (!Number.isInteger(index) || index < 0 || state.lane !== 'sessions' || !this.isSessionIndexVisible(index)) {
       return;
     }
 

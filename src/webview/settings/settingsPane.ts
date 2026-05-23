@@ -151,7 +151,7 @@ export class SettingsPaneController {
   }
 
   public handleGlobalKeydown(event: KeyboardEvent): boolean {
-    if (this.options.getState().surfaceSide !== 'settings') {
+    if (this.options.getState().chatFace !== 'settings') {
       return false;
     }
 
@@ -165,9 +165,9 @@ export class SettingsPaneController {
     return false;
   }
 
-  public syncForRender(isListView: boolean): void {
+  public syncForRender(isSessionLane: boolean): void {
     const state = this.options.getState();
-    const visible = !isListView && state.surfaceSide === 'settings';
+    const visible = !isSessionLane && state.chatFace === 'settings';
 
     this.options.settingsElement.hidden = false;
     this.options.settingsElement.inert = !visible;
@@ -178,7 +178,7 @@ export class SettingsPaneController {
 
     if (visible && !this.wasVisible) {
       requestAnimationFrame(() => {
-        if (this.options.getState().surfaceSide === 'settings') {
+        if (this.options.getState().chatFace === 'settings') {
           this.focusActiveSectionButton();
         }
       });
@@ -188,7 +188,7 @@ export class SettingsPaneController {
   }
 
   private hideSettings(options: { focusPrompt?: boolean } = {}): void {
-    this.options.postMessage({ type: 'hideSettings' });
+    this.options.postMessage({ type: 'hideChatFace' });
 
     if (options.focusPrompt) {
       this.options.focusPromptInput();
@@ -287,7 +287,7 @@ export class SettingsPaneController {
     this.renderedSection = sectionId;
     this.syncNavState(sectionId);
 
-    if (state.surfaceSide === 'settings') {
+    if (state.chatFace === 'settings') {
       requestAnimationFrame(() => this.focusSectionButton(sectionId));
     }
   }

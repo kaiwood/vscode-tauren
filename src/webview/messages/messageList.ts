@@ -98,7 +98,7 @@ export class MessageListController {
   public handleChatPageScroll(event: KeyboardEvent): boolean {
     const state = this.options.getState();
 
-    if (state.viewMode !== 'chat' || state.surfaceSide === 'settings' || (event.key !== 'PageUp' && event.key !== 'PageDown')) {
+    if (state.lane !== 'chat' || state.chatFace === 'settings' || (event.key !== 'PageUp' && event.key !== 'PageDown')) {
       return false;
     }
 
@@ -506,7 +506,7 @@ export class MessageListController {
   }
 
   private scrollMessagesToBottomIfFollowingChat(): void {
-    if (this.options.getState().viewMode === 'chat' && this.shouldFollowOutput()) {
+    if (this.options.getState().lane === 'chat' && this.shouldFollowOutput()) {
       this.scrollMessagesToBottom();
     }
   }

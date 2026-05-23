@@ -1,4 +1,6 @@
+import type { NavigationController } from '../navigation/navigationController';
 import type {
+  WebviewLane,
   WebviewSessionItem,
   WebviewSessionItemCommand,
   WebviewTreeItem
@@ -21,10 +23,7 @@ import {
   normalizeSessionPath
 } from './sessionFormatting';
 
-export type SessionViewMode = 'chat' | 'sessions' | 'tree';
-
 export type SessionViewState = {
-  viewMode?: 'sessions' | 'tree';
   sessions: WebviewSessionItem[];
   refreshing: boolean;
   error: string;
@@ -60,11 +59,11 @@ type SessionViewControllerOptions = Pick<
   setCurrentSessionName: (name: string, options: { announce: boolean }) => Promise<void>;
   setSessionHistoryLoading: (value: boolean) => void;
   hasStartedCurrentSession: () => boolean;
-  startNewSession: (options?: { viewMode?: 'chat' | 'sessions' }) => void;
+  navigation: NavigationController;
+  startNewSession: (options?: { lane?: 'chat' | 'sessions' }) => void;
 };
 
 export class SessionViewController {
-  private viewMode: SessionViewMode = 'chat';
   private sessions: WebviewSessionItem[] = [];
   private sessionsRefreshing = false;
   private sessionsError = '';
@@ -95,11 +94,11 @@ export class SessionViewController {
   }
 
   public get isSessionListVisible(): boolean {
-    return this.viewMode === 'sessions';
+    return this.options.navigation.isSessionListVisible;
   }
 
   public get isTreeVisible(): boolean {
-    return this.viewMode === 'tree';
+    return this.options.navigation.isTreeVisible;
   }
 
   public getWebviewState(sessionLoading: boolean): SessionViewState | undefined {
@@ -108,7 +107,6 @@ export class SessionViewController {
     }
 
     return {
-      viewMode: this.viewMode === 'sessions' || this.viewMode === 'tree' ? this.viewMode : undefined,
       sessions: this.sessions,
       refreshing: this.sessionsRefreshing,
       error: this.sessionsError,
@@ -122,8 +120,8 @@ export class SessionViewController {
   }
 
   public shouldPublish(sessionLoading: boolean): boolean {
-    return this.viewMode === 'sessions'
-      || this.viewMode === 'tree'
+    return this.options.navigation.lane === 'sessions'
+      || this.options.navigation.lane === 'tree'
       || this.sessions.length > 0
       || this.sessionsRefreshing
       || Boolean(this.sessionsError)
@@ -136,22 +134,22 @@ export class SessionViewController {
   }
 
   public showSessions(): void {
-    this.viewMode = 'sessions';
+    this.options.navigation.showLane('sessions', { post: false });
     this.sessionsError = '';
     this.options.postState();
     void this.refreshSessions();
   }
 
   public showTree(): void {
-    this.viewMode = 'tree';
+    this.options.navigation.showLane('tree', { post: false });
     this.treeError = '';
     this.options.postState();
     void this.refreshTree();
   }
 
   public toggleSessions(): void {
-    if (this.viewMode === 'sessions') {
-      this.hideSessions();
+    if (this.options.navigation.lane === 'sessions') {
+      this.hideSessionLane();
       return;
     }
 
@@ -159,16 +157,16 @@ export class SessionViewController {
   }
 
   public toggleTree(): void {
-    if (this.viewMode === 'tree') {
-      this.hideSessions();
+    if (this.options.navigation.lane === 'tree') {
+      this.hideSessionLane();
       return;
     }
 
     this.showTree();
   }
 
-  public showChat(options: { clearSessionsError?: boolean; clearTreeError?: boolean } = {}): void {
-    this.viewMode = 'chat';
+  public showChat(options: { clearSessionsError?: boolean; clearTreeError?: boolean; post?: boolean } = {}): void {
+    this.options.navigation.showChatMain({ post: false });
 
     if (options.clearSessionsError) {
       this.sessionsError = '';
@@ -177,19 +175,22 @@ export class SessionViewController {
     if (options.clearTreeError) {
       this.treeError = '';
     }
+
+    if (options.post !== false) {
+      this.options.postState();
+    }
   }
 
-  public hideSessions(): void {
-    if (this.viewMode === 'chat') {
+  public hideSessionLane(): void {
+    if (this.options.navigation.lane === 'chat') {
       return;
     }
 
     this.showChat({ clearSessionsError: true, clearTreeError: true });
-    this.options.postState();
   }
 
-  public startNewSession(viewMode: 'chat' | 'sessions' = 'chat'): void {
-    this.viewMode = viewMode;
+  public startNewSession(lane: WebviewLane = 'chat'): void {
+    this.options.navigation.showLane(lane, { post: false });
     this.sessionsError = '';
     this.treeRefreshSequence += 1;
     this.treeItems = [];
@@ -322,7 +323,7 @@ export class SessionViewController {
       this.options.postState();
     } finally {
       this.treeRefreshing = false;
-      if (this.viewMode === 'tree') {
+      if (this.options.navigation.lane === 'tree') {
         this.options.postState();
       }
     }
@@ -361,7 +362,7 @@ export class SessionViewController {
       this.options.postState();
     } finally {
       this.sessionsRefreshing = false;
-      if (this.viewMode === 'sessions') {
+      if (this.options.navigation.lane === 'sessions') {
         this.options.postState();
       }
     }
@@ -422,7 +423,7 @@ export class SessionViewController {
 
       if (isCurrentSession) {
         this.sessionsRefreshing = false;
-        this.options.startNewSession({ viewMode: 'sessions' });
+        this.options.startNewSession({ lane: 'sessions' });
         return;
       }
 
@@ -432,7 +433,7 @@ export class SessionViewController {
       this.options.postState();
     } finally {
       this.sessionsRefreshing = false;
-      if (this.viewMode === 'sessions') {
+      if (this.options.navigation.lane === 'sessions') {
         this.options.postState();
       }
     }
@@ -612,7 +613,7 @@ export class SessionViewController {
     } finally {
       this.sessionsRefreshing = false;
 
-      if (this.viewMode === 'sessions') {
+      if (this.options.navigation.lane === 'sessions') {
         this.options.postState();
       }
     }
@@ -683,7 +684,7 @@ export class SessionViewController {
     this.sessions = this.sessions.filter((entry) => normalizeSessionPath(entry.path) !== normalizedPath);
 
     if (isCurrentSession) {
-      this.options.startNewSession({ viewMode: 'sessions' });
+      this.options.startNewSession({ lane: 'sessions' });
       return;
     }
 

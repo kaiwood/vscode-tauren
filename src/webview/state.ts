@@ -24,8 +24,8 @@ export const initialWebviewState: WebviewState = {
   promptContext: [],
   composerText: '',
   composerTextRevision: 0,
-  viewMode: 'chat',
-  surfaceSide: 'front',
+  lane: 'chat',
+  chatFace: 'main',
   settingsSection: 'providers',
   sessions: [],
   sessionsRefreshing: false,
@@ -65,8 +65,8 @@ export function parseWebviewStateMessage(data: unknown): WebviewState {
     promptContext: Array.isArray(record.promptContext) ? record.promptContext : [],
     composerText: typeof record.composerText === 'string' ? record.composerText : '',
     composerTextRevision: typeof record.composerTextRevision === 'number' ? record.composerTextRevision : 0,
-    viewMode: record.viewMode === 'sessions' || record.viewMode === 'tree' ? record.viewMode : 'chat',
-    surfaceSide: record.surfaceSide === 'settings' ? 'settings' : 'front',
+    lane: parseLane(record.lane),
+    chatFace: parseChatFace(record.chatFace, parseLane(record.lane)),
     settingsSection: parseSettingsSection(record.settingsSection),
     sessions: Array.isArray(record.sessions) ? record.sessions : [],
     sessionsRefreshing: Boolean(record.sessionsRefreshing),
@@ -78,6 +78,14 @@ export function parseWebviewStateMessage(data: unknown): WebviewState {
     treeError: typeof record.treeError === 'string' ? record.treeError : '',
     sessionLoading: Boolean(record.sessionLoading)
   };
+}
+
+function parseLane(value: unknown) {
+  return value === 'sessions' || value === 'tree' ? value : 'chat';
+}
+
+function parseChatFace(value: unknown, lane: 'chat' | 'sessions' | 'tree') {
+  return lane === 'chat' && value === 'settings' ? 'settings' : 'main';
 }
 
 function parseCustomUiTheme(value: unknown) {

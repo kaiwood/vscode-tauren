@@ -73,15 +73,15 @@ export class TopSessionControls {
     return true;
   }
 
-  public syncForRender(isListView: boolean): void {
+  public syncForRender(isSessionLane: boolean): void {
     const state = this.options.getState();
-    const isSettingsView = state.surfaceSide === 'settings' && state.viewMode === 'chat';
-    const isFrontHidden = isListView || isSettingsView;
-    const toolbarTitle = isSettingsView ? 'Settings' : state.viewMode === 'sessions' ? 'Sessions' : state.viewMode === 'tree' ? 'Session tree' : this.options.getCurrentSessionTitle();
-    const toolbarTimestamp = isFrontHidden ? '' : formatRelativeTime(this.options.getCurrentSessionTimestamp());
+    const isSettingsView = state.chatFace === 'settings' && state.lane === 'chat';
+    const isChatMainHidden = isSessionLane || isSettingsView;
+    const toolbarTitle = isSettingsView ? 'Settings' : state.lane === 'sessions' ? 'Sessions' : state.lane === 'tree' ? 'Session tree' : this.options.getCurrentSessionTitle();
+    const toolbarTimestamp = isChatMainHidden ? '' : formatRelativeTime(this.options.getCurrentSessionTimestamp());
     const toolbarTitleTooltip = [toolbarTitle, toolbarTimestamp].filter(Boolean).join(' · ');
 
-    if (isFrontHidden && this.sessionNameEditing) {
+    if (isChatMainHidden && this.sessionNameEditing) {
       this.cancelSessionNameEdit();
     }
 
@@ -93,15 +93,15 @@ export class TopSessionControls {
     this.options.toolbarTitleTextElement.hidden = this.sessionNameEditing;
     this.options.sessionNameInputElement.hidden = !this.sessionNameEditing;
 
-    const sessionToggleLabel = isListView ? 'Back to chat' : 'Show sessions';
+    const sessionToggleLabel = isSessionLane ? 'Back to chat' : 'Show sessions';
     this.options.sessionToggleButton.setAttribute('aria-label', sessionToggleLabel);
     setTooltipText(this.options.sessionToggleButton, sessionToggleLabel);
-    this.options.sessionToggleButton.classList.toggle('pi-toolbar__sessions--back', isListView);
+    this.options.sessionToggleButton.classList.toggle('pi-toolbar__sessions--back', isSessionLane);
 
-    const treeToggleLabel = isListView ? 'Back to chat' : 'Show tree';
+    const treeToggleLabel = isSessionLane ? 'Back to chat' : 'Show tree';
     this.options.treeToggleButton.setAttribute('aria-label', treeToggleLabel);
     setTooltipText(this.options.treeToggleButton, treeToggleLabel);
-    this.options.treeToggleButton.classList.toggle('pi-toolbar__tree--back', isListView);
+    this.options.treeToggleButton.classList.toggle('pi-toolbar__tree--back', isSessionLane);
   }
 
   public cancelSessionNameEdit(options: { focusPrompt?: boolean } = {}): void {
@@ -129,7 +129,7 @@ export class TopSessionControls {
     event?.preventDefault();
     event?.stopPropagation();
 
-    if (state.viewMode === 'sessions' || state.viewMode === 'tree') {
+    if (state.lane === 'sessions' || state.lane === 'tree') {
       return;
     }
 
@@ -180,26 +180,26 @@ export class TopSessionControls {
     const state = this.options.getState();
     this.cancelSessionNameEdit();
 
-    if (state.viewMode === 'sessions' || state.viewMode === 'tree') {
-      this.options.postMessage({ type: 'hideSessions' });
+    if (state.lane === 'sessions' || state.lane === 'tree') {
+      this.options.postMessage({ type: 'showLane', lane: 'chat' });
       this.options.focusPromptInput();
       return;
     }
 
-    this.options.postMessage({ type: 'showSessions' });
+    this.options.postMessage({ type: 'showLane', lane: 'sessions' });
   }
 
   private toggleTreeView(): void {
     const state = this.options.getState();
     this.cancelSessionNameEdit();
 
-    if (state.viewMode === 'sessions' || state.viewMode === 'tree') {
-      this.options.postMessage({ type: 'hideSessions' });
+    if (state.lane === 'sessions' || state.lane === 'tree') {
+      this.options.postMessage({ type: 'showLane', lane: 'chat' });
       this.options.focusPromptInput();
       return;
     }
 
-    this.options.postMessage({ type: 'showTree' });
+    this.options.postMessage({ type: 'showLane', lane: 'tree' });
   }
 }
 

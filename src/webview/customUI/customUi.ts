@@ -112,8 +112,8 @@ export class CustomUiController {
     return true;
   }
 
-  public syncForRender(isListView: boolean): void {
-    const active = Boolean(this.activeId) && !isListView;
+  public syncForRender(isSessionLane: boolean): void {
+    const active = Boolean(this.activeId) && !isSessionLane;
     this.options.customUiElement.hidden = !active;
     this.options.customUiElement.inert = !active;
     this.options.form.classList.toggle('composer--custom-hidden', Boolean(this.activeId));

@@ -25,16 +25,16 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
         : { type: 'unknown' };
     case 'newSession':
       return { type: 'newSession' };
-    case 'showSessions':
-      return { type: 'showSessions' };
-    case 'showTree':
-      return { type: 'showTree' };
-    case 'hideSessions':
-      return { type: 'hideSessions' };
-    case 'showSettings':
-      return { type: 'showSettings' };
-    case 'hideSettings':
-      return { type: 'hideSettings' };
+    case 'showLane':
+      return isWebviewLane(value.lane)
+        ? { type: 'showLane', lane: value.lane }
+        : { type: 'unknown' };
+    case 'showChatFace':
+      return isWebviewChatFace(value.chatFace)
+        ? { type: 'showChatFace', chatFace: value.chatFace }
+        : { type: 'unknown' };
+    case 'hideChatFace':
+      return { type: 'hideChatFace' };
     case 'setSettingsSection':
       return isWebviewSettingsSection(value.section)
         ? { type: 'setSettingsSection', section: value.section }
@@ -196,6 +196,7 @@ export function createWebviewStateMessage({
   welcomeDismissed,
   promptContext = [],
   composer,
+  navigation,
   sessionView,
   settingsView
 }: CreateWebviewStateMessageOptions): WebviewStateMessage {
@@ -238,21 +239,21 @@ export function createWebviewStateMessage({
     message.composerTextRevision = composer.revision;
   }
 
-  if (settingsView) {
-    if (settingsView.surfaceSide) {
-      message.surfaceSide = settingsView.surfaceSide;
+  if (navigation) {
+    if (navigation.lane) {
+      message.lane = navigation.lane;
     }
 
-    if (settingsView.activeSection) {
-      message.settingsSection = settingsView.activeSection;
+    if (navigation.chatFace) {
+      message.chatFace = navigation.chatFace;
     }
   }
 
-  if (sessionView) {
-    if (sessionView.viewMode) {
-      message.viewMode = sessionView.viewMode;
-    }
+  if (settingsView?.activeSection) {
+    message.settingsSection = settingsView.activeSection;
+  }
 
+  if (sessionView) {
     message.sessions = sessionView.sessions ?? [];
     message.sessionsRefreshing = sessionView.refreshing ?? false;
     message.sessionsError = sessionView.error ?? '';
@@ -286,7 +287,7 @@ ${chatWebviewStyles}
   </style>
 </head>
 <body>
-  <main class="pi-view pi-view--chat">
+  <main class="pi-view tau-view--lane-chat">
     <header class="pi-toolbar">
       <button class="pi-toolbar__sessions" type="button" aria-label="Show sessions">
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -351,7 +352,7 @@ ${chatWebviewStyles}
       </div>
     </section>
     <div class="tau-chat-surface" aria-label="Pi chat surface">
-      <div class="tau-chat-surface__face tau-chat-surface__front">
+      <div class="tau-chat-surface__face tau-chat-surface__main">
         <section class="messages" aria-live="polite" aria-label="Pi conversation">
 ${createInitialEmptyStateHtml(Boolean(options.welcomeDismissed))}
         </section>
@@ -418,7 +419,7 @@ ${createInitialEmptyStateHtml(Boolean(options.welcomeDismissed))}
       </button>
         </form>
       </div>
-      <section class="settings-surface tau-chat-surface__face tau-chat-surface__back" aria-label="Pi settings" tabindex="-1" aria-hidden="true">
+      <section class="settings-surface tau-chat-surface__face tau-chat-surface__settings" aria-label="Pi settings" tabindex="-1" aria-hidden="true">
         <div class="settings-surface__chrome" aria-hidden="true"></div>
         <header class="settings-surface__header">
           <div>
@@ -475,6 +476,14 @@ function escapeHtmlAttribute(value: string): string {
 
 function normalizeDiffLineCount(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+function isWebviewLane(value: unknown): value is 'chat' | 'sessions' | 'tree' {
+  return value === 'chat' || value === 'sessions' || value === 'tree';
+}
+
+function isWebviewChatFace(value: unknown): value is 'main' | 'settings' {
+  return value === 'main' || value === 'settings';
 }
 
 function isWebviewSettingsSection(value: unknown): value is WebviewSettingsSection {

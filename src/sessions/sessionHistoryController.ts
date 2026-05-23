@@ -76,7 +76,7 @@ export class SessionHistoryController {
     this.options.piEventHandler.clearLiveToolCalls();
     this.options.session.replaceMessages(formatAgentMessages(messagesResult.messages));
     this.loading = false;
-    this.options.sessionView.showChat({ clearSessionsError: true });
+    this.options.sessionView.showChat({ clearSessionsError: true, post: false });
     this.options.refreshSessionDiffStats();
     this.options.postState();
 

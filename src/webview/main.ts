@@ -214,8 +214,8 @@ window.addEventListener('message', (event) => {
     return;
   }
 
-  const previousViewMode = state.viewMode;
-  const previousSurfaceSide = state.surfaceSide;
+  const previousLane = state.lane;
+  const previousChatFace = state.chatFace;
   const previousCurrentSessionFile = state.currentSessionFile;
   const previousSessionCount = Array.isArray(state.sessions) ? state.sessions.length : 0;
   const previousTreeCount = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
@@ -224,32 +224,32 @@ window.addEventListener('message', (event) => {
   state = nextState;
   document.body.classList.toggle('tau-animations-disabled', !state.animationsEnabled);
   applyCustomUiTheme(state.customUiTheme);
-  const wasListView = previousViewMode === 'sessions' || previousViewMode === 'tree';
-  const isListView = state.viewMode === 'sessions' || state.viewMode === 'tree';
+  const wasSessionLane = previousLane === 'sessions' || previousLane === 'tree';
+  const isSessionLane = state.lane === 'sessions' || state.lane === 'tree';
 
-  if (previousViewMode === 'sessions' && state.viewMode !== 'sessions') {
+  if (previousLane === 'sessions' && state.lane !== 'sessions') {
     sessionsController.rememberSessionListScrollPosition();
   }
 
-  if (!wasListView && isListView) {
+  if (!wasSessionLane && isSessionLane) {
     messagesController.rememberChatScrollPosition();
     sessionsController.disableSessionPointerHover();
   }
 
   if (
-    state.viewMode === 'sessions'
-    && (previousViewMode !== 'sessions'
+    state.lane === 'sessions'
+    && (previousLane !== 'sessions'
       || previousCurrentSessionFile !== state.currentSessionFile
       || previousSessionCount === 0)
   ) {
     sessionsController.selectCurrentSessionOrFirstVisible();
 
-    if (previousViewMode !== 'sessions') {
+    if (previousLane !== 'sessions') {
       sessionsController.restoreSessionListScrollAfterNextRender();
     }
   }
 
-  if (state.viewMode === 'tree' && (previousViewMode !== 'tree' || previousTreeCount === 0)) {
+  if (state.lane === 'tree' && (previousLane !== 'tree' || previousTreeCount === 0)) {
     sessionsController.selectCurrentTreeEntry();
   }
 
@@ -261,9 +261,9 @@ window.addEventListener('message', (event) => {
     composerController.applyComposerTextFromState();
   }
 
-  scheduleRender({ returnToChat: wasListView && state.viewMode === 'chat' && state.surfaceSide !== 'settings' });
+  scheduleRender({ returnToChatMain: wasSessionLane && state.lane === 'chat' && state.chatFace !== 'settings' });
 
-  if (previousSurfaceSide === 'settings' && state.surfaceSide === 'front' && state.viewMode === 'chat') {
+  if (previousChatFace === 'settings' && state.chatFace === 'main' && state.lane === 'chat') {
     requestAnimationFrame(() => focusPromptInput());
   }
 });
@@ -354,8 +354,8 @@ function createToastIcon(kind: 'success' | 'warning' | 'error'): HTMLElement {
   return icon;
 }
 
-function scheduleRender(options: { returnToChat?: boolean } = {}): void {
-  pendingReturnToChatAfterRender ||= Boolean(options.returnToChat);
+function scheduleRender(options: { returnToChatMain?: boolean } = {}): void {
+  pendingReturnToChatAfterRender ||= Boolean(options.returnToChatMain);
 
   if (pendingRenderFrame !== undefined) {
     return;
@@ -368,7 +368,7 @@ function scheduleRender(options: { returnToChat?: boolean } = {}): void {
 
     render();
 
-    if (shouldHandleReturnToChat && state.viewMode === 'chat') {
+    if (shouldHandleReturnToChat && state.lane === 'chat') {
       messagesController.restoreChatScrollAfterReturn();
       focusPromptInput();
     }
@@ -376,34 +376,34 @@ function scheduleRender(options: { returnToChat?: boolean } = {}): void {
 }
 
 function render(): void {
-  const isListView = state.viewMode === 'sessions' || state.viewMode === 'tree';
-  const isSettingsVisible = !isListView && state.surfaceSide === 'settings';
-  const shouldStickToBottom = !isListView && !isSettingsVisible && messagesController.shouldFollowOutput();
-  viewElement.classList.toggle('pi-view--list', isListView);
-  viewElement.classList.toggle('pi-view--sessions', state.viewMode === 'sessions');
-  viewElement.classList.toggle('pi-view--tree', state.viewMode === 'tree');
-  viewElement.classList.toggle('pi-view--chat', !isListView);
-  viewElement.classList.toggle('pi-view--settings', isSettingsVisible);
+  const isSessionLane = state.lane === 'sessions' || state.lane === 'tree';
+  const isSettingsFaceVisible = !isSessionLane && state.chatFace === 'settings';
+  const shouldStickToBottom = !isSessionLane && !isSettingsFaceVisible && messagesController.shouldFollowOutput();
+  viewElement.classList.toggle('tau-view--session-lane', isSessionLane);
+  viewElement.classList.toggle('tau-view--lane-sessions', state.lane === 'sessions');
+  viewElement.classList.toggle('tau-view--lane-tree', state.lane === 'tree');
+  viewElement.classList.toggle('tau-view--lane-chat', !isSessionLane);
+  viewElement.classList.toggle('tau-view--chat-face-settings', isSettingsFaceVisible);
   messagesElement.hidden = false;
   sessionsElement.hidden = false;
   sessionTreeElement.hidden = false;
-  messagesElement.setAttribute('aria-hidden', isListView || isSettingsVisible ? 'true' : 'false');
-  sessionsElement.setAttribute('aria-hidden', state.viewMode === 'sessions' ? 'false' : 'true');
-  sessionTreeElement.setAttribute('aria-hidden', state.viewMode === 'tree' ? 'false' : 'true');
-  messagesElement.inert = isListView || isSettingsVisible;
-  sessionsElement.inert = state.viewMode !== 'sessions';
-  sessionTreeElement.inert = state.viewMode !== 'tree';
-  sessionsElement.tabIndex = state.viewMode === 'sessions' ? 0 : -1;
-  sessionTreeElement.tabIndex = state.viewMode === 'tree' ? 0 : -1;
-  form.classList.toggle('composer--list-hidden', isListView);
-  form.setAttribute('aria-hidden', isListView || isSettingsVisible ? 'true' : 'false');
-  form.inert = isListView || isSettingsVisible;
+  messagesElement.setAttribute('aria-hidden', isSessionLane || isSettingsFaceVisible ? 'true' : 'false');
+  sessionsElement.setAttribute('aria-hidden', state.lane === 'sessions' ? 'false' : 'true');
+  sessionTreeElement.setAttribute('aria-hidden', state.lane === 'tree' ? 'false' : 'true');
+  messagesElement.inert = isSessionLane || isSettingsFaceVisible;
+  sessionsElement.inert = state.lane !== 'sessions';
+  sessionTreeElement.inert = state.lane !== 'tree';
+  sessionsElement.tabIndex = state.lane === 'sessions' ? 0 : -1;
+  sessionTreeElement.tabIndex = state.lane === 'tree' ? 0 : -1;
+  form.classList.toggle('composer--list-hidden', isSessionLane);
+  form.setAttribute('aria-hidden', isSessionLane || isSettingsFaceVisible ? 'true' : 'false');
+  form.inert = isSessionLane || isSettingsFaceVisible;
 
-  sessionsController.syncForRender(isListView);
-  settingsController.syncForRender(isListView);
-  customUiController.syncForRender(isListView || isSettingsVisible);
+  sessionsController.syncForRender(isSessionLane);
+  settingsController.syncForRender(isSessionLane);
+  customUiController.syncForRender(isSessionLane || isSettingsFaceVisible);
 
-  if (isSettingsVisible) {
+  if (isSettingsFaceVisible) {
     busyStatusElement.hidden = true;
     composerController.closeSlashMenu();
     composerController.closeModelMenu();
@@ -412,16 +412,16 @@ function render(): void {
     return;
   }
 
-  if (isListView) {
+  if (isSessionLane) {
     busyStatusElement.hidden = true;
-    state.viewMode === 'tree' ? sessionsController.renderTree() : sessionsController.renderSessions();
+    state.lane === 'tree' ? sessionsController.renderTree() : sessionsController.renderSessions();
     composerController.closeSlashMenu();
     composerController.closeModelMenu();
     sessionsController.closeSessionCommandMenu();
     sessionsController.cancelSessionNameEdit();
 
     if (!sessionsController.isSessionListNameEditing() && !sessionsController.isSessionSearchFocused()) {
-      const activeSessionPane = state.viewMode === 'tree' ? sessionTreeElement : sessionsElement;
+      const activeSessionPane = state.lane === 'tree' ? sessionTreeElement : sessionsElement;
       requestAnimationFrame(() => activeSessionPane.focus({ preventScroll: true }));
     }
 
@@ -518,10 +518,10 @@ function handleChatEscape(event: KeyboardEvent): boolean {
     return true;
   }
 
-  if (state.viewMode === 'chat') {
+  if (state.lane === 'chat') {
     event.preventDefault();
     event.stopPropagation();
-    vscode.postMessage({ type: 'showSessions' });
+    vscode.postMessage({ type: 'showLane', lane: 'sessions' });
     return true;
   }
 
@@ -535,12 +535,12 @@ function startNewSession(): void {
 }
 
 function handleCustomUiClose(): void {
-  if (state.viewMode !== 'chat') {
+  if (state.lane !== 'chat') {
     return;
   }
 
   requestAnimationFrame(() => {
-    if (state.viewMode === 'chat' && !customUiController.isActive()) {
+    if (state.lane === 'chat' && !customUiController.isActive()) {
       textarea.focus({ preventScroll: true });
     }
   });

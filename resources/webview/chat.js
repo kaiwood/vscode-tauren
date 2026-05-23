@@ -1511,8 +1511,8 @@
         this.options.textarea.value,
         window.innerWidth,
         window.innerHeight,
-        state2.viewMode,
-        state2.surfaceSide,
+        state2.lane,
+        state2.chatFace,
         state2.busy ? "1" : "0",
         state2.workspaceDiffStats.addedLines,
         state2.workspaceDiffStats.removedLines,
@@ -1984,8 +1984,8 @@
       this.handleKeyup(event);
       return true;
     }
-    syncForRender(isListView) {
-      const active = Boolean(this.activeId) && !isListView;
+    syncForRender(isSessionLane) {
+      const active = Boolean(this.activeId) && !isSessionLane;
       this.options.customUiElement.hidden = !active;
       this.options.customUiElement.inert = !active;
       this.options.form.classList.toggle("composer--custom-hidden", Boolean(this.activeId));
@@ -3033,7 +3033,7 @@ ${after}`;
     }
     handleChatPageScroll(event) {
       const state2 = this.options.getState();
-      if (state2.viewMode !== "chat" || state2.surfaceSide === "settings" || event.key !== "PageUp" && event.key !== "PageDown") {
+      if (state2.lane !== "chat" || state2.chatFace === "settings" || event.key !== "PageUp" && event.key !== "PageDown") {
         return false;
       }
       if (event.altKey || event.metaKey || event.shiftKey) {
@@ -3340,7 +3340,7 @@ ${after}`;
       return parseCssPixelValue2(getComputedStyle(this.options.messagesContentElement).lineHeight) || parseCssPixelValue2(getComputedStyle(this.options.messagesElement).lineHeight) || 20;
     }
     scrollMessagesToBottomIfFollowingChat() {
-      if (this.options.getState().viewMode === "chat" && this.shouldFollowOutput()) {
+      if (this.options.getState().lane === "chat" && this.shouldFollowOutput()) {
         this.scrollMessagesToBottom();
       }
     }
@@ -4303,14 +4303,14 @@ ${after}`;
       }
       return true;
     }
-    syncForRender(isListView) {
+    syncForRender(isSessionLane) {
       const state2 = this.options.getState();
-      const isSettingsView = state2.surfaceSide === "settings" && state2.viewMode === "chat";
-      const isFrontHidden = isListView || isSettingsView;
-      const toolbarTitle = isSettingsView ? "Settings" : state2.viewMode === "sessions" ? "Sessions" : state2.viewMode === "tree" ? "Session tree" : this.options.getCurrentSessionTitle();
-      const toolbarTimestamp = isFrontHidden ? "" : formatRelativeTime(this.options.getCurrentSessionTimestamp());
+      const isSettingsView = state2.chatFace === "settings" && state2.lane === "chat";
+      const isChatMainHidden = isSessionLane || isSettingsView;
+      const toolbarTitle = isSettingsView ? "Settings" : state2.lane === "sessions" ? "Sessions" : state2.lane === "tree" ? "Session tree" : this.options.getCurrentSessionTitle();
+      const toolbarTimestamp = isChatMainHidden ? "" : formatRelativeTime(this.options.getCurrentSessionTimestamp());
       const toolbarTitleTooltip = [toolbarTitle, toolbarTimestamp].filter(Boolean).join(" \xB7 ");
-      if (isFrontHidden && this.sessionNameEditing) {
+      if (isChatMainHidden && this.sessionNameEditing) {
         this.cancelSessionNameEdit();
       }
       this.options.toolbarTitleTextElement.textContent = toolbarTitle;
@@ -4320,14 +4320,14 @@ ${after}`;
       this.options.toolbarTitleElement.classList.toggle("pi-toolbar__title--editing", this.sessionNameEditing);
       this.options.toolbarTitleTextElement.hidden = this.sessionNameEditing;
       this.options.sessionNameInputElement.hidden = !this.sessionNameEditing;
-      const sessionToggleLabel = isListView ? "Back to chat" : "Show sessions";
+      const sessionToggleLabel = isSessionLane ? "Back to chat" : "Show sessions";
       this.options.sessionToggleButton.setAttribute("aria-label", sessionToggleLabel);
       setTooltipText2(this.options.sessionToggleButton, sessionToggleLabel);
-      this.options.sessionToggleButton.classList.toggle("pi-toolbar__sessions--back", isListView);
-      const treeToggleLabel = isListView ? "Back to chat" : "Show tree";
+      this.options.sessionToggleButton.classList.toggle("pi-toolbar__sessions--back", isSessionLane);
+      const treeToggleLabel = isSessionLane ? "Back to chat" : "Show tree";
       this.options.treeToggleButton.setAttribute("aria-label", treeToggleLabel);
       setTooltipText2(this.options.treeToggleButton, treeToggleLabel);
-      this.options.treeToggleButton.classList.toggle("pi-toolbar__tree--back", isListView);
+      this.options.treeToggleButton.classList.toggle("pi-toolbar__tree--back", isSessionLane);
     }
     cancelSessionNameEdit(options = {}) {
       if (!this.sessionNameEditing) {
@@ -4349,7 +4349,7 @@ ${after}`;
       const state2 = this.options.getState();
       event?.preventDefault();
       event?.stopPropagation();
-      if (state2.viewMode === "sessions" || state2.viewMode === "tree") {
+      if (state2.lane === "sessions" || state2.lane === "tree") {
         return;
       }
       this.options.closeSlashMenu();
@@ -4391,22 +4391,22 @@ ${after}`;
     toggleSessionView() {
       const state2 = this.options.getState();
       this.cancelSessionNameEdit();
-      if (state2.viewMode === "sessions" || state2.viewMode === "tree") {
-        this.options.postMessage({ type: "hideSessions" });
+      if (state2.lane === "sessions" || state2.lane === "tree") {
+        this.options.postMessage({ type: "showLane", lane: "chat" });
         this.options.focusPromptInput();
         return;
       }
-      this.options.postMessage({ type: "showSessions" });
+      this.options.postMessage({ type: "showLane", lane: "sessions" });
     }
     toggleTreeView() {
       const state2 = this.options.getState();
       this.cancelSessionNameEdit();
-      if (state2.viewMode === "sessions" || state2.viewMode === "tree") {
-        this.options.postMessage({ type: "hideSessions" });
+      if (state2.lane === "sessions" || state2.lane === "tree") {
+        this.options.postMessage({ type: "showLane", lane: "chat" });
         this.options.focusPromptInput();
         return;
       }
-      this.options.postMessage({ type: "showTree" });
+      this.options.postMessage({ type: "showLane", lane: "tree" });
     }
   };
   function setTooltipText2(element, text) {
@@ -4479,20 +4479,20 @@ ${after}`;
         return true;
       }
       const state2 = this.options.getState();
-      if (state2.viewMode === "tree" && this.treeController.handleKeydown(event)) {
+      if (state2.lane === "tree" && this.treeController.handleKeydown(event)) {
         return true;
       }
-      if (state2.viewMode === "tree" && event.key === "Escape") {
+      if (state2.lane === "tree" && event.key === "Escape") {
         this.hideSessionList(event);
         return true;
       }
       const target = eventTargetElement3(event);
       const sessionSearchInput = target?.closest(".sessions__search-input");
-      if (sessionSearchInput instanceof HTMLInputElement && state2.viewMode === "sessions") {
+      if (sessionSearchInput instanceof HTMLInputElement && state2.lane === "sessions") {
         return this.handleSessionSearchKeydown(event, sessionSearchInput);
       }
       const namedOnlyFilterButton = target?.closest(".sessions__named-filter");
-      if (namedOnlyFilterButton instanceof HTMLButtonElement && state2.viewMode === "sessions") {
+      if (namedOnlyFilterButton instanceof HTMLButtonElement && state2.lane === "sessions") {
         return this.handleNamedOnlyFilterKeydown(event);
       }
       const sessionListNameInput = target?.closest(".sessions__name-input");
@@ -4515,21 +4515,21 @@ ${after}`;
         event.stopPropagation();
         return true;
       }
-      return (state2.viewMode === "sessions" || state2.viewMode === "tree") && this.handleSessionListKeydown(event);
+      return (state2.lane === "sessions" || state2.lane === "tree") && this.handleSessionListKeydown(event);
     }
     startCurrentSessionNameEdit() {
       this.topControls.startSessionNameEdit();
     }
-    syncForRender(isListView) {
+    syncForRender(isSessionLane) {
       const state2 = this.options.getState();
-      if (state2.viewMode !== "sessions") {
+      if (state2.lane !== "sessions") {
         this.sessionSearchQuery = "";
         this.sessionNamedOnlyFilter = false;
         this.openSessionListMenuIndex = void 0;
         this.openSessionListMenuCommandIndex = 0;
         this.stopSessionListNameEdit();
       }
-      this.topControls.syncForRender(isListView);
+      this.topControls.syncForRender(isSessionLane);
     }
     renderSessions() {
       const state2 = this.options.getState();
@@ -4671,7 +4671,7 @@ ${after}`;
     handleSessionsClick(event) {
       const state2 = this.options.getState();
       const target = eventTargetElement3(event);
-      if (state2.viewMode === "tree" && this.treeController.handleClick(target, event)) {
+      if (state2.lane === "tree" && this.treeController.handleClick(target, event)) {
         return;
       }
       const sessionMenuButton = target?.closest(".sessions__menu-button");
@@ -4699,7 +4699,7 @@ ${after}`;
       }
       this.closeSessionItemMenus();
       const index = Number(item.getAttribute("data-index"));
-      state2.viewMode === "tree" ? this.treeController.selectIndex(index) : this.selectSessionIndex(index);
+      state2.lane === "tree" ? this.treeController.selectIndex(index) : this.selectSessionIndex(index);
     }
     getCurrentSessionTitle() {
       const state2 = this.options.getState();
@@ -4735,16 +4735,16 @@ ${after}`;
       if (target?.closest(".sessions__search-input, .sessions__name-input")) {
         return false;
       }
-      if (state2.viewMode !== "sessions" && state2.viewMode !== "tree") {
+      if (state2.lane !== "sessions" && state2.lane !== "tree") {
         return false;
       }
-      if (state2.viewMode === "tree" && this.treeController.handleKeydown(event)) {
+      if (state2.lane === "tree" && this.treeController.handleKeydown(event)) {
         return true;
       }
       if (this.openSessionListMenuIndex !== void 0 && this.handleSessionItemMenuKeydown(event)) {
         return true;
       }
-      if (state2.viewMode === "sessions" && event.key === "?") {
+      if (state2.lane === "sessions" && event.key === "?") {
         event.preventDefault();
         event.stopPropagation();
         this.closeSessionItemMenus();
@@ -4760,7 +4760,7 @@ ${after}`;
         event.stopPropagation();
         this.disableSessionPointerHover();
         this.closeSessionItemMenus();
-        state2.viewMode === "tree" ? this.treeController.moveSelection(1) : this.moveSessionSelection(1);
+        state2.lane === "tree" ? this.treeController.moveSelection(1) : this.moveSessionSelection(1);
         return true;
       }
       if (event.key === "ArrowUp") {
@@ -4768,25 +4768,25 @@ ${after}`;
         event.stopPropagation();
         this.disableSessionPointerHover();
         this.closeSessionItemMenus();
-        state2.viewMode === "tree" ? this.treeController.moveSelection(-1) : this.moveSessionSelectionUpOrFocusSearch();
+        state2.lane === "tree" ? this.treeController.moveSelection(-1) : this.moveSessionSelectionUpOrFocusSearch();
         return true;
       }
-      if (state2.viewMode === "sessions" && event.key === "ArrowRight") {
+      if (state2.lane === "sessions" && event.key === "ArrowRight") {
         event.preventDefault();
         event.stopPropagation();
         this.openSessionItemMenu(this.sessionListSelectedIndex, { focusMenu: true });
         return true;
       }
-      if (state2.viewMode === "sessions" && this.handleSessionListCommandKey(event)) {
+      if (state2.lane === "sessions" && this.handleSessionListCommandKey(event)) {
         return true;
       }
       if (event.key === "Enter") {
         event.preventDefault();
         event.stopPropagation();
-        state2.viewMode === "tree" ? this.treeController.selectCurrentIndex() : this.selectSessionIndex(this.sessionListSelectedIndex);
+        state2.lane === "tree" ? this.treeController.selectCurrentIndex() : this.selectSessionIndex(this.sessionListSelectedIndex);
         return true;
       }
-      if (state2.viewMode === "sessions" && (event.key === "Delete" || event.key === "Backspace")) {
+      if (state2.lane === "sessions" && (event.key === "Delete" || event.key === "Backspace")) {
         event.preventDefault();
         event.stopPropagation();
         this.deleteSessionIndex(this.sessionListSelectedIndex);
@@ -4797,7 +4797,7 @@ ${after}`;
     hideSessionList(event) {
       event.preventDefault();
       event.stopPropagation();
-      this.options.postMessage({ type: "hideSessions" });
+      this.options.postMessage({ type: "showLane", lane: "chat" });
       this.options.focusPromptInput();
     }
     enableSessionPointerHover() {
@@ -4810,7 +4810,7 @@ ${after}`;
     handleSessionListPointerMove(event) {
       this.enableSessionPointerHover();
       const state2 = this.options.getState();
-      if (state2.viewMode !== "sessions") {
+      if (state2.lane !== "sessions") {
         return;
       }
       const item = eventTargetElement3(event)?.closest(".sessions__item");
@@ -4935,7 +4935,7 @@ ${after}`;
     }
     openSessionItemMenu(index, options = {}) {
       const state2 = this.options.getState();
-      if (!Number.isInteger(index) || index < 0 || state2.viewMode !== "sessions" || !this.isSessionIndexVisible(index)) {
+      if (!Number.isInteger(index) || index < 0 || state2.lane !== "sessions" || !this.isSessionIndexVisible(index)) {
         return;
       }
       const session = Array.isArray(state2.sessions) ? state2.sessions[index] : void 0;
@@ -5436,7 +5436,7 @@ ${after}`;
       this.options.settingsElement.addEventListener("keydown", (event) => this.handleSettingsKeydown(event));
     }
     handleGlobalKeydown(event) {
-      if (this.options.getState().surfaceSide !== "settings") {
+      if (this.options.getState().chatFace !== "settings") {
         return false;
       }
       if (event.key === "Escape") {
@@ -5447,9 +5447,9 @@ ${after}`;
       }
       return false;
     }
-    syncForRender(isListView) {
+    syncForRender(isSessionLane) {
       const state2 = this.options.getState();
-      const visible = !isListView && state2.surfaceSide === "settings";
+      const visible = !isSessionLane && state2.chatFace === "settings";
       this.options.settingsElement.hidden = false;
       this.options.settingsElement.inert = !visible;
       this.options.settingsElement.setAttribute("aria-hidden", visible ? "false" : "true");
@@ -5457,7 +5457,7 @@ ${after}`;
       this.renderSection(state2.settingsSection);
       if (visible && !this.wasVisible) {
         requestAnimationFrame(() => {
-          if (this.options.getState().surfaceSide === "settings") {
+          if (this.options.getState().chatFace === "settings") {
             this.focusActiveSectionButton();
           }
         });
@@ -5465,7 +5465,7 @@ ${after}`;
       this.wasVisible = visible;
     }
     hideSettings(options = {}) {
-      this.options.postMessage({ type: "hideSettings" });
+      this.options.postMessage({ type: "hideChatFace" });
       if (options.focusPrompt) {
         this.options.focusPromptInput();
       }
@@ -5548,7 +5548,7 @@ ${after}`;
       this.options.settingsBodyElement.replaceChildren(nav, panel);
       this.renderedSection = sectionId;
       this.syncNavState(sectionId);
-      if (state2.surfaceSide === "settings") {
+      if (state2.chatFace === "settings") {
         requestAnimationFrame(() => this.focusSectionButton(sectionId));
       }
     }
@@ -5633,8 +5633,8 @@ ${after}`;
     promptContext: [],
     composerText: "",
     composerTextRevision: 0,
-    viewMode: "chat",
-    surfaceSide: "front",
+    lane: "chat",
+    chatFace: "main",
     settingsSection: "providers",
     sessions: [],
     sessionsRefreshing: false,
@@ -5672,8 +5672,8 @@ ${after}`;
       promptContext: Array.isArray(record.promptContext) ? record.promptContext : [],
       composerText: typeof record.composerText === "string" ? record.composerText : "",
       composerTextRevision: typeof record.composerTextRevision === "number" ? record.composerTextRevision : 0,
-      viewMode: record.viewMode === "sessions" || record.viewMode === "tree" ? record.viewMode : "chat",
-      surfaceSide: record.surfaceSide === "settings" ? "settings" : "front",
+      lane: parseLane(record.lane),
+      chatFace: parseChatFace(record.chatFace, parseLane(record.lane)),
       settingsSection: parseSettingsSection2(record.settingsSection),
       sessions: Array.isArray(record.sessions) ? record.sessions : [],
       sessionsRefreshing: Boolean(record.sessionsRefreshing),
@@ -5685,6 +5685,12 @@ ${after}`;
       treeError: typeof record.treeError === "string" ? record.treeError : "",
       sessionLoading: Boolean(record.sessionLoading)
     };
+  }
+  function parseLane(value) {
+    return value === "sessions" || value === "tree" ? value : "chat";
+  }
+  function parseChatFace(value, lane) {
+    return lane === "chat" && value === "settings" ? "settings" : "main";
   }
   function parseCustomUiTheme(value) {
     return value === "modern" || value === "crt" || value === "amber" || value === "matrix" ? value : "default";
@@ -5892,8 +5898,8 @@ ${after}`;
     if (event.data?.type !== "state") {
       return;
     }
-    const previousViewMode = state.viewMode;
-    const previousSurfaceSide = state.surfaceSide;
+    const previousLane = state.lane;
+    const previousChatFace = state.chatFace;
     const previousCurrentSessionFile = state.currentSessionFile;
     const previousSessionCount = Array.isArray(state.sessions) ? state.sessions.length : 0;
     const previousTreeCount = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
@@ -5902,22 +5908,22 @@ ${after}`;
     state = nextState;
     document.body.classList.toggle("tau-animations-disabled", !state.animationsEnabled);
     applyCustomUiTheme(state.customUiTheme);
-    const wasListView = previousViewMode === "sessions" || previousViewMode === "tree";
-    const isListView = state.viewMode === "sessions" || state.viewMode === "tree";
-    if (previousViewMode === "sessions" && state.viewMode !== "sessions") {
+    const wasSessionLane = previousLane === "sessions" || previousLane === "tree";
+    const isSessionLane = state.lane === "sessions" || state.lane === "tree";
+    if (previousLane === "sessions" && state.lane !== "sessions") {
       sessionsController.rememberSessionListScrollPosition();
     }
-    if (!wasListView && isListView) {
+    if (!wasSessionLane && isSessionLane) {
       messagesController.rememberChatScrollPosition();
       sessionsController.disableSessionPointerHover();
     }
-    if (state.viewMode === "sessions" && (previousViewMode !== "sessions" || previousCurrentSessionFile !== state.currentSessionFile || previousSessionCount === 0)) {
+    if (state.lane === "sessions" && (previousLane !== "sessions" || previousCurrentSessionFile !== state.currentSessionFile || previousSessionCount === 0)) {
       sessionsController.selectCurrentSessionOrFirstVisible();
-      if (previousViewMode !== "sessions") {
+      if (previousLane !== "sessions") {
         sessionsController.restoreSessionListScrollAfterNextRender();
       }
     }
-    if (state.viewMode === "tree" && (previousViewMode !== "tree" || previousTreeCount === 0)) {
+    if (state.lane === "tree" && (previousLane !== "tree" || previousTreeCount === 0)) {
       sessionsController.selectCurrentTreeEntry();
     }
     if (sessionsController.isSessionListNameEditingMissing()) {
@@ -5926,8 +5932,8 @@ ${after}`;
     if (hasComposerTextUpdate) {
       composerController.applyComposerTextFromState();
     }
-    scheduleRender({ returnToChat: wasListView && state.viewMode === "chat" && state.surfaceSide !== "settings" });
-    if (previousSurfaceSide === "settings" && state.surfaceSide === "front" && state.viewMode === "chat") {
+    scheduleRender({ returnToChatMain: wasSessionLane && state.lane === "chat" && state.chatFace !== "settings" });
+    if (previousChatFace === "settings" && state.chatFace === "main" && state.lane === "chat") {
       requestAnimationFrame(() => focusPromptInput());
     }
   });
@@ -6002,7 +6008,7 @@ ${after}`;
     return icon;
   }
   function scheduleRender(options = {}) {
-    pendingReturnToChatAfterRender ||= Boolean(options.returnToChat);
+    pendingReturnToChatAfterRender ||= Boolean(options.returnToChatMain);
     if (pendingRenderFrame !== void 0) {
       return;
     }
@@ -6011,39 +6017,39 @@ ${after}`;
       const shouldHandleReturnToChat = pendingReturnToChatAfterRender;
       pendingReturnToChatAfterRender = false;
       render();
-      if (shouldHandleReturnToChat && state.viewMode === "chat") {
+      if (shouldHandleReturnToChat && state.lane === "chat") {
         messagesController.restoreChatScrollAfterReturn();
         focusPromptInput();
       }
     });
   }
   function render() {
-    const isListView = state.viewMode === "sessions" || state.viewMode === "tree";
-    const isSettingsVisible = !isListView && state.surfaceSide === "settings";
-    const shouldStickToBottom = !isListView && !isSettingsVisible && messagesController.shouldFollowOutput();
-    viewElement.classList.toggle("pi-view--list", isListView);
-    viewElement.classList.toggle("pi-view--sessions", state.viewMode === "sessions");
-    viewElement.classList.toggle("pi-view--tree", state.viewMode === "tree");
-    viewElement.classList.toggle("pi-view--chat", !isListView);
-    viewElement.classList.toggle("pi-view--settings", isSettingsVisible);
+    const isSessionLane = state.lane === "sessions" || state.lane === "tree";
+    const isSettingsFaceVisible = !isSessionLane && state.chatFace === "settings";
+    const shouldStickToBottom = !isSessionLane && !isSettingsFaceVisible && messagesController.shouldFollowOutput();
+    viewElement.classList.toggle("tau-view--session-lane", isSessionLane);
+    viewElement.classList.toggle("tau-view--lane-sessions", state.lane === "sessions");
+    viewElement.classList.toggle("tau-view--lane-tree", state.lane === "tree");
+    viewElement.classList.toggle("tau-view--lane-chat", !isSessionLane);
+    viewElement.classList.toggle("tau-view--chat-face-settings", isSettingsFaceVisible);
     messagesElement.hidden = false;
     sessionsElement.hidden = false;
     sessionTreeElement.hidden = false;
-    messagesElement.setAttribute("aria-hidden", isListView || isSettingsVisible ? "true" : "false");
-    sessionsElement.setAttribute("aria-hidden", state.viewMode === "sessions" ? "false" : "true");
-    sessionTreeElement.setAttribute("aria-hidden", state.viewMode === "tree" ? "false" : "true");
-    messagesElement.inert = isListView || isSettingsVisible;
-    sessionsElement.inert = state.viewMode !== "sessions";
-    sessionTreeElement.inert = state.viewMode !== "tree";
-    sessionsElement.tabIndex = state.viewMode === "sessions" ? 0 : -1;
-    sessionTreeElement.tabIndex = state.viewMode === "tree" ? 0 : -1;
-    form.classList.toggle("composer--list-hidden", isListView);
-    form.setAttribute("aria-hidden", isListView || isSettingsVisible ? "true" : "false");
-    form.inert = isListView || isSettingsVisible;
-    sessionsController.syncForRender(isListView);
-    settingsController.syncForRender(isListView);
-    customUiController.syncForRender(isListView || isSettingsVisible);
-    if (isSettingsVisible) {
+    messagesElement.setAttribute("aria-hidden", isSessionLane || isSettingsFaceVisible ? "true" : "false");
+    sessionsElement.setAttribute("aria-hidden", state.lane === "sessions" ? "false" : "true");
+    sessionTreeElement.setAttribute("aria-hidden", state.lane === "tree" ? "false" : "true");
+    messagesElement.inert = isSessionLane || isSettingsFaceVisible;
+    sessionsElement.inert = state.lane !== "sessions";
+    sessionTreeElement.inert = state.lane !== "tree";
+    sessionsElement.tabIndex = state.lane === "sessions" ? 0 : -1;
+    sessionTreeElement.tabIndex = state.lane === "tree" ? 0 : -1;
+    form.classList.toggle("composer--list-hidden", isSessionLane);
+    form.setAttribute("aria-hidden", isSessionLane || isSettingsFaceVisible ? "true" : "false");
+    form.inert = isSessionLane || isSettingsFaceVisible;
+    sessionsController.syncForRender(isSessionLane);
+    settingsController.syncForRender(isSessionLane);
+    customUiController.syncForRender(isSessionLane || isSettingsFaceVisible);
+    if (isSettingsFaceVisible) {
       busyStatusElement.hidden = true;
       composerController.closeSlashMenu();
       composerController.closeModelMenu();
@@ -6051,15 +6057,15 @@ ${after}`;
       sessionsController.cancelSessionNameEdit();
       return;
     }
-    if (isListView) {
+    if (isSessionLane) {
       busyStatusElement.hidden = true;
-      state.viewMode === "tree" ? sessionsController.renderTree() : sessionsController.renderSessions();
+      state.lane === "tree" ? sessionsController.renderTree() : sessionsController.renderSessions();
       composerController.closeSlashMenu();
       composerController.closeModelMenu();
       sessionsController.closeSessionCommandMenu();
       sessionsController.cancelSessionNameEdit();
       if (!sessionsController.isSessionListNameEditing() && !sessionsController.isSessionSearchFocused()) {
-        const activeSessionPane = state.viewMode === "tree" ? sessionTreeElement : sessionsElement;
+        const activeSessionPane = state.lane === "tree" ? sessionTreeElement : sessionsElement;
         requestAnimationFrame(() => activeSessionPane.focus({ preventScroll: true }));
       }
       return;
@@ -6137,10 +6143,10 @@ ${after}`;
       event.stopPropagation();
       return true;
     }
-    if (state.viewMode === "chat") {
+    if (state.lane === "chat") {
       event.preventDefault();
       event.stopPropagation();
-      vscode.postMessage({ type: "showSessions" });
+      vscode.postMessage({ type: "showLane", lane: "sessions" });
       return true;
     }
     return false;
@@ -6151,11 +6157,11 @@ ${after}`;
     focusPromptInput();
   }
   function handleCustomUiClose() {
-    if (state.viewMode !== "chat") {
+    if (state.lane !== "chat") {
       return;
     }
     requestAnimationFrame(() => {
-      if (state.viewMode === "chat" && !customUiController.isActive()) {
+      if (state.lane === "chat" && !customUiController.isActive()) {
         textarea.focus({ preventScroll: true });
       }
     });

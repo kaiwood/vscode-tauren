@@ -18,11 +18,9 @@ export type WebviewMessage =
   | { type: 'ready' }
   | { type: 'focusChanged'; focused: boolean }
   | { type: 'newSession' }
-  | { type: 'showSessions' }
-  | { type: 'showTree' }
-  | { type: 'hideSessions' }
-  | { type: 'showSettings' }
-  | { type: 'hideSettings' }
+  | { type: 'showLane'; lane: WebviewLane }
+  | { type: 'showChatFace'; chatFace: WebviewChatFace }
+  | { type: 'hideChatFace' }
   | { type: 'setSettingsSection'; section: WebviewSettingsSection }
   | { type: 'refreshSessions' }
   | { type: 'showCurrentChanges' }
@@ -65,12 +63,16 @@ export type WebviewSlashCommand = {
   path?: string;
 };
 
-export type WebviewViewMode = 'chat' | 'sessions' | 'tree';
-export type WebviewSurfaceSide = 'front' | 'settings';
+export type WebviewLane = 'chat' | 'sessions' | 'tree';
+export type WebviewChatFace = 'main' | 'settings';
 export type WebviewSettingsSection = 'providers' | 'models' | 'runtime' | 'appearance' | 'advanced';
 
+export type WebviewNavigationState = {
+  lane?: WebviewLane;
+  chatFace?: WebviewChatFace;
+};
+
 export type WebviewSettingsViewState = {
-  surfaceSide?: WebviewSurfaceSide;
   activeSection?: WebviewSettingsSection;
 };
 
@@ -134,7 +136,7 @@ export type WebviewStateMessage = ChatState & {
   promptContext?: WebviewPromptContextAttachment[];
   composerText?: string;
   composerTextRevision?: number;
-  viewMode?: WebviewViewMode;
+  lane?: WebviewLane;
   sessions?: WebviewSessionItem[];
   sessionsRefreshing?: boolean;
   sessionsError?: string;
@@ -144,7 +146,7 @@ export type WebviewStateMessage = ChatState & {
   treeRefreshing?: boolean;
   treeError?: string;
   sessionLoading?: boolean;
-  surfaceSide?: WebviewSurfaceSide;
+  chatFace?: WebviewChatFace;
   settingsSection?: WebviewSettingsSection;
 };
 
@@ -177,8 +179,8 @@ export type CreateWebviewStateMessageOptions = {
     text?: string;
     revision?: number;
   };
+  navigation?: WebviewNavigationState;
   sessionView?: {
-    viewMode?: WebviewViewMode;
     sessions?: WebviewSessionItem[];
     refreshing?: boolean;
     error?: string;

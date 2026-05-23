@@ -33,7 +33,7 @@ suite('TauSessionManager', () => {
     await harness.manager.handleWebviewMessage({ type: 'submit', text: 'run in the background' });
     await harness.manager.handleWebviewMessage({ type: 'newSession' });
     await flushPromises();
-    await harness.manager.handleWebviewMessage({ type: 'showSessions' });
+    await harness.manager.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
 
     let backgroundSession = findSession(lastState(harness), '/sessions/one.jsonl');
     assert.strictEqual(backgroundSession?.liveStatus, 'running');
@@ -76,7 +76,7 @@ suite('TauSessionManager', () => {
       invalidate: () => undefined
     }));
     await flushPromises();
-    await harness.manager.handleWebviewMessage({ type: 'showSessions' });
+    await harness.manager.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
 
     assert.ok(customPromise);
     assert.strictEqual(harness.customUiMessages.some((message) => message.type === 'customUiShow'), false);
@@ -154,7 +154,7 @@ suite('TauSessionManager', () => {
       listSessions: async (_cwd, currentSessionFile) => createSessionItems(currentSessionFile)
     });
 
-    await harness.manager.handleWebviewMessage({ type: 'showSessions' });
+    await harness.manager.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
     await harness.manager.handleWebviewMessage({ type: 'selectSession', sessionPath: '/sessions/two.jsonl' });
     await flushPromises();
 
@@ -261,7 +261,7 @@ suite('TauSessionManager', () => {
       globalThis.clearTimeout = (() => undefined) as typeof clearTimeout;
 
       await harness.manager.handleWebviewMessage({ type: 'newSession' });
-      await harness.manager.handleWebviewMessage({ type: 'showSessions' });
+      await harness.manager.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
       await flushPromises();
 
       assert.strictEqual(findSession(lastState(harness), '/sessions/one.jsonl')?.liveStatus, 'idle');
@@ -291,13 +291,13 @@ suite('TauSessionManager', () => {
     await harness.manager.handleWebviewMessage({ type: 'newSession' });
     await harness.manager.handleWebviewMessage({ type: 'newSession' });
     await harness.manager.handleWebviewMessage({ type: 'newSession' });
-    await harness.manager.handleWebviewMessage({ type: 'showSessions' });
+    await harness.manager.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
     await flushPromises();
 
     assert.strictEqual(findSession(lastState(harness), '/sessions/one.jsonl')?.liveStatus, 'idle');
 
     await harness.manager.handleWebviewMessage({ type: 'newSession' });
-    await harness.manager.handleWebviewMessage({ type: 'showSessions' });
+    await harness.manager.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
     await flushPromises();
 
     assert.strictEqual(findSession(lastState(harness), '/sessions/one.jsonl')?.liveStatus, undefined);
@@ -321,7 +321,7 @@ suite('TauSessionManager', () => {
     await harness.manager.handleWebviewMessage({ type: 'submit', text: 'keep running' });
     await harness.manager.handleWebviewMessage({ type: 'newSession' });
     await flushPromises();
-    await harness.manager.handleWebviewMessage({ type: 'showSessions' });
+    await harness.manager.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
     await harness.manager.handleWebviewMessage({ type: 'setSessionItemName', sessionPath: '/sessions/one.jsonl', name: 'Renamed while running' });
     await flushPromises();
 

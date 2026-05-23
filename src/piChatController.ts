@@ -28,6 +28,7 @@ import { PiClientManager } from './controller/piClientManager';
 import { PiEventHandler } from './controller/piEventHandler';
 import { SessionViewController } from './sessions/sessionViewController';
 import { SettingsViewController } from './settings/settingsViewController';
+import { NavigationController } from './navigation/navigationController';
 import { getPiStartupCwdState, type PiStartupCwdState } from './workspace/cwdSafety';
 
 export type { PiChatControllerOptions } from './controller/types';
@@ -40,6 +41,7 @@ export class PiChatController {
   private readonly sessionMetadata: SessionMetadataState;
   private readonly sessionMetadataRefresh: SessionMetadataRefreshController;
   private readonly slashCommandController: LocalSlashCommandController;
+  private readonly navigation: NavigationController;
   private readonly sessionView: SessionViewController;
   private readonly settingsView: SettingsViewController;
   private pendingComposerText: { text: string; revision: number } | undefined;
@@ -65,9 +67,11 @@ export class PiChatController {
       saveSnapshot: (sessionFile, snapshot) => this.options.saveSessionDiffSnapshot?.(sessionFile, snapshot)
     });
 
-    this.settingsView = new SettingsViewController(() => this.postState());
+    this.navigation = new NavigationController(() => this.postState());
+    this.settingsView = new SettingsViewController(this.navigation, () => this.postState());
 
     this.sessionView = new SessionViewController({
+      navigation: this.navigation,
       createClient: options.createClient,
       deleteSession: options.deleteSession,
       extensionUi: options.extensionUi,
@@ -205,22 +209,24 @@ export class PiChatController {
       case 'newSession':
         this.startNewSession();
         return;
-      case 'showSessions':
-        this.settingsView.hideSettings({ post: false });
-        this.sessionView.showSessions();
+      case 'showLane':
+        if (message.lane === 'sessions') {
+          this.sessionView.showSessions();
+        } else if (message.lane === 'tree') {
+          this.sessionView.showTree();
+        } else {
+          this.sessionView.showChat({ clearSessionsError: true, clearTreeError: true });
+        }
         return;
-      case 'showTree':
-        this.settingsView.hideSettings({ post: false });
-        this.sessionView.showTree();
+      case 'showChatFace':
+        if (message.chatFace === 'settings') {
+          this.sessionView.showChat({ clearSessionsError: true, clearTreeError: true, post: false });
+          this.settingsView.showSettings();
+        } else {
+          this.settingsView.hideSettings();
+        }
         return;
-      case 'hideSessions':
-        this.sessionView.hideSessions();
-        return;
-      case 'showSettings':
-        this.sessionView.showChat({ clearSessionsError: true, clearTreeError: true });
-        this.settingsView.showSettings();
-        return;
-      case 'hideSettings':
+      case 'hideChatFace':
         this.settingsView.hideSettings();
         return;
       case 'setSettingsSection':
@@ -364,7 +370,7 @@ export class PiChatController {
 
   public toggleSessionList(): void {
     if (this.sessionView.isSessionListVisible) {
-      this.sessionView.hideSessions();
+      this.sessionView.hideSessionLane();
       return;
     }
 
@@ -378,7 +384,7 @@ export class PiChatController {
 
   public toggleSessionTree(): void {
     if (this.sessionView.isTreeVisible) {
-      this.sessionView.hideSessions();
+      this.sessionView.hideSessionLane();
       return;
     }
 
@@ -391,9 +397,7 @@ export class PiChatController {
   }
 
   public showChat(): void {
-    this.settingsView.hideSettings({ post: false });
     this.sessionView.showChat({ clearSessionsError: true, clearTreeError: true });
-    this.postState();
   }
 
   public async deleteCurrentSession(): Promise<void> {
@@ -402,13 +406,13 @@ export class PiChatController {
 
   public toggleSettings(): void {
     if (!this.settingsView.isSettingsVisible) {
-      this.sessionView.showChat({ clearSessionsError: true, clearTreeError: true });
+      this.sessionView.showChat({ clearSessionsError: true, clearTreeError: true, post: false });
     }
 
     this.settingsView.toggleSettings();
   }
 
-  public startNewSession(options: { viewMode?: 'chat' | 'sessions' } = {}): void {
+  public startNewSession(options: { lane?: 'chat' | 'sessions' } = {}): void {
     if (this.session.isBusy) {
       this.addBusySlashCommandNotice('new');
       return;
@@ -417,7 +421,7 @@ export class PiChatController {
     this.piEventHandler.reset();
     this.resetAbortState();
     this.session.startNewSession();
-    this.sessionView.startNewSession(options.viewMode ?? 'chat');
+    this.sessionView.startNewSession(options.lane ?? 'chat');
     this.sessionDiffController.reset(undefined);
     this.clientManager.setNextSessionFile(undefined);
     this.sessionHistory.startNewSession();
@@ -489,6 +493,7 @@ export class PiChatController {
       contextUsage: metadataState.contextUsage,
       metadataRefreshing: metadataState.metadataRefreshing,
       workspaceDiffStats: this.sessionDiffController.getStats(),
+      navigation: this.navigation.getWebviewState(),
       sessionView: this.sessionView.getWebviewState(this.sessionHistory.isLoading),
       settingsView: this.settingsView.getWebviewState()
     });
