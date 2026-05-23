@@ -11,8 +11,15 @@ const bundledSdkPath = path.join(__dirname, 'piSdkBundle.mjs');
 const bundledSdkPackageDir = path.resolve(__dirname, '..', '..', 'resources', 'pi-sdk-runtime');
 let piSdkModulePromise: Promise<PiSdkModule> | undefined;
 
-export function loadPiSdk(): Promise<PiSdkModule> {
+function setBundledSdkPackageDir(): void {
+  // The bundled Pi SDK resolves package assets through process.env.PI_PACKAGE_DIR.
+  // This is an intentional process-wide side effect, isolated to SDK loading and
+  // applied before import so Pi reads Tau's packaged runtime assets.
   process.env.PI_PACKAGE_DIR = bundledSdkPackageDir;
+}
+
+export function loadPiSdk(): Promise<PiSdkModule> {
+  setBundledSdkPackageDir();
   piSdkModulePromise ??= importEsm(pathToFileURL(bundledSdkPath).href).catch((error) => {
     piSdkModulePromise = undefined;
     throw error;

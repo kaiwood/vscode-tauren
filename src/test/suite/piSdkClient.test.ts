@@ -6,15 +6,16 @@ import { loadPiSdk, resetPiSdkLoaderForTests, type PiSdkModule } from '../../sdk
 import type { PiEvent } from '../../pi/types';
 
 suite('PiSdkClient', () => {
-  test('loads the bundled SDK runtime', async () => {
+  test('loads the bundled SDK runtime and sets its package dir', async () => {
     const previousPackageDir = process.env.PI_PACKAGE_DIR;
-    delete process.env.PI_PACKAGE_DIR;
+    process.env.PI_PACKAGE_DIR = '/external/pi-package';
     resetPiSdkLoaderForTests();
 
     try {
       const sdk = await loadPiSdk();
 
       assert.strictEqual(typeof sdk.createAgentSessionRuntime, 'function');
+      assert.notStrictEqual(process.env.PI_PACKAGE_DIR, '/external/pi-package');
       assert.match(process.env.PI_PACKAGE_DIR ?? '', /resources[/\\]pi-sdk-runtime$/);
     } finally {
       if (previousPackageDir === undefined) {
