@@ -63,6 +63,33 @@ suite('Webview custom UI keyboard helpers', () => {
     assert.strictEqual(form.inert, false);
   });
 
+  test('keeps custom UI text capture focused while active', () => {
+    let focusCount = 0;
+    const inputCaptureElement = {
+      value: 'stale',
+      focus: () => {
+        focusCount += 1;
+      }
+    } as unknown as HTMLTextAreaElement;
+    const controller = new CustomUiController({
+      vscode: { postMessage: () => undefined },
+      customUiElement: fakeElement(),
+      customUiOutputElement: fakeElement(),
+      customUiCloseButton: fakeElement() as HTMLButtonElement,
+      form: fakeElement() as HTMLFormElement
+    });
+
+    (controller as unknown as { activeId: string; inputCaptureElement: HTMLTextAreaElement }).activeId = 'custom-1';
+    (controller as unknown as { inputCaptureElement: HTMLTextAreaElement }).inputCaptureElement = inputCaptureElement;
+
+    assert.strictEqual(controller.focusInput(), true);
+    assert.strictEqual(inputCaptureElement.value, '');
+    assert.strictEqual(focusCount, 1);
+
+    assert.strictEqual(controller.handleGlobalKeydown(keyEvent({ key: 'a' })), true);
+    assert.strictEqual(focusCount, 2);
+  });
+
   test('does not notify for stale custom UI hide messages', () => {
     let closeCount = 0;
     const controller = new CustomUiController({

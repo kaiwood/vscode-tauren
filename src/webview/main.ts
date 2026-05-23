@@ -548,6 +548,10 @@ function handleCustomUiClose(): void {
 
 function focusPromptInput(): void {
   requestAnimationFrame(() => {
+    if (customUiController.focusInput()) {
+      return;
+    }
+
     textarea.focus({ preventScroll: true });
   });
 }

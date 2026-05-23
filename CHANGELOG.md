@@ -4,6 +4,7 @@ All notable changes to Tau will be documented in this file.
 
 ## Unreleased
 
+- Fixed custom UI free-text answers so delayed prompt focus cannot steal typing from the active questionnaire.
 - Fixed stale in-flight session diff refreshes so they cannot apply stats to a newly selected session.
 - Added inline image rendering for Pi image content, markdown images, workspace image paths, and optionally remote HTTPS images.
 - Added native Tau view toolbar session actions for renaming, compacting, exporting, and moving the current session to Trash, and removed less-used actions from that menu.

@@ -137,6 +137,15 @@ export class CustomUiController {
     return Boolean(this.activeId);
   }
 
+  public focusInput(): boolean {
+    if (!this.activeId || this.options.customUiElement.hidden || this.options.customUiElement.inert) {
+      return false;
+    }
+
+    this.focusInputCapture();
+    return true;
+  }
+
   private show(id: string): void {
     this.activeId = id;
     this.lastDimensionSignature = '';
@@ -273,6 +282,7 @@ export class CustomUiController {
     }
 
     if (isTextInputKeyboardEvent(event)) {
+      this.focusInputCapture();
       return;
     }
 

@@ -2004,6 +2004,13 @@
     isActive() {
       return Boolean(this.activeId);
     }
+    focusInput() {
+      if (!this.activeId || this.options.customUiElement.hidden || this.options.customUiElement.inert) {
+        return false;
+      }
+      this.focusInputCapture();
+      return true;
+    }
     show(id) {
       this.activeId = id;
       this.lastDimensionSignature = "";
@@ -2116,6 +2123,7 @@
         return;
       }
       if (isTextInputKeyboardEvent(event)) {
+        this.focusInputCapture();
         return;
       }
       const data = terminalDataForKeyboardEvent(event, event.repeat ? "repeat" : "press");
@@ -6154,6 +6162,9 @@ ${after}`;
   }
   function focusPromptInput() {
     requestAnimationFrame(() => {
+      if (customUiController.focusInput()) {
+        return;
+      }
       textarea.focus({ preventScroll: true });
     });
   }
