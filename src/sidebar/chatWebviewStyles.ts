@@ -1516,6 +1516,42 @@ const messageStyles = /* css */ `    .message {
       text-underline-offset: 2px;
     }
 
+    .message__images,
+    .activity__images {
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .tau-image {
+      display: block;
+      max-width: 100%;
+      max-height: min(520px, 60vh);
+      object-fit: contain;
+      border: 1px solid color-mix(in srgb, var(--vscode-foreground) 14%, transparent);
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--vscode-editor-background) 94%, var(--vscode-foreground) 6%);
+    }
+
+    .message__body--markdown .tau-image,
+    .message__body--markdown img,
+    .activity__body--markdown .tau-image,
+    .activity__body--markdown img {
+      max-width: 100%;
+      max-height: min(520px, 60vh);
+    }
+
+    .tau-image-fallback {
+      display: inline-block;
+      margin: 2px 0;
+      padding: 4px 6px;
+      color: var(--vscode-descriptionForeground);
+      background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
+      border: 1px solid color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
     .tau-stream-word {
       display: inline-block;
       animation: tau-stream-word-in 280ms cubic-bezier(0.16, 1, 0.3, 1) both;

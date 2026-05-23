@@ -21,4 +21,20 @@ suite('Transcript formatting', () => {
       variant: 'branchSummary'
     }]);
   });
+
+  test('preserves supported image parts from restored messages', () => {
+    assert.deepStrictEqual(formatAgentMessages([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Look at this' },
+          { type: 'image', data: 'abc', mimeType: 'image/png' }
+        ]
+      }
+    ]), [{
+      role: 'user',
+      text: 'Look at this',
+      images: [{ type: 'image', data: 'abc', mimeType: 'image/png' }]
+    }]);
+  });
 });

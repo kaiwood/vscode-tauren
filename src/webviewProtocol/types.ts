@@ -41,6 +41,7 @@ export type WebviewMessage =
   | { type: 'copyText'; text: string; successMessage?: string }
   | { type: 'openFile'; path: string; line?: number; column?: number }
   | { type: 'highlightCode'; id: string; code: string; language: string; themeId?: string }
+  | { type: 'resolveLocalImage'; id: string; src: string }
   | { type: 'customUiInput'; id: string; data: string }
   | { type: 'customUiCancel'; id: string }
   | { type: 'customUiDimensions'; id: string; columns: number; rows: number }
@@ -128,6 +129,7 @@ export type WebviewStateMessage = ChatState & {
   outputColors: boolean;
   animationsEnabled: boolean;
   customUiTheme: WebviewCustomUiTheme;
+  allowRemoteImages?: boolean;
   welcomeDismissed?: boolean;
   promptContext?: WebviewPromptContextAttachment[];
   composerText?: string;
@@ -168,6 +170,7 @@ export type CreateWebviewStateMessageOptions = {
   outputColors?: boolean;
   animationsEnabled?: boolean;
   customUiTheme?: WebviewCustomUiTheme;
+  allowRemoteImages?: boolean;
   welcomeDismissed?: boolean;
   promptContext?: WebviewPromptContextAttachment[];
   composer?: {
@@ -193,6 +196,7 @@ export type WebviewScriptUris = {
   markdownItScriptUri: string;
   domPurifyScriptUri: string;
   webviewScriptUri: string;
+  cspSource?: string;
 };
 
 export type CreateWebviewHtmlOptions = {

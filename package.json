@@ -270,6 +270,11 @@
           ],
           "description": "Choose the visual theme for Pi custom UI terminal panels."
         },
+        "tau.allowRemoteImages": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow Tau chat markdown to load remote HTTPS images. Turn this off to block external image requests while still allowing Pi image data and workspace images."
+        },
         "tau.readyScript": {
           "type": "string",
           "default": "",

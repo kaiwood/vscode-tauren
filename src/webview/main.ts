@@ -1,4 +1,5 @@
 import { configureCodeHighlighting, handleCodeHighlightMessage, watchCodeHighlightThemeChanges } from './codeHighlighting';
+import { configureMarkdownImageRendering, handleMarkdownImageMessage } from './messages/markdown';
 import { ComposerController } from './composer/composer';
 import { CustomUiController } from './customUI/customUi';
 import { getWebviewDom } from './dom';
@@ -10,6 +11,7 @@ import type { WebviewState } from './types';
 
 const vscode = acquireVsCodeApi();
 configureCodeHighlighting((message) => vscode.postMessage(message));
+configureMarkdownImageRendering((message) => vscode.postMessage(message));
 watchCodeHighlightThemeChanges();
 
 const {
@@ -166,6 +168,11 @@ window.addEventListener('message', (event) => {
   }
 
   if (handleCodeHighlightMessage(event.data)) {
+    messagesController.scheduleMessagesToBottom();
+    return;
+  }
+
+  if (handleMarkdownImageMessage(event.data)) {
     messagesController.scheduleMessagesToBottom();
     return;
   }

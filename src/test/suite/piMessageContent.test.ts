@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { extractPiMessageText } from '../../pi/messageContent';
+import { extractPiMessageImages, extractPiMessageText } from '../../pi/messageContent';
 
 suite('Pi message content helpers', () => {
   test('returns string content unchanged', () => {
@@ -29,8 +29,21 @@ suite('Pi message content helpers', () => {
     );
   });
 
+  test('extracts supported raster image parts', () => {
+    const content = [
+      { type: 'image', data: 'abc', mimeType: 'image/png', alt: 'Screenshot' },
+      { type: 'image', data: 'svg', mimeType: 'image/svg+xml' },
+      { type: 'image', data: 1, mimeType: 'image/png' }
+    ];
+
+    assert.deepStrictEqual(extractPiMessageImages(content), [
+      { type: 'image', data: 'abc', mimeType: 'image/png', alt: 'Screenshot' }
+    ]);
+  });
+
   test('ignores malformed or unsupported content', () => {
     assert.strictEqual(extractPiMessageText(undefined), '');
     assert.strictEqual(extractPiMessageText([{ type: 'text', text: 1 }, null, { type: 'toolCall' }]), '');
+    assert.deepStrictEqual(extractPiMessageImages(undefined), []);
   });
 });

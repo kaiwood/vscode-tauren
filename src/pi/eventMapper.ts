@@ -1,7 +1,9 @@
 import type {
   ChatActivityBodyMode,
-  ChatActivityInput
+  ChatActivityInput,
+  ChatImage
 } from '../chat/chatSession';
+import { parsePiImageContent } from './messageContent';
 import { formatCompactionTitle } from '../sessions/sessionFormatting';
 import type { PiEvent } from '../pi/types';
 
@@ -72,16 +74,19 @@ export function formatToolExecutionActivity({
   status
 }: ToolExecutionActivityOptions): ChatActivityInput {
   const display = formatToolExecutionDisplay({ toolName, args });
+  const resultValue = status === 'running' ? partialResult : result;
+  const images = extractToolResultImages(resultValue);
   const preview = status !== 'error' && display.toolName === 'edit'
-    ? formatEditDiffPreview(args) ?? formatToolResultPreview(status === 'running' ? partialResult : result, display.toolName)
-    : formatToolResultPreview(status === 'running' ? partialResult : result, display.toolName);
+    ? formatEditDiffPreview(args) ?? formatToolResultPreview(resultValue, display.toolName)
+    : formatToolResultPreview(resultValue, display.toolName);
 
   return {
     kind: 'tool_execution',
     title: display.title,
     status,
     ...(display.summary ? { summary: display.summary } : {}),
-    ...(preview ? { body: preview.body, ...(preview.expandedBody ? { expandedBody: preview.expandedBody } : {}), code: true } : {})
+    ...(preview ? { body: preview.body, ...(preview.expandedBody ? { expandedBody: preview.expandedBody } : {}), code: true } : {}),
+    ...(images.length > 0 ? { images } : {})
   };
 }
 
@@ -775,6 +780,19 @@ function formatToolResultPreview(value: unknown, toolName: string): ToolTextPrev
   return previewToolText(result, toolName === 'bash' ? 'tail' : 'head');
 }
 
+function extractToolResultImages(value: unknown): ChatImage[] {
+  const content = isRecord(value) ? value.content : undefined;
+
+  if (!Array.isArray(content)) {
+    return [];
+  }
+
+  return content.flatMap((item): ChatImage[] => {
+    const image = parsePiImageContent(item);
+    return image ? [image] : [];
+  });
+}
+
 function formatToolResult(value: unknown): string | undefined {
   if (!isRecord(value)) {
     return value === undefined ? undefined : formatBodyValue(value);
@@ -798,21 +816,26 @@ function formatContent(value: unknown): string | undefined {
     return undefined;
   }
 
-  const parts = value.map((item) => {
+  const parts = value.flatMap((item): string[] => {
     if (!isRecord(item)) {
-      return formatBodyValue(item);
+      return [formatBodyValue(item)];
     }
 
     if (getRecordString(item, 'type') === 'text') {
-      return getRecordString(item, 'text') ?? '';
+      const text = getRecordString(item, 'text') ?? '';
+      return text ? [text] : [];
     }
 
     if (getRecordString(item, 'type') === 'image') {
+      if (parsePiImageContent(item)) {
+        return [];
+      }
+
       const mimeType = getRecordString(item, 'mimeType');
-      return mimeType ? `[image: ${mimeType}]` : '[image]';
+      return [mimeType ? `[unsupported image: ${mimeType}]` : '[unsupported image]'];
     }
 
-    return formatJson(item);
+    return [formatJson(item)];
   });
 
   return parts.join('\n');

@@ -1,6 +1,6 @@
 import type { ChatActivityInput, ChatMessage } from '../chat/chatSession';
 import { formatToolExecutionActivity } from '../pi/eventMapper';
-import { extractPiMessageText } from '../pi/messageContent';
+import { extractPiMessageImages, extractPiMessageText } from '../pi/messageContent';
 import { formatCompactionSystemMessage } from '../sessions/sessionFormatting';
 import type { PiAgentMessage } from '../pi/types';
 import { isRecord } from './typeGuards';
@@ -27,10 +27,11 @@ export function formatAgentMessages(messages: PiAgentMessage[] | undefined): Cha
     }
 
     if (message.role === 'user') {
-      const text = extractPiMessageText(message.content, { includeImages: true });
+      const text = extractPiMessageText(message.content);
+      const images = extractPiMessageImages(message.content);
 
-      if (text.trim()) {
-        transcript.push({ role: 'user', text });
+      if (text.trim() || images.length > 0) {
+        transcript.push({ role: 'user', text, ...(images.length > 0 ? { images } : {}) });
       }
 
       lastAssistant = undefined;
@@ -44,15 +45,17 @@ export function formatAgentMessages(messages: PiAgentMessage[] | undefined): Cha
         toolCallsById.set(toolCall.id, toolCall);
       }
 
-      const text = extractPiMessageText(message.content, { includeImages: true });
+      const text = extractPiMessageText(message.content);
+      const images = extractPiMessageImages(message.content);
       const errorMessage = typeof message.errorMessage === 'string' ? message.errorMessage : '';
       const displayText = text || errorMessage;
 
-      if (displayText.trim() || toolCalls.length > 0) {
+      if (displayText.trim() || images.length > 0 || toolCalls.length > 0) {
         const chatMessage: ChatMessage = {
           role: 'assistant',
           text: displayText,
-          ...(errorMessage ? { error: true } : {})
+          ...(errorMessage ? { error: true } : {}),
+          ...(images.length > 0 ? { images } : {})
         };
         transcript.push(chatMessage);
         lastAssistant = chatMessage;
@@ -106,10 +109,11 @@ export function formatAgentMessages(messages: PiAgentMessage[] | undefined): Cha
     if (message.role === 'custom') {
       const displayText = typeof message.display === 'string'
         ? message.display
-        : extractPiMessageText(message.content, { includeImages: true });
+        : extractPiMessageText(message.content);
+      const images = extractPiMessageImages(message.content);
 
-      if (displayText.trim()) {
-        transcript.push({ role: 'system', text: displayText });
+      if (displayText.trim() || images.length > 0) {
+        transcript.push({ role: 'system', text: displayText, ...(images.length > 0 ? { images } : {}) });
       }
 
       lastAssistant = undefined;

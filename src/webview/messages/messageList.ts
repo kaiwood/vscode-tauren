@@ -18,6 +18,8 @@ type RenderedMessageView = {
   message: ChatMessage;
   showRole: boolean;
   activitiesSignature: string;
+  imagesSignature: string;
+  allowRemoteImages: boolean;
   copyable: boolean;
 };
 
@@ -335,18 +337,20 @@ export class MessageListController {
     const state = this.options.getState();
     const existingView = this.renderedMessageViews[index];
     const activitiesSignature = this.getActivitiesSignature(message);
+    const imagesSignature = this.getImagesSignature(message);
     const copyable = canCopyAssistantMessage(message);
     const animateFromText = this.getStreamingAnimationStartText(existingView, message, index);
 
-    if (existingView && canReuseMessageElement(existingView, message, showRole, activitiesSignature, copyable)) {
-      if ((existingView.message.text || '') !== (message.text || '')) {
+    if (existingView && canReuseMessageElement(existingView, message, showRole, activitiesSignature, imagesSignature, state.allowRemoteImages, copyable)) {
+      if ((existingView.message.text || '') !== (message.text || '') || existingView.imagesSignature !== imagesSignature) {
         updateMessageBodyElement(
           existingView.element,
           message,
           {
             ...(animateFromText === undefined ? {} : { animateFromText }),
             outputColors: state.outputColors,
-            animationsEnabled: state.animationsEnabled
+            animationsEnabled: state.animationsEnabled,
+            allowRemoteImages: state.allowRemoteImages
           }
         );
       }
@@ -354,6 +358,8 @@ export class MessageListController {
       existingView.message = message;
       existingView.showRole = showRole;
       existingView.activitiesSignature = activitiesSignature;
+      existingView.imagesSignature = imagesSignature;
+      existingView.allowRemoteImages = state.allowRemoteImages;
       existingView.copyable = copyable;
       return existingView;
     }
@@ -366,12 +372,15 @@ export class MessageListController {
         {
           ...(animateFromText === undefined ? {} : { animateFromText }),
           outputColors: state.outputColors,
-          animationsEnabled: state.animationsEnabled
+          animationsEnabled: state.animationsEnabled,
+          allowRemoteImages: state.allowRemoteImages
         }
       ),
       message,
       showRole,
       activitiesSignature,
+      imagesSignature,
+      allowRemoteImages: state.allowRemoteImages,
       copyable
     };
 
@@ -396,11 +405,13 @@ export class MessageListController {
         state.messages[index],
         showRole,
         index,
-        { outputColors: state.outputColors, animationsEnabled: state.animationsEnabled }
+        { outputColors: state.outputColors, animationsEnabled: state.animationsEnabled, allowRemoteImages: state.allowRemoteImages }
       ),
       message: state.messages[index],
       showRole,
       activitiesSignature: this.getActivitiesSignature(state.messages[index]),
+      imagesSignature: this.getImagesSignature(state.messages[index]),
+      allowRemoteImages: state.allowRemoteImages,
       copyable: canCopyAssistantMessage(state.messages[index])
     };
 
@@ -445,7 +456,11 @@ export class MessageListController {
       return '';
     }
 
-    return JSON.stringify({ outputColors: state.outputColors, activities: message.activities });
+    return JSON.stringify({ outputColors: state.outputColors, allowRemoteImages: state.allowRemoteImages, activities: message.activities });
+  }
+
+  private getImagesSignature(message: ChatMessage): string {
+    return JSON.stringify(message.images ?? []);
   }
 
   private getBusyStatusText(): string {
@@ -564,6 +579,8 @@ function canReuseMessageElement(
   message: ChatMessage,
   showRole: boolean,
   activitiesSignature: string,
+  imagesSignature: string,
+  allowRemoteImages: boolean,
   copyable: boolean
 ): boolean {
   return view.message.role === message.role
@@ -571,6 +588,8 @@ function canReuseMessageElement(
     && (view.message.variant || '') === (message.variant || '')
     && view.showRole === showRole
     && view.activitiesSignature === activitiesSignature
+    && view.imagesSignature === imagesSignature
+    && view.allowRemoteImages === allowRemoteImages
     && view.copyable === copyable;
 }
 

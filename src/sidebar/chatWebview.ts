@@ -133,6 +133,10 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
         ...(themeId ? { themeId } : {})
       };
     }
+    case 'resolveLocalImage':
+      return typeof value.id === 'string' && value.id && typeof value.src === 'string' && value.src
+        ? { type: 'resolveLocalImage', id: value.id, src: value.src }
+        : { type: 'unknown' };
     case 'customUiInput':
       return typeof value.id === 'string' && value.id && typeof value.data === 'string'
         ? { type: 'customUiInput', id: value.id, data: value.data }
@@ -188,6 +192,7 @@ export function createWebviewStateMessage({
   outputColors = true,
   animationsEnabled = true,
   customUiTheme = 'default',
+  allowRemoteImages = true,
   welcomeDismissed,
   promptContext = [],
   composer,
@@ -216,7 +221,8 @@ export function createWebviewStateMessage({
     slashCommandsRefreshing,
     outputColors,
     animationsEnabled,
-    customUiTheme
+    customUiTheme,
+    allowRemoteImages: Boolean(allowRemoteImages)
   };
 
   if (welcomeDismissed !== undefined) {
@@ -266,13 +272,14 @@ export function createWebviewStateMessage({
 
 export function createWebviewHtml(scriptUris: WebviewScriptUris, options: CreateWebviewHtmlOptions = {}): string {
   const nonce = createNonce();
+  const cspSource = scriptUris.cspSource ?? 'vscode-resource:';
 
   return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https: ${escapeHtmlAttribute(cspSource)}; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
   <title>Pi</title>
   <style>
 ${chatWebviewStyles}
@@ -456,6 +463,14 @@ function createInitialEmptyStateHtml(welcomeDismissed: boolean): string {
 
 function parseStreamingBehavior(value: unknown): WebviewStreamingBehavior | undefined {
   return value === 'steer' || value === 'followUp' ? value : undefined;
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function normalizeDiffLineCount(value: unknown): number {

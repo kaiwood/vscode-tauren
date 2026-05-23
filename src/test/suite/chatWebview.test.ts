@@ -57,7 +57,8 @@ suite('Chat webview helpers', () => {
         slashCommandsRefreshing: false,
         outputColors: true,
         animationsEnabled: true,
-        customUiTheme: 'default'
+        customUiTheme: 'default',
+        allowRemoteImages: true
       }
     );
   });
@@ -84,7 +85,8 @@ suite('Chat webview helpers', () => {
         slashCommandsRefreshing: false,
         outputColors: true,
         animationsEnabled: true,
-        customUiTheme: 'default'
+        customUiTheme: 'default',
+        allowRemoteImages: true
       }
     );
   });
@@ -171,6 +173,10 @@ suite('Chat webview helpers', () => {
       { type: 'highlightCode', id: 'highlight-2', code: 'const x = 1;', language: 'typescript', themeId: 'Default Dark Modern' }
     );
     assert.deepStrictEqual(
+      parseWebviewMessage({ type: 'resolveLocalImage', id: 'local-image-1', src: './image.png' }),
+      { type: 'resolveLocalImage', id: 'local-image-1', src: './image.png' }
+    );
+    assert.deepStrictEqual(
       parseWebviewMessage({ type: 'customUiInput', id: 'custom-ui-1', data: '\\r' }),
       { type: 'customUiInput', id: 'custom-ui-1', data: '\\r' }
     );
@@ -227,6 +233,8 @@ suite('Chat webview helpers', () => {
     assert.deepStrictEqual(parseWebviewMessage({ type: 'highlightCode', id: 'highlight-1', code: '', language: 'typescript' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'highlightCode', id: 'highlight-1', code: 'const x = 1;', language: '' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'highlightCode', id: 'highlight-1', code: 'const x = 1;', language: 'typescript', themeId: 42 }), { type: 'unknown' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'resolveLocalImage', id: '', src: './image.png' }), { type: 'unknown' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'resolveLocalImage', id: 'local-image-1', src: '' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'customUiInput', id: '', data: '\\r' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'customUiInput', id: 'custom-ui-1', data: 42 }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'customUiCancel', id: '' }), { type: 'unknown' });
@@ -291,7 +299,7 @@ suite('Chat webview helpers', () => {
 
     assert.ok(
       html.includes(
-        `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">`
+        `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https: vscode-resource:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">`
       )
     );
     assert.ok(html.includes('    .pi-view {'));

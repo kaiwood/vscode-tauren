@@ -4,6 +4,7 @@ All notable changes to Tau will be documented in this file.
 
 ## Unreleased
 
+- Added inline image rendering for Pi image content, markdown images, workspace image paths, and optionally remote HTTPS images.
 - Added native Tau view toolbar session actions for renaming, compacting, exporting, and moving the current session to Trash, and removed less-used actions from that menu.
 - Added a native Tau view toolbar help action with a combined chat/session shortcut table.
 - Removed the chat toolbar session commands menu and the session-list New session button.

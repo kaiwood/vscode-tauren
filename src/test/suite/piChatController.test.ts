@@ -1049,7 +1049,8 @@ suite('PiChatController', () => {
       slashCommandsRefreshing: false,
       outputColors: true,
       animationsEnabled: true,
-      customUiTheme: 'default'
+      customUiTheme: 'default',
+      allowRemoteImages: true
     });
     harness.controller.dispose();
   });

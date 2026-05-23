@@ -229,6 +229,391 @@
     return typeof value === "object" && value !== null;
   }
 
+  // src/webview/messages/actionButtons.ts
+  var copyIconSvg = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path fill="currentColor" d="M5 1.75A1.75 1.75 0 0 1 6.75 0h6.5A1.75 1.75 0 0 1 15 1.75v6.5A1.75 1.75 0 0 1 13.25 10h-1.5v1.25A1.75 1.75 0 0 1 10 13H3.75A1.75 1.75 0 0 1 2 11.25v-6.5A1.75 1.75 0 0 1 3.75 3H5V1.75Zm1.75-.25a.25.25 0 0 0-.25.25V3H10a1.75 1.75 0 0 1 1.75 1.75V8.5h1.5a.25.25 0 0 0 .25-.25v-6.5a.25.25 0 0 0-.25-.25h-6.5ZM3.75 4.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25H10a.25.25 0 0 0 .25-.25v-6.5A.25.25 0 0 0 10 4.5H3.75Z"/></svg>';
+  function createIconActionButton(className, label) {
+    const button = document.createElement("button");
+    button.className = className;
+    button.type = "button";
+    button.setAttribute("aria-label", label);
+    button.innerHTML = copyIconSvg;
+    const tooltip = document.createElement("span");
+    tooltip.className = "tau-icon-action-tooltip";
+    tooltip.textContent = label;
+    button.append(tooltip);
+    return button;
+  }
+
+  // src/webview/messages/markdown.ts
+  var supportedDataImagePattern = /^data:image\/(?:png|jpeg|gif|webp);base64,[a-z0-9+/=\s]+$/i;
+  var localImageRequests = /* @__PURE__ */ new Map();
+  var postMessage2;
+  var nextLocalImageRequestId = 1;
+  var markdownRenderer = window.markdownit ? window.markdownit({
+    html: false,
+    linkify: true,
+    breaks: false
+  }) : void 0;
+  function configureMarkdownImageRendering(post) {
+    postMessage2 = post;
+  }
+  function handleMarkdownImageMessage(message) {
+    if (!isLocalImageResolveResult(message)) {
+      return false;
+    }
+    applyLocalImageResolveResult(message);
+    return true;
+  }
+  function renderMarkdownInto(element, text, options = {}) {
+    if (!markdownRenderer || !window.DOMPurify) {
+      element.textContent = text;
+      if (options.animationsEnabled !== false) {
+        animateNewVisibleText(element, options.animateFromText);
+      }
+      return;
+    }
+    element.classList.add("message__body--markdown");
+    const rendered = markdownRenderer.render(normalizeRawImageTags(text));
+    element.innerHTML = window.DOMPurify.sanitize(rendered, {
+      USE_PROFILES: { html: true }
+    });
+    processImages(element, options);
+    linkifyFileReferences(element);
+    addCodeBlockActions(element);
+    requestCodeHighlightsIn(element);
+    if (options.animationsEnabled !== false) {
+      animateNewVisibleText(element, options.animateFromText);
+    }
+  }
+  function renderHighlightedCodeInto(element, code, filePath) {
+    const language = getPathLanguageHint(filePath);
+    if (!language) {
+      return false;
+    }
+    element.dataset.shikiLanguage = language;
+    element.textContent = code;
+    return requestCodeHighlight(element, code, language);
+  }
+  function normalizeRawImageTags(text) {
+    return text.replace(/<img\b[^>]*>/gi, (tag) => {
+      const template = document.createElement("template");
+      template.innerHTML = tag;
+      const image = template.content.querySelector("img");
+      const src = image?.getAttribute("src")?.trim();
+      if (!src) {
+        return tag;
+      }
+      const alt = image?.getAttribute("alt") ?? "";
+      const title = image?.getAttribute("title")?.trim() ?? "";
+      return `![${escapeMarkdownImageLabel(alt)}](<${escapeMarkdownImageDestination(src)}>${title ? ` "${escapeMarkdownImageTitle(title)}"` : ""})`;
+    });
+  }
+  function escapeMarkdownImageLabel(value) {
+    return value.replace(/[\\\]]/g, "\\$&").replace(/\n/g, " ");
+  }
+  function escapeMarkdownImageDestination(value) {
+    return value.replace(/[>\n\r]/g, (character) => encodeURIComponent(character));
+  }
+  function escapeMarkdownImageTitle(value) {
+    return value.replace(/["\\]/g, "\\$&").replace(/\n/g, " ");
+  }
+  function processImages(root, options) {
+    for (const image of Array.from(root.querySelectorAll("img"))) {
+      if (!(image instanceof HTMLImageElement)) {
+        continue;
+      }
+      processImageElement(image, options);
+    }
+  }
+  function processImageElement(image, options) {
+    const src = image.getAttribute("src")?.trim() ?? "";
+    const alt = image.getAttribute("alt") ?? "Image";
+    if (!src) {
+      image.replaceWith(createImageFallback("Image source is missing."));
+      return;
+    }
+    if (isSupportedDataImage(src)) {
+      markRenderableImage(image);
+      return;
+    }
+    if (isHttpsImage(src)) {
+      if (options.allowRemoteImages === false) {
+        image.replaceWith(createImageFallback("Remote image blocked."));
+        return;
+      }
+      markRenderableImage(image);
+      return;
+    }
+    if (isLocalImageReference(src)) {
+      requestLocalImage(image, src, alt);
+      return;
+    }
+    image.replaceWith(createImageFallback("Unsupported image source."));
+  }
+  function markRenderableImage(image) {
+    image.classList.add("tau-image");
+    image.loading = "lazy";
+    image.decoding = "async";
+  }
+  function requestLocalImage(image, src, alt) {
+    if (!postMessage2) {
+      image.replaceWith(createImageFallback("Local image unavailable."));
+      return;
+    }
+    const id = `local-image-${nextLocalImageRequestId++}`;
+    const placeholder = createImageFallback("Loading image\u2026");
+    placeholder.classList.add("tau-image--pending");
+    placeholder.dataset.localImageRequestId = id;
+    localImageRequests.set(id, { placeholder, alt });
+    image.replaceWith(placeholder);
+    postMessage2({ type: "resolveLocalImage", id, src });
+  }
+  function applyLocalImageResolveResult(message) {
+    const pending = localImageRequests.get(message.id);
+    localImageRequests.delete(message.id);
+    if (!pending || !pending.placeholder.isConnected) {
+      return;
+    }
+    if (!message.uri) {
+      pending.placeholder.replaceWith(createImageFallback(message.error || "Local image unavailable."));
+      return;
+    }
+    const image = document.createElement("img");
+    image.src = message.uri;
+    image.alt = pending.alt;
+    markRenderableImage(image);
+    pending.placeholder.replaceWith(image);
+  }
+  function createImageFallback(text) {
+    const fallback = document.createElement("span");
+    fallback.className = "tau-image-fallback";
+    fallback.textContent = text;
+    return fallback;
+  }
+  function isSupportedDataImage(src) {
+    return supportedDataImagePattern.test(src);
+  }
+  function isHttpsImage(src) {
+    try {
+      return new URL(src).protocol === "https:";
+    } catch {
+      return false;
+    }
+  }
+  function isLocalImageReference(src) {
+    return !/^[A-Za-z][A-Za-z0-9+.-]*:/.test(src) && /\.(?:png|jpe?g|gif|webp)(?:[?#].*)?$/i.test(src);
+  }
+  function isLocalImageResolveResult(message) {
+    if (!isRecord2(message) || message.type !== "resolveLocalImageResult") {
+      return false;
+    }
+    return typeof message.id === "string" && (!("uri" in message) || typeof message.uri === "string") && (!("error" in message) || typeof message.error === "string");
+  }
+  function isRecord2(value) {
+    return typeof value === "object" && value !== null;
+  }
+  function linkifyFileReferences(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) => shouldLinkifyTextNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+    });
+    const nodes = [];
+    let current = walker.nextNode();
+    while (current) {
+      nodes.push(current);
+      current = walker.nextNode();
+    }
+    for (const node of nodes) {
+      replaceFileReferences(node);
+    }
+  }
+  function shouldLinkifyTextNode(node) {
+    const parent = node.parentElement;
+    if (!parent || !node.textContent?.trim()) {
+      return false;
+    }
+    return !parent.closest("a, pre, kbd, samp");
+  }
+  function replaceFileReferences(node) {
+    const text = node.textContent ?? "";
+    const pattern = /((?:\.{1,2}\/|\/|[A-Za-z0-9_-]+\/)[^\s`"'<>()[\]{}]+?\.[A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)*)(?::(\d+)(?::(\d+))?)?/g;
+    const fragment = document.createDocumentFragment();
+    let lastIndex = 0;
+    let changed = false;
+    let match;
+    while (match = pattern.exec(text)) {
+      const before = text.slice(lastIndex, match.index);
+      if (!isSafeFileReferenceBoundary(before, text, pattern.lastIndex)) {
+        continue;
+      }
+      const parsed = parseFileReferenceMatch(match[0], match[1], match[2], match[3]);
+      if (!parsed) {
+        continue;
+      }
+      if (match.index > lastIndex) {
+        fragment.append(document.createTextNode(text.slice(lastIndex, match.index)));
+      }
+      fragment.append(createFileReferenceLink(parsed));
+      changed = true;
+      lastIndex = match.index + parsed.linkText.length;
+      pattern.lastIndex = lastIndex;
+    }
+    if (!changed) {
+      return;
+    }
+    if (lastIndex < text.length) {
+      fragment.append(document.createTextNode(text.slice(lastIndex)));
+    }
+    node.replaceWith(fragment);
+  }
+  function isSafeFileReferenceBoundary(before, text, endIndex) {
+    const previous = before.charAt(before.length - 1);
+    const next = text.charAt(endIndex);
+    return !/[A-Za-z0-9_@:\/.-]/.test(previous) && !/[A-Za-z0-9_\/-]/.test(next);
+  }
+  function parseFileReferenceMatch(fullMatch, pathMatch, lineMatch, columnMatch) {
+    const trailing = pathMatch.match(/[.,;:!?]+$/)?.[0] ?? "";
+    const filePath = trailing ? pathMatch.slice(0, -trailing.length) : pathMatch;
+    if (!filePath || filePath.endsWith("/")) {
+      return void 0;
+    }
+    const line = lineMatch ? Number(lineMatch) : void 0;
+    const column = columnMatch ? Number(columnMatch) : void 0;
+    if (line !== void 0 && (!Number.isInteger(line) || line < 1) || column !== void 0 && (!Number.isInteger(column) || column < 1)) {
+      return void 0;
+    }
+    return {
+      path: filePath,
+      ...line ? { line } : {},
+      ...column ? { column } : {},
+      linkText: fullMatch.slice(0, fullMatch.length - trailing.length)
+    };
+  }
+  function createFileReferenceLink(reference) {
+    const link = document.createElement("a");
+    link.href = "#";
+    link.className = "tau-file-link";
+    link.textContent = reference.linkText;
+    link.dataset.filePath = reference.path;
+    if (reference.line) {
+      link.dataset.line = String(reference.line);
+    }
+    if (reference.column) {
+      link.dataset.column = String(reference.column);
+    }
+    return link;
+  }
+  function addCodeBlockActions(root) {
+    for (const pre of Array.from(root.querySelectorAll("pre"))) {
+      if (!(pre instanceof HTMLElement) || pre.closest(".tau-code-block")) {
+        continue;
+      }
+      const wrapper = document.createElement("div");
+      wrapper.className = "tau-code-block";
+      const actions = document.createElement("div");
+      actions.className = "tau-code-block__actions";
+      const copyButton = createIconActionButton("tau-code-block__action", "Copy code");
+      copyButton.dataset.copyCodeBlock = "true";
+      actions.append(copyButton);
+      pre.replaceWith(wrapper);
+      wrapper.append(actions, pre);
+    }
+  }
+  function animateNewVisibleText(root, previousVisibleText) {
+    if (previousVisibleText === void 0) {
+      return;
+    }
+    const nextVisibleText = root.textContent ?? "";
+    const startOffset = getCommonPrefixLength(previousVisibleText, nextVisibleText);
+    if (startOffset >= nextVisibleText.length || previousVisibleText.length > 0 && startOffset === 0) {
+      return;
+    }
+    wrapVisibleTextRange(root, startOffset, nextVisibleText.length);
+  }
+  function getCommonPrefixLength(left, right) {
+    const limit = Math.min(left.length, right.length);
+    let index = 0;
+    while (index < limit && left.charCodeAt(index) === right.charCodeAt(index)) {
+      index += 1;
+    }
+    return index;
+  }
+  function wrapVisibleTextRange(root, rangeStart, rangeEnd) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const ranges = [];
+    let visibleOffset = 0;
+    let current = walker.nextNode();
+    while (current) {
+      const node = current;
+      const textLength = node.textContent?.length ?? 0;
+      const nodeStart = visibleOffset;
+      const nodeEnd = nodeStart + textLength;
+      if (nodeEnd > rangeStart && nodeStart < rangeEnd && !shouldSkipStreamingTextNode(node)) {
+        ranges.push({
+          node,
+          start: Math.max(0, rangeStart - nodeStart),
+          end: Math.min(textLength, rangeEnd - nodeStart)
+        });
+      }
+      visibleOffset = nodeEnd;
+      current = walker.nextNode();
+    }
+    let wordIndex = 0;
+    for (const range of ranges) {
+      wordIndex = wrapTextNodeRange(range.node, range.start, range.end, wordIndex);
+    }
+  }
+  function shouldSkipStreamingTextNode(node) {
+    const parent = node.parentElement;
+    return !parent || Boolean(parent.closest("a, code, pre, kbd, samp, svg, math, annotation"));
+  }
+  function wrapTextNodeRange(node, start, end, initialWordIndex) {
+    const text = node.textContent ?? "";
+    if (start >= end) {
+      return initialWordIndex;
+    }
+    const fragment = document.createDocumentFragment();
+    let wordIndex = initialWordIndex;
+    if (start > 0) {
+      fragment.append(document.createTextNode(text.slice(0, start)));
+    }
+    wordIndex = appendAnimatedText(fragment, text.slice(start, end), wordIndex);
+    if (end < text.length) {
+      fragment.append(document.createTextNode(text.slice(end)));
+    }
+    node.replaceWith(fragment);
+    return wordIndex;
+  }
+  function appendAnimatedText(fragment, text, initialWordIndex) {
+    const tokens = text.match(/\s+|\S+/g) ?? [];
+    let wordIndex = initialWordIndex;
+    for (const token of tokens) {
+      if (/^\s+$/.test(token)) {
+        fragment.append(document.createTextNode(token));
+        continue;
+      }
+      const span = document.createElement("span");
+      span.className = "tau-stream-word";
+      span.textContent = token;
+      if (wordIndex > 0) {
+        span.style.animationDelay = Math.min(wordIndex * 16, 120) + "ms";
+      }
+      fragment.append(span);
+      wordIndex += 1;
+    }
+    return wordIndex;
+  }
+  function getPathLanguageHint(filePath) {
+    const basename = filePath.replace(/\\/g, "/").split("/").pop()?.toLowerCase() ?? "";
+    if (basename === "dockerfile") {
+      return "dockerfile";
+    }
+    if (basename === "makefile") {
+      return "makefile";
+    }
+    const extensionMatch = basename.match(/\.([a-z0-9]+)$/);
+    return extensionMatch?.[1] ?? "";
+  }
+
   // src/webview/composer/diffCounter.ts
   function createDiffCounter(element, prefix) {
     const value = parseDiffCounterValue(element.textContent, prefix);
@@ -2118,258 +2503,6 @@
     return Array.from(document.querySelectorAll(selector));
   }
 
-  // src/webview/messages/actionButtons.ts
-  var copyIconSvg = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path fill="currentColor" d="M5 1.75A1.75 1.75 0 0 1 6.75 0h6.5A1.75 1.75 0 0 1 15 1.75v6.5A1.75 1.75 0 0 1 13.25 10h-1.5v1.25A1.75 1.75 0 0 1 10 13H3.75A1.75 1.75 0 0 1 2 11.25v-6.5A1.75 1.75 0 0 1 3.75 3H5V1.75Zm1.75-.25a.25.25 0 0 0-.25.25V3H10a1.75 1.75 0 0 1 1.75 1.75V8.5h1.5a.25.25 0 0 0 .25-.25v-6.5a.25.25 0 0 0-.25-.25h-6.5ZM3.75 4.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25H10a.25.25 0 0 0 .25-.25v-6.5A.25.25 0 0 0 10 4.5H3.75Z"/></svg>';
-  function createIconActionButton(className, label) {
-    const button = document.createElement("button");
-    button.className = className;
-    button.type = "button";
-    button.setAttribute("aria-label", label);
-    button.innerHTML = copyIconSvg;
-    const tooltip = document.createElement("span");
-    tooltip.className = "tau-icon-action-tooltip";
-    tooltip.textContent = label;
-    button.append(tooltip);
-    return button;
-  }
-
-  // src/webview/messages/markdown.ts
-  var markdownRenderer = window.markdownit ? window.markdownit({
-    html: false,
-    linkify: true,
-    breaks: false
-  }) : void 0;
-  function renderMarkdownInto(element, text, options = {}) {
-    if (!markdownRenderer || !window.DOMPurify) {
-      element.textContent = text;
-      if (options.animationsEnabled !== false) {
-        animateNewVisibleText(element, options.animateFromText);
-      }
-      return;
-    }
-    element.classList.add("message__body--markdown");
-    const rendered = markdownRenderer.render(text);
-    element.innerHTML = window.DOMPurify.sanitize(rendered, {
-      USE_PROFILES: { html: true }
-    });
-    linkifyFileReferences(element);
-    addCodeBlockActions(element);
-    requestCodeHighlightsIn(element);
-    if (options.animationsEnabled !== false) {
-      animateNewVisibleText(element, options.animateFromText);
-    }
-  }
-  function renderHighlightedCodeInto(element, code, filePath) {
-    const language = getPathLanguageHint(filePath);
-    if (!language) {
-      return false;
-    }
-    element.dataset.shikiLanguage = language;
-    element.textContent = code;
-    return requestCodeHighlight(element, code, language);
-  }
-  function linkifyFileReferences(root) {
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-      acceptNode: (node) => shouldLinkifyTextNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
-    });
-    const nodes = [];
-    let current = walker.nextNode();
-    while (current) {
-      nodes.push(current);
-      current = walker.nextNode();
-    }
-    for (const node of nodes) {
-      replaceFileReferences(node);
-    }
-  }
-  function shouldLinkifyTextNode(node) {
-    const parent = node.parentElement;
-    if (!parent || !node.textContent?.trim()) {
-      return false;
-    }
-    return !parent.closest("a, pre, kbd, samp");
-  }
-  function replaceFileReferences(node) {
-    const text = node.textContent ?? "";
-    const pattern = /((?:\.{1,2}\/|\/|[A-Za-z0-9_-]+\/)[^\s`"'<>()[\]{}]+?\.[A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)*)(?::(\d+)(?::(\d+))?)?/g;
-    const fragment = document.createDocumentFragment();
-    let lastIndex = 0;
-    let changed = false;
-    let match;
-    while (match = pattern.exec(text)) {
-      const before = text.slice(lastIndex, match.index);
-      if (!isSafeFileReferenceBoundary(before, text, pattern.lastIndex)) {
-        continue;
-      }
-      const parsed = parseFileReferenceMatch(match[0], match[1], match[2], match[3]);
-      if (!parsed) {
-        continue;
-      }
-      if (match.index > lastIndex) {
-        fragment.append(document.createTextNode(text.slice(lastIndex, match.index)));
-      }
-      fragment.append(createFileReferenceLink(parsed));
-      changed = true;
-      lastIndex = match.index + parsed.linkText.length;
-      pattern.lastIndex = lastIndex;
-    }
-    if (!changed) {
-      return;
-    }
-    if (lastIndex < text.length) {
-      fragment.append(document.createTextNode(text.slice(lastIndex)));
-    }
-    node.replaceWith(fragment);
-  }
-  function isSafeFileReferenceBoundary(before, text, endIndex) {
-    const previous = before.charAt(before.length - 1);
-    const next = text.charAt(endIndex);
-    return !/[A-Za-z0-9_@:\/.-]/.test(previous) && !/[A-Za-z0-9_\/-]/.test(next);
-  }
-  function parseFileReferenceMatch(fullMatch, pathMatch, lineMatch, columnMatch) {
-    const trailing = pathMatch.match(/[.,;:!?]+$/)?.[0] ?? "";
-    const filePath = trailing ? pathMatch.slice(0, -trailing.length) : pathMatch;
-    if (!filePath || filePath.endsWith("/")) {
-      return void 0;
-    }
-    const line = lineMatch ? Number(lineMatch) : void 0;
-    const column = columnMatch ? Number(columnMatch) : void 0;
-    if (line !== void 0 && (!Number.isInteger(line) || line < 1) || column !== void 0 && (!Number.isInteger(column) || column < 1)) {
-      return void 0;
-    }
-    return {
-      path: filePath,
-      ...line ? { line } : {},
-      ...column ? { column } : {},
-      linkText: fullMatch.slice(0, fullMatch.length - trailing.length)
-    };
-  }
-  function createFileReferenceLink(reference) {
-    const link = document.createElement("a");
-    link.href = "#";
-    link.className = "tau-file-link";
-    link.textContent = reference.linkText;
-    link.dataset.filePath = reference.path;
-    if (reference.line) {
-      link.dataset.line = String(reference.line);
-    }
-    if (reference.column) {
-      link.dataset.column = String(reference.column);
-    }
-    return link;
-  }
-  function addCodeBlockActions(root) {
-    for (const pre of Array.from(root.querySelectorAll("pre"))) {
-      if (!(pre instanceof HTMLElement) || pre.closest(".tau-code-block")) {
-        continue;
-      }
-      const wrapper = document.createElement("div");
-      wrapper.className = "tau-code-block";
-      const actions = document.createElement("div");
-      actions.className = "tau-code-block__actions";
-      const copyButton = createIconActionButton("tau-code-block__action", "Copy code");
-      copyButton.dataset.copyCodeBlock = "true";
-      actions.append(copyButton);
-      pre.replaceWith(wrapper);
-      wrapper.append(actions, pre);
-    }
-  }
-  function animateNewVisibleText(root, previousVisibleText) {
-    if (previousVisibleText === void 0) {
-      return;
-    }
-    const nextVisibleText = root.textContent ?? "";
-    const startOffset = getCommonPrefixLength(previousVisibleText, nextVisibleText);
-    if (startOffset >= nextVisibleText.length || previousVisibleText.length > 0 && startOffset === 0) {
-      return;
-    }
-    wrapVisibleTextRange(root, startOffset, nextVisibleText.length);
-  }
-  function getCommonPrefixLength(left, right) {
-    const limit = Math.min(left.length, right.length);
-    let index = 0;
-    while (index < limit && left.charCodeAt(index) === right.charCodeAt(index)) {
-      index += 1;
-    }
-    return index;
-  }
-  function wrapVisibleTextRange(root, rangeStart, rangeEnd) {
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    const ranges = [];
-    let visibleOffset = 0;
-    let current = walker.nextNode();
-    while (current) {
-      const node = current;
-      const textLength = node.textContent?.length ?? 0;
-      const nodeStart = visibleOffset;
-      const nodeEnd = nodeStart + textLength;
-      if (nodeEnd > rangeStart && nodeStart < rangeEnd && !shouldSkipStreamingTextNode(node)) {
-        ranges.push({
-          node,
-          start: Math.max(0, rangeStart - nodeStart),
-          end: Math.min(textLength, rangeEnd - nodeStart)
-        });
-      }
-      visibleOffset = nodeEnd;
-      current = walker.nextNode();
-    }
-    let wordIndex = 0;
-    for (const range of ranges) {
-      wordIndex = wrapTextNodeRange(range.node, range.start, range.end, wordIndex);
-    }
-  }
-  function shouldSkipStreamingTextNode(node) {
-    const parent = node.parentElement;
-    return !parent || Boolean(parent.closest("a, code, pre, kbd, samp, svg, math, annotation"));
-  }
-  function wrapTextNodeRange(node, start, end, initialWordIndex) {
-    const text = node.textContent ?? "";
-    if (start >= end) {
-      return initialWordIndex;
-    }
-    const fragment = document.createDocumentFragment();
-    let wordIndex = initialWordIndex;
-    if (start > 0) {
-      fragment.append(document.createTextNode(text.slice(0, start)));
-    }
-    wordIndex = appendAnimatedText(fragment, text.slice(start, end), wordIndex);
-    if (end < text.length) {
-      fragment.append(document.createTextNode(text.slice(end)));
-    }
-    node.replaceWith(fragment);
-    return wordIndex;
-  }
-  function appendAnimatedText(fragment, text, initialWordIndex) {
-    const tokens = text.match(/\s+|\S+/g) ?? [];
-    let wordIndex = initialWordIndex;
-    for (const token of tokens) {
-      if (/^\s+$/.test(token)) {
-        fragment.append(document.createTextNode(token));
-        continue;
-      }
-      const span = document.createElement("span");
-      span.className = "tau-stream-word";
-      span.textContent = token;
-      if (wordIndex > 0) {
-        span.style.animationDelay = Math.min(wordIndex * 16, 120) + "ms";
-      }
-      fragment.append(span);
-      wordIndex += 1;
-    }
-    return wordIndex;
-  }
-  function getPathLanguageHint(filePath) {
-    const basename = filePath.replace(/\\/g, "/").split("/").pop()?.toLowerCase() ?? "";
-    if (basename === "dockerfile") {
-      return "dockerfile";
-    }
-    if (basename === "makefile") {
-      return "makefile";
-    }
-    const extensionMatch = basename.match(/\.([a-z0-9]+)$/);
-    return extensionMatch?.[1] ?? "";
-  }
-
   // src/webview/messages/renderMessages.ts
   var activityExpansion = /* @__PURE__ */ new Map();
   var activityBodyExpansion = /* @__PURE__ */ new Map();
@@ -2391,11 +2524,7 @@
     }
     const body = document.createElement("div");
     body.className = "message__body";
-    if (shouldRenderMarkdown(message)) {
-      renderMarkdownInto(body, message.text || "", options);
-    } else {
-      body.textContent = message.text || "";
-    }
+    renderMessageBodyInto(body, message, options);
     if (showRole) {
       const role = document.createElement("div");
       role.className = "message__role";
@@ -2403,7 +2532,8 @@
       article.append(role);
     }
     const activities = Array.isArray(message.activities) ? message.activities : [];
-    const hasBody = Boolean(message.text || message.error || activities.length === 0);
+    const images = getRenderableImages(message.images);
+    const hasBody = Boolean(message.text || message.error || images.length > 0 || activities.length === 0);
     if (message.role !== "assistant") {
       article.append(body);
       return article;
@@ -2437,12 +2567,48 @@
     if (message.role === "assistant" && Array.isArray(message.activities) && message.activities.length > 0) {
       body.classList.add("message__body--after-activities");
     }
-    if (shouldRenderMarkdown(message)) {
-      renderMarkdownInto(body, message.text || "", options);
-    } else {
-      body.textContent = message.text || "";
-    }
+    renderMessageBodyInto(body, message, options);
     return true;
+  }
+  function renderMessageBodyInto(body, message, options) {
+    const text = message.text || "";
+    if (shouldRenderMarkdown(message)) {
+      renderMarkdownInto(body, text, options);
+    } else {
+      body.textContent = text;
+    }
+    const images = getRenderableImages(message.images);
+    if (images.length > 0) {
+      body.append(createImageListElement(images, "message__images"));
+    }
+  }
+  function createImageListElement(images, className) {
+    const list = document.createElement("div");
+    list.className = className;
+    for (const image of images) {
+      list.append(createDataImageElement(image));
+    }
+    return list;
+  }
+  function createDataImageElement(image) {
+    const element = document.createElement("img");
+    const mimeType = typeof image.mimeType === "string" ? image.mimeType.toLowerCase() : "";
+    const data = typeof image.data === "string" ? image.data : "";
+    element.className = "tau-image";
+    element.alt = typeof image.alt === "string" && image.alt ? image.alt : "Image";
+    element.loading = "lazy";
+    element.decoding = "async";
+    element.src = `data:${mimeType};base64,${data}`;
+    return element;
+  }
+  function getRenderableImages(images) {
+    if (!Array.isArray(images)) {
+      return [];
+    }
+    return images.filter((image) => {
+      const mimeType = typeof image.mimeType === "string" ? image.mimeType.toLowerCase() : "";
+      return image.type === "image" && typeof image.data === "string" && Boolean(image.data) && (mimeType === "image/png" || mimeType === "image/jpeg" || mimeType === "image/gif" || mimeType === "image/webp");
+    });
   }
   function getDirectMessageBodyElement(article) {
     for (const child of Array.from(article.children)) {
@@ -2456,7 +2622,7 @@
     return message.variant === "thinking" ? " message--thinking" : "";
   }
   function shouldRenderMarkdown(message) {
-    return message.role === "assistant" && !message.error;
+    return !message.error;
   }
   function createBranchSummaryActivityElement(text, messageIndex, options) {
     const body = stripBranchSummaryPrefix(text);
@@ -2562,6 +2728,7 @@
       summary.append(description);
     }
     details.append(summary);
+    const activityImages = getRenderableImages(activity.images);
     if (typeof activity.body === "string" && activity.body.length > 0) {
       const isCollapsibleCompactionOutput = activity.kind === "compaction" && !activity.code;
       const bodyCanVisuallyExpand = Boolean(activityId && (activity.code || isCollapsibleCompactionOutput));
@@ -2577,7 +2744,7 @@
           outputColors: options.outputColors !== false
         });
       } else {
-        renderMarkdownInto(body, bodyText);
+        renderMarkdownInto(body, bodyText, options);
         if (bodyExpanded && bodyCanVisuallyExpand) {
           bodyToggle = { label: "Show less", activityId, messageIndex, expanded: true };
         }
@@ -2590,6 +2757,9 @@
       if (bodyExpanded && shouldScrollExpandedBodyToBottom(activity.body)) {
         scheduleActivityBodyScrollToBottom(body);
       }
+    }
+    if (activityImages.length > 0) {
+      details.append(createImageListElement(activityImages, "activity__images"));
     }
     return details;
   }
@@ -2746,7 +2916,7 @@ ${after}`;
     return match?.[1];
   }
   function shouldKeepActivityOpen(activity) {
-    return typeof activity.body === "string" && activity.body.length > 0;
+    return typeof activity.body === "string" && activity.body.length > 0 || getRenderableImages(activity.images).length > 0;
   }
   function roleLabel(role) {
     if (role === "user") {
@@ -3040,23 +3210,27 @@ ${after}`;
       const state2 = this.options.getState();
       const existingView = this.renderedMessageViews[index];
       const activitiesSignature = this.getActivitiesSignature(message);
+      const imagesSignature = this.getImagesSignature(message);
       const copyable = canCopyAssistantMessage2(message);
       const animateFromText = this.getStreamingAnimationStartText(existingView, message, index);
-      if (existingView && canReuseMessageElement(existingView, message, showRole, activitiesSignature, copyable)) {
-        if ((existingView.message.text || "") !== (message.text || "")) {
+      if (existingView && canReuseMessageElement(existingView, message, showRole, activitiesSignature, imagesSignature, state2.allowRemoteImages, copyable)) {
+        if ((existingView.message.text || "") !== (message.text || "") || existingView.imagesSignature !== imagesSignature) {
           updateMessageBodyElement(
             existingView.element,
             message,
             {
               ...animateFromText === void 0 ? {} : { animateFromText },
               outputColors: state2.outputColors,
-              animationsEnabled: state2.animationsEnabled
+              animationsEnabled: state2.animationsEnabled,
+              allowRemoteImages: state2.allowRemoteImages
             }
           );
         }
         existingView.message = message;
         existingView.showRole = showRole;
         existingView.activitiesSignature = activitiesSignature;
+        existingView.imagesSignature = imagesSignature;
+        existingView.allowRemoteImages = state2.allowRemoteImages;
         existingView.copyable = copyable;
         return existingView;
       }
@@ -3068,12 +3242,15 @@ ${after}`;
           {
             ...animateFromText === void 0 ? {} : { animateFromText },
             outputColors: state2.outputColors,
-            animationsEnabled: state2.animationsEnabled
+            animationsEnabled: state2.animationsEnabled,
+            allowRemoteImages: state2.allowRemoteImages
           }
         ),
         message,
         showRole,
         activitiesSignature,
+        imagesSignature,
+        allowRemoteImages: state2.allowRemoteImages,
         copyable
       };
       existingView?.element.replaceWith(nextView.element);
@@ -3094,11 +3271,13 @@ ${after}`;
           state2.messages[index],
           showRole,
           index,
-          { outputColors: state2.outputColors, animationsEnabled: state2.animationsEnabled }
+          { outputColors: state2.outputColors, animationsEnabled: state2.animationsEnabled, allowRemoteImages: state2.allowRemoteImages }
         ),
         message: state2.messages[index],
         showRole,
         activitiesSignature: this.getActivitiesSignature(state2.messages[index]),
+        imagesSignature: this.getImagesSignature(state2.messages[index]),
+        allowRemoteImages: state2.allowRemoteImages,
         copyable: canCopyAssistantMessage2(state2.messages[index])
       };
       existingView?.element.replaceWith(nextView.element);
@@ -3122,7 +3301,10 @@ ${after}`;
       if (!Array.isArray(message.activities) || message.activities.length === 0) {
         return "";
       }
-      return JSON.stringify({ outputColors: state2.outputColors, activities: message.activities });
+      return JSON.stringify({ outputColors: state2.outputColors, allowRemoteImages: state2.allowRemoteImages, activities: message.activities });
+    }
+    getImagesSignature(message) {
+      return JSON.stringify(message.images ?? []);
     }
     getBusyStatusText() {
       const activity = this.getLatestRunningActivity();
@@ -3205,8 +3387,8 @@ ${after}`;
     empty.append(title, description, commandHint, tryLabel, promptList, dismiss);
     return empty;
   }
-  function canReuseMessageElement(view, message, showRole, activitiesSignature, copyable) {
-    return view.message.role === message.role && Boolean(view.message.error) === Boolean(message.error) && (view.message.variant || "") === (message.variant || "") && view.showRole === showRole && view.activitiesSignature === activitiesSignature && view.copyable === copyable;
+  function canReuseMessageElement(view, message, showRole, activitiesSignature, imagesSignature, allowRemoteImages, copyable) {
+    return view.message.role === message.role && Boolean(view.message.error) === Boolean(message.error) && (view.message.variant || "") === (message.variant || "") && view.showRole === showRole && view.activitiesSignature === activitiesSignature && view.imagesSignature === imagesSignature && view.allowRemoteImages === allowRemoteImages && view.copyable === copyable;
   }
   function getMessageBodyVisibleText(article) {
     for (const child of Array.from(article.children)) {
@@ -5438,6 +5620,7 @@ ${after}`;
     outputColors: true,
     animationsEnabled: true,
     customUiTheme: "default",
+    allowRemoteImages: true,
     welcomeDismissed: false,
     promptContext: [],
     composerText: "",
@@ -5456,7 +5639,7 @@ ${after}`;
     sessionLoading: false
   };
   function parseWebviewStateMessage(data) {
-    const record = isRecord2(data) ? data : {};
+    const record = isRecord3(data) ? data : {};
     return {
       messages: Array.isArray(record.messages) ? record.messages : [],
       busy: Boolean(record.busy),
@@ -5476,6 +5659,7 @@ ${after}`;
       outputColors: typeof record.outputColors === "boolean" ? record.outputColors : true,
       animationsEnabled: typeof record.animationsEnabled === "boolean" ? record.animationsEnabled : true,
       customUiTheme: parseCustomUiTheme(record.customUiTheme),
+      allowRemoteImages: typeof record.allowRemoteImages === "boolean" ? record.allowRemoteImages : true,
       welcomeDismissed: Boolean(record.welcomeDismissed),
       promptContext: Array.isArray(record.promptContext) ? record.promptContext : [],
       composerText: typeof record.composerText === "string" ? record.composerText : "",
@@ -5501,7 +5685,7 @@ ${after}`;
     return value === "models" || value === "runtime" || value === "appearance" || value === "advanced" ? value : "providers";
   }
   function parseWorkspaceDiffStats(value) {
-    if (!isRecord2(value)) {
+    if (!isRecord3(value)) {
       return { addedLines: 0, removedLines: 0 };
     }
     return {
@@ -5512,13 +5696,14 @@ ${after}`;
   function normalizeDiffLineCount2(value) {
     return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
   }
-  function isRecord2(value) {
+  function isRecord3(value) {
     return typeof value === "object" && value !== null;
   }
 
   // src/webview/main.ts
   var vscode = acquireVsCodeApi();
   configureCodeHighlighting((message) => vscode.postMessage(message));
+  configureMarkdownImageRendering((message) => vscode.postMessage(message));
   watchCodeHighlightThemeChanges();
   var {
     viewElement,
@@ -5662,6 +5847,10 @@ ${after}`;
       return;
     }
     if (handleCodeHighlightMessage(event.data)) {
+      messagesController.scheduleMessagesToBottom();
+      return;
+    }
+    if (handleMarkdownImageMessage(event.data)) {
       messagesController.scheduleMessagesToBottom();
       return;
     }

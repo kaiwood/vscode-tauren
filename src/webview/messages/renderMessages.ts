@@ -1,7 +1,7 @@
 import { containsAnsiEscape, renderAnsiTextInto } from './ansi';
 import { createIconActionButton } from './actionButtons';
 import { renderHighlightedCodeInto, renderMarkdownInto, type RenderMarkdownOptions } from './markdown';
-import type { Activity, ChatMessage } from '../types';
+import type { Activity, ChatImage, ChatMessage } from '../types';
 
 const activityExpansion = new Map<string, boolean>();
 const activityBodyExpansion = new Map<string, boolean>();
@@ -38,11 +38,7 @@ export function createMessageElement(
   const body = document.createElement('div');
   body.className = 'message__body';
 
-  if (shouldRenderMarkdown(message)) {
-    renderMarkdownInto(body, message.text || '', options);
-  } else {
-    body.textContent = message.text || '';
-  }
+  renderMessageBodyInto(body, message, options);
 
   if (showRole) {
     const role = document.createElement('div');
@@ -52,7 +48,8 @@ export function createMessageElement(
   }
 
   const activities = Array.isArray(message.activities) ? message.activities : [];
-  const hasBody = Boolean(message.text || message.error || activities.length === 0);
+  const images = getRenderableImages(message.images);
+  const hasBody = Boolean(message.text || message.error || images.length > 0 || activities.length === 0);
 
   if (message.role !== 'assistant') {
     article.append(body);
@@ -103,13 +100,62 @@ export function updateMessageBodyElement(
     body.classList.add('message__body--after-activities');
   }
 
-  if (shouldRenderMarkdown(message)) {
-    renderMarkdownInto(body, message.text || '', options);
-  } else {
-    body.textContent = message.text || '';
-  }
+  renderMessageBodyInto(body, message, options);
 
   return true;
+}
+
+function renderMessageBodyInto(body: HTMLElement, message: ChatMessage, options: MessageRenderOptions): void {
+  const text = message.text || '';
+
+  if (shouldRenderMarkdown(message)) {
+    renderMarkdownInto(body, text, options);
+  } else {
+    body.textContent = text;
+  }
+
+  const images = getRenderableImages(message.images);
+
+  if (images.length > 0) {
+    body.append(createImageListElement(images, 'message__images'));
+  }
+}
+
+function createImageListElement(images: ChatImage[], className: string): HTMLElement {
+  const list = document.createElement('div');
+  list.className = className;
+
+  for (const image of images) {
+    list.append(createDataImageElement(image));
+  }
+
+  return list;
+}
+
+function createDataImageElement(image: ChatImage): HTMLImageElement {
+  const element = document.createElement('img');
+  const mimeType = typeof image.mimeType === 'string' ? image.mimeType.toLowerCase() : '';
+  const data = typeof image.data === 'string' ? image.data : '';
+  element.className = 'tau-image';
+  element.alt = typeof image.alt === 'string' && image.alt ? image.alt : 'Image';
+  element.loading = 'lazy';
+  element.decoding = 'async';
+  element.src = `data:${mimeType};base64,${data}`;
+  return element;
+}
+
+function getRenderableImages(images: ChatImage[] | undefined): ChatImage[] {
+  if (!Array.isArray(images)) {
+    return [];
+  }
+
+  return images.filter((image) => {
+    const mimeType = typeof image.mimeType === 'string' ? image.mimeType.toLowerCase() : '';
+    return image.type === 'image'
+      && typeof image.data === 'string'
+      && Boolean(image.data)
+      && (mimeType === 'image/png' || mimeType === 'image/jpeg' || mimeType === 'image/gif' || mimeType === 'image/webp');
+  });
 }
 
 function getDirectMessageBodyElement(article: HTMLElement): HTMLElement | undefined {
@@ -127,7 +173,7 @@ function getMessageVariantClass(message: ChatMessage): string {
 }
 
 function shouldRenderMarkdown(message: ChatMessage): boolean {
-  return message.role === 'assistant' && !message.error;
+  return !message.error;
 }
 
 function createBranchSummaryActivityElement(text: string, messageIndex: number | undefined, options: MessageRenderOptions): HTMLElement {
@@ -270,6 +316,8 @@ function createActivityElement(activity: Activity, messageIndex: number | undefi
 
   details.append(summary);
 
+  const activityImages = getRenderableImages(activity.images);
+
   if (typeof activity.body === 'string' && activity.body.length > 0) {
     const isCollapsibleCompactionOutput = activity.kind === 'compaction' && !activity.code;
     const bodyCanVisuallyExpand = Boolean(activityId && (activity.code || isCollapsibleCompactionOutput));
@@ -287,7 +335,7 @@ function createActivityElement(activity: Activity, messageIndex: number | undefi
         outputColors: options.outputColors !== false
       });
     } else {
-      renderMarkdownInto(body, bodyText);
+      renderMarkdownInto(body, bodyText, options);
       if (bodyExpanded && bodyCanVisuallyExpand) {
         bodyToggle = { label: 'Show less', activityId, messageIndex, expanded: true };
       }
@@ -310,6 +358,10 @@ function createActivityElement(activity: Activity, messageIndex: number | undefi
     if (bodyExpanded && shouldScrollExpandedBodyToBottom(activity.body)) {
       scheduleActivityBodyScrollToBottom(body);
     }
+  }
+
+  if (activityImages.length > 0) {
+    details.append(createImageListElement(activityImages, 'activity__images'));
   }
 
   return details;
@@ -540,7 +592,8 @@ function parseReadActivityPath(title: string): string | undefined {
 }
 
 function shouldKeepActivityOpen(activity: Activity): boolean {
-  return typeof activity.body === 'string' && activity.body.length > 0;
+  return (typeof activity.body === 'string' && activity.body.length > 0)
+    || getRenderableImages(activity.images).length > 0;
 }
 
 function roleLabel(role: string): string {

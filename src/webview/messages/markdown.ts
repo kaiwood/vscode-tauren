@@ -1,11 +1,17 @@
 import { requestCodeHighlight, requestCodeHighlightsIn } from '../codeHighlighting';
 import { createIconActionButton } from './actionButtons';
-import type { MarkdownRenderer } from '../types';
+import type { LocalImageResolveResult, MarkdownRenderer } from '../types';
 
 export type RenderMarkdownOptions = {
   animateFromText?: string;
   animationsEnabled?: boolean;
+  allowRemoteImages?: boolean;
 };
+
+const supportedDataImagePattern = /^data:image\/(?:png|jpeg|gif|webp);base64,[a-z0-9+/=\s]+$/i;
+const localImageRequests = new Map<string, { placeholder: HTMLElement; alt: string }>();
+let postMessage: ((message: unknown) => void) | undefined;
+let nextLocalImageRequestId = 1;
 
 const markdownRenderer: MarkdownRenderer | undefined = window.markdownit
   ? window.markdownit({
@@ -14,6 +20,19 @@ const markdownRenderer: MarkdownRenderer | undefined = window.markdownit
     breaks: false
   })
   : undefined;
+
+export function configureMarkdownImageRendering(post: (message: unknown) => void): void {
+  postMessage = post;
+}
+
+export function handleMarkdownImageMessage(message: unknown): boolean {
+  if (!isLocalImageResolveResult(message)) {
+    return false;
+  }
+
+  applyLocalImageResolveResult(message);
+  return true;
+}
 
 export function renderMarkdownInto(element: HTMLElement, text: string, options: RenderMarkdownOptions = {}): void {
   if (!markdownRenderer || !window.DOMPurify) {
@@ -26,10 +45,11 @@ export function renderMarkdownInto(element: HTMLElement, text: string, options: 
 
   element.classList.add('message__body--markdown');
 
-  const rendered = markdownRenderer.render(text);
+  const rendered = markdownRenderer.render(normalizeRawImageTags(text));
   element.innerHTML = window.DOMPurify.sanitize(rendered, {
     USE_PROFILES: { html: true }
   });
+  processImages(element, options);
   linkifyFileReferences(element);
   addCodeBlockActions(element);
   requestCodeHighlightsIn(element);
@@ -48,6 +68,156 @@ export function renderHighlightedCodeInto(element: HTMLElement, code: string, fi
   element.dataset.shikiLanguage = language;
   element.textContent = code;
   return requestCodeHighlight(element, code, language);
+}
+
+function normalizeRawImageTags(text: string): string {
+  return text.replace(/<img\b[^>]*>/gi, (tag) => {
+    const template = document.createElement('template');
+    template.innerHTML = tag;
+    const image = template.content.querySelector('img');
+    const src = image?.getAttribute('src')?.trim();
+
+    if (!src) {
+      return tag;
+    }
+
+    const alt = image?.getAttribute('alt') ?? '';
+    const title = image?.getAttribute('title')?.trim() ?? '';
+    return `![${escapeMarkdownImageLabel(alt)}](<${escapeMarkdownImageDestination(src)}>${title ? ` "${escapeMarkdownImageTitle(title)}"` : ''})`;
+  });
+}
+
+function escapeMarkdownImageLabel(value: string): string {
+  return value.replace(/[\\\]]/g, '\\$&').replace(/\n/g, ' ');
+}
+
+function escapeMarkdownImageDestination(value: string): string {
+  return value.replace(/[>\n\r]/g, (character) => encodeURIComponent(character));
+}
+
+function escapeMarkdownImageTitle(value: string): string {
+  return value.replace(/["\\]/g, '\\$&').replace(/\n/g, ' ');
+}
+
+function processImages(root: HTMLElement, options: RenderMarkdownOptions): void {
+  for (const image of Array.from(root.querySelectorAll('img'))) {
+    if (!(image instanceof HTMLImageElement)) {
+      continue;
+    }
+
+    processImageElement(image, options);
+  }
+}
+
+function processImageElement(image: HTMLImageElement, options: RenderMarkdownOptions): void {
+  const src = image.getAttribute('src')?.trim() ?? '';
+  const alt = image.getAttribute('alt') ?? 'Image';
+
+  if (!src) {
+    image.replaceWith(createImageFallback('Image source is missing.'));
+    return;
+  }
+
+  if (isSupportedDataImage(src)) {
+    markRenderableImage(image);
+    return;
+  }
+
+  if (isHttpsImage(src)) {
+    if (options.allowRemoteImages === false) {
+      image.replaceWith(createImageFallback('Remote image blocked.'));
+      return;
+    }
+
+    markRenderableImage(image);
+    return;
+  }
+
+  if (isLocalImageReference(src)) {
+    requestLocalImage(image, src, alt);
+    return;
+  }
+
+  image.replaceWith(createImageFallback('Unsupported image source.'));
+}
+
+function markRenderableImage(image: HTMLImageElement): void {
+  image.classList.add('tau-image');
+  image.loading = 'lazy';
+  image.decoding = 'async';
+}
+
+function requestLocalImage(image: HTMLImageElement, src: string, alt: string): void {
+  if (!postMessage) {
+    image.replaceWith(createImageFallback('Local image unavailable.'));
+    return;
+  }
+
+  const id = `local-image-${nextLocalImageRequestId++}`;
+  const placeholder = createImageFallback('Loading image…');
+  placeholder.classList.add('tau-image--pending');
+  placeholder.dataset.localImageRequestId = id;
+  localImageRequests.set(id, { placeholder, alt });
+  image.replaceWith(placeholder);
+  postMessage({ type: 'resolveLocalImage', id, src });
+}
+
+function applyLocalImageResolveResult(message: LocalImageResolveResult): void {
+  const pending = localImageRequests.get(message.id);
+  localImageRequests.delete(message.id);
+
+  if (!pending || !pending.placeholder.isConnected) {
+    return;
+  }
+
+  if (!message.uri) {
+    pending.placeholder.replaceWith(createImageFallback(message.error || 'Local image unavailable.'));
+    return;
+  }
+
+  const image = document.createElement('img');
+  image.src = message.uri;
+  image.alt = pending.alt;
+  markRenderableImage(image);
+  pending.placeholder.replaceWith(image);
+}
+
+function createImageFallback(text: string): HTMLElement {
+  const fallback = document.createElement('span');
+  fallback.className = 'tau-image-fallback';
+  fallback.textContent = text;
+  return fallback;
+}
+
+function isSupportedDataImage(src: string): boolean {
+  return supportedDataImagePattern.test(src);
+}
+
+function isHttpsImage(src: string): boolean {
+  try {
+    return new URL(src).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function isLocalImageReference(src: string): boolean {
+  return !/^[A-Za-z][A-Za-z0-9+.-]*:/.test(src)
+    && /\.(?:png|jpe?g|gif|webp)(?:[?#].*)?$/i.test(src);
+}
+
+function isLocalImageResolveResult(message: unknown): message is LocalImageResolveResult {
+  if (!isRecord(message) || message.type !== 'resolveLocalImageResult') {
+    return false;
+  }
+
+  return typeof message.id === 'string'
+    && (!('uri' in message) || typeof message.uri === 'string')
+    && (!('error' in message) || typeof message.error === 'string');
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 function linkifyFileReferences(root: HTMLElement): void {

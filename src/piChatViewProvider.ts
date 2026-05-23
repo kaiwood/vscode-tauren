@@ -148,6 +148,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
           event.affectsConfiguration('tau.outputColors')
           || event.affectsConfiguration('tau.animationsEnabled')
           || event.affectsConfiguration('tau.customUiTheme')
+          || event.affectsConfiguration('tau.allowRemoteImages')
         ) {
           this.controller.postState();
         }
@@ -189,7 +190,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     this.webviewReady = false;
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [this.extensionUri]
+      localResourceRoots: getWebviewLocalResourceRoots(this.extensionUri)
     };
 
     const markdownItUri = webviewView.webview.asWebviewUri(
@@ -205,7 +206,8 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     webviewView.webview.html = createWebviewHtml({
       markdownItScriptUri: markdownItUri.toString(),
       domPurifyScriptUri: domPurifyUri.toString(),
-      webviewScriptUri: webviewScriptUri.toString()
+      webviewScriptUri: webviewScriptUri.toString(),
+      cspSource: webviewView.webview.cspSource
     }, {
       welcomeDismissed: this.isWelcomeDismissed()
     });
@@ -474,6 +476,11 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       return;
     }
 
+    if (message.type === 'resolveLocalImage') {
+      await this.handleLocalImageRequest(message.id, message.src);
+      return;
+    }
+
     await this.controller.handleWebviewMessage(message);
   }
 
@@ -481,6 +488,7 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     return {
       ...message,
       customUiTheme: getCustomUiThemeSetting(),
+      allowRemoteImages: getAllowRemoteImagesSetting(),
       welcomeDismissed: this.isWelcomeDismissed()
     };
   }
@@ -511,6 +519,37 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       html: result?.html,
       language: result?.language
     });
+  }
+
+  private async handleLocalImageRequest(id: string, src: string): Promise<void> {
+    const webview = this.webviewView?.webview;
+
+    if (!webview) {
+      return;
+    }
+
+    const uri = await this.resolveLocalImageUri(src);
+
+    void webview.postMessage({
+      type: 'resolveLocalImageResult',
+      id,
+      ...(uri ? { uri: webview.asWebviewUri(uri).toString() } : { error: 'Image is outside the workspace or is not a supported local raster image.' })
+    });
+  }
+
+  private async resolveLocalImageUri(src: string): Promise<vscode.Uri | undefined> {
+    const uri = resolveWorkspaceImageUri(src);
+
+    if (!uri || !isSupportedLocalImagePath(uri.fsPath) || !isUriInsideWorkspace(uri)) {
+      return undefined;
+    }
+
+    try {
+      const stat = await vscode.workspace.fs.stat(uri);
+      return stat.type === vscode.FileType.File ? uri : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private resetCodeRenderer(): void {
@@ -717,6 +756,13 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
 
   private handleWorkspaceFoldersChanged(): void {
     this.scheduleSessionDiffStatsRefresh();
+    if (this.webviewView) {
+      this.webviewView.webview.options = {
+        ...this.webviewView.webview.options,
+        localResourceRoots: getWebviewLocalResourceRoots(this.extensionUri)
+      };
+    }
+
     const startupState = getPiStartupCwdState(this.workspaceCwdProvider(), getRejectEditWriteOutsideWorkspaceSetting());
 
     if (startupState.status === 'blocked') {
@@ -913,6 +959,10 @@ function getCustomUiThemeSetting(): WebviewCustomUiTheme {
   return value === 'modern' || value === 'crt' || value === 'amber' || value === 'matrix' ? value : 'default';
 }
 
+function getAllowRemoteImagesSetting(): boolean {
+  return vscode.workspace.getConfiguration('tau').get<boolean>('allowRemoteImages', true);
+}
+
 function getReadyScriptSetting(): string | undefined {
   const value = vscode.workspace.getConfiguration('tau').get<string>('readyScript', '').trim();
   return value || undefined;
@@ -938,6 +988,96 @@ function resolveWorkspaceFileUri(filePath: string): vscode.Uri | undefined {
   }
 
   return vscode.Uri.file(path.resolve(workspaceFolder.uri.fsPath, filePath));
+}
+
+function getWebviewLocalResourceRoots(extensionUri: vscode.Uri): vscode.Uri[] {
+  return [
+    extensionUri,
+    ...(vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri)
+  ];
+}
+
+function resolveWorkspaceImageUri(src: string): vscode.Uri | undefined {
+  const decodedPath = decodeImagePath(src);
+
+  if (!decodedPath) {
+    return undefined;
+  }
+
+  if (decodedPath.startsWith('file:')) {
+    try {
+      const uri = vscode.Uri.parse(decodedPath);
+      return resolveAbsoluteWorkspaceUri(uri.fsPath) ?? uri;
+    } catch {
+      return undefined;
+    }
+  }
+
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(decodedPath)) {
+    return undefined;
+  }
+
+  if (path.isAbsolute(decodedPath)) {
+    return resolveAbsoluteWorkspaceUri(decodedPath);
+  }
+
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+
+  if (!workspaceFolder) {
+    return undefined;
+  }
+
+  return resolveRelativeWorkspaceUri(workspaceFolder, decodedPath);
+}
+
+function decodeImagePath(src: string): string | undefined {
+  const withoutFragment = src.split('#', 1)[0]?.split('?', 1)[0]?.trim() ?? '';
+
+  if (!withoutFragment) {
+    return undefined;
+  }
+
+  try {
+    return decodeURIComponent(withoutFragment);
+  } catch {
+    return withoutFragment;
+  }
+}
+
+function resolveAbsoluteWorkspaceUri(filePath: string): vscode.Uri | undefined {
+  const normalizedPath = path.normalize(filePath);
+  const workspaceFolder = (vscode.workspace.workspaceFolders ?? []).find((folder) => isPathInsidePath(normalizedPath, folder.uri.fsPath));
+
+  if (!workspaceFolder) {
+    return undefined;
+  }
+
+  const relativePath = path.relative(workspaceFolder.uri.fsPath, normalizedPath);
+  return resolveRelativeWorkspaceUri(workspaceFolder, relativePath);
+}
+
+function resolveRelativeWorkspaceUri(workspaceFolder: vscode.WorkspaceFolder, relativePath: string): vscode.Uri {
+  const parts = relativePath.replace(/\\/g, '/').split('/').filter((part) => part.length > 0);
+  return vscode.Uri.joinPath(workspaceFolder.uri, ...parts);
+}
+
+function isSupportedLocalImagePath(filePath: string): boolean {
+  return /\.(?:png|jpe?g|gif|webp)$/i.test(filePath);
+}
+
+function isUriInsideWorkspace(uri: vscode.Uri): boolean {
+  const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+
+  if (workspaceFolder) {
+    return true;
+  }
+
+  return (vscode.workspace.workspaceFolders ?? []).some((folder) => isPathInsidePath(uri.fsPath, folder.uri.fsPath));
+}
+
+function isPathInsidePath(candidatePath: string, rootPath: string): boolean {
+  const relativePath = path.relative(rootPath, candidatePath);
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
 }
 
 function readCurrentSessionFile(workspaceState: vscode.Memento | undefined): string | undefined {

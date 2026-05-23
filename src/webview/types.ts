@@ -65,6 +65,13 @@ export type TreeItem = {
   prefix?: string;
 };
 
+export type ChatImage = {
+  type?: string;
+  data?: string;
+  mimeType?: string;
+  alt?: string;
+};
+
 export type Activity = {
   id?: string;
   kind?: string;
@@ -74,6 +81,7 @@ export type Activity = {
   expandedBody?: string;
   summary?: string;
   code?: boolean;
+  images?: ChatImage[];
 };
 
 export type ChatMessage = {
@@ -81,6 +89,7 @@ export type ChatMessage = {
   text: string;
   error?: boolean;
   variant?: string;
+  images?: ChatImage[];
   activities?: Activity[];
 };
 
@@ -108,6 +117,7 @@ export type WebviewState = {
   outputColors: boolean;
   animationsEnabled: boolean;
   customUiTheme: CustomUiTheme;
+  allowRemoteImages: boolean;
   welcomeDismissed: boolean;
   promptContext: PromptContextAttachment[];
   composerText: string;
@@ -124,6 +134,13 @@ export type WebviewState = {
   treeRefreshing: boolean;
   treeError: string;
   sessionLoading: boolean;
+};
+
+export type LocalImageResolveResult = {
+  type: 'resolveLocalImageResult';
+  id: string;
+  uri?: string;
+  error?: string;
 };
 
 export type MarkdownRenderer = {

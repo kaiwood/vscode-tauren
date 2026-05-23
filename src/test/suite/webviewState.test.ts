@@ -10,6 +10,7 @@ suite('Webview state helpers', () => {
     assert.strictEqual(initialWebviewState.surfaceSide, 'front');
     assert.strictEqual(initialWebviewState.settingsSection, 'providers');
     assert.strictEqual(initialWebviewState.customUiTheme, 'default');
+    assert.strictEqual(initialWebviewState.allowRemoteImages, true);
     assert.strictEqual(initialWebviewState.welcomeDismissed, false);
     assert.deepStrictEqual(initialWebviewState.sessions, []);
   });
@@ -32,6 +33,7 @@ suite('Webview state helpers', () => {
       slashCommands: [{ name: 'test', description: '', source: 'prompt' }],
       slashCommandsRefreshing: true,
       customUiTheme: 'modern',
+      allowRemoteImages: false,
       welcomeDismissed: true,
       promptContext: [{ id: 'context-1', kind: 'file', label: 'file.ts', title: 'src/file.ts' }],
       composerText: 'draft',
@@ -57,6 +59,7 @@ suite('Webview state helpers', () => {
     assert.strictEqual(parsed.surfaceSide, 'settings');
     assert.strictEqual(parsed.settingsSection, 'runtime');
     assert.strictEqual(parsed.customUiTheme, 'modern');
+    assert.strictEqual(parsed.allowRemoteImages, false);
     assert.strictEqual(parsed.welcomeDismissed, true);
     assert.strictEqual(parsed.sessions[0]?.path, '/session.jsonl');
     assert.strictEqual(parsed.treeItems[0]?.entryId, 'entry-1');
@@ -84,6 +87,7 @@ suite('Webview state helpers', () => {
     assert.strictEqual(parsed.surfaceSide, 'front');
     assert.strictEqual(parsed.settingsSection, 'providers');
     assert.strictEqual(parsed.customUiTheme, 'default');
+    assert.strictEqual(parsed.allowRemoteImages, true);
     assert.strictEqual(parsed.welcomeDismissed, false);
     assert.deepStrictEqual(parsed.sessions, []);
   });

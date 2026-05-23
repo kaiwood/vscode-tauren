@@ -18,6 +18,13 @@ export type ChatActivityKind =
   | 'tool_execution'
   | 'turn';
 
+export type ChatImage = {
+  type: 'image';
+  data: string;
+  mimeType: string;
+  alt?: string;
+};
+
 export type ChatActivity = {
   id: string;
   kind: ChatActivityKind;
@@ -27,6 +34,7 @@ export type ChatActivity = {
   body?: string;
   expandedBody?: string;
   code?: boolean;
+  images?: ChatImage[];
 };
 
 export type ChatActivityInput = Omit<ChatActivity, 'id'>;
@@ -37,6 +45,7 @@ export type ChatMessage = {
   text: string;
   error?: boolean;
   variant?: 'thinking' | 'branchSummary' | 'compactionSummary';
+  images?: ChatImage[];
   activities?: ChatActivity[];
 };
 
@@ -348,6 +357,7 @@ function isEmptyAssistantMessage(message: ChatMessage | undefined): message is C
     && message.variant !== 'thinking'
     && !message.text
     && !message.error
+    && (!message.images || message.images.length === 0)
     && (!message.activities || message.activities.length === 0);
 }
 
@@ -381,6 +391,10 @@ function mergeActivity(
     next.code = activity.code;
   }
 
+  if ('images' in activity) {
+    next.images = cloneImages(activity.images);
+  }
+
   return next;
 }
 
@@ -397,6 +411,10 @@ function limitActivityDisplay(activity: ChatActivityInput): ChatActivityInput {
 
   if ('expandedBody' in activity) {
     next.expandedBody = limitActivityBody(activity.expandedBody);
+  }
+
+  if ('images' in activity) {
+    next.images = cloneImages(activity.images);
   }
 
   return next;
@@ -436,9 +454,20 @@ function limitDisplayText(value: string | undefined, maxLength: number): string 
 function cloneMessage(message: ChatMessage): ChatMessage {
   const clone: ChatMessage = { ...message };
 
+  if (message.images) {
+    clone.images = cloneImages(message.images);
+  }
+
   if (message.activities) {
-    clone.activities = message.activities.map((activity) => ({ ...activity }));
+    clone.activities = message.activities.map((activity) => ({
+      ...activity,
+      ...(activity.images ? { images: cloneImages(activity.images) } : {})
+    }));
   }
 
   return clone;
+}
+
+function cloneImages(images: ChatImage[] | undefined): ChatImage[] | undefined {
+  return images?.map((image) => ({ ...image }));
 }
