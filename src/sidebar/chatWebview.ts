@@ -353,13 +353,6 @@ ${chatWebviewStyles}
           </button>
         </div>
       </div>
-      <button class="pi-toolbar__settings" type="button" aria-label="Open settings" aria-pressed="false">
-        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M8 5.55A2.45 2.45 0 1 1 8 10.45A2.45 2.45 0 0 1 8 5.55Z" stroke="currentColor" stroke-width="1.25"/>
-          <path d="M8 1.9L9.12 2.22L9.6 3.68L10.95 4.25L12.35 3.57L13.12 4.9L12.12 6.07L12.3 7.52L13.5 8.5L12.8 9.87L11.25 9.73L10.12 10.65L9.82 12.18H8.18L7.88 10.65L6.75 9.73L5.2 9.87L4.5 8.5L5.7 7.52L5.88 6.07L4.88 4.9L5.65 3.57L7.05 4.25L8.4 3.68L8.88 2.22L8 1.9Z" stroke="currentColor" stroke-width="1.05" stroke-linejoin="round"/>
-        </svg>
-        <span class="tau-icon-action-tooltip">Open settings</span>
-      </button>
       <div class="pi-toolbar__help-wrap pi-toolbar__chat-help-wrap">
         <button class="pi-toolbar__help-button pi-toolbar__chat-help-button" type="button" aria-label="Chat shortcuts" aria-haspopup="dialog" aria-expanded="false" aria-controls="chat-shortcuts">
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">

@@ -2092,7 +2092,6 @@
       chatHelpWrapElement: queryRequired(".pi-toolbar__chat-help-wrap"),
       chatHelpButton: queryRequired(".pi-toolbar__chat-help-button"),
       chatHelpPopoverElement: queryRequired(".pi-toolbar__chat-help-popover"),
-      settingsToggleButton: queryRequired(".pi-toolbar__settings"),
       settingsElement: queryRequired(".settings-surface"),
       settingsBodyElement: queryRequired(".settings-surface__body"),
       settingsBackButton: queryRequired(".settings-surface__back"),
@@ -5559,14 +5558,6 @@ ${after}`;
     renderedSection;
     wasVisible = false;
     attachEventListeners() {
-      this.options.settingsToggleButton.addEventListener("click", () => {
-        const state2 = this.options.getState();
-        if (state2.surfaceSide === "settings") {
-          this.hideSettings({ focusPrompt: true });
-          return;
-        }
-        this.showSettings();
-      });
       this.options.settingsBackButton.addEventListener("click", () => this.hideSettings({ focusPrompt: true }));
       this.options.settingsElement.addEventListener("click", (event) => {
         const button = event.target instanceof Element ? event.target.closest("[data-settings-section]") : null;
@@ -5595,14 +5586,6 @@ ${after}`;
     syncForRender(isListView) {
       const state2 = this.options.getState();
       const visible = !isListView && state2.surfaceSide === "settings";
-      const toggleLabel = visible ? "Back to chat" : "Open settings";
-      this.options.settingsToggleButton.hidden = isListView;
-      this.options.settingsToggleButton.setAttribute("aria-label", toggleLabel);
-      this.options.settingsToggleButton.setAttribute("aria-pressed", visible ? "true" : "false");
-      const tooltip = this.options.settingsToggleButton.querySelector(".tau-icon-action-tooltip");
-      if (tooltip) {
-        tooltip.textContent = toggleLabel;
-      }
       this.options.settingsElement.hidden = false;
       this.options.settingsElement.inert = !visible;
       this.options.settingsElement.setAttribute("aria-hidden", visible ? "false" : "true");
@@ -5616,13 +5599,6 @@ ${after}`;
         });
       }
       this.wasVisible = visible;
-    }
-    showSettings() {
-      this.options.closeSlashMenu();
-      this.options.closeModelMenu();
-      this.options.closeSessionCommandMenu();
-      this.options.closeChatHelpPopover();
-      this.options.postMessage({ type: "showSettings" });
     }
     hideSettings(options = {}) {
       this.options.postMessage({ type: "hideSettings" });
@@ -5885,7 +5861,6 @@ ${after}`;
     chatHelpWrapElement,
     chatHelpButton,
     chatHelpPopoverElement,
-    settingsToggleButton,
     settingsElement,
     settingsBodyElement,
     settingsBackButton,
@@ -5987,15 +5962,10 @@ ${after}`;
   settingsController = new SettingsPaneController({
     getState: () => state,
     postMessage: (message) => vscode.postMessage(message),
-    settingsToggleButton,
     settingsElement,
     settingsBodyElement,
     settingsBackButton,
-    focusPromptInput,
-    closeSessionCommandMenu: () => sessionsController.closeSessionCommandMenu(),
-    closeSlashMenu: () => composerController.closeSlashMenu(),
-    closeModelMenu: () => composerController.closeModelMenu(),
-    closeChatHelpPopover
+    focusPromptInput
   });
   sessionsController = new SessionViewController({
     getState: () => state,

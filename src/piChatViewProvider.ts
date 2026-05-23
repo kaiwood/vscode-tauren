@@ -318,6 +318,20 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     this.postModelPickerOpenSoon();
   }
 
+  public async toggleSettings(): Promise<void> {
+    this.controller.toggleSettings();
+
+    if (this.webviewView?.visible) {
+      this.webviewView.show(false);
+    } else {
+      await vscode.commands.executeCommand(`${chatViewType}.focus`);
+    }
+
+    this.refreshLiveMetadata();
+    this.controller.refreshSessionDiffStats();
+    this.startContextUsagePolling();
+  }
+
   public async stop(): Promise<void> {
     await this.controller.handleWebviewMessage({ type: 'abort' });
   }

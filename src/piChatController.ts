@@ -390,6 +390,14 @@ export class PiChatController {
     this.sessionView.toggleTree();
   }
 
+  public toggleSettings(): void {
+    if (!this.settingsView.isSettingsVisible) {
+      this.sessionView.showChat({ clearSessionsError: true, clearTreeError: true });
+    }
+
+    this.settingsView.toggleSettings();
+  }
+
   public startNewSession(options: { viewMode?: 'chat' | 'sessions' } = {}): void {
     if (this.session.isBusy) {
       this.addBusySlashCommandNotice('new');

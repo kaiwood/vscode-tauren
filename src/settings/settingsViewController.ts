@@ -23,6 +23,15 @@ export class SettingsViewController {
     };
   }
 
+  public toggleSettings(): void {
+    if (this.surfaceSide === 'settings') {
+      this.hideSettings();
+      return;
+    }
+
+    this.showSettings();
+  }
+
   public showSettings(): void {
     if (this.surfaceSide === 'settings') {
       return;

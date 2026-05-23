@@ -93,6 +93,12 @@
         "category": "Tau"
       },
       {
+        "command": "tau.toggleSettings",
+        "title": "Toggle Settings",
+        "category": "Tau",
+        "icon": "$(gear)"
+      },
+      {
         "command": "tau.stop",
         "title": "Stop Current Response",
         "category": "Tau"
@@ -183,6 +189,11 @@
           "command": "tau.copyLastResponse",
           "when": "view == tau.chatView",
           "group": "tau@30"
+        },
+        {
+          "command": "tau.toggleSettings",
+          "when": "view == tau.chatView",
+          "group": "navigation@40"
         },
         {
           "command": "tau.toggleSteerFollowUp",

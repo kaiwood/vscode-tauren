@@ -4,6 +4,7 @@ All notable changes to Tau will be documented in this file.
 
 ## Unreleased
 
+- Added a native Tau view toolbar gear for toggling the internal settings pane.
 - Added the initial internal Pi settings surface shell in the sidebar with front/back navigation.
 - Fixed session tree/sidebar lane animation by separating the session list and session tree into left/right panes.
 - Allowed Tau to start without an open workspace by using the user home directory, unless `tau.rejectEditWriteOutsideWorkspace` is enabled.

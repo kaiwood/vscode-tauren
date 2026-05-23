@@ -27,7 +27,6 @@ const {
   chatHelpWrapElement,
   chatHelpButton,
   chatHelpPopoverElement,
-  settingsToggleButton,
   settingsElement,
   settingsBodyElement,
   settingsBackButton,
@@ -136,15 +135,10 @@ const composerController = new ComposerController({
 settingsController = new SettingsPaneController({
   getState: () => state,
   postMessage: (message) => vscode.postMessage(message),
-  settingsToggleButton,
   settingsElement,
   settingsBodyElement,
   settingsBackButton,
-  focusPromptInput,
-  closeSessionCommandMenu: () => sessionsController.closeSessionCommandMenu(),
-  closeSlashMenu: () => composerController.closeSlashMenu(),
-  closeModelMenu: () => composerController.closeModelMenu(),
-  closeChatHelpPopover
+  focusPromptInput
 });
 
 sessionsController = new SessionViewController({

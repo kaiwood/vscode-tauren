@@ -3,15 +3,10 @@ import type { SettingsSection, WebviewState } from '../types';
 type SettingsPaneControllerOptions = {
   getState: () => WebviewState;
   postMessage: (message: unknown) => void;
-  settingsToggleButton: HTMLButtonElement;
   settingsElement: HTMLElement;
   settingsBodyElement: HTMLElement;
   settingsBackButton: HTMLButtonElement;
   focusPromptInput: () => void;
-  closeSessionCommandMenu: () => void;
-  closeSlashMenu: () => void;
-  closeModelMenu: () => void;
-  closeChatHelpPopover: () => void;
 };
 
 type SettingsSectionDefinition = {
@@ -134,17 +129,6 @@ export class SettingsPaneController {
   public constructor(private readonly options: SettingsPaneControllerOptions) {}
 
   public attachEventListeners(): void {
-    this.options.settingsToggleButton.addEventListener('click', () => {
-      const state = this.options.getState();
-
-      if (state.surfaceSide === 'settings') {
-        this.hideSettings({ focusPrompt: true });
-        return;
-      }
-
-      this.showSettings();
-    });
-
     this.options.settingsBackButton.addEventListener('click', () => this.hideSettings({ focusPrompt: true }));
 
     this.options.settingsElement.addEventListener('click', (event) => {
@@ -184,15 +168,6 @@ export class SettingsPaneController {
   public syncForRender(isListView: boolean): void {
     const state = this.options.getState();
     const visible = !isListView && state.surfaceSide === 'settings';
-    const toggleLabel = visible ? 'Back to chat' : 'Open settings';
-
-    this.options.settingsToggleButton.hidden = isListView;
-    this.options.settingsToggleButton.setAttribute('aria-label', toggleLabel);
-    this.options.settingsToggleButton.setAttribute('aria-pressed', visible ? 'true' : 'false');
-    const tooltip = this.options.settingsToggleButton.querySelector('.tau-icon-action-tooltip');
-    if (tooltip) {
-      tooltip.textContent = toggleLabel;
-    }
 
     this.options.settingsElement.hidden = false;
     this.options.settingsElement.inert = !visible;
@@ -210,14 +185,6 @@ export class SettingsPaneController {
     }
 
     this.wasVisible = visible;
-  }
-
-  private showSettings(): void {
-    this.options.closeSlashMenu();
-    this.options.closeModelMenu();
-    this.options.closeSessionCommandMenu();
-    this.options.closeChatHelpPopover();
-    this.options.postMessage({ type: 'showSettings' });
   }
 
   private hideSettings(options: { focusPrompt?: boolean } = {}): void {

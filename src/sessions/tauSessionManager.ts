@@ -125,6 +125,10 @@ export class TauSessionManager {
     this.active().controller.toggleSessionTree();
   }
 
+  public toggleSettings(): void {
+    this.active().controller.toggleSettings();
+  }
+
   public addPromptContext(context: PiPromptContextInput | PiPromptContextInput[]): void {
     this.active().controller.addPromptContext(context);
   }
