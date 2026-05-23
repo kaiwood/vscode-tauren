@@ -401,7 +401,8 @@ ${chatWebviewStyles}
     <section class="messages" aria-live="polite" aria-label="Pi conversation">
 ${createInitialEmptyStateHtml(Boolean(options.welcomeDismissed))}
     </section>
-    <section class="sessions" aria-label="Pi sessions and tree" role="listbox" tabindex="0" hidden></section>
+    <section class="sessions" aria-label="Pi sessions" role="listbox" tabindex="-1" aria-hidden="true"></section>
+    <section class="session-tree" aria-label="Pi session tree" role="listbox" tabindex="-1" aria-hidden="true"></section>
     <section class="custom-ui" aria-label="Pi extension UI" role="dialog" tabindex="0" hidden>
       <div class="custom-ui__header">
         <span class="custom-ui__title">Extension UI</span>

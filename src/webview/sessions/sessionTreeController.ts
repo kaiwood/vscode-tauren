@@ -9,7 +9,7 @@ type SummaryChoice = 'none' | 'summarize' | 'custom';
 export type SessionTreeControllerOptions = {
   getState: () => WebviewState;
   postMessage: PostMessage;
-  sessionsElement: HTMLElement;
+  treeElement: HTMLElement;
 };
 
 export class SessionTreeController {
@@ -27,29 +27,29 @@ export class SessionTreeController {
 
   public render(): void {
     const state = this.options.getState();
-    this.options.sessionsElement.replaceChildren();
+    this.options.treeElement.replaceChildren();
     this.selectedIndex = this.clampIndex(this.selectedIndex);
 
     const header = document.createElement('div');
     header.className = 'sessions__header';
     const count = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
     header.textContent = state.treeRefreshing ? 'Loading session tree...' : 'Session tree';
-    this.options.sessionsElement.append(header);
+    this.options.treeElement.append(header);
 
     if (state.treeError) {
       const error = document.createElement('div');
       error.className = 'sessions__error';
       error.textContent = state.treeError;
-      this.options.sessionsElement.append(error);
+      this.options.treeElement.append(error);
     }
 
     if (state.treeRefreshing && count === 0) {
-      this.options.sessionsElement.append(createSessionEmptyElement('Loading session tree...'));
+      this.options.treeElement.append(createSessionEmptyElement('Loading session tree...'));
       return;
     }
 
     if (count === 0) {
-      this.options.sessionsElement.append(createSessionEmptyElement('No persisted tree entries found for this session.'));
+      this.options.treeElement.append(createSessionEmptyElement('No persisted tree entries found for this session.'));
       return;
     }
 
@@ -57,14 +57,14 @@ export class SessionTreeController {
       const item = state.treeItems[index];
 
       if (item.entryId === this.pendingLabelEntryId) {
-        this.options.sessionsElement.append(this.createLabelDialog());
+        this.options.treeElement.append(this.createLabelDialog());
       }
 
       if (item.entryId === this.pendingSummaryEntryId) {
-        this.options.sessionsElement.append(this.createSummaryDialog());
+        this.options.treeElement.append(this.createSummaryDialog());
       }
 
-      this.options.sessionsElement.append(createTreeItemElement(item, index, {
+      this.options.treeElement.append(createTreeItemElement(item, index, {
         selectedIndex: this.selectedIndex,
         disabled: state.busy || state.treeRefreshing
       }));
@@ -73,7 +73,7 @@ export class SessionTreeController {
     const footer = document.createElement('div');
     footer.className = 'sessions__header sessions__tree-footer';
     footer.textContent = `(${this.selectedIndex + 1}/${count})`;
-    this.options.sessionsElement.append(footer);
+    this.options.treeElement.append(footer);
     requestAnimationFrame(() => this.scrollSelectedIntoView());
   }
 
@@ -160,7 +160,7 @@ export class SessionTreeController {
       event.stopPropagation();
       this.closeDialogs();
       this.render();
-      this.options.sessionsElement.focus({ preventScroll: true });
+      this.options.treeElement.focus({ preventScroll: true });
       return true;
     }
 
@@ -181,7 +181,7 @@ export class SessionTreeController {
         event.stopPropagation();
         this.closeLabelDialog();
         this.render();
-        this.options.sessionsElement.focus({ preventScroll: true });
+        this.options.treeElement.focus({ preventScroll: true });
         return true;
       }
 
@@ -213,7 +213,7 @@ export class SessionTreeController {
       event.stopPropagation();
       this.closeSummaryDialog();
       this.render();
-      this.options.sessionsElement.focus({ preventScroll: true });
+      this.options.treeElement.focus({ preventScroll: true });
       return true;
     }
 
@@ -476,7 +476,7 @@ export class SessionTreeController {
     this.closeLabelDialog();
     this.options.postMessage({ type: 'setTreeEntryLabel', entryId, label });
     this.render();
-    this.options.sessionsElement.focus({ preventScroll: true });
+    this.options.treeElement.focus({ preventScroll: true });
   }
 
   private getSummaryChoice(index: number): SummaryChoice {
@@ -486,7 +486,7 @@ export class SessionTreeController {
   private renderAndFocusSummaryChoice(): void {
     this.render();
     requestAnimationFrame(() => {
-      this.options.sessionsElement.querySelector<HTMLButtonElement>('.sessions__tree-summary-choice--active')?.focus({ preventScroll: true });
+      this.options.treeElement.querySelector<HTMLButtonElement>('.sessions__tree-summary-choice--active')?.focus({ preventScroll: true });
     });
   }
 
@@ -516,7 +516,7 @@ export class SessionTreeController {
   private updateRenderedFooter(): void {
     const state = this.options.getState();
     const count = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
-    const footer = this.options.sessionsElement.querySelector<HTMLElement>('.sessions__tree-footer');
+    const footer = this.options.treeElement.querySelector<HTMLElement>('.sessions__tree-footer');
 
     if (footer) {
       footer.textContent = `(${this.selectedIndex + 1}/${count})`;
@@ -554,23 +554,22 @@ export class SessionTreeController {
       return;
     }
 
-    item.scrollIntoView({ block: 'nearest' });
-
-    const footer = this.options.sessionsElement.querySelector<HTMLElement>('.sessions__tree-footer');
-    const containerRect = this.options.sessionsElement.getBoundingClientRect();
+    // Avoid scrollIntoView while the pane is transformed: it can horizontally scroll the lane host and cancel the slide-in transform.
+    const footer = this.options.treeElement.querySelector<HTMLElement>('.sessions__tree-footer');
+    const containerRect = this.options.treeElement.getBoundingClientRect();
     const itemRect = item.getBoundingClientRect();
     const footerTop = footer?.getBoundingClientRect().top ?? containerRect.bottom;
     const bottomOverlap = itemRect.bottom - footerTop;
 
     if (bottomOverlap > 0) {
-      this.options.sessionsElement.scrollTop += bottomOverlap + 6;
+      this.options.treeElement.scrollTop += bottomOverlap + 6;
       return;
     }
 
     const topOverlap = containerRect.top - itemRect.top;
 
     if (topOverlap > 0) {
-      this.options.sessionsElement.scrollTop -= topOverlap + 6;
+      this.options.treeElement.scrollTop -= topOverlap + 6;
     }
   }
 

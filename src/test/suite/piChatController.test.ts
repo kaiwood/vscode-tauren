@@ -1689,6 +1689,49 @@ suite('PiChatController', () => {
     harness.controller.dispose();
   });
 
+  test('toggle session tree switches directly from the session list', async () => {
+    const sessions: WebviewSessionItem[] = [{
+      path: '/sessions/current.jsonl',
+      id: 'current',
+      cwd: '/workspace',
+      created: '2026-01-01T00:00:00.000Z',
+      modified: '2026-01-01T00:00:00.000Z',
+      messageCount: 1,
+      firstMessage: 'Current question',
+      depth: 0,
+      isLast: true,
+      ancestorContinues: [],
+      current: true
+    }];
+    const treeItems: WebviewTreeItem[] = [{
+      entryId: 'entry-1',
+      role: 'user',
+      text: 'Fix tests',
+      current: true,
+      activePath: true,
+      depth: 0,
+      isLast: true,
+      ancestorContinues: []
+    }];
+    const client = new FakePiClient({ treeItems });
+    const harness = createControllerHarness([client], {
+      listSessions: async () => sessions
+    });
+
+    harness.controller.toggleSessionList();
+    await flushPromises();
+
+    assert.strictEqual(lastState(harness).viewMode, 'sessions');
+
+    harness.controller.toggleSessionTree();
+    await flushPromises();
+
+    assert.strictEqual(client.treeCalls, 1);
+    assert.strictEqual(lastState(harness).viewMode, 'tree');
+    assert.deepStrictEqual(lastState(harness).treeItems, treeItems);
+    harness.controller.dispose();
+  });
+
   test('tree navigation forwards branch summary options', async () => {
     const client = new FakePiClient();
     const harness = createControllerHarness([client]);

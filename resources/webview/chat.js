@@ -2098,6 +2098,7 @@
       toastElement: queryRequired(".pi-toast"),
       messagesElement: queryRequired(".messages"),
       sessionsElement: queryRequired(".sessions"),
+      sessionTreeElement: queryRequired(".session-tree"),
       customUiElement: queryRequired(".custom-ui"),
       customUiOutputElement: queryRequired(".custom-ui__output"),
       customUiCloseButton: queryRequired(".custom-ui__close"),
@@ -3616,36 +3617,36 @@ ${after}`;
     pendingTreeScrollFrame;
     render() {
       const state2 = this.options.getState();
-      this.options.sessionsElement.replaceChildren();
+      this.options.treeElement.replaceChildren();
       this.selectedIndex = this.clampIndex(this.selectedIndex);
       const header = document.createElement("div");
       header.className = "sessions__header";
       const count = Array.isArray(state2.treeItems) ? state2.treeItems.length : 0;
       header.textContent = state2.treeRefreshing ? "Loading session tree..." : "Session tree";
-      this.options.sessionsElement.append(header);
+      this.options.treeElement.append(header);
       if (state2.treeError) {
         const error = document.createElement("div");
         error.className = "sessions__error";
         error.textContent = state2.treeError;
-        this.options.sessionsElement.append(error);
+        this.options.treeElement.append(error);
       }
       if (state2.treeRefreshing && count === 0) {
-        this.options.sessionsElement.append(createSessionEmptyElement("Loading session tree..."));
+        this.options.treeElement.append(createSessionEmptyElement("Loading session tree..."));
         return;
       }
       if (count === 0) {
-        this.options.sessionsElement.append(createSessionEmptyElement("No persisted tree entries found for this session."));
+        this.options.treeElement.append(createSessionEmptyElement("No persisted tree entries found for this session."));
         return;
       }
       for (let index = 0; index < state2.treeItems.length; index += 1) {
         const item = state2.treeItems[index];
         if (item.entryId === this.pendingLabelEntryId) {
-          this.options.sessionsElement.append(this.createLabelDialog());
+          this.options.treeElement.append(this.createLabelDialog());
         }
         if (item.entryId === this.pendingSummaryEntryId) {
-          this.options.sessionsElement.append(this.createSummaryDialog());
+          this.options.treeElement.append(this.createSummaryDialog());
         }
-        this.options.sessionsElement.append(createTreeItemElement(item, index, {
+        this.options.treeElement.append(createTreeItemElement(item, index, {
           selectedIndex: this.selectedIndex,
           disabled: state2.busy || state2.treeRefreshing
         }));
@@ -3653,7 +3654,7 @@ ${after}`;
       const footer = document.createElement("div");
       footer.className = "sessions__header sessions__tree-footer";
       footer.textContent = `(${this.selectedIndex + 1}/${count})`;
-      this.options.sessionsElement.append(footer);
+      this.options.treeElement.append(footer);
       requestAnimationFrame(() => this.scrollSelectedIntoView());
     }
     selectCurrent() {
@@ -3720,7 +3721,7 @@ ${after}`;
         event.stopPropagation();
         this.closeDialogs();
         this.render();
-        this.options.sessionsElement.focus({ preventScroll: true });
+        this.options.treeElement.focus({ preventScroll: true });
         return true;
       }
       return false;
@@ -3737,7 +3738,7 @@ ${after}`;
           event.stopPropagation();
           this.closeLabelDialog();
           this.render();
-          this.options.sessionsElement.focus({ preventScroll: true });
+          this.options.treeElement.focus({ preventScroll: true });
           return true;
         }
         if (event.key === "Enter") {
@@ -3763,7 +3764,7 @@ ${after}`;
         event.stopPropagation();
         this.closeSummaryDialog();
         this.render();
-        this.options.sessionsElement.focus({ preventScroll: true });
+        this.options.treeElement.focus({ preventScroll: true });
         return true;
       }
       if (customInput instanceof HTMLTextAreaElement) {
@@ -3985,7 +3986,7 @@ ${after}`;
       this.closeLabelDialog();
       this.options.postMessage({ type: "setTreeEntryLabel", entryId, label });
       this.render();
-      this.options.sessionsElement.focus({ preventScroll: true });
+      this.options.treeElement.focus({ preventScroll: true });
     }
     getSummaryChoice(index) {
       return index === 1 ? "summarize" : index === 2 ? "custom" : "none";
@@ -3993,7 +3994,7 @@ ${after}`;
     renderAndFocusSummaryChoice() {
       this.render();
       requestAnimationFrame(() => {
-        this.options.sessionsElement.querySelector(".sessions__tree-summary-choice--active")?.focus({ preventScroll: true });
+        this.options.treeElement.querySelector(".sessions__tree-summary-choice--active")?.focus({ preventScroll: true });
       });
     }
     updateRenderedSelection(previousIndex) {
@@ -4016,7 +4017,7 @@ ${after}`;
     updateRenderedFooter() {
       const state2 = this.options.getState();
       const count = Array.isArray(state2.treeItems) ? state2.treeItems.length : 0;
-      const footer = this.options.sessionsElement.querySelector(".sessions__tree-footer");
+      const footer = this.options.treeElement.querySelector(".sessions__tree-footer");
       if (footer) {
         footer.textContent = `(${this.selectedIndex + 1}/${count})`;
       }
@@ -4044,19 +4045,18 @@ ${after}`;
       if (!item) {
         return;
       }
-      item.scrollIntoView({ block: "nearest" });
-      const footer = this.options.sessionsElement.querySelector(".sessions__tree-footer");
-      const containerRect = this.options.sessionsElement.getBoundingClientRect();
+      const footer = this.options.treeElement.querySelector(".sessions__tree-footer");
+      const containerRect = this.options.treeElement.getBoundingClientRect();
       const itemRect = item.getBoundingClientRect();
       const footerTop = footer?.getBoundingClientRect().top ?? containerRect.bottom;
       const bottomOverlap = itemRect.bottom - footerTop;
       if (bottomOverlap > 0) {
-        this.options.sessionsElement.scrollTop += bottomOverlap + 6;
+        this.options.treeElement.scrollTop += bottomOverlap + 6;
         return;
       }
       const topOverlap = containerRect.top - itemRect.top;
       if (topOverlap > 0) {
-        this.options.sessionsElement.scrollTop -= topOverlap + 6;
+        this.options.treeElement.scrollTop -= topOverlap + 6;
       }
     }
     clampIndex(index) {
@@ -4542,7 +4542,7 @@ ${after}`;
       this.treeController = new SessionTreeController({
         getState: options.getState,
         postMessage: options.postMessage,
-        sessionsElement: options.sessionsElement
+        treeElement: options.sessionTreeElement
       });
       this.topControls = new TopSessionControls({
         getState: options.getState,
@@ -4594,6 +4594,8 @@ ${after}`;
       this.options.sessionsElement.addEventListener("keydown", (event) => this.handleSessionListKeydown(event));
       this.options.sessionsElement.addEventListener("pointermove", (event) => this.handleSessionListPointerMove(event));
       this.options.sessionsElement.addEventListener("click", (event) => this.handleSessionsClick(event));
+      this.options.sessionTreeElement.addEventListener("keydown", (event) => this.handleSessionListKeydown(event));
+      this.options.sessionTreeElement.addEventListener("click", (event) => this.handleSessionsClick(event));
     }
     handleWindowClick(target, eventTarget) {
       this.topControls.handleWindowClick(target);
@@ -5561,6 +5563,7 @@ ${after}`;
     toastElement,
     messagesElement,
     sessionsElement,
+    sessionTreeElement,
     customUiElement,
     customUiOutputElement,
     customUiCloseButton,
@@ -5599,11 +5602,9 @@ ${after}`;
   messagesContentElement.replaceChildren(...Array.from(messagesElement.childNodes));
   messagesElement.append(messagesContentElement, busyStatusElement);
   var state = { ...initialWebviewState };
-  var renderedViewMode = state.viewMode;
   var toastHideTimeout;
   var pendingRenderFrame;
   var pendingReturnToChatAfterRender = false;
-  var sessionLane = "sessions";
   var sessionsController;
   var customUiController = new CustomUiController({
     vscode,
@@ -5653,6 +5654,7 @@ ${after}`;
     getState: () => state,
     postMessage: (message) => vscode.postMessage(message),
     sessionsElement,
+    sessionTreeElement,
     toolbarTitleElement,
     toolbarTitleTextElement,
     toolbarTimestampElement,
@@ -5721,7 +5723,6 @@ ${after}`;
     applyCustomUiTheme(state.customUiTheme);
     const wasListView = previousViewMode === "sessions" || previousViewMode === "tree";
     const isListView = state.viewMode === "sessions" || state.viewMode === "tree";
-    syncSessionLaneForStateChange(renderedViewMode, state.viewMode);
     if (previousViewMode === "sessions" && state.viewMode !== "sessions") {
       sessionsController.rememberSessionListScrollPosition();
     }
@@ -5829,68 +5830,27 @@ ${after}`;
       }
     });
   }
-  function syncSessionLaneForStateChange(renderedMode, nextViewMode) {
-    const wasTreeOpen = renderedMode === "tree";
-    const isTreeOpen = nextViewMode === "tree";
-    if (!wasTreeOpen && isTreeOpen) {
-      setSessionLane("tree", { jump: true });
-      return;
-    }
-    if (wasTreeOpen && !isTreeOpen) {
-      setSessionLane("tree", { jump: false });
-      return;
-    }
-    const wasSessionPaneOpen = renderedMode === "sessions";
-    const isSessionPaneOpen = nextViewMode === "sessions";
-    if (!wasSessionPaneOpen && isSessionPaneOpen) {
-      setSessionLane("sessions", { jump: true });
-      return;
-    }
-    if (wasSessionPaneOpen && !isSessionPaneOpen) {
-      setSessionLane("sessions", { jump: false });
-      return;
-    }
-    syncViewLaneClass();
-  }
-  function setSessionLane(lane, options) {
-    const changed = sessionLane !== lane;
-    sessionLane = lane;
-    if (options.jump && changed) {
-      viewElement.classList.add("pi-view--lane-jump");
-      syncViewLaneClass();
-      void viewElement.offsetWidth;
-      viewElement.classList.remove("pi-view--lane-jump");
-      return;
-    }
-    syncViewLaneClass();
-  }
-  function syncViewLaneClass() {
-    viewElement.classList.toggle("pi-view--lane-sessions", sessionLane === "sessions");
-    viewElement.classList.toggle("pi-view--lane-tree", sessionLane === "tree");
-  }
   function render() {
     const isListView = state.viewMode === "sessions" || state.viewMode === "tree";
     const shouldStickToBottom = !isListView && messagesController.shouldFollowOutput();
-    const isOpeningTree = renderedViewMode !== "tree" && state.viewMode === "tree";
-    const isClosingTree = renderedViewMode === "tree" && state.viewMode !== "tree";
-    syncViewLaneClass();
-    viewElement.classList.toggle("pi-view--tree-opening", isOpeningTree);
-    viewElement.classList.toggle("pi-view--tree-closing", isClosingTree);
     viewElement.classList.toggle("pi-view--list", isListView);
     viewElement.classList.toggle("pi-view--sessions", state.viewMode === "sessions");
     viewElement.classList.toggle("pi-view--tree", state.viewMode === "tree");
     viewElement.classList.toggle("pi-view--chat", !isListView);
     messagesElement.hidden = false;
     sessionsElement.hidden = false;
+    sessionTreeElement.hidden = false;
     messagesElement.setAttribute("aria-hidden", isListView ? "true" : "false");
-    sessionsElement.setAttribute("aria-hidden", isListView ? "false" : "true");
+    sessionsElement.setAttribute("aria-hidden", state.viewMode === "sessions" ? "false" : "true");
+    sessionTreeElement.setAttribute("aria-hidden", state.viewMode === "tree" ? "false" : "true");
     messagesElement.inert = isListView;
-    sessionsElement.inert = !isListView;
-    sessionsElement.tabIndex = isListView ? 0 : -1;
+    sessionsElement.inert = state.viewMode !== "sessions";
+    sessionTreeElement.inert = state.viewMode !== "tree";
+    sessionsElement.tabIndex = state.viewMode === "sessions" ? 0 : -1;
+    sessionTreeElement.tabIndex = state.viewMode === "tree" ? 0 : -1;
     form.classList.toggle("composer--list-hidden", isListView);
     form.setAttribute("aria-hidden", isListView ? "true" : "false");
     form.inert = isListView;
-    renderedViewMode = state.viewMode;
     sessionsController.syncForRender(isListView);
     customUiController.syncForRender(isListView);
     syncChatHelpForRender(isListView);
@@ -5902,7 +5862,8 @@ ${after}`;
       sessionsController.closeSessionCommandMenu();
       sessionsController.cancelSessionNameEdit();
       if (!sessionsController.isSessionListNameEditing() && !sessionsController.isSessionSearchFocused()) {
-        requestAnimationFrame(() => sessionsElement.focus({ preventScroll: true }));
+        const activeSessionPane = state.viewMode === "tree" ? sessionTreeElement : sessionsElement;
+        requestAnimationFrame(() => activeSessionPane.focus({ preventScroll: true }));
       }
       return;
     }

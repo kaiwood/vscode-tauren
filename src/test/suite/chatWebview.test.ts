@@ -245,6 +245,35 @@ suite('Chat webview helpers', () => {
     assert.ok(bundle.includes('vscode.postMessage({ type: "refreshMetadata" });'));
   });
 
+  test('createWebviewHtml models sessions, chat, and tree as three lanes', () => {
+    const html = createWebviewHtml({
+      markdownItScriptUri: 'vscode-resource://markdown-it.js',
+      domPurifyScriptUri: 'vscode-resource://dompurify.js',
+      webviewScriptUri: 'vscode-resource://chat.js'
+    });
+
+    assert.ok(html.includes('.messages,\n    .sessions,\n    .session-tree'));
+    assert.match(html, /\.pi-view--chat \.sessions \{\n      transform: translate3d\(-100%, 0, 0\);/);
+    assert.match(html, /\.pi-view--chat \.session-tree \{\n      transform: translate3d\(100%, 0, 0\);/);
+    assert.match(html, /\.pi-view--sessions \.messages \{\n      transform: translate3d\(100%, 0, 0\);/);
+    assert.match(html, /\.pi-view--sessions \.sessions \{\n      transform: translate3d\(0, 0, 0\);/);
+    assert.match(html, /\.pi-view--sessions \.session-tree \{\n      transform: translate3d\(100%, 0, 0\);/);
+    assert.match(html, /\.pi-view--tree \.messages \{\n      transform: translate3d\(-100%, 0, 0\);/);
+    assert.match(html, /\.pi-view--tree \.sessions \{\n      transform: translate3d\(-100%, 0, 0\);/);
+    assert.match(html, /\.pi-view--tree \.session-tree \{\n      transform: translate3d\(0, 0, 0\);/);
+    assert.ok(html.includes('--tau-lane-transition-duration: 190ms'));
+    assert.ok(html.includes('--tau-lane-transition-easing: cubic-bezier(0.16, 1, 0.3, 1)'));
+    assert.ok(html.includes('transition: transform var(--tau-lane-transition-duration) var(--tau-lane-transition-easing);'));
+    assert.ok(html.includes('Lane contract: every pane stays mounted; list hides left, tree hides right, visible panes sit at 0.'));
+    assert.ok(!html.includes('translate3d(200%, 0, 0)'));
+    assert.ok(!html.includes('translate3d(-200%, 0, 0)'));
+    assert.ok(!html.includes('pi-view--tree-enter'));
+    assert.ok(!html.includes('@keyframes tau-session-tree-enter'));
+    assert.ok(!html.includes('--tau-tree-enter-transition-duration'));
+    assert.ok(!html.includes('pi-view--lane-tree'));
+    assert.ok(!html.includes('pi-view--lane-sessions'));
+  });
+
   test('createWebviewHtml wires CSP nonce and stable composer markup', () => {
     const html = createWebviewHtml({
       markdownItScriptUri: 'vscode-resource://markdown-it.js',
@@ -287,7 +316,9 @@ suite('Chat webview helpers', () => {
     assert.ok(!html.includes('pi-toolbar__session-menu'));
     assert.ok(html.includes('class="messages" aria-live="polite" aria-label="Pi conversation"'));
     assert.ok(html.includes('Don\'t show again'));
-    assert.ok(html.includes('class="sessions" aria-label="Pi sessions and tree" role="listbox"'));
+    assert.ok(html.includes('class="sessions" aria-label="Pi sessions" role="listbox" tabindex="-1" aria-hidden="true"'));
+    assert.ok(html.includes('class="session-tree" aria-label="Pi session tree" role="listbox" tabindex="-1" aria-hidden="true"'));
+    assert.ok(!html.includes('class="session-tree" aria-label="Pi session tree" role="listbox" tabindex="-1" hidden'));
     assert.ok(html.includes('<form class="composer" aria-label="Pi message input">'));
     assert.ok(html.includes('class="composer__button composer__add"'));
     assert.ok(!html.includes('class="composer__button composer__fork"'));

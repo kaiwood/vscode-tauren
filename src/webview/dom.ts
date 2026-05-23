@@ -20,6 +20,7 @@ export type WebviewDom = {
   toastElement: HTMLElement;
   messagesElement: HTMLElement;
   sessionsElement: HTMLElement;
+  sessionTreeElement: HTMLElement;
   customUiElement: HTMLElement;
   customUiOutputElement: HTMLElement;
   customUiCloseButton: HTMLButtonElement;
@@ -66,6 +67,7 @@ export function getWebviewDom(): WebviewDom {
     toastElement: queryRequired<HTMLElement>('.pi-toast'),
     messagesElement: queryRequired<HTMLElement>('.messages'),
     sessionsElement: queryRequired<HTMLElement>('.sessions'),
+    sessionTreeElement: queryRequired<HTMLElement>('.session-tree'),
     customUiElement: queryRequired<HTMLElement>('.custom-ui'),
     customUiOutputElement: queryRequired<HTMLElement>('.custom-ui__output'),
     customUiCloseButton: queryRequired<HTMLButtonElement>('.custom-ui__close'),

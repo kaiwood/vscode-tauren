@@ -20,6 +20,7 @@ export type SessionViewControllerOptions = {
   getState: () => WebviewState;
   postMessage: PostMessage;
   sessionsElement: HTMLElement;
+  sessionTreeElement: HTMLElement;
   toolbarTitleElement: HTMLElement;
   toolbarTitleTextElement: HTMLElement;
   toolbarTimestampElement: HTMLElement;
@@ -63,7 +64,7 @@ export class SessionViewController {
     this.treeController = new SessionTreeController({
       getState: options.getState,
       postMessage: options.postMessage,
-      sessionsElement: options.sessionsElement
+      treeElement: options.sessionTreeElement
     });
     this.topControls = new TopSessionControls({
       getState: options.getState,
@@ -98,6 +99,8 @@ export class SessionViewController {
     this.options.sessionsElement.addEventListener('keydown', (event) => this.handleSessionListKeydown(event));
     this.options.sessionsElement.addEventListener('pointermove', (event) => this.handleSessionListPointerMove(event));
     this.options.sessionsElement.addEventListener('click', (event) => this.handleSessionsClick(event));
+    this.options.sessionTreeElement.addEventListener('keydown', (event) => this.handleSessionListKeydown(event));
+    this.options.sessionTreeElement.addEventListener('click', (event) => this.handleSessionsClick(event));
   }
 
   public handleWindowClick(target: Node | null, eventTarget: Element | null): void {

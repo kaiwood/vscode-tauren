@@ -59,6 +59,8 @@ const baseStyles = /* css */ `    :root {
     }
 
     .pi-view {
+      --tau-lane-transition-duration: 190ms;
+      --tau-lane-transition-easing: cubic-bezier(0.16, 1, 0.3, 1);
       position: relative;
       display: grid;
       grid-template-columns: minmax(0, 1fr);
@@ -69,7 +71,9 @@ const baseStyles = /* css */ `    :root {
       padding: 0;
       min-width: 0;
       min-height: 0;
+      /* Clip lanes without making the host horizontally scrollable during scrollIntoView calls. */
       overflow: hidden;
+      overflow: clip;
     }
 
 `;
@@ -450,7 +454,8 @@ const toastStyles = /* css */ `    .pi-toast {
 `;
 
 const viewLayoutStyles = /* css */ `    .messages,
-    .sessions {
+    .sessions,
+    .session-tree {
       grid-row: 2;
       grid-column: 1;
       align-self: stretch;
@@ -462,24 +467,33 @@ const viewLayoutStyles = /* css */ `    .messages,
       min-height: 0;
       overflow-x: hidden;
       overflow-y: auto;
-      transition: transform 190ms cubic-bezier(0.16, 1, 0.3, 1);
+      transition: transform var(--tau-lane-transition-duration) var(--tau-lane-transition-easing);
       will-change: transform;
     }
 
+    /* Lane contract: every pane stays mounted; list hides left, tree hides right, visible panes sit at 0. */
     .messages {
       padding: 8px 20px calc(14px + 4lh) 20px;
       transform: translate3d(0, 0, 0);
       pointer-events: auto;
     }
 
-    .sessions {
+    .sessions,
+    .session-tree {
       grid-row: 2 / 4;
       z-index: 1;
       padding: 6px 12px 12px 8px;
       background: var(--vscode-sideBar-background);
       outline: none;
-      transform: translate3d(-100%, 0, 0);
       pointer-events: none;
+    }
+
+    .sessions {
+      transform: translate3d(-100%, 0, 0);
+    }
+
+    .session-tree {
+      transform: translate3d(100%, 0, 0);
     }
 
     .pi-view--chat .messages {
@@ -487,12 +501,12 @@ const viewLayoutStyles = /* css */ `    .messages,
       pointer-events: auto;
     }
 
-    .pi-view--chat.pi-view--lane-sessions .sessions {
+    .pi-view--chat .sessions {
       transform: translate3d(-100%, 0, 0);
       pointer-events: none;
     }
 
-    .pi-view--chat.pi-view--lane-tree .sessions {
+    .pi-view--chat .session-tree {
       transform: translate3d(100%, 0, 0);
       pointer-events: none;
     }
@@ -502,29 +516,36 @@ const viewLayoutStyles = /* css */ `    .messages,
       pointer-events: none;
     }
 
+    .pi-view--sessions .sessions {
+      transform: translate3d(0, 0, 0);
+      pointer-events: auto;
+    }
+
+    .pi-view--sessions .session-tree {
+      transform: translate3d(100%, 0, 0);
+      pointer-events: none;
+    }
+
     .pi-view--tree .messages {
       transform: translate3d(-100%, 0, 0);
       pointer-events: none;
     }
 
-    .pi-view--sessions .sessions,
     .pi-view--tree .sessions {
+      transform: translate3d(-100%, 0, 0);
+      pointer-events: none;
+    }
+
+    .pi-view--tree .session-tree {
       transform: translate3d(0, 0, 0);
       pointer-events: auto;
     }
 
-    .pi-view--chat.pi-view--tree-opening .sessions,
-    .pi-view--chat.pi-view--tree-closing .sessions {
-      transform: translate3d(100%, 0, 0);
-    }
-
-    .pi-view--lane-jump .sessions {
-      transition: none;
-    }
 
     @media (prefers-reduced-motion: reduce) {
       .messages,
-      .sessions {
+      .sessions,
+      .session-tree {
         transition: none;
       }
     }
@@ -2669,12 +2690,14 @@ const reducedMotionStyles = /* css */ `    body.vscode-reduce-motion *,
 
     body.vscode-reduce-motion .messages,
     body.vscode-reduce-motion .sessions,
+    body.vscode-reduce-motion .session-tree,
     body.vscode-reduce-motion .composer,
     body.vscode-reduce-motion .status__spinner,
     body.vscode-reduce-motion .activity--running .activity__status::before,
     body.vscode-reduce-motion .tau-stream-word,
     body.tau-animations-disabled .messages,
     body.tau-animations-disabled .sessions,
+    body.tau-animations-disabled .session-tree,
     body.tau-animations-disabled .composer,
     body.tau-animations-disabled .status__spinner,
     body.tau-animations-disabled .activity--running .activity__status::before,
@@ -2693,6 +2716,7 @@ const reducedMotionStyles = /* css */ `    body.vscode-reduce-motion *,
 
       .messages,
       .sessions,
+      .session-tree,
       .composer,
       .status__spinner,
       .activity--running .activity__status::before,
