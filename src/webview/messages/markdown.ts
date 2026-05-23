@@ -34,6 +34,14 @@ export function handleMarkdownImageMessage(message: unknown): boolean {
   return true;
 }
 
+export function pruneDisconnectedLocalImageRequests(): void {
+  for (const [id, pending] of Array.from(localImageRequests.entries())) {
+    if (!pending.placeholder.isConnected) {
+      localImageRequests.delete(id);
+    }
+  }
+}
+
 export function renderMarkdownInto(element: HTMLElement, text: string, options: RenderMarkdownOptions = {}): void {
   if (!markdownRenderer || !window.DOMPurify) {
     element.textContent = text;

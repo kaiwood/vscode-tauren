@@ -60,6 +60,14 @@
       requestCodeHighlight(codeElement, codeElement.textContent ?? "", getCodeElementLanguage(codeElement));
     }
   }
+  function pruneDisconnectedCodeHighlights() {
+    for (const [element, info] of Array.from(highlightedElements.entries())) {
+      if (!element.isConnected) {
+        highlightedElements.delete(element);
+        pendingHighlights.delete(info.requestId);
+      }
+    }
+  }
   function watchCodeHighlightThemeChanges() {
     let activeThemeId = getActiveThemeId();
     const refreshIfThemeChanged = () => {
@@ -263,6 +271,13 @@
     }
     applyLocalImageResolveResult(message);
     return true;
+  }
+  function pruneDisconnectedLocalImageRequests() {
+    for (const [id, pending] of Array.from(localImageRequests.entries())) {
+      if (!pending.placeholder.isConnected) {
+        localImageRequests.delete(id);
+      }
+    }
   }
   function renderMarkdownInto(element, text, options = {}) {
     if (!markdownRenderer || !window.DOMPurify) {
@@ -2519,6 +2534,10 @@
     activityBodyExpansion.set(activityId, next);
     return next;
   }
+  function pruneActivityRenderState(activeActivityIds) {
+    pruneStringMap(activityExpansion, activeActivityIds);
+    pruneStringMap(activityBodyExpansion, activeActivityIds);
+  }
   function createMessageElement(message, showRole, messageIndex, options = {}) {
     const article = document.createElement("article");
     article.className = `message message--${message.role}${message.error ? " message--error" : ""}${getMessageVariantClass(message)}`;
@@ -2577,6 +2596,13 @@
     }
     renderMessageBodyInto(body, message, options);
     return true;
+  }
+  function pruneStringMap(map, activeKeys) {
+    for (const key of Array.from(map.keys())) {
+      if (!activeKeys.has(key)) {
+        map.delete(key);
+      }
+    }
   }
   function renderMessageBodyInto(body, message, options) {
     const text = message.text || "";
@@ -3015,6 +3041,7 @@ ${after}`;
         this.renderedMessageViews[index]?.element.remove();
       }
       this.renderedMessageViews.length = state2.messages.length;
+      pruneActivityRenderState(getActiveActivityIds(state2.messages));
       requestCodeHighlightsIn(this.options.messagesContentElement);
     }
     syncBusyStatus() {
@@ -3309,10 +3336,14 @@ ${after}`;
       if (!Array.isArray(message.activities) || message.activities.length === 0) {
         return "";
       }
-      return JSON.stringify({ outputColors: state2.outputColors, allowRemoteImages: state2.allowRemoteImages, activities: message.activities });
+      return [
+        state2.outputColors ? "colors" : "plain",
+        state2.allowRemoteImages ? "remote" : "local",
+        ...message.activities.map(getActivitySignature)
+      ].join("");
     }
     getImagesSignature(message) {
-      return JSON.stringify(message.images ?? []);
+      return getImagesSignature(message.images);
     }
     getBusyStatusText() {
       const activity = this.getLatestRunningActivity();
@@ -3395,8 +3426,50 @@ ${after}`;
     empty.append(title, description, commandHint, tryLabel, promptList, dismiss);
     return empty;
   }
+  function getActivitySignature(activity) {
+    return [
+      activity.id ?? "",
+      activity.kind ?? "",
+      activity.status ?? "",
+      activity.title ?? "",
+      activity.summary ?? "",
+      activity.body ?? "",
+      activity.expandedBody ?? "",
+      activity.code ? "code" : "",
+      getImagesSignature(activity.images)
+    ].join("\0");
+  }
+  function getImagesSignature(images) {
+    if (!Array.isArray(images) || images.length === 0) {
+      return "";
+    }
+    return images.map((image) => {
+      const data = typeof image.data === "string" ? image.data : "";
+      const prefix = data.slice(0, 32);
+      const suffix = data.length > 32 ? data.slice(-32) : "";
+      return [
+        image.type ?? "",
+        image.mimeType ?? "",
+        image.alt ?? "",
+        data.length,
+        prefix,
+        suffix
+      ].join("\0");
+    }).join("");
+  }
   function canReuseMessageElement(view, message, showRole, activitiesSignature, imagesSignature, allowRemoteImages, copyable) {
     return view.message.role === message.role && Boolean(view.message.error) === Boolean(message.error) && (view.message.variant || "") === (message.variant || "") && view.showRole === showRole && view.activitiesSignature === activitiesSignature && view.imagesSignature === imagesSignature && view.allowRemoteImages === allowRemoteImages && view.copyable === copyable;
+  }
+  function getActiveActivityIds(messages) {
+    const ids = /* @__PURE__ */ new Set();
+    for (const message of messages) {
+      for (const activity of message.activities ?? []) {
+        if (typeof activity.id === "string" && activity.id) {
+          ids.add(activity.id);
+        }
+      }
+    }
+    return ids;
   }
   function getMessageBodyVisibleText(article) {
     for (const child of Array.from(article.children)) {
@@ -5646,10 +5719,10 @@ ${after}`;
     treeError: "",
     sessionLoading: false
   };
-  function parseWebviewStateMessage(data) {
+  function parseWebviewStateMessage(data, previousState) {
     const record = isRecord3(data) ? data : {};
     return {
-      messages: Array.isArray(record.messages) ? record.messages : [],
+      messages: parseMessages(record, previousState?.messages ?? []),
       busy: Boolean(record.busy),
       modelLabel: typeof record.modelLabel === "string" ? record.modelLabel : "",
       modelProvider: typeof record.modelProvider === "string" ? record.modelProvider : "",
@@ -5691,6 +5764,69 @@ ${after}`;
   }
   function parseChatFace(value, lane) {
     return lane === "chat" && value === "settings" ? "settings" : "main";
+  }
+  function parseMessages(record, previousMessages) {
+    if (Array.isArray(record.messages)) {
+      return record.messages;
+    }
+    const patch = parseMessagePatch(record.messagePatch);
+    if (!patch) {
+      return previousMessages;
+    }
+    return applyMessagePatch(previousMessages, patch);
+  }
+  function parseMessagePatch(value) {
+    if (!isRecord3(value)) {
+      return void 0;
+    }
+    const upserts = Array.isArray(value.upserts) ? value.upserts.filter(isMessagePatchUpsert) : void 0;
+    const deleteFrom = typeof value.deleteFrom === "number" && Number.isInteger(value.deleteFrom) && value.deleteFrom >= 0 ? value.deleteFrom : void 0;
+    if ((!upserts || upserts.length === 0) && deleteFrom === void 0) {
+      return void 0;
+    }
+    return {
+      ...upserts && upserts.length > 0 ? { upserts } : {},
+      ...deleteFrom !== void 0 ? { deleteFrom } : {}
+    };
+  }
+  function isMessagePatchUpsert(value) {
+    if (!isRecord3(value)) {
+      return false;
+    }
+    return typeof value.index === "number" && Number.isInteger(value.index) && value.index >= 0 && isRecord3(value.message) && typeof value.message.role === "string" && typeof value.message.text === "string";
+  }
+  function applyMessagePatch(previousMessages, patch) {
+    const messages = previousMessages.slice();
+    if (typeof patch.deleteFrom === "number") {
+      messages.splice(patch.deleteFrom);
+    }
+    for (const upsert of patch.upserts ?? []) {
+      messages[upsert.index] = mergePatchedMessage(messages[upsert.index], upsert.message);
+    }
+    return messages;
+  }
+  function mergePatchedMessage(previous, incoming) {
+    if (!previous || !incoming.id || previous.id !== incoming.id) {
+      return incoming;
+    }
+    const merged = { ...incoming };
+    if (!("images" in incoming) && previous.images) {
+      merged.images = previous.images;
+    }
+    if (Array.isArray(incoming.activities) && Array.isArray(previous.activities)) {
+      merged.activities = mergePatchedActivities(previous.activities, incoming.activities);
+    }
+    return merged;
+  }
+  function mergePatchedActivities(previousActivities, incomingActivities) {
+    return incomingActivities.map((activity) => {
+      const activityId = typeof activity.id === "string" ? activity.id : "";
+      const previous = activityId ? previousActivities.find((item) => item.id === activityId) : void 0;
+      if (!previous || "images" in activity || !previous.images) {
+        return activity;
+      }
+      return { ...activity, images: previous.images };
+    });
   }
   function parseCustomUiTheme(value) {
     return value === "modern" || value === "crt" || value === "amber" || value === "matrix" ? value : "default";
@@ -5777,6 +5913,7 @@ ${after}`;
   var toastHideTimeout;
   var pendingRenderFrame;
   var pendingReturnToChatAfterRender = false;
+  var renderInstrumentationEnabled = document.body.dataset.tauDevRenderInstrumentation === "true";
   var sessionsController;
   var settingsController;
   var customUiController = new CustomUiController({
@@ -5903,7 +6040,7 @@ ${after}`;
     const previousCurrentSessionFile = state.currentSessionFile;
     const previousSessionCount = Array.isArray(state.sessions) ? state.sessions.length : 0;
     const previousTreeCount = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
-    const nextState = parseWebviewStateMessage(event.data);
+    const nextState = parseWebviewStateMessage(event.data, state);
     const hasComposerTextUpdate = nextState.composerTextRevision > 0;
     state = nextState;
     document.body.classList.toggle("tau-animations-disabled", !state.animationsEnabled);
@@ -5967,7 +6104,7 @@ ${after}`;
     customUiController.handleGlobalKeyup(event);
   }, true);
   window.addEventListener("resize", () => {
-    render();
+    renderWithInstrumentation();
     composerController.syncComposer({ preserveBottom: true });
     customUiController.handleResize();
   });
@@ -6016,12 +6153,29 @@ ${after}`;
       pendingRenderFrame = void 0;
       const shouldHandleReturnToChat = pendingReturnToChatAfterRender;
       pendingReturnToChatAfterRender = false;
-      render();
+      renderWithInstrumentation();
       if (shouldHandleReturnToChat && state.lane === "chat") {
         messagesController.restoreChatScrollAfterReturn();
         focusPromptInput();
       }
     });
+  }
+  function renderWithInstrumentation() {
+    if (!renderInstrumentationEnabled) {
+      render();
+      return;
+    }
+    const started = performance.now();
+    render();
+    const duration = performance.now() - started;
+    if (duration > 8) {
+      console.debug(`[Tau] render ${duration.toFixed(1)}ms`, {
+        messages: state.messages.length,
+        sessions: state.sessions.length,
+        treeItems: state.treeItems.length,
+        lane: state.lane
+      });
+    }
   }
   function render() {
     const isSessionLane = state.lane === "sessions" || state.lane === "tree";
@@ -6071,6 +6225,8 @@ ${after}`;
       return;
     }
     messagesController.renderMessageList();
+    pruneDisconnectedCodeHighlights();
+    pruneDisconnectedLocalImageRequests();
     messagesController.syncBusyStatus();
     composerController.syncModelLabel();
     composerController.syncPromptContextBadges();
@@ -6212,5 +6368,5 @@ ${after}`;
   }
   vscode.postMessage({ type: "ready" });
   postFocusChanged(document.hasFocus());
-  render();
+  renderWithInstrumentation();
 })();

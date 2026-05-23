@@ -70,6 +70,44 @@ suite('Webview state helpers', () => {
     assert.strictEqual(settingsParsed.chatFace, 'settings');
   });
 
+  test('applies message patches and preserves omitted image payloads', () => {
+    const previous = parseWebviewStateMessage({
+      messages: [
+        {
+          id: 'message-1',
+          revision: 1,
+          role: 'assistant',
+          text: 'Hello',
+          images: [{ type: 'image', data: 'abc', mimeType: 'image/png' }],
+          activities: [{ id: 'activity-1', title: 'Read', images: [{ type: 'image', data: 'def', mimeType: 'image/png' }] }]
+        }
+      ]
+    });
+
+    const parsed = parseWebviewStateMessage({
+      messagePatch: {
+        upserts: [
+          {
+            index: 0,
+            message: {
+              id: 'message-1',
+              revision: 2,
+              role: 'assistant',
+              text: 'Hello again',
+              activities: [{ id: 'activity-1', title: 'Read updated' }]
+            }
+          },
+          { index: 1, message: { id: 'message-2', revision: 1, role: 'user', text: 'Next' } }
+        ]
+      }
+    }, previous);
+
+    assert.strictEqual(parsed.messages[0].text, 'Hello again');
+    assert.deepStrictEqual(parsed.messages[0].images, previous.messages[0].images);
+    assert.deepStrictEqual(parsed.messages[0].activities?.[0]?.images, previous.messages[0].activities?.[0]?.images);
+    assert.strictEqual(parsed.messages[1].text, 'Next');
+  });
+
   test('falls back for malformed fields', () => {
     const parsed = parseWebviewStateMessage({
       messages: 'bad',

@@ -85,12 +85,19 @@ export type Activity = {
 };
 
 export type ChatMessage = {
+  id?: string;
+  revision?: number;
   role: string;
   text: string;
   error?: boolean;
   variant?: string;
   images?: ChatImage[];
   activities?: Activity[];
+};
+
+export type MessagePatch = {
+  upserts?: Array<{ index: number; message: ChatMessage }>;
+  deleteFrom?: number;
 };
 
 export type WorkspaceDiffStats = {

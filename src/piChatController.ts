@@ -1,7 +1,8 @@
-import { ChatSession } from './chat/chatSession';
+import { ChatSession, type ChatSnapshotMessage, type ChatSnapshotState } from './chat/chatSession';
 import { createWebviewStateMessage } from './sidebar/chatWebview';
 import type {
   WebviewMessage,
+  WebviewMessagePatch,
   WebviewStateMessage
 } from './webviewProtocol/types';
 import { StatePublisher } from './controller/statePublisher';
@@ -36,6 +37,24 @@ export type { PiChatContextUsage, PiChatModelMeta, PiChatSessionMetaSnapshot } f
 
 export type { PiPromptContextAttachment, PiPromptContextInput } from './prompt/types';
 
+type PostedChatMessageSync = {
+  id: string;
+  revision: number;
+  imagesSignature: string;
+  activityImageSignatures: Map<string, string>;
+};
+
+type PostedChatSync = {
+  generation: number;
+  messages: PostedChatMessageSync[];
+};
+
+type ChatMessageSyncPlan = {
+  includeMessages: boolean;
+  messagePatch?: WebviewMessagePatch;
+  postedSync: PostedChatSync;
+};
+
 export class PiChatController {
   private readonly promptContext = new PromptContextStore();
   private readonly sessionMetadata: SessionMetadataState;
@@ -55,6 +74,8 @@ export class PiChatController {
   private readonly readyScriptState = new ReadyScriptState();
   private readonly session = new ChatSession();
   private readonly statePublisher: StatePublisher<WebviewStateMessage>;
+  private readonly postedChatSyncByMessage = new WeakMap<WebviewStateMessage, PostedChatSync>();
+  private lastPostedChatSync: PostedChatSync | undefined;
   private workspaceWaitingNoticeAdded = false;
   private workspaceWarningNoticeAdded = false;
 
@@ -183,6 +204,7 @@ export class PiChatController {
       () => this.getStateMessage(),
       (message) => {
         options.postState(message);
+        this.recordPostedChatSync(message);
         this.clearPostedComposerText(message);
       },
       options.stateScheduler
@@ -201,6 +223,7 @@ export class PiChatController {
   public async handleWebviewMessage(message: WebviewMessage): Promise<void> {
     switch (message.type) {
       case 'ready':
+        this.resetWebviewChatSync();
         this.postState();
         void this.refreshSessionDiffStats();
         void this.refreshSessionMeta({ startClient: true });
@@ -425,6 +448,7 @@ export class PiChatController {
     this.sessionDiffController.reset(undefined);
     this.clientManager.setNextSessionFile(undefined);
     this.sessionHistory.startNewSession();
+    this.resetWebviewChatSync();
     this.resetReadyScriptArming();
     this.resetSessionMeta();
     this.disposeClient();
@@ -474,9 +498,13 @@ export class PiChatController {
 
   public getStateMessage(): WebviewStateMessage {
     const metadataState = this.sessionMetadata.getWebviewState();
-
-    return createWebviewStateMessage({
-      state: this.session.snapshot(),
+    const chatState = this.options.useMessagePatches ? this.session.webviewSnapshot() : this.session.snapshot();
+    const chatSync = this.options.useMessagePatches
+      ? this.createChatMessageSyncPlan(chatState as ChatSnapshotState)
+      : undefined;
+    const message = createWebviewStateMessage({
+      state: chatState,
+      ...(chatSync ? { includeMessages: chatSync.includeMessages, messagePatch: chatSync.messagePatch } : {}),
       model: metadataState.model,
       slashCommands: metadataState.slashCommands,
       slashCommandsRefreshing: metadataState.slashCommandsRefreshing,
@@ -497,6 +525,65 @@ export class PiChatController {
       sessionView: this.sessionView.getWebviewState(this.sessionHistory.isLoading),
       settingsView: this.settingsView.getWebviewState()
     });
+
+    if (chatSync) {
+      this.postedChatSyncByMessage.set(message, chatSync.postedSync);
+    }
+    return message;
+  }
+
+  private createChatMessageSyncPlan(chatState: ChatSnapshotState): ChatMessageSyncPlan {
+    const postedSync = createPostedChatSync(this.session.generation, chatState.messages);
+    const lastSync = this.lastPostedChatSync;
+
+    if (!lastSync || lastSync.generation !== postedSync.generation) {
+      return { includeMessages: true, postedSync };
+    }
+
+    const upserts: Array<{ index: number; message: ChatSnapshotMessage }> = [];
+    const limit = chatState.messages.length;
+
+    for (let index = 0; index < limit; index += 1) {
+      const message = chatState.messages[index];
+      const previous = lastSync.messages[index];
+
+      if (!previous || previous.id !== message.id || previous.revision !== message.revision) {
+        upserts.push({
+          index,
+          message: createPatchMessage(message, previous)
+        });
+      }
+    }
+
+    const deleteFrom = lastSync.messages.length > chatState.messages.length
+      ? chatState.messages.length
+      : undefined;
+
+    if (upserts.length === 0 && deleteFrom === undefined) {
+      return { includeMessages: false, postedSync };
+    }
+
+    return {
+      includeMessages: false,
+      messagePatch: {
+        ...(upserts.length > 0 ? { upserts } : {}),
+        ...(deleteFrom !== undefined ? { deleteFrom } : {})
+      },
+      postedSync
+    };
+  }
+
+  private recordPostedChatSync(message: WebviewStateMessage): void {
+    const sync = this.postedChatSyncByMessage.get(message);
+
+    if (sync) {
+      this.lastPostedChatSync = sync;
+      this.postedChatSyncByMessage.delete(message);
+    }
+  }
+
+  private resetWebviewChatSync(): void {
+    this.lastPostedChatSync = undefined;
   }
 
   private consumePromptContext(): PiPromptContextAttachment[] {
@@ -816,4 +903,78 @@ export class PiChatController {
     this.sessionHistory.setLoading(false);
     this.postState();
   }
+}
+
+function createPostedChatSync(generation: number, messages: ChatSnapshotMessage[]): PostedChatSync {
+  return {
+    generation,
+    messages: messages.map((message) => ({
+      id: message.id,
+      revision: message.revision,
+      imagesSignature: getImagesSignature(message.images),
+      activityImageSignatures: getActivityImageSignatures(message)
+    }))
+  };
+}
+
+function createPatchMessage(message: ChatSnapshotMessage, previous: PostedChatMessageSync | undefined): ChatSnapshotMessage {
+  if (!previous || previous.id !== message.id) {
+    return message;
+  }
+
+  const next: ChatSnapshotMessage = { ...message };
+
+  const imagesSignature = getImagesSignature(message.images);
+
+  if (imagesSignature === previous.imagesSignature) {
+    delete next.images;
+  } else if (!Array.isArray(message.images) && previous.imagesSignature) {
+    next.images = [];
+  }
+
+  if (Array.isArray(message.activities)) {
+    next.activities = message.activities.map((activity) => {
+      const activityId = typeof activity.id === 'string' ? activity.id : '';
+
+      const activityImagesSignature = getImagesSignature(activity.images);
+      const previousActivityImagesSignature = previous.activityImageSignatures.get(activityId);
+
+      if (!activityId || activityImagesSignature !== previousActivityImagesSignature) {
+        return !Array.isArray(activity.images) && previousActivityImagesSignature
+          ? { ...activity, images: [] }
+          : activity;
+      }
+
+      const nextActivity = { ...activity };
+      delete nextActivity.images;
+      return nextActivity;
+    });
+  }
+
+  return next;
+}
+
+function getActivityImageSignatures(message: ChatSnapshotMessage): Map<string, string> {
+  const signatures = new Map<string, string>();
+
+  for (const activity of message.activities ?? []) {
+    if (typeof activity.id === 'string') {
+      signatures.set(activity.id, getImagesSignature(activity.images));
+    }
+  }
+
+  return signatures;
+}
+
+function getImagesSignature(images: { data: string; mimeType: string; alt?: string; type: 'image' }[] | undefined): string {
+  if (!Array.isArray(images) || images.length === 0) {
+    return '';
+  }
+
+  return images.map((image) => {
+    const data = typeof image.data === 'string' ? image.data : '';
+    const prefix = data.slice(0, 32);
+    const suffix = data.length > 32 ? data.slice(-32) : '';
+    return [image.type, image.mimeType, image.alt ?? '', data.length, prefix, suffix].join('\u0000');
+  }).join('\u0001');
 }

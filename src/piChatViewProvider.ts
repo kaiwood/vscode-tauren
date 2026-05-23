@@ -77,7 +77,8 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
     createClient: PiClientFactory | undefined = undefined,
     private readonly workspaceState?: vscode.Memento,
     private readonly globalState?: vscode.Memento,
-    private readonly workspaceCwdProvider: () => string | undefined = () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+    private readonly workspaceCwdProvider: () => string | undefined = () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+    private readonly devRenderInstrumentation = false
   ) {
     const extensionUi: ExtensionUi = {
       notify: (message, notifyType) => this.showNotification(message, notifyType),
@@ -209,7 +210,8 @@ export class PiChatViewProvider implements vscode.WebviewViewProvider, vscode.Di
       webviewScriptUri: webviewScriptUri.toString(),
       cspSource: webviewView.webview.cspSource
     }, {
-      welcomeDismissed: this.isWelcomeDismissed()
+      welcomeDismissed: this.isWelcomeDismissed(),
+      devRenderInstrumentation: this.devRenderInstrumentation
     });
 
     this.webviewDisposables.push(

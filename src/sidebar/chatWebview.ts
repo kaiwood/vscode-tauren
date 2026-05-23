@@ -198,7 +198,9 @@ export function createWebviewStateMessage({
   composer,
   navigation,
   sessionView,
-  settingsView
+  settingsView,
+  includeMessages = true,
+  messagePatch
 }: CreateWebviewStateMessageOptions): WebviewStateMessage {
   const message: WebviewStateMessage = {
     type: 'state',
@@ -225,6 +227,14 @@ export function createWebviewStateMessage({
     customUiTheme,
     allowRemoteImages: Boolean(allowRemoteImages)
   };
+
+  if (!includeMessages) {
+    delete (message as Partial<WebviewStateMessage>).messages;
+  }
+
+  if (messagePatch) {
+    message.messagePatch = messagePatch;
+  }
 
   if (welcomeDismissed !== undefined) {
     message.welcomeDismissed = Boolean(welcomeDismissed);
@@ -286,7 +296,7 @@ export function createWebviewHtml(scriptUris: WebviewScriptUris, options: Create
 ${chatWebviewStyles}
   </style>
 </head>
-<body>
+<body${options.devRenderInstrumentation ? ' data-tau-dev-render-instrumentation="true"' : ''}>
   <main class="pi-view tau-view--lane-chat">
     <header class="pi-toolbar">
       <button class="pi-toolbar__sessions" type="button" aria-label="Show sessions">

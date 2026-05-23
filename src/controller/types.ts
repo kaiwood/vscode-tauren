@@ -24,6 +24,7 @@ export type PiChatControllerOptions = {
   getRejectEditWriteOutsideWorkspace?: () => boolean;
   runReadyScript?: (scriptPath: string, cwd: string | undefined) => void;
   stateScheduler?: StatePublisherScheduler;
+  useMessagePatches?: boolean;
   initialSessionMeta?: PiChatSessionMetaSnapshot;
   initialSessionFile?: string;
   onSessionMetaChange?: (metadata: PiChatSessionMetaSnapshot) => void;

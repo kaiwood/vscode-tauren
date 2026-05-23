@@ -84,6 +84,15 @@ export function requestCodeHighlightsIn(root: HTMLElement): void {
   }
 }
 
+export function pruneDisconnectedCodeHighlights(): void {
+  for (const [element, info] of Array.from(highlightedElements.entries())) {
+    if (!element.isConnected) {
+      highlightedElements.delete(element);
+      pendingHighlights.delete(info.requestId);
+    }
+  }
+}
+
 export function watchCodeHighlightThemeChanges(): void {
   let activeThemeId = getActiveThemeId();
   const refreshIfThemeChanged = () => {

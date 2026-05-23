@@ -12,6 +12,11 @@ export function toggleActivityBodyExpansion(activityId: string): boolean {
   return next;
 }
 
+export function pruneActivityRenderState(activeActivityIds: Set<string>): void {
+  pruneStringMap(activityExpansion, activeActivityIds);
+  pruneStringMap(activityBodyExpansion, activeActivityIds);
+}
+
 export type MessageRenderOptions = RenderMarkdownOptions & {
   outputColors?: boolean;
 };
@@ -103,6 +108,14 @@ export function updateMessageBodyElement(
   renderMessageBodyInto(body, message, options);
 
   return true;
+}
+
+function pruneStringMap(map: Map<string, unknown>, activeKeys: Set<string>): void {
+  for (const key of Array.from(map.keys())) {
+    if (!activeKeys.has(key)) {
+      map.delete(key);
+    }
+  }
 }
 
 function renderMessageBodyInto(body: HTMLElement, message: ChatMessage, options: MessageRenderOptions): void {

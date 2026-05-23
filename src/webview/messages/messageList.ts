@@ -1,6 +1,6 @@
 import { requestCodeHighlightsIn } from '../codeHighlighting';
 import { messagesBottomThreshold } from '../constants';
-import { createMessageElement, toggleActivityBodyExpansion, updateMessageBodyElement } from './renderMessages';
+import { createMessageElement, pruneActivityRenderState, toggleActivityBodyExpansion, updateMessageBodyElement } from './renderMessages';
 import {
   createScrollFollowState,
   isScrollAtBottom,
@@ -9,7 +9,7 @@ import {
   type ScrollFollowState,
   type ScrollMetrics
 } from './scrollFollow';
-import type { Activity, ChatMessage, WebviewState } from '../types';
+import type { Activity, ChatImage, ChatMessage, WebviewState } from '../types';
 
 type PostMessage = (message: unknown) => void;
 
@@ -72,6 +72,7 @@ export class MessageListController {
     }
 
     this.renderedMessageViews.length = state.messages.length;
+    pruneActivityRenderState(getActiveActivityIds(state.messages));
     requestCodeHighlightsIn(this.options.messagesContentElement);
   }
 
@@ -456,11 +457,15 @@ export class MessageListController {
       return '';
     }
 
-    return JSON.stringify({ outputColors: state.outputColors, allowRemoteImages: state.allowRemoteImages, activities: message.activities });
+    return [
+      state.outputColors ? 'colors' : 'plain',
+      state.allowRemoteImages ? 'remote' : 'local',
+      ...message.activities.map(getActivitySignature)
+    ].join('\u0001');
   }
 
   private getImagesSignature(message: ChatMessage): string {
-    return JSON.stringify(message.images ?? []);
+    return getImagesSignature(message.images);
   }
 
   private getBusyStatusText(): string {
@@ -574,6 +579,40 @@ function createWelcomeStateElement(): HTMLElement {
   return empty;
 }
 
+function getActivitySignature(activity: Activity): string {
+  return [
+    activity.id ?? '',
+    activity.kind ?? '',
+    activity.status ?? '',
+    activity.title ?? '',
+    activity.summary ?? '',
+    activity.body ?? '',
+    activity.expandedBody ?? '',
+    activity.code ? 'code' : '',
+    getImagesSignature(activity.images)
+  ].join('\u0000');
+}
+
+function getImagesSignature(images: ChatImage[] | undefined): string {
+  if (!Array.isArray(images) || images.length === 0) {
+    return '';
+  }
+
+  return images.map((image) => {
+    const data = typeof image.data === 'string' ? image.data : '';
+    const prefix = data.slice(0, 32);
+    const suffix = data.length > 32 ? data.slice(-32) : '';
+    return [
+      image.type ?? '',
+      image.mimeType ?? '',
+      image.alt ?? '',
+      data.length,
+      prefix,
+      suffix
+    ].join('\u0000');
+  }).join('\u0001');
+}
+
 function canReuseMessageElement(
   view: RenderedMessageView,
   message: ChatMessage,
@@ -591,6 +630,20 @@ function canReuseMessageElement(
     && view.imagesSignature === imagesSignature
     && view.allowRemoteImages === allowRemoteImages
     && view.copyable === copyable;
+}
+
+function getActiveActivityIds(messages: ChatMessage[]): Set<string> {
+  const ids = new Set<string>();
+
+  for (const message of messages) {
+    for (const activity of message.activities ?? []) {
+      if (typeof activity.id === 'string' && activity.id) {
+        ids.add(activity.id);
+      }
+    }
+  }
+
+  return ids;
 }
 
 function getMessageBodyVisibleText(article: HTMLElement): string {

@@ -1,5 +1,5 @@
-import { configureCodeHighlighting, handleCodeHighlightMessage, watchCodeHighlightThemeChanges } from './codeHighlighting';
-import { configureMarkdownImageRendering, handleMarkdownImageMessage } from './messages/markdown';
+import { configureCodeHighlighting, handleCodeHighlightMessage, pruneDisconnectedCodeHighlights, watchCodeHighlightThemeChanges } from './codeHighlighting';
+import { configureMarkdownImageRendering, handleMarkdownImageMessage, pruneDisconnectedLocalImageRequests } from './messages/markdown';
 import { ComposerController } from './composer/composer';
 import { CustomUiController } from './customUI/customUi';
 import { getWebviewDom } from './dom';
@@ -74,6 +74,7 @@ let state: WebviewState = { ...initialWebviewState };
 let toastHideTimeout: ReturnType<typeof setTimeout> | undefined;
 let pendingRenderFrame: number | undefined;
 let pendingReturnToChatAfterRender = false;
+const renderInstrumentationEnabled = document.body.dataset.tauDevRenderInstrumentation === 'true';
 
 let sessionsController: SessionViewController;
 let settingsController: SettingsPaneController;
@@ -219,7 +220,7 @@ window.addEventListener('message', (event) => {
   const previousCurrentSessionFile = state.currentSessionFile;
   const previousSessionCount = Array.isArray(state.sessions) ? state.sessions.length : 0;
   const previousTreeCount = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
-  const nextState = parseWebviewStateMessage(event.data);
+  const nextState = parseWebviewStateMessage(event.data, state);
   const hasComposerTextUpdate = nextState.composerTextRevision > 0;
   state = nextState;
   document.body.classList.toggle('tau-animations-disabled', !state.animationsEnabled);
@@ -306,7 +307,7 @@ window.addEventListener('keyup', (event) => {
 }, true);
 
 window.addEventListener('resize', () => {
-  render();
+  renderWithInstrumentation();
   composerController.syncComposer({ preserveBottom: true });
   customUiController.handleResize();
 });
@@ -366,13 +367,33 @@ function scheduleRender(options: { returnToChatMain?: boolean } = {}): void {
     const shouldHandleReturnToChat = pendingReturnToChatAfterRender;
     pendingReturnToChatAfterRender = false;
 
-    render();
+    renderWithInstrumentation();
 
     if (shouldHandleReturnToChat && state.lane === 'chat') {
       messagesController.restoreChatScrollAfterReturn();
       focusPromptInput();
     }
   });
+}
+
+function renderWithInstrumentation(): void {
+  if (!renderInstrumentationEnabled) {
+    render();
+    return;
+  }
+
+  const started = performance.now();
+  render();
+  const duration = performance.now() - started;
+
+  if (duration > 8) {
+    console.debug(`[Tau] render ${duration.toFixed(1)}ms`, {
+      messages: state.messages.length,
+      sessions: state.sessions.length,
+      treeItems: state.treeItems.length,
+      lane: state.lane
+    });
+  }
 }
 
 function render(): void {
@@ -429,6 +450,8 @@ function render(): void {
   }
 
   messagesController.renderMessageList();
+  pruneDisconnectedCodeHighlights();
+  pruneDisconnectedLocalImageRequests();
 
   messagesController.syncBusyStatus();
   composerController.syncModelLabel();
@@ -603,4 +626,4 @@ function focusPromptInputIfNothingFocused(): void {
 
 vscode.postMessage({ type: 'ready' });
 postFocusChanged(document.hasFocus());
-render();
+renderWithInstrumentation();

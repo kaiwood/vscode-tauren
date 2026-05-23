@@ -1,4 +1,4 @@
-import type { WebviewState } from './types';
+import type { Activity, ChatMessage, MessagePatch, WebviewState } from './types';
 
 export const initialWebviewState: WebviewState = {
   messages: [],
@@ -38,11 +38,11 @@ export const initialWebviewState: WebviewState = {
   sessionLoading: false
 };
 
-export function parseWebviewStateMessage(data: unknown): WebviewState {
+export function parseWebviewStateMessage(data: unknown, previousState?: WebviewState): WebviewState {
   const record = isRecord(data) ? data : {};
 
   return {
-    messages: Array.isArray(record.messages) ? record.messages : [],
+    messages: parseMessages(record, previousState?.messages ?? []),
     busy: Boolean(record.busy),
     modelLabel: typeof record.modelLabel === 'string' ? record.modelLabel : '',
     modelProvider: typeof record.modelProvider === 'string' ? record.modelProvider : '',
@@ -86,6 +86,102 @@ function parseLane(value: unknown) {
 
 function parseChatFace(value: unknown, lane: 'chat' | 'sessions' | 'tree') {
   return lane === 'chat' && value === 'settings' ? 'settings' : 'main';
+}
+
+function parseMessages(record: Record<string, unknown>, previousMessages: ChatMessage[]): ChatMessage[] {
+  if (Array.isArray(record.messages)) {
+    return record.messages;
+  }
+
+  const patch = parseMessagePatch(record.messagePatch);
+
+  if (!patch) {
+    return previousMessages;
+  }
+
+  return applyMessagePatch(previousMessages, patch);
+}
+
+function parseMessagePatch(value: unknown): MessagePatch | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const upserts = Array.isArray(value.upserts)
+    ? value.upserts.filter(isMessagePatchUpsert)
+    : undefined;
+  const deleteFrom = typeof value.deleteFrom === 'number' && Number.isInteger(value.deleteFrom) && value.deleteFrom >= 0
+    ? value.deleteFrom
+    : undefined;
+
+  if ((!upserts || upserts.length === 0) && deleteFrom === undefined) {
+    return undefined;
+  }
+
+  return {
+    ...(upserts && upserts.length > 0 ? { upserts } : {}),
+    ...(deleteFrom !== undefined ? { deleteFrom } : {})
+  };
+}
+
+function isMessagePatchUpsert(value: unknown): value is { index: number; message: ChatMessage } {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return typeof value.index === 'number'
+    && Number.isInteger(value.index)
+    && value.index >= 0
+    && isRecord(value.message)
+    && typeof value.message.role === 'string'
+    && typeof value.message.text === 'string';
+}
+
+function applyMessagePatch(previousMessages: ChatMessage[], patch: MessagePatch): ChatMessage[] {
+  const messages = previousMessages.slice();
+
+  if (typeof patch.deleteFrom === 'number') {
+    messages.splice(patch.deleteFrom);
+  }
+
+  for (const upsert of patch.upserts ?? []) {
+    messages[upsert.index] = mergePatchedMessage(messages[upsert.index], upsert.message);
+  }
+
+  return messages;
+}
+
+function mergePatchedMessage(previous: ChatMessage | undefined, incoming: ChatMessage): ChatMessage {
+  if (!previous || !incoming.id || previous.id !== incoming.id) {
+    return incoming;
+  }
+
+  const merged: ChatMessage = { ...incoming };
+
+  if (!('images' in incoming) && previous.images) {
+    merged.images = previous.images;
+  }
+
+  if (Array.isArray(incoming.activities) && Array.isArray(previous.activities)) {
+    merged.activities = mergePatchedActivities(previous.activities, incoming.activities);
+  }
+
+  return merged;
+}
+
+function mergePatchedActivities(previousActivities: Activity[], incomingActivities: Activity[]): Activity[] {
+  return incomingActivities.map((activity) => {
+    const activityId = typeof activity.id === 'string' ? activity.id : '';
+    const previous = activityId
+      ? previousActivities.find((item) => item.id === activityId)
+      : undefined;
+
+    if (!previous || 'images' in activity || !previous.images) {
+      return activity;
+    }
+
+    return { ...activity, images: previous.images };
+  });
 }
 
 function parseCustomUiTheme(value: unknown) {

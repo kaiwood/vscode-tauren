@@ -49,9 +49,24 @@ export type ChatMessage = {
   activities?: ChatActivity[];
 };
 
+export type ChatSnapshotMessage = ChatMessage & {
+  id: string;
+  revision: number;
+};
+
 export type ChatState = {
   messages: ChatMessage[];
   busy: boolean;
+};
+
+export type ChatSnapshotState = {
+  messages: ChatSnapshotMessage[];
+  busy: boolean;
+};
+
+type ChatMessageMeta = {
+  id: string;
+  revision: number;
 };
 
 export type SubmittedPrompt = {
@@ -63,9 +78,11 @@ export class ChatSession {
   private activeAssistantIndex: number | undefined;
   private activitySequence = 0;
   private busy = false;
+  private messageSequence = 0;
   private sessionGeneration = 0;
   private readonly activeActivityIds = new Map<string, string>();
   private readonly activeThinkingIndexes = new Map<string, number>();
+  private readonly messageMeta = new WeakMap<ChatMessage, ChatMessageMeta>();
   private readonly transcript: ChatMessage[] = [];
 
   public get generation(): number {
@@ -87,6 +104,13 @@ export class ChatSession {
     };
   }
 
+  public webviewSnapshot(): ChatSnapshotState {
+    return {
+      messages: this.transcript.map((message) => cloneSnapshotMessage(message, this.ensureMessageMeta(message))),
+      busy: this.busy
+    };
+  }
+
   public beginSubmit(text: string): SubmittedPrompt | undefined {
     const trimmedText = text.trim();
 
@@ -94,8 +118,8 @@ export class ChatSession {
       return undefined;
     }
 
-    this.transcript.push({ role: 'user', text: trimmedText });
-    this.activeAssistantIndex = this.transcript.push({ role: 'assistant', text: '' }) - 1;
+    this.pushMessage({ role: 'user', text: trimmedText });
+    this.activeAssistantIndex = this.pushMessage({ role: 'assistant', text: '' });
     this.busy = true;
 
     return {
@@ -107,6 +131,7 @@ export class ChatSession {
   public startNewSession(): void {
     this.sessionGeneration += 1;
     this.activitySequence = 0;
+    this.messageSequence = 0;
     this.transcript.length = 0;
     this.activeAssistantIndex = undefined;
     this.activeActivityIds.clear();
@@ -117,7 +142,7 @@ export class ChatSession {
   public replaceMessages(messages: ChatMessage[]): void {
     this.activitySequence = 0;
     this.transcript.length = 0;
-    this.transcript.push(...messages.map(cloneMessage));
+    this.transcript.push(...messages.map((message) => this.prepareMessage(cloneMessage(message))));
     this.activeAssistantIndex = undefined;
     this.activeActivityIds.clear();
     this.activeThinkingIndexes.clear();
@@ -157,6 +182,7 @@ export class ChatSession {
 
     const index = this.ensureActiveAssistantMessage();
     this.transcript[index].text += delta;
+    this.touchMessage(this.transcript[index]);
     return true;
   }
 
@@ -164,6 +190,7 @@ export class ChatSession {
     const index = this.ensureActiveAssistantMessage();
     this.transcript[index].text = limitErrorMessage(message);
     this.transcript[index].error = true;
+    this.touchMessage(this.transcript[index]);
   }
 
   public startThinking(sourceId: string): boolean {
@@ -183,6 +210,7 @@ export class ChatSession {
 
     const index = this.ensureThinkingMessage(sourceId);
     this.transcript[index].text += delta;
+    this.touchMessage(this.transcript[index]);
     return true;
   }
 
@@ -192,6 +220,7 @@ export class ChatSession {
     if (content !== undefined) {
       const index = this.ensureThinkingMessage(sourceId);
       this.transcript[index].text = content;
+      this.touchMessage(this.transcript[index]);
       changed = true;
     }
 
@@ -211,6 +240,7 @@ export class ChatSession {
     this.transcript[index].text = currentText
       ? `${currentText}${currentText.endsWith('\n') ? '\n' : '\n\n'}${trimmedMessage}`
       : trimmedMessage;
+    this.touchMessage(this.transcript[index]);
     return true;
   }
 
@@ -220,6 +250,7 @@ export class ChatSession {
     const message = this.transcript[index];
     message.activities ??= [];
     message.activities.push({ id, ...limitActivityDisplay(activity) });
+    this.touchMessage(message);
 
     return id;
   }
@@ -244,6 +275,7 @@ export class ChatSession {
 
     if (existingIndex === -1) {
       message.activities.push({ id, ...limitActivityDisplay(activity) });
+      this.touchMessage(message);
       return id;
     }
 
@@ -252,6 +284,7 @@ export class ChatSession {
       activity,
       bodyMode
     );
+    this.touchMessage(message);
 
     return id;
   }
@@ -271,6 +304,8 @@ export class ChatSession {
       if (message.activities.length === 0) {
         delete message.activities;
       }
+
+      this.touchMessage(message);
     }
 
     this.activeActivityIds.delete(sourceId);
@@ -288,7 +323,7 @@ export class ChatSession {
       return;
     }
 
-    this.transcript.push({ role: 'system', text: limitErrorMessage(message), error: true });
+    this.pushMessage({ role: 'system', text: limitErrorMessage(message), error: true });
   }
 
   public addSystemMessage(message: string): void {
@@ -298,7 +333,7 @@ export class ChatSession {
       return;
     }
 
-    this.transcript.push({ role: 'system', text: trimmedMessage });
+    this.pushMessage({ role: 'system', text: trimmedMessage });
   }
 
   private ensureActiveAssistantMessage(): number {
@@ -310,7 +345,7 @@ export class ChatSession {
       }
     }
 
-    this.activeAssistantIndex = this.transcript.push({ role: 'assistant', text: '' }) - 1;
+    this.activeAssistantIndex = this.pushMessage({ role: 'assistant', text: '' });
     return this.activeAssistantIndex;
   }
 
@@ -333,13 +368,43 @@ export class ChatSession {
       if (isEmptyAssistantMessage(activeMessage)) {
         const index = this.activeAssistantIndex;
         activeMessage.variant = 'thinking';
+        this.touchMessage(activeMessage);
         this.activeAssistantIndex = undefined;
         return index;
       }
     }
 
     this.activeAssistantIndex = undefined;
-    return this.transcript.push({ role: 'assistant', text: '', variant: 'thinking' }) - 1;
+    return this.pushMessage({ role: 'assistant', text: '', variant: 'thinking' });
+  }
+
+  private pushMessage(message: ChatMessage): number {
+    return this.transcript.push(this.prepareMessage(message)) - 1;
+  }
+
+  private prepareMessage(message: ChatMessage): ChatMessage {
+    this.ensureMessageMeta(message);
+    return message;
+  }
+
+  private ensureMessageMeta(message: ChatMessage): ChatMessageMeta {
+    let meta = this.messageMeta.get(message);
+
+    if (!meta) {
+      this.messageSequence += 1;
+      meta = { id: `message-${this.sessionGeneration}-${this.messageSequence}`, revision: 1 };
+      this.messageMeta.set(message, meta);
+    }
+
+    return meta;
+  }
+
+  private touchMessage(message: ChatMessage | undefined): void {
+    if (!message) {
+      return;
+    }
+
+    this.ensureMessageMeta(message).revision += 1;
   }
 
   private nextActivityId(): string {
@@ -466,6 +531,14 @@ function cloneMessage(message: ChatMessage): ChatMessage {
   }
 
   return clone;
+}
+
+function cloneSnapshotMessage(message: ChatMessage, meta: ChatMessageMeta): ChatSnapshotMessage {
+  return {
+    ...cloneMessage(message),
+    id: meta.id,
+    revision: meta.revision
+  };
 }
 
 function cloneImages(images: ChatImage[] | undefined): ChatImage[] | undefined {

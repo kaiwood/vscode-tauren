@@ -4,7 +4,7 @@ import type { ExtensionUi } from '../extensionUi/types';
 import type { PiChatControllerOptions } from '../controller/types';
 import type { PiChatSessionMetaSnapshot } from '../metadata/types';
 import type { PiPromptContextInput } from '../prompt/types';
-import type { WebviewMessage, WebviewSessionItem, WebviewStateMessage } from '../webviewProtocol/types';
+import type { WebviewMessage, WebviewMessagePatch, WebviewSessionItem, WebviewStateMessage } from '../webviewProtocol/types';
 
 export type TauSessionManagerOptions = PiChatControllerOptions & {
   customUi?: {
@@ -31,6 +31,8 @@ type OpenSession = {
   customUiHost: ExtensionCustomUiHost | undefined;
   inactiveSince: number | undefined;
   inactiveDisposeTimer: ReturnType<typeof setTimeout> | undefined;
+  outboundStateMessage: WebviewStateMessage | undefined;
+  forceFullStatePost: boolean;
 };
 
 export class TauSessionManager {
@@ -54,6 +56,7 @@ export class TauSessionManager {
 
   public async handleWebviewMessage(message: WebviewMessage): Promise<void> {
     if (message.type === 'ready') {
+      this.active().forceFullStatePost = true;
       this.postState();
       await this.active().controller.handleWebviewMessage(message);
       return;
@@ -214,6 +217,7 @@ export class TauSessionManager {
         initialSessionFile,
         initialSessionMeta: this.options.initialSessionMeta,
         renameOpenSession: (sessionPath, name) => this.renameOpenSessionFrom(id, sessionPath, name),
+        useMessagePatches: true,
         postState: (message) => this.handleSessionState(id, message),
         onSessionMetaChange: (metadata) => this.handleSessionMetaChange(id, metadata),
         onSessionFileChange: (sessionFile) => this.handleSessionFileChange(id, sessionFile)
@@ -226,7 +230,9 @@ export class TauSessionManager {
       customUiOpen: false,
       customUiHost,
       inactiveSince: undefined,
-      inactiveDisposeTimer: undefined
+      inactiveDisposeTimer: undefined,
+      outboundStateMessage: undefined,
+      forceFullStatePost: true
     };
 
     this.sessions.push(session);
@@ -267,6 +273,7 @@ export class TauSessionManager {
 
     this.activeSessionId = id;
     session.unread = false;
+    session.forceFullStatePost = true;
 
     if (previousActive.id !== session.id) {
       this.movePromptContext(previousActive, session);
@@ -356,16 +363,19 @@ export class TauSessionManager {
     const wasBusy = session.state?.busy ?? false;
     const previousSessionFile = getSessionFile(session.sessionFile);
     const nextSessionFile = getSessionFile(message.currentSessionFile);
-    const resetToEmptySession = Boolean(previousSessionFile) && !nextSessionFile && message.messages.length === 0;
-    session.state = message;
+    const storedMessage = resolveStateMessageMessages(message, session.state);
+    const messageCount = storedMessage.messages?.length ?? 0;
+    const resetToEmptySession = Boolean(previousSessionFile) && !nextSessionFile && messageCount === 0;
+    session.state = storedMessage;
+    session.outboundStateMessage = message;
     if (message.sessions && message.sessions.length > 0) {
       this.sessionCatalog = message.sessions;
     }
     session.sessionFile = nextSessionFile;
-    session.status = getStatus(message, session.status);
-    session.title = getOpenSessionTitle(message, resetToEmptySession ? 'New session' : session.title);
+    session.status = getStatus(storedMessage, session.status);
+    session.title = getOpenSessionTitle(storedMessage, resetToEmptySession ? 'New session' : session.title);
 
-    if (id !== this.activeSessionId && (message.busy || wasBusy !== message.busy || message.messages.length > 0)) {
+    if (id !== this.activeSessionId && (storedMessage.busy || wasBusy !== storedMessage.busy || messageCount > 0)) {
       session.unread = true;
     }
 
@@ -410,11 +420,13 @@ export class TauSessionManager {
   private postActiveState(): void {
     const active = this.active();
     const state = active.state ?? createEmptyState();
+    const outboundState = active.forceFullStatePost ? state : active.outboundStateMessage ?? state;
+    active.forceFullStatePost = false;
 
     const sessions = state.sessions && state.sessions.length > 0 ? state.sessions : this.sessionCatalog;
 
     this.options.postState({
-      ...state,
+      ...outboundState,
       sessions: augmentSessions(sessions ?? [], this.sessions, this.activeSessionId),
       currentSessionName: state.currentSessionName || active.title,
       outputColors: this.options.getOutputColors?.() ?? true,
@@ -565,6 +577,78 @@ export class TauSessionManager {
   }
 }
 
+function resolveStateMessageMessages(message: WebviewStateMessage, previous: WebviewStateMessage | undefined): WebviewStateMessage {
+  if (message.messages) {
+    return message;
+  }
+
+  const previousMessages = previous?.messages ?? [];
+  const messages = message.messagePatch
+    ? applyMessagePatch(previousMessages, message.messagePatch)
+    : previousMessages;
+
+  return {
+    ...message,
+    messages
+  };
+}
+
+function applyMessagePatch(
+  previousMessages: NonNullable<WebviewStateMessage['messages']>,
+  patch: WebviewMessagePatch
+): NonNullable<WebviewStateMessage['messages']> {
+  const messages = previousMessages.slice();
+
+  if (typeof patch.deleteFrom === 'number') {
+    messages.splice(patch.deleteFrom);
+  }
+
+  for (const upsert of patch.upserts ?? []) {
+    const previous = messages[upsert.index];
+    messages[upsert.index] = mergePatchedMessage(previous, upsert.message);
+  }
+
+  return messages;
+}
+
+function mergePatchedMessage(
+  previous: NonNullable<WebviewStateMessage['messages']>[number] | undefined,
+  incoming: NonNullable<WebviewStateMessage['messages']>[number]
+): NonNullable<WebviewStateMessage['messages']>[number] {
+  if (!previous) {
+    return incoming;
+  }
+
+  const previousId = 'id' in previous ? previous.id : undefined;
+  const incomingId = 'id' in incoming ? incoming.id : undefined;
+
+  if (!previousId || previousId !== incomingId) {
+    return incoming;
+  }
+
+  const merged = { ...incoming };
+
+  if (!('images' in incoming) && previous.images) {
+    merged.images = previous.images;
+  }
+
+  if (Array.isArray(incoming.activities) && Array.isArray(previous.activities)) {
+    merged.activities = incoming.activities.map((activity) => {
+      const previousActivity = activity.id
+        ? previous.activities?.find((item) => item.id === activity.id)
+        : undefined;
+
+      if (!previousActivity || 'images' in activity || !previousActivity.images) {
+        return activity;
+      }
+
+      return { ...activity, images: previousActivity.images };
+    });
+  }
+
+  return merged;
+}
+
 function createEmptyState(): WebviewStateMessage {
   return {
     type: 'state',
@@ -604,11 +688,13 @@ function getStatus(message: WebviewStateMessage, previous: OpenSessionStatus): O
     return 'running';
   }
 
-  if (message.messages.some((entry) => entry.error)) {
+  const messages = message.messages ?? [];
+
+  if (messages.some((entry) => entry.error)) {
     return 'error';
   }
 
-  if (previous === 'running' || message.messages.length > 0) {
+  if (previous === 'running' || messages.length > 0) {
     return 'done';
   }
 
@@ -622,7 +708,7 @@ function getOpenSessionTitle(message: WebviewStateMessage, fallback: string): st
     return namedSession;
   }
 
-  const firstUserMessage = message.messages.find((entry) => entry.role === 'user')?.text?.trim();
+  const firstUserMessage = (message.messages ?? []).find((entry) => entry.role === 'user')?.text?.trim();
 
   if (firstUserMessage) {
     return firstUserMessage.length > 60 ? firstUserMessage.slice(0, 57) + '...' : firstUserMessage;

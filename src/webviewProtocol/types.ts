@@ -1,4 +1,4 @@
-import type { ChatState } from '../chat/chatSession';
+import type { ChatSnapshotMessage, ChatSnapshotState, ChatState } from '../chat/chatSession';
 
 export type WebviewStreamingBehavior = 'steer' | 'followUp';
 export type WebviewCustomUiTheme = 'default' | 'modern' | 'crt' | 'amber' | 'matrix';
@@ -113,8 +113,15 @@ export type WebviewWorkspaceDiffStats = {
   removedLines: number;
 };
 
-export type WebviewStateMessage = ChatState & {
+export type WebviewMessagePatch = {
+  upserts?: Array<{ index: number; message: ChatSnapshotMessage }>;
+  deleteFrom?: number;
+};
+
+export type WebviewStateMessage = Omit<ChatState, 'messages'> & {
   type: 'state';
+  messages: ChatState['messages'] | ChatSnapshotMessage[];
+  messagePatch?: WebviewMessagePatch;
   modelLabel: string;
   modelProvider: string;
   modelId: string;
@@ -151,7 +158,9 @@ export type WebviewStateMessage = ChatState & {
 };
 
 export type CreateWebviewStateMessageOptions = {
-  state: ChatState;
+  state: ChatState | ChatSnapshotState;
+  includeMessages?: boolean;
+  messagePatch?: WebviewMessagePatch;
   model?: {
     label?: string;
     provider?: string;
@@ -203,4 +212,5 @@ export type WebviewScriptUris = {
 
 export type CreateWebviewHtmlOptions = {
   welcomeDismissed?: boolean;
+  devRenderInstrumentation?: boolean;
 };

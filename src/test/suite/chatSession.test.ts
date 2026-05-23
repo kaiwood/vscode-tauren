@@ -26,6 +26,24 @@ suite('ChatSession', () => {
     assert.strictEqual(session.beginSubmit('second prompt'), undefined);
   });
 
+  test('webview snapshots include stable message ids and changing revisions', () => {
+    const session = new ChatSession();
+
+    session.beginSubmit('hello');
+    const first = session.webviewSnapshot();
+    session.appendAssistantDelta('Hi');
+    const second = session.webviewSnapshot();
+
+    assert.strictEqual(first.messages[0].id, second.messages[0].id);
+    assert.strictEqual(first.messages[1].id, second.messages[1].id);
+    assert.strictEqual(first.messages[0].revision, second.messages[0].revision);
+    assert.ok(second.messages[1].revision > first.messages[1].revision);
+    assert.deepStrictEqual(session.snapshot().messages, [
+      { role: 'user', text: 'hello' },
+      { role: 'assistant', text: 'Hi' }
+    ]);
+  });
+
   test('assistant deltas append to the active assistant message', () => {
     const session = new ChatSession();
 

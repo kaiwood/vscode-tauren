@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { promises as fs } from 'node:fs';
 import * as vscode from 'vscode';
 import { PiChatViewProvider, type PiClient } from '../../piChatViewProvider';
+import { initialWebviewState, parseWebviewStateMessage } from '../../webview/state';
 import type { WebviewStateMessage } from '../../webviewProtocol/types';
 import type {
   PiAgentMessage,
@@ -577,15 +578,31 @@ function withoutExtensionUi(value: unknown): unknown {
 }
 
 function lastPostedState(view: FakeWebviewView): WebviewStateMessage {
-  for (let index = view.webview.messages.length - 1; index >= 0; index -= 1) {
-    const message = view.webview.messages[index];
+  let parsedState = { ...initialWebviewState };
+  let lastState: WebviewStateMessage | undefined;
 
+  for (const message of view.webview.messages) {
     if (isWebviewStateMessage(message)) {
-      return message;
+      parsedState = parseWebviewStateMessage(message, parsedState);
+      lastState = message;
     }
   }
 
-  assert.fail('Expected a state message to be posted');
+  if (!lastState) {
+    assert.fail('Expected a state message to be posted');
+  }
+
+  return {
+    ...lastState,
+    messages: stripWebviewMessageMetadata(parsedState.messages) as WebviewStateMessage['messages']
+  };
+}
+
+function stripWebviewMessageMetadata(messages: typeof initialWebviewState.messages): typeof initialWebviewState.messages {
+  return messages.map((message) => {
+    const { id: _id, revision: _revision, ...rest } = message;
+    return rest;
+  });
 }
 
 function isWebviewStateMessage(value: unknown): value is WebviewStateMessage {
