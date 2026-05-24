@@ -4,6 +4,7 @@ All notable changes to Tau will be documented in this file.
 
 ## Unreleased
 
+- Fixed the busy submit bar background, sizing, and padding so it stays consistent when above-composer extension widgets are shown.
 - Added sidebar-only Extensions settings for Pi extension above widgets, below widgets, status bar, and widget background colors.
 - Added Pi extension multi-line editor support for `ctx.ui.editor()` in the Tau sidebar.
 - Added Pi extension paste support for `ctx.ui.pasteToEditor()` with large-paste markers in the composer.
