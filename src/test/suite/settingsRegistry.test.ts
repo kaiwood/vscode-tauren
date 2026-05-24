@@ -5,7 +5,7 @@ suite('Settings registry', () => {
   test('keeps Tau and Pi settings in requested product sections', () => {
     assert.deepStrictEqual(
       getSettingsForSection('appearance').map((setting) => setting.id),
-      ['tau.outputColors', 'tau.animationsEnabled', 'tau.customUiTheme']
+      ['tau.outputColors', 'tau.animationsEnabled', 'tau.showWelcome', 'tau.customUiTheme']
     );
     assert.deepStrictEqual(
       getSettingsForSection('runtime').map((setting) => setting.id),
@@ -28,6 +28,7 @@ suite('Settings registry', () => {
   test('validates setting values conservatively', () => {
     assert.strictEqual(normalizeSettingValue('tau.outputColors', true), true);
     assert.strictEqual(normalizeSettingValue('tau.outputColors', 'true'), undefined);
+    assert.strictEqual(normalizeSettingValue('tau.showWelcome', false), false);
     assert.strictEqual(normalizeSettingValue('tau.customUiTheme', 'matrix'), 'matrix');
     assert.strictEqual(normalizeSettingValue('tau.customUiTheme', 'random'), undefined);
     assert.strictEqual(normalizeSettingValue('enabledModels', ['gpt-*', ' claude-* '])?.toString(), 'gpt-*,claude-*');

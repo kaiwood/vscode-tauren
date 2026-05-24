@@ -251,6 +251,11 @@
           "default": true,
           "description": "Enable animations in the Tau sidebar. Reduced-motion preferences still disable motion."
         },
+        "tau.showWelcome": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the Welcome to Tau empty state for new chats. Turn this back on to restore the welcome message after dismissing it."
+        },
         "tau.confirmSessionDeletion": {
           "type": "boolean",
           "default": true,

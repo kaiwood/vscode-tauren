@@ -1,6 +1,7 @@
 export type TauSettingId =
   | 'tau.outputColors'
   | 'tau.animationsEnabled'
+  | 'tau.showWelcome'
   | 'tau.customUiTheme'
   | 'tau.blockHttpsImages'
   | 'tau.confirmSessionDeletion'
@@ -135,6 +136,16 @@ export const settingDefinitions = [
     control: 'toggle',
     defaultValue: true,
     helper: 'Reduced-motion preferences still disable motion.',
+    liveBehavior: 'immediate'
+  },
+  {
+    id: 'tau.showWelcome',
+    owner: 'tau',
+    section: 'appearance',
+    label: 'Welcome message',
+    description: 'Show the Welcome to Tau empty state for new chats.',
+    control: 'toggle',
+    defaultValue: true,
     liveBehavior: 'immediate'
   },
   {

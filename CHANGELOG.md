@@ -4,6 +4,7 @@ All notable changes to Tau will be documented in this file.
 
 ## Unreleased
 
+- Added a Tau Appearance setting for showing the Welcome message again after it is dismissed.
 - Moved Login to the top of the settings category list.
 - Added a `Tau: Send Selection to Composer` command for pre-filling the active composer from selected editor lines.
 - Removed the background gradient from the Tau settings surface.

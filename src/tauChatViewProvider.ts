@@ -110,8 +110,8 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
       getReadyScript: () => getReadyScriptSetting(),
       getReadyScriptEnabled: () => getReadyScriptEnabledSetting(),
       getRejectEditWriteOutsideWorkspace: () => getRejectEditWriteOutsideWorkspaceSetting(),
-      getTauSettingValues: () => getTauSettingValues(),
-      updateTauSetting: (id, value) => updateTauSetting(id, value),
+      getTauSettingValues: () => getTauSettingValues(this.globalState),
+      updateTauSetting: (id, value) => this.updateTauSetting(id, value),
       runReadyScript: (scriptPath, cwd) => {
         runReadyScript(scriptPath, cwd, {
           onError: (message) => this.showNotification(message, 'warning')
@@ -163,9 +163,16 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
           this.refreshWebviewHtml();
         }
 
+        const affectsWelcome = event.affectsConfiguration('tau.showWelcome');
+
+        if (affectsWelcome && hasConfiguredShowWelcomeSetting()) {
+          void this.globalState?.update(welcomeDismissedStorageKey, undefined).then(undefined, () => undefined);
+        }
+
         if (
           event.affectsConfiguration('tau.outputColors')
           || event.affectsConfiguration('tau.animationsEnabled')
+          || affectsWelcome
           || event.affectsConfiguration('tau.customUiTheme')
           || affectsRemoteImages
         ) {
@@ -545,10 +552,26 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
   private async dismissWelcome(): Promise<void> {
     await this.globalState?.update(welcomeDismissedStorageKey, true);
     this.controller.postState();
+
+    try {
+      await updateTauSetting('tau.showWelcome', false);
+      await this.globalState?.update(welcomeDismissedStorageKey, undefined);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.showNotification(`Failed to save Welcome message setting: ${message}`, 'warning');
+    }
+  }
+
+  private async updateTauSetting(id: TauSettingId, value: SettingValue): Promise<void> {
+    await updateTauSetting(id, value);
+
+    if (id === 'tau.showWelcome' && typeof value === 'boolean') {
+      await this.globalState?.update(welcomeDismissedStorageKey, undefined);
+    }
   }
 
   private isWelcomeDismissed(): boolean {
-    return this.globalState?.get<boolean>(welcomeDismissedStorageKey) === true;
+    return !getShowWelcomeSetting(this.globalState);
   }
 
   private postCustomUiMessage(message: CustomUiHostMessage): boolean {
@@ -1054,6 +1077,27 @@ function getAnimationsEnabledSetting(): boolean {
   return vscode.workspace.getConfiguration('tau').get<boolean>('animationsEnabled', true);
 }
 
+function getShowWelcomeSetting(globalState?: vscode.Memento): boolean {
+  if (hasConfiguredShowWelcomeSetting()) {
+    return vscode.workspace.getConfiguration('tau').get<boolean>('showWelcome', true);
+  }
+
+  return globalState?.get<boolean>(welcomeDismissedStorageKey) === true ? false : true;
+}
+
+function hasConfiguredShowWelcomeSetting(): boolean {
+  const inspected = vscode.workspace.getConfiguration('tau').inspect<boolean>('showWelcome');
+
+  return [
+    inspected?.globalValue,
+    inspected?.workspaceValue,
+    inspected?.workspaceFolderValue,
+    inspected?.globalLanguageValue,
+    inspected?.workspaceLanguageValue,
+    inspected?.workspaceFolderLanguageValue
+  ].some((value) => typeof value === 'boolean');
+}
+
 function getConfirmSessionDeletionSetting(): boolean {
   return vscode.workspace.getConfiguration('tau').get<boolean>('confirmSessionDeletion', true);
 }
@@ -1084,10 +1128,11 @@ function getRejectEditWriteOutsideWorkspaceSetting(): boolean {
   return vscode.workspace.getConfiguration('tau').get<boolean>('rejectEditWriteOutsideWorkspace', false);
 }
 
-function getTauSettingValues(): Partial<Record<TauSettingId, SettingValue>> {
+function getTauSettingValues(globalState?: vscode.Memento): Partial<Record<TauSettingId, SettingValue>> {
   return {
     'tau.outputColors': getOutputColorsSetting(),
     'tau.animationsEnabled': getAnimationsEnabledSetting(),
+    'tau.showWelcome': getShowWelcomeSetting(globalState),
     'tau.customUiTheme': getCustomUiThemeSetting(),
     'tau.blockHttpsImages': getBlockHttpsImagesSetting(),
     'tau.confirmSessionDeletion': getConfirmSessionDeletionSetting(),

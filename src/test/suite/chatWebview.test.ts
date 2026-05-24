@@ -308,7 +308,7 @@ suite('Chat webview helpers', () => {
 
     assert.ok(
       html.includes(
-        `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https: vscode-resource:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">`
+        `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: vscode-resource:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">`
       )
     );
     assert.ok(html.includes('    .tau-view {'));

@@ -189,7 +189,9 @@ suite('TauChatViewProvider', () => {
     provider.dispose();
   });
 
-  test('persists dismissed welcome state globally and posts updated state', async () => {
+  test('persists dismissed welcome state as a setting and posts updated state', async () => {
+    const configuration = vscode.workspace.getConfiguration('tau');
+    const previousValue = configuration.inspect<boolean>('showWelcome')?.globalValue;
     const globalState = new FakeMemento();
     const provider = new TauChatViewProvider(
       vscode.Uri.file('/extension'),
@@ -201,20 +203,28 @@ suite('TauChatViewProvider', () => {
     );
     const view = new FakeWebviewView();
 
-    provider.resolveWebviewView(view.asWebviewView());
+    try {
+      await configuration.update('showWelcome', undefined, vscode.ConfigurationTarget.Global);
+      provider.resolveWebviewView(view.asWebviewView());
 
-    assert.strictEqual(lastPostedState(view).welcomeDismissed, false);
-    assert.match(view.webview.html, /Don't show again/);
+      assert.strictEqual(lastPostedState(view).welcomeDismissed, false);
+      assert.match(view.webview.html, /Don't show again/);
 
-    view.webview.fireMessage({ type: 'dismissWelcome' });
-    await flushPromises();
-
-    assert.strictEqual(globalState.get<unknown>('tau.welcomeDismissed'), true);
-    assert.strictEqual(lastPostedState(view).welcomeDismissed, true);
-    provider.dispose();
+      view.webview.fireMessage({ type: 'dismissWelcome' });
+      await waitForAssertion(() => {
+        assert.strictEqual(vscode.workspace.getConfiguration('tau').get<boolean>('showWelcome'), false);
+        assert.strictEqual(globalState.get<unknown>('tau.welcomeDismissed'), undefined);
+        assert.strictEqual(lastPostedState(view).welcomeDismissed, true);
+      });
+    } finally {
+      provider.dispose();
+      await configuration.update('showWelcome', previousValue, vscode.ConfigurationTarget.Global);
+    }
   });
 
-  test('uses plain initial empty state after welcome is dismissed', () => {
+  test('uses plain initial empty state after welcome is dismissed', async () => {
+    const configuration = vscode.workspace.getConfiguration('tau');
+    const previousValue = configuration.inspect<boolean>('showWelcome')?.globalValue;
     const globalState = new FakeMemento({ 'tau.welcomeDismissed': true });
     const provider = new TauChatViewProvider(
       vscode.Uri.file('/extension'),
@@ -226,12 +236,49 @@ suite('TauChatViewProvider', () => {
     );
     const view = new FakeWebviewView();
 
-    provider.resolveWebviewView(view.asWebviewView());
+    try {
+      await configuration.update('showWelcome', undefined, vscode.ConfigurationTarget.Global);
+      provider.resolveWebviewView(view.asWebviewView());
 
-    assert.doesNotMatch(view.webview.html, /Don't show again/);
-    assert.match(view.webview.html, /Ask Tau about this workspace\./);
-    assert.strictEqual(lastPostedState(view).welcomeDismissed, true);
-    provider.dispose();
+      assert.doesNotMatch(view.webview.html, /Don't show again/);
+      assert.match(view.webview.html, /Ask Tau about this workspace\./);
+      assert.strictEqual(lastPostedState(view).welcomeDismissed, true);
+      assert.strictEqual(lastPostedState(view).settings?.values['tau.showWelcome'], false);
+    } finally {
+      provider.dispose();
+      await configuration.update('showWelcome', previousValue, vscode.ConfigurationTarget.Global);
+    }
+  });
+
+  test('can turn the welcome message back on from Tau settings', async () => {
+    const configuration = vscode.workspace.getConfiguration('tau');
+    const previousValue = configuration.inspect<boolean>('showWelcome')?.globalValue;
+    const globalState = new FakeMemento({ 'tau.welcomeDismissed': true });
+    const provider = new TauChatViewProvider(
+      vscode.Uri.file('/extension'),
+      () => {
+        throw new Error('Unexpected Pi client creation');
+      },
+      undefined,
+      globalState
+    );
+    const view = new FakeWebviewView();
+
+    try {
+      await configuration.update('showWelcome', undefined, vscode.ConfigurationTarget.Global);
+      provider.resolveWebviewView(view.asWebviewView());
+      assert.strictEqual(lastPostedState(view).welcomeDismissed, true);
+
+      view.webview.fireMessage({ type: 'updateSetting', settingId: 'tau.showWelcome', value: true });
+      await waitForAssertion(() => {
+        assert.strictEqual(vscode.workspace.getConfiguration('tau').get<boolean>('showWelcome'), true);
+        assert.strictEqual(lastPostedState(view).welcomeDismissed, false);
+        assert.strictEqual(lastPostedState(view).settings?.values['tau.showWelcome'], true);
+      });
+    } finally {
+      provider.dispose();
+      await configuration.update('showWelcome', previousValue, vscode.ConfigurationTarget.Global);
+    }
   });
 
   test('posts help toggle messages to the webview', async () => {
@@ -679,4 +726,21 @@ function isMessageType(value: unknown, type: string): boolean {
 
 async function flushPromises(): Promise<void> {
   await new Promise((resolve) => setImmediate(resolve));
+}
+
+async function waitForAssertion(assertion: () => void): Promise<void> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      assertion();
+      return;
+    } catch (error) {
+      lastError = error;
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+
+  throw lastError;
 }
