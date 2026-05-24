@@ -4,6 +4,7 @@ All notable changes to Tau will be documented in this file.
 
 ## Unreleased
 
+- Removed the background gradient from the Tau settings surface.
 - Kept the native New Session toolbar action visible while Tau is busy so a running session can continue in the background.
 - Added built-in Pi provider login/logout support in Tau Settings > Login and wired `/login` and `/logout` to that flow.
 - Added the real Tau settings surface with Tau appearance/safety controls and Pi runtime/advanced controls backed by shared setting definitions.

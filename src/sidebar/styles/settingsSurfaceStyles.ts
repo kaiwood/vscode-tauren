@@ -6,9 +6,7 @@ export const settingsSurfaceStyles = /* css */ `    .settings-surface {
       padding: 12px;
       overflow: hidden;
       color: var(--vscode-foreground);
-      background:
-        radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--vscode-focusBorder) 18%, transparent), transparent 38%),
-        linear-gradient(180deg, color-mix(in srgb, var(--vscode-sideBar-background) 82%, var(--vscode-foreground) 5%), var(--vscode-sideBar-background));
+      background: var(--vscode-sideBar-background);
       outline: none;
     }
 
