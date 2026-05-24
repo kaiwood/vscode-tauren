@@ -66,6 +66,10 @@ export const composerStyles = /* css */ `    .tau-view--has-extension-status {
       line-height: 1.35;
     }
 
+    .tau-view--extension-ui-font .extension-widget {
+      font-family: var(--vscode-font-family);
+    }
+
     .extension-widget--ansi-background {
       box-shadow: none;
     }
@@ -153,8 +157,13 @@ export const composerStyles = /* css */ `    .tau-view--has-extension-status {
       border-radius: 14px;
       box-shadow: inset 0 1px 0 color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
       box-sizing: border-box;
+      font-family: var(--vscode-editor-font-family, monospace);
       font-size: 12px;
       line-height: 1.35;
+    }
+
+    .tau-view--extension-ui-font .composer-status {
+      font-family: var(--vscode-font-family);
     }
 
     .composer-status[hidden] {

@@ -27,12 +27,14 @@ type ExtensionSettings = {
   belowWidgetsEnabled: boolean;
   statusBarEnabled: boolean;
   backgroundColorsEnabled: boolean;
+  monospaceFontEnabled: boolean;
 };
 
 const extensionAboveWidgetSettingId = 'tau.extensions.aboveWidgetsEnabled';
 const extensionBelowWidgetSettingId = 'tau.extensions.belowWidgetsEnabled';
 const extensionStatusSettingId = 'tau.extensions.statusBarEnabled';
 const extensionBackgroundColorSettingId = 'tau.extensions.backgroundColorsEnabled';
+const extensionMonospaceFontSettingId = 'tau.extensions.monospaceFontEnabled';
 const inactiveSessionDisposeAfterMs = 30 * 60 * 1000;
 const maxInactiveOpenSessions = 3;
 
@@ -74,7 +76,8 @@ export class TauSessionManager {
     aboveWidgetsEnabled: true,
     belowWidgetsEnabled: true,
     statusBarEnabled: true,
-    backgroundColorsEnabled: true
+    backgroundColorsEnabled: true,
+    monospaceFontEnabled: false
   };
 
   public constructor(private readonly options: TauSessionManagerOptions) {
@@ -271,7 +274,8 @@ export class TauSessionManager {
       [extensionAboveWidgetSettingId]: this.extensionSettings.aboveWidgetsEnabled,
       [extensionBelowWidgetSettingId]: this.extensionSettings.belowWidgetsEnabled,
       [extensionStatusSettingId]: this.extensionSettings.statusBarEnabled,
-      [extensionBackgroundColorSettingId]: this.extensionSettings.backgroundColorsEnabled
+      [extensionBackgroundColorSettingId]: this.extensionSettings.backgroundColorsEnabled,
+      [extensionMonospaceFontSettingId]: this.extensionSettings.monospaceFontEnabled
     };
   }
 
@@ -318,6 +322,11 @@ export class TauSessionManager {
 
     if (settingId === extensionBackgroundColorSettingId) {
       this.extensionSettings.backgroundColorsEnabled = value;
+      return true;
+    }
+
+    if (settingId === extensionMonospaceFontSettingId) {
+      this.extensionSettings.monospaceFontEnabled = value;
       return true;
     }
 

@@ -7,6 +7,7 @@ export type TauSettingId =
   | 'tau.extensions.belowWidgetsEnabled'
   | 'tau.extensions.statusBarEnabled'
   | 'tau.extensions.backgroundColorsEnabled'
+  | 'tau.extensions.monospaceFontEnabled'
   | 'tau.blockHttpsImages'
   | 'tau.confirmSessionDeletion'
   | 'tau.rejectEditWriteOutsideWorkspace'
@@ -212,6 +213,16 @@ export const settingDefinitions = [
     control: 'toggle',
     defaultValue: true,
     helper: 'Foreground colors still follow Output colors.',
+    liveBehavior: 'immediate'
+  },
+  {
+    id: 'tau.extensions.monospaceFontEnabled',
+    owner: 'tau',
+    section: 'extensions',
+    label: 'Use monospace font',
+    description: 'Use the editor monospace font for Pi extension widgets and status.',
+    control: 'toggle',
+    defaultValue: false,
     liveBehavior: 'immediate'
   },
   {

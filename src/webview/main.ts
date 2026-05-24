@@ -469,6 +469,7 @@ function render(): void {
   viewElement.classList.toggle('tau-view--lane-tree', state.lane === 'tree');
   viewElement.classList.toggle('tau-view--lane-chat', !isSessionLane);
   viewElement.classList.toggle('tau-view--chat-face-settings', isSettingsFaceVisible);
+  viewElement.classList.toggle('tau-view--extension-ui-font', !isExtensionMonospaceFontEnabled());
   messagesElement.hidden = false;
   sessionsElement.hidden = false;
   sessionTreeElement.hidden = false;
@@ -691,6 +692,10 @@ function areExtensionStatusBarEnabled(): boolean {
 
 function areExtensionBackgroundColorsEnabled(): boolean {
   return state.settings.values['tau.extensions.backgroundColorsEnabled'] !== false;
+}
+
+function isExtensionMonospaceFontEnabled(): boolean {
+  return state.settings.values['tau.extensions.monospaceFontEnabled'] === true;
 }
 
 function syncExtensionStatus(hiddenBySurface: boolean): void {
