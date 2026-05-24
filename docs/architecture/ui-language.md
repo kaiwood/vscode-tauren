@@ -19,6 +19,17 @@
 - Chat Face: front/back state of the Chat Lane.
   - Main Face: transcript/composer.
   - Settings Face: internal Tau settings surface for Pi engine/runtime details.
+- Composer: input area for user prompts, commands, and interactions.
+- Custom UI Surface: area for Pi extension UIs, either in a lane or a dialog
+- Custom UI Theme: visual styling for Custom UI Surface.
+- Plugin Bridge: Tau bridge for Pi extension UI calls.
+- Dialog: modal overlay surface for important interactions.
+- Toast: transient notification surface.
+- Busy bar: Bar at the top of the composer containing Changes and Steer/Follow-up controls, shown when Pi is busy.
+- Widget: small interactive element provided by Pi extensions
+- Above widget: Widget above the composer
+- Below widget: Widget below the composer
+- Status bar: Provided by Pi extensions, below composer and below widgets, above the VS Code status bar.
 
 ## Runtime UI
 
