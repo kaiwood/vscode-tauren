@@ -22,6 +22,7 @@ export type PiEventHandlerOptions = {
   postState: () => void;
   scheduleState: () => void;
   refreshSessionDiffStats: () => void;
+  refreshContextUsage: () => void;
   addToolExecution: (event: PiEvent) => void;
   armQueuedReadyScriptRun: () => void;
   runReadyScriptAfterAgentEnd: () => void;
@@ -91,7 +92,14 @@ export class PiEventHandler {
       case 'turn_start':
       case 'turn_end':
       case 'message_start':
+        this.applyPiActivity(event);
+        this.options.postState();
+        break;
       case 'message_end':
+        this.applyPiActivity(event);
+        this.options.refreshContextUsage();
+        this.options.postState();
+        break;
       case 'tool_execution_start':
       case 'tool_execution_update':
         this.applyPiActivity(event);
@@ -120,6 +128,7 @@ export class PiEventHandler {
           this.options.session.setBusy(true);
         }
         this.applyPiActivity(event);
+        this.options.refreshContextUsage();
         this.options.postState();
         this.scheduleReadyScriptWhenPiIdle();
         break;

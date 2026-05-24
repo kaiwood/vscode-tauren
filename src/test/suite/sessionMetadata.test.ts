@@ -1,5 +1,10 @@
 import * as assert from 'assert';
-import { SessionMetadataRefreshController, SessionMetadataState, formatContextUsage } from '../../metadata/sessionMetadata';
+import {
+  SessionMetadataRefreshController,
+  SessionMetadataState,
+  formatContextStatusTooltip,
+  formatContextUsage
+} from '../../metadata/sessionMetadata';
 
 suite('SessionMetadataState', () => {
   test('applies initial metadata and publishes webview state', () => {
@@ -72,18 +77,34 @@ suite('SessionMetadataState', () => {
     ]);
   });
 
-  test('formats known and unknown context usage', () => {
-    assert.deepStrictEqual(formatContextUsage({ contextUsage: { tokens: 60, contextWindow: 100, percent: 60 } }), {
-      label: '60%',
-      title: 'Context used: 60%\nCurrent context: 60 tokens\nModel context size: 100 tokens',
-      level: 'medium'
+  test('formats known and unknown context usage with compact status tooltip', () => {
+    assert.deepStrictEqual(formatContextUsage({
+      tokens: { input: 83000, output: 2400, cacheRead: 468000, cacheWrite: 0, total: 553400 },
+      cost: 0.723,
+      usingSubscription: true,
+      autoCompactionEnabled: true,
+      contextUsage: { tokens: 42704, contextWindow: 272000, percent: 15.7 }
+    }), {
+      label: '16%',
+      title: '↑83k ↓2.4k\nR468k\n$0.723 (sub)\n15.7%/272k (auto)',
+      level: 'low'
     });
 
     assert.deepStrictEqual(formatContextUsage({ contextUsage: { tokens: null, contextWindow: 100, percent: null } }), {
       label: '?%',
-      title: 'Context usage unavailable\nModel context size: 100 tokens',
+      title: '?/100',
       level: 'low'
     });
+  });
+
+  test('formats compact context status tooltip with Pi-style gaps', () => {
+    assert.strictEqual(formatContextStatusTooltip({
+      tokens: { input: 999, output: 1000, cacheRead: 9999, cacheWrite: 10000, total: 21998 },
+      cost: 0,
+      usingSubscription: false,
+      autoCompactionEnabled: false,
+      contextUsage: { tokens: 250, contextWindow: 1000 }
+    }), '↑999 ↓1.0k\nR10.0k W10k\n25.0%/1.0k');
   });
 
   test('refresh controller dedupes session metadata refreshes', async () => {

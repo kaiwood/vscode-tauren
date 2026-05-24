@@ -200,6 +200,8 @@ export type PiSessionStats = {
     total?: number;
   };
   cost?: number;
+  usingSubscription?: boolean;
+  autoCompactionEnabled?: boolean;
   contextUsage?: {
     tokens?: number | null;
     contextWindow?: number;

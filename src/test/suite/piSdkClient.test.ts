@@ -47,7 +47,9 @@ suite('PiSdkClient', () => {
       sessionName: undefined,
       toolResults: 2,
       tokens: { input: 10, output: 20, cacheRead: 3, cacheWrite: 4, total: 37 },
-      contextUsage: { tokens: 100, contextWindow: 1000, percent: 10 }
+      contextUsage: { tokens: 100, contextWindow: 1000, percent: 10 },
+      usingSubscription: false,
+      autoCompactionEnabled: true
     });
     assert.strictEqual(harness.session.bindCount, 1);
     assert.deepStrictEqual(harness.initThemeCalls, [{ themeName: 'dark', enableWatcher: false }]);
@@ -344,7 +346,8 @@ class FakeSession {
     options?.preflightResult?.(true);
   };
   public readonly modelRegistry = {
-    getAvailable: () => this.availableModels
+    getAvailable: () => this.availableModels,
+    isUsingOAuth: () => false
   };
   public readonly extensionRunner = {
     getRegisteredCommands: () => [{

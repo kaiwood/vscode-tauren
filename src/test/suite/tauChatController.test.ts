@@ -1312,7 +1312,7 @@ suite('TauChatController', () => {
 
     assert.strictEqual(lastState(harness).contextUsageLabel, '?%');
     assert.strictEqual(lastState(harness).contextUsageLevel, 'low');
-    assert.ok(lastState(harness).contextUsageTitle.includes('Context usage unavailable'));
+    assert.strictEqual(lastState(harness).contextUsageTitle, '?/1.0k');
     harness.controller.dispose();
   });
 
@@ -2348,6 +2348,35 @@ suite('TauChatController', () => {
     assert.strictEqual(client.modelsCalls, modelsCallsBefore);
     assert.strictEqual(lastState(harness).contextUsageLabel, '60%');
     assert.strictEqual(lastState(harness).contextUsageLevel, 'medium');
+    harness.controller.dispose();
+  });
+
+  test('message end event refreshes compact context tooltip while busy', async () => {
+    const client = new FakePiClient({
+      stats: {
+        tokens: { input: 1000, output: 500, cacheRead: 0, cacheWrite: 0, total: 1500 },
+        cost: 0.1,
+        contextUsage: { tokens: 100, contextWindow: 1000, percent: 10 },
+        autoCompactionEnabled: true
+      }
+    });
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.refreshContextUsage({ startClient: true });
+    client.emit({ type: 'agent_start' });
+    client.stats = {
+      tokens: { input: 83000, output: 2400, cacheRead: 468000, cacheWrite: 0, total: 553400 },
+      cost: 0.723,
+      usingSubscription: true,
+      autoCompactionEnabled: true,
+      contextUsage: { tokens: 42704, contextWindow: 272000, percent: 15.7 }
+    };
+    client.emit({ type: 'message_end', message: { role: 'assistant' } });
+    await flushPromises();
+
+    assert.strictEqual(client.statsCalls, 2);
+    assert.strictEqual(lastState(harness).busy, true);
+    assert.strictEqual(lastState(harness).contextUsageTitle, '↑83k ↓2.4k\nR468k\n$0.723 (sub)\n15.7%/272k (auto)');
     harness.controller.dispose();
   });
 

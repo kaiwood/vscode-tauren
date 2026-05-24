@@ -139,6 +139,7 @@ export class TauChatController {
       postState: () => this.postState(),
       scheduleState: () => this.statePublisher.schedule(),
       refreshSessionDiffStats: () => void this.refreshSessionDiffStats(),
+      refreshContextUsage: () => void this.refreshContextUsage({ silent: true }),
       addToolExecution: (event) => this.sessionDiffController.addToolExecution(event),
       armQueuedReadyScriptRun: () => this.armQueuedReadyScriptRun(),
       runReadyScriptAfterAgentEnd: () => {

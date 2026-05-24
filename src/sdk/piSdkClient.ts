@@ -158,7 +158,9 @@ export class PiSdkClient implements PiClient {
     const { session } = await this.ensureRuntime();
     const stats: PiSessionStats = {
       ...session.getSessionStats(),
-      sessionName: session.sessionName
+      sessionName: session.sessionName,
+      usingSubscription: session.model ? session.modelRegistry.isUsingOAuth(session.model) : false,
+      autoCompactionEnabled: session.autoCompactionEnabled
     };
     return stats;
   }

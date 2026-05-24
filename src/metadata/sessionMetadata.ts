@@ -560,34 +560,82 @@ export function formatContextUsage(stats: PiSessionStats): TauChatContextUsage {
     return { label: '', title: '', level: '' };
   }
 
-  const percent = typeof usage.percent === 'number' ? Math.round(usage.percent) : undefined;
+  const rawPercent = typeof usage.percent === 'number' ? usage.percent : undefined;
+  const roundedPercent = rawPercent === undefined ? undefined : Math.round(rawPercent);
   const tokens = typeof usage.tokens === 'number' ? usage.tokens : undefined;
+  const title = formatContextStatusTooltip(stats);
 
-  if (percent === undefined && tokens === undefined) {
-    return {
-      label: '?%',
-      title: [
-        'Context usage unavailable',
-        `Model context size: ${formatInteger(usage.contextWindow)} tokens`
-      ].join('\n'),
-      level: 'low'
-    };
+  if (roundedPercent === undefined && tokens === undefined) {
+    return { label: '?%', title, level: 'low' };
   }
 
-  const derivedPercent = percent ?? Math.round(((tokens ?? 0) / usage.contextWindow) * 100);
+  const derivedPercent = roundedPercent ?? Math.round(((tokens ?? 0) / usage.contextWindow) * 100);
   const label = `${derivedPercent}%`;
-  const titleTokens = tokens === undefined ? 'Unknown' : formatInteger(tokens);
-  const title = [
-    `Context used: ${derivedPercent}%`,
-    `Current context: ${titleTokens} tokens`,
-    `Model context size: ${formatInteger(usage.contextWindow)} tokens`
-  ].join('\n');
 
   return { label, title, level: getContextUsageLevel(derivedPercent) };
 }
 
+export function formatContextStatusTooltip(stats: PiSessionStats): string {
+  const lines: string[] = [];
+  const tokens = stats.tokens;
+  const tokenParts: string[] = [];
+  const cacheParts: string[] = [];
+
+  if (tokens?.input) {
+    tokenParts.push(`↑${formatCompactTokens(tokens.input)}`);
+  }
+
+  if (tokens?.output) {
+    tokenParts.push(`↓${formatCompactTokens(tokens.output)}`);
+  }
+
+  if (tokenParts.length > 0) {
+    lines.push(tokenParts.join(' '));
+  }
+
+  if (tokens?.cacheRead) {
+    cacheParts.push(`R${formatCompactTokens(tokens.cacheRead)}`);
+  }
+
+  if (tokens?.cacheWrite) {
+    cacheParts.push(`W${formatCompactTokens(tokens.cacheWrite)}`);
+  }
+
+  if (cacheParts.length > 0) {
+    lines.push(cacheParts.join(' '));
+  }
+
+  const cost = typeof stats.cost === 'number' && Number.isFinite(stats.cost) ? stats.cost : 0;
+  if (cost || stats.usingSubscription) {
+    lines.push(`$${cost.toFixed(3)}${stats.usingSubscription ? ' (sub)' : ''}`);
+  }
+
+  const contextUsage = stats.contextUsage;
+  if (contextUsage && typeof contextUsage.contextWindow === 'number') {
+    const rawPercent = typeof contextUsage.percent === 'number'
+      ? contextUsage.percent
+      : typeof contextUsage.tokens === 'number' && contextUsage.contextWindow > 0
+        ? (contextUsage.tokens / contextUsage.contextWindow) * 100
+        : undefined;
+    const percentDisplay = rawPercent === undefined ? '?' : `${rawPercent.toFixed(1)}%`;
+    const autoIndicator = stats.autoCompactionEnabled ? ' (auto)' : '';
+    lines.push(`${percentDisplay}/${formatCompactTokens(contextUsage.contextWindow)}${autoIndicator}`);
+  }
+
+  return lines.join('\n');
+}
+
 export function formatInteger(value: number): string {
   return Math.round(value).toLocaleString('en-US');
+}
+
+export function formatCompactTokens(count: number): string {
+  const roundedCount = Math.round(count);
+  if (roundedCount < 1000) return roundedCount.toString();
+  if (roundedCount < 10000) return `${(roundedCount / 1000).toFixed(1)}k`;
+  if (roundedCount < 1000000) return `${Math.round(roundedCount / 1000)}k`;
+  if (roundedCount < 10000000) return `${(roundedCount / 1000000).toFixed(1)}M`;
+  return `${Math.round(roundedCount / 1000000)}M`;
 }
 
 function getContextUsageLevel(percent: number): string {

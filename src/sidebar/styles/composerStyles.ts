@@ -613,7 +613,7 @@ export const composerStyles = /* css */ `    .tau-view--has-extension-status {
       position: absolute;
       right: 0;
       bottom: calc(100% + 8px);
-      z-index: var(--tau-z-raised);
+      z-index: var(--tau-z-floating-panel);
       display: none;
       width: max-content;
       max-width: min(260px, 70vw);

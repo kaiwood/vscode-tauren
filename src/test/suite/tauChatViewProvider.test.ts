@@ -71,11 +71,7 @@ suite('TauChatViewProvider', () => {
       ],
       contextUsage: {
         label: '60%',
-        title: [
-          'Context used: 60%',
-          'Current context: 60 tokens',
-          'Model context size: 100 tokens'
-        ].join('\n'),
+        title: '60.0%/100',
         level: 'medium'
       }
     });
