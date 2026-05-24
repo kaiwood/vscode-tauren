@@ -116,7 +116,7 @@ export class TauChatController {
       handleCompactCurrentSession: () => this.slashCommandController.handleCompactSlashCommand(''),
       isBusy: () => this.session.isBusy,
       postState: () => this.postState(),
-      setComposerText: (text) => this.setComposerText(text),
+      setComposerText: (text) => this.setPendingComposerText(text),
       setCurrentSessionName: (name, nameOptions) => this.slashCommandController.setCurrentSessionName(name, nameOptions),
       setSessionHistoryLoading: (value) => {
         this.sessionHistory.setLoading(value);
@@ -198,7 +198,7 @@ export class TauChatController {
       refreshSessionMeta: (refreshOptions) => this.refreshSessionMeta(refreshOptions),
       refreshSlashCommands: (refreshOptions) => this.refreshSlashCommands(refreshOptions),
       adoptReplacedSession: (adoptOptions) => this.sessionHistory.adoptReplacedSession(adoptOptions),
-      setComposerText: (text) => this.setComposerText(text),
+      setComposerText: (text) => this.setPendingComposerText(text),
       restartClientForReload: (sessionFile) => {
         this.clientManager.setNextSessionFile(sessionFile);
         this.disposeClient();
@@ -1116,7 +1116,12 @@ export class TauChatController {
     this.abortNoticeAdded = false;
   }
 
-  private setComposerText(text: string): void {
+  public setComposerText(text: string): void {
+    this.setPendingComposerText(text);
+    this.postState();
+  }
+
+  private setPendingComposerText(text: string): void {
     this.composerTextRevision += 1;
     this.pendingComposerText = { text, revision: this.composerTextRevision };
   }

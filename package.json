@@ -130,6 +130,11 @@
         "category": "Tau"
       },
       {
+        "command": "tau.sendSelectionToComposer",
+        "title": "Send Selection to Composer",
+        "category": "Tau"
+      },
+      {
         "command": "tau.traceOrigin",
         "title": "Trace Origin",
         "category": "Tau"

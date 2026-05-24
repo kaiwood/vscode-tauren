@@ -33,6 +33,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('tau.stop', () => provider.stop()),
     vscode.commands.registerCommand('tau.toggleSteerFollowUp', () => provider.toggleSteerFollowUp()),
     vscode.commands.registerCommand('tau.addContext', () => provider.addContext()),
+    vscode.commands.registerCommand('tau.sendSelectionToComposer', () => provider.sendSelectionToComposer()),
     vscode.commands.registerCommand('tau.traceOrigin', () => provider.traceOrigin())
   );
 }

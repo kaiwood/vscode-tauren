@@ -144,6 +144,11 @@ export class TauSessionManager {
     this.active().controller.addPromptContext(context);
   }
 
+  public sendTextToComposer(text: string): void {
+    const session = this.isActiveComposerVisible() ? this.active() : this.createSession({ activate: true });
+    session.controller.setComposerText(text);
+  }
+
   public postState(): void {
     this.postActiveState();
   }
@@ -351,6 +356,14 @@ export class TauSessionManager {
 
   private active(): OpenSession {
     return this.sessions.find((session) => session.id === this.activeSessionId) ?? this.sessions[0];
+  }
+
+  private isActiveComposerVisible(): boolean {
+    const active = this.active();
+    const state = active.state;
+    return (state?.lane ?? 'chat') === 'chat'
+      && (state?.chatFace ?? 'main') === 'main'
+      && !active.customUiOpen;
   }
 
   private handleSessionState(id: string, message: WebviewStateMessage): void {

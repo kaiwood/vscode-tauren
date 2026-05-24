@@ -332,6 +332,33 @@ suite('TauSessionManager', () => {
     harness.manager.dispose();
   });
 
+  test('sends text to the active visible composer', async () => {
+    const harness = createManagerHarness([new FakePiClient()]);
+    await flushPromises();
+
+    harness.manager.sendTextToComposer('selected line');
+
+    const state = findComposerState(harness, 'selected line');
+    assert.ok(state);
+    assert.strictEqual(state.composerTextRevision, 1);
+    assert.strictEqual(harness.createCalls, 0);
+    harness.manager.dispose();
+  });
+
+  test('opens a new chat session when sending text from a hidden composer lane', async () => {
+    const harness = createManagerHarness([new FakePiClient()]);
+
+    await harness.manager.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
+    assert.strictEqual(lastState(harness).lane, 'sessions');
+
+    harness.manager.sendTextToComposer('selected line');
+    await flushPromises();
+
+    assert.ok(findComposerState(harness, 'selected line'));
+    assert.strictEqual(harness.createCalls, 1);
+    harness.manager.dispose();
+  });
+
   test('blocks forks while a background session is running', async () => {
     const firstClient = new FakePiClient();
     const secondClient = new FakePiClient();
@@ -448,6 +475,10 @@ function createSessionItem(path: string, id: string, currentSessionFile: string 
 
 function findSession(state: WebviewStateMessage, path: string): WebviewSessionItem | undefined {
   return state.sessions?.find((session) => session.path === path);
+}
+
+function findComposerState(harness: ManagerHarness, text: string): WebviewStateMessage | undefined {
+  return harness.states.find((state) => state.composerText === text);
 }
 
 function lastState(harness: ManagerHarness): WebviewStateMessage {

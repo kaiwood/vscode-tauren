@@ -256,6 +256,57 @@ suite('TauChatViewProvider', () => {
     provider.dispose();
   });
 
+  test('sends selected editor lines to the composer and clears the editor selection', async () => {
+    const document = await vscode.workspace.openTextDocument({
+      content: 'alpha\nbeta\ngamma\ndelta',
+      language: 'plaintext'
+    });
+    const editor = await vscode.window.showTextDocument(document);
+    editor.selection = new vscode.Selection(new vscode.Position(1, 2), new vscode.Position(2, 3));
+
+    const provider = new TauChatViewProvider(
+      vscode.Uri.file('/extension'),
+      () => new FakePiClient({ state: {} }),
+      undefined,
+      undefined,
+      () => '/workspace'
+    );
+    const view = new FakeWebviewView();
+
+    provider.resolveWebviewView(view.asWebviewView());
+    await provider.sendSelectionToComposer();
+
+    assert.strictEqual(findPostedComposerText(view), 'beta\ngamma');
+    assert.strictEqual(editor.selection.isEmpty, true);
+    assert.deepStrictEqual(editor.selection.active, new vscode.Position(2, 3));
+    provider.dispose();
+  });
+
+  test('sends the current editor line when no text is selected', async () => {
+    const document = await vscode.workspace.openTextDocument({
+      content: 'alpha\nbeta\ngamma',
+      language: 'plaintext'
+    });
+    const editor = await vscode.window.showTextDocument(document);
+    editor.selection = new vscode.Selection(new vscode.Position(1, 1), new vscode.Position(1, 1));
+
+    const provider = new TauChatViewProvider(
+      vscode.Uri.file('/extension'),
+      () => new FakePiClient({ state: {} }),
+      undefined,
+      undefined,
+      () => '/workspace'
+    );
+    const view = new FakeWebviewView();
+
+    provider.resolveWebviewView(view.asWebviewView());
+    await provider.sendSelectionToComposer();
+
+    assert.strictEqual(findPostedComposerText(view), 'beta');
+    assert.strictEqual(editor.selection.isEmpty, true);
+    provider.dispose();
+  });
+
   test('deletes sessions without confirmation when configured', async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tau-delete-session-'));
     const sessionFile = path.join(tempDir, 'session.jsonl');
@@ -575,6 +626,13 @@ function withoutExtensionUi(value: unknown): unknown {
 
   const { extensionUi: _extensionUi, ...rest } = value as Record<string, unknown>;
   return rest;
+}
+
+function findPostedComposerText(view: FakeWebviewView): string | undefined {
+  return view.webview.messages
+    .filter(isWebviewStateMessage)
+    .find((message) => typeof message.composerText === 'string')
+    ?.composerText;
 }
 
 function lastPostedState(view: FakeWebviewView): WebviewStateMessage {

@@ -424,6 +424,20 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
     await this.focus();
   }
 
+  public async sendSelectionToComposer(): Promise<void> {
+    const editor = vscode.window.activeTextEditor;
+
+    if (!editor) {
+      this.showNotification('Open a file before sending code to the Tau composer.', 'warning');
+      return;
+    }
+
+    const text = getEditorLineTextForComposer(editor);
+    clearEditorSelection(editor);
+    this.controller.sendTextToComposer(text);
+    await this.focus();
+  }
+
   public async traceOrigin(): Promise<void> {
     const editor = vscode.window.activeTextEditor;
 
@@ -917,6 +931,61 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
     void vscode.commands.executeCommand('setContext', tauBusyContextKey, busy).then(undefined, () => undefined);
   }
 
+}
+
+function getEditorLineTextForComposer(editor: vscode.TextEditor): string {
+  const selectedLineRanges = editor.selections
+    .filter((selection) => !selection.isEmpty)
+    .map((selection) => getSelectedLineIndexes(selection));
+
+  if (selectedLineRanges.length === 0) {
+    return editor.document.lineAt(editor.selection.active.line).text;
+  }
+
+  return mergeLineRanges(selectedLineRanges)
+    .map((range) => getDocumentLineRangeText(editor.document, range))
+    .join('\n');
+}
+
+function getSelectedLineIndexes(selection: vscode.Selection): { startLine: number; endLine: number } {
+  let endLine = selection.end.line;
+
+  if (selection.end.character === 0 && selection.end.line > selection.start.line) {
+    endLine -= 1;
+  }
+
+  return {
+    startLine: selection.start.line,
+    endLine: Math.max(selection.start.line, endLine)
+  };
+}
+
+function mergeLineRanges(ranges: Array<{ startLine: number; endLine: number }>): Array<{ startLine: number; endLine: number }> {
+  const sorted = ranges.slice().sort((left, right) => left.startLine - right.startLine || left.endLine - right.endLine);
+  const merged: Array<{ startLine: number; endLine: number }> = [];
+
+  for (const range of sorted) {
+    const previous = merged[merged.length - 1];
+
+    if (previous && range.startLine <= previous.endLine + 1) {
+      previous.endLine = Math.max(previous.endLine, range.endLine);
+      continue;
+    }
+
+    merged.push({ ...range });
+  }
+
+  return merged;
+}
+
+function getDocumentLineRangeText(document: vscode.TextDocument, range: { startLine: number; endLine: number }): string {
+  const lastLine = document.lineAt(range.endLine);
+  return document.getText(new vscode.Range(range.startLine, 0, range.endLine, lastLine.range.end.character));
+}
+
+function clearEditorSelection(editor: vscode.TextEditor): void {
+  const active = editor.selection.active;
+  editor.selections = [new vscode.Selection(active, active)];
 }
 
 function createTraceOriginInputs(context: PiPromptContextInput[], document: vscode.TextDocument): TraceOriginInput[] {
