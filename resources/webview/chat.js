@@ -6563,6 +6563,8 @@ ${after}`;
   var toastHideTimeout;
   var pendingRenderFrame;
   var pendingReturnToChatAfterRender = false;
+  var hasReceivedHostState = false;
+  var faceTransitionSuppressionFrame;
   var renderInstrumentationEnabled = document.body.dataset.tauDevRenderInstrumentation === "true";
   var sessionsController;
   var settingsController;
@@ -6690,9 +6692,14 @@ ${after}`;
     const previousCurrentSessionFile = state.currentSessionFile;
     const previousSessionCount = Array.isArray(state.sessions) ? state.sessions.length : 0;
     const previousTreeCount = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
+    const isInitialHostState = !hasReceivedHostState;
+    hasReceivedHostState = true;
     const nextState = parseWebviewStateMessage(event.data, state);
     const hasComposerTextUpdate = nextState.composerTextRevision > 0;
     state = nextState;
+    if (isInitialHostState) {
+      suppressFaceTransitionForNextRender();
+    }
     document.body.classList.toggle("tau-animations-disabled", !state.animationsEnabled);
     applyCustomUiTheme(state.customUiTheme);
     const wasSessionLane = previousLane === "sessions" || previousLane === "tree";
@@ -6808,6 +6815,18 @@ ${after}`;
         messagesController.restoreChatScrollAfterReturn();
         focusPromptInput();
       }
+    });
+  }
+  function suppressFaceTransitionForNextRender() {
+    viewElement.classList.add("tau-view--suppress-face-transition");
+    if (faceTransitionSuppressionFrame !== void 0) {
+      cancelAnimationFrame(faceTransitionSuppressionFrame);
+    }
+    faceTransitionSuppressionFrame = requestAnimationFrame(() => {
+      faceTransitionSuppressionFrame = requestAnimationFrame(() => {
+        faceTransitionSuppressionFrame = void 0;
+        viewElement.classList.remove("tau-view--suppress-face-transition");
+      });
     });
   }
   function renderWithInstrumentation() {

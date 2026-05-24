@@ -4,6 +4,7 @@ All notable changes to Tau will be documented in this file.
 
 ## Unreleased
 
+- Fixed the settings face so it does not replay the flip animation after safety setting updates refresh the webview.
 - Added a Tau Appearance setting for showing the Welcome message again after it is dismissed.
 - Moved Login to the top of the settings category list.
 - Added a `Tau: Send Selection to Composer` command for pre-filling the active composer from selected editor lines.

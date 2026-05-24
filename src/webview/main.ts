@@ -74,6 +74,8 @@ let state: WebviewState = { ...initialWebviewState };
 let toastHideTimeout: ReturnType<typeof setTimeout> | undefined;
 let pendingRenderFrame: number | undefined;
 let pendingReturnToChatAfterRender = false;
+let hasReceivedHostState = false;
+let faceTransitionSuppressionFrame: number | undefined;
 const renderInstrumentationEnabled = document.body.dataset.tauDevRenderInstrumentation === 'true';
 
 let sessionsController: SessionViewController;
@@ -220,9 +222,15 @@ window.addEventListener('message', (event) => {
   const previousCurrentSessionFile = state.currentSessionFile;
   const previousSessionCount = Array.isArray(state.sessions) ? state.sessions.length : 0;
   const previousTreeCount = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
+  const isInitialHostState = !hasReceivedHostState;
+  hasReceivedHostState = true;
   const nextState = parseWebviewStateMessage(event.data, state);
   const hasComposerTextUpdate = nextState.composerTextRevision > 0;
   state = nextState;
+
+  if (isInitialHostState) {
+    suppressFaceTransitionForNextRender();
+  }
   document.body.classList.toggle('tau-animations-disabled', !state.animationsEnabled);
   applyCustomUiTheme(state.customUiTheme);
   const wasSessionLane = previousLane === 'sessions' || previousLane === 'tree';
@@ -373,6 +381,21 @@ function scheduleRender(options: { returnToChatMain?: boolean } = {}): void {
       messagesController.restoreChatScrollAfterReturn();
       focusPromptInput();
     }
+  });
+}
+
+function suppressFaceTransitionForNextRender(): void {
+  viewElement.classList.add('tau-view--suppress-face-transition');
+
+  if (faceTransitionSuppressionFrame !== undefined) {
+    cancelAnimationFrame(faceTransitionSuppressionFrame);
+  }
+
+  faceTransitionSuppressionFrame = requestAnimationFrame(() => {
+    faceTransitionSuppressionFrame = requestAnimationFrame(() => {
+      faceTransitionSuppressionFrame = undefined;
+      viewElement.classList.remove('tau-view--suppress-face-transition');
+    });
   });
 }
 

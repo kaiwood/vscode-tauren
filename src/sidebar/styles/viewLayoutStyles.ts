@@ -38,6 +38,10 @@ export const viewLayoutStyles = /* css */ `    .tau-chat-surface,
       will-change: transform, opacity;
     }
 
+    .tau-view--suppress-face-transition .tau-chat-surface__face {
+      transition: none;
+    }
+
     .tau-chat-surface__main {
       position: relative;
       display: grid;
