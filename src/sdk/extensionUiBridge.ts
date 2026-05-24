@@ -50,8 +50,8 @@ export function createSdkExtensionUiContext(ui?: ExtensionUi): ExtensionUIContex
     getEditorText() {
       return '';
     },
-    editor(_title, prefill) {
-      return Promise.resolve(prefill);
+    editor(title, prefill) {
+      return withDialogFallback(undefined, undefined, () => resolvedUi.editor?.(title, prefill));
     },
     addAutocompleteProvider() {},
     setEditorComponent() {},

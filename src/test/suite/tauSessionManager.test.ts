@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import { TauSessionManager, type TauSessionManagerOptions } from '../../sessions/tauSessionManager';
 import type { CustomUiHostMessage } from '../../extensionUi/customUiHost';
+import type { ExtensionEditorHostMessage } from '../../extensionUi/types';
 import type { WebviewSessionItem, WebviewStateMessage, WebviewTreeItem } from '../../webviewProtocol/types';
 import type { PiClient } from '../../pi/clientTypes';
 import type {
@@ -144,6 +145,61 @@ suite('TauSessionManager', () => {
       text: 'pasted by extension',
       revision: 1
     });
+    harness.manager.dispose();
+  });
+
+  test('resolves extension editor save and cancel requests', async () => {
+    const harness = createManagerHarness([new FakePiClient()]);
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'hello' });
+
+    const extensionUi = harness.clientOptions[0].extensionUi;
+    assert.ok(extensionUi);
+
+    const savePromise = extensionUi.editor?.('Edit plan', 'initial text');
+    assert.ok(savePromise);
+    assert.deepStrictEqual(harness.extensionEditorMessages.at(-1), {
+      type: 'extensionEditorShow',
+      id: 'extension-editor-1',
+      title: 'Edit plan',
+      prefill: 'initial text'
+    });
+
+    await harness.manager.handleWebviewMessage({ type: 'extensionEditorSave', id: 'extension-editor-1', text: 'edited text' });
+    assert.strictEqual(await savePromise, 'edited text');
+
+    const cancelPromise = extensionUi.editor?.('Edit again', undefined);
+    assert.ok(cancelPromise);
+    assert.deepStrictEqual(harness.extensionEditorMessages.at(-1), {
+      type: 'extensionEditorShow',
+      id: 'extension-editor-2',
+      title: 'Edit again',
+      prefill: ''
+    });
+
+    await harness.manager.handleWebviewMessage({ type: 'extensionEditorCancel', id: 'extension-editor-2' });
+    assert.strictEqual(await cancelPromise, undefined);
+    harness.manager.dispose();
+  });
+
+  test('rejects concurrent extension editor requests', async () => {
+    const harness = createManagerHarness([new FakePiClient()]);
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'hello' });
+
+    const extensionUi = harness.clientOptions[0].extensionUi;
+    assert.ok(extensionUi);
+
+    const firstPromise = extensionUi.editor?.('First', 'one');
+    const secondPromise = extensionUi.editor?.('Second', 'two');
+    assert.ok(firstPromise);
+    assert.ok(secondPromise);
+
+    assert.strictEqual(await secondPromise, undefined);
+    assert.strictEqual(harness.extensionEditorMessages.filter((message) => message.type === 'extensionEditorShow').length, 1);
+
+    await harness.manager.handleWebviewMessage({ type: 'extensionEditorSave', id: 'extension-editor-1', text: 'done' });
+    assert.strictEqual(await firstPromise, 'done');
     harness.manager.dispose();
   });
 
@@ -602,6 +658,7 @@ type ManagerHarness = {
   notifications: { message: string; type: string }[];
   clientOptions: PiClientOptions[];
   customUiMessages: CustomUiHostMessage[];
+  extensionEditorMessages: ExtensionEditorHostMessage[];
   readonly createCalls: number;
 };
 
@@ -621,6 +678,7 @@ function createManagerHarness(
   const notifications: { message: string; type: string }[] = [];
   const clientOptions: PiClientOptions[] = [];
   const customUiMessages: CustomUiHostMessage[] = [];
+  const extensionEditorMessages: ExtensionEditorHostMessage[] = [];
   const pendingClients = [...clients];
   let createCalls = 0;
 
@@ -647,6 +705,13 @@ function createManagerHarness(
       },
       getOutputColors: () => true
     },
+    extensionEditor: {
+      isAvailable: () => true,
+      postMessage: (message) => {
+        extensionEditorMessages.push(message);
+        return true;
+      }
+    },
     extensionUi: {
       notify: (message, type) => notifications.push({ message, type }),
       select: async () => undefined,
@@ -661,6 +726,7 @@ function createManagerHarness(
     notifications,
     clientOptions,
     customUiMessages,
+    extensionEditorMessages,
     get createCalls(): number {
       return createCalls;
     }

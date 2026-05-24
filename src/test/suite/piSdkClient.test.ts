@@ -309,11 +309,16 @@ suite('PiSdkClient', () => {
     const widgets: Array<{ key: string; lines: string[] | undefined; placement?: 'aboveEditor' | 'belowEditor' }> = [];
     const composerTexts: string[] = [];
     const composerPastes: string[] = [];
+    const editorRequests: Array<{ title: string; prefill: string | undefined }> = [];
     const ui = createSdkExtensionUiContext({
       notify: (message, notifyType) => notifications.push({ message, notifyType }),
       select: async (_title, options) => options[1],
       confirm: async () => true,
       input: async (_title, placeholder) => placeholder,
+      editor: async (title, prefill) => {
+        editorRequests.push({ title, prefill });
+        return 'edited text';
+      },
       setStatus: (key, text) => statuses.push({ key, text }),
       setWidget: (key, content, options) => widgets.push({
         key,
@@ -327,6 +332,7 @@ suite('PiSdkClient', () => {
     assert.strictEqual(await ui.select('Pick', ['A', 'B']), 'B');
     assert.strictEqual(await ui.confirm('Confirm', 'Continue?'), true);
     assert.strictEqual(await ui.input('Input', 'value'), 'value');
+    assert.strictEqual(await ui.editor('Editor', 'prefill'), 'edited text');
 
     ui.notify('Saved', 'info');
     ui.setStatus('plan-mode', 'Planning');
@@ -340,6 +346,7 @@ suite('PiSdkClient', () => {
       { key: 'plan-mode', text: 'Planning' },
       { key: 'plan-mode', text: undefined }
     ]);
+    assert.deepStrictEqual(editorRequests, [{ title: 'Editor', prefill: 'prefill' }]);
     assert.deepStrictEqual(widgets, [
       { key: 'todo', lines: ['Line 1'], placement: 'belowEditor' }
     ]);

@@ -18,6 +18,12 @@ export type WebviewDom = {
   customUiElement: HTMLElement;
   customUiOutputElement: HTMLElement;
   customUiCloseButton: HTMLButtonElement;
+  extensionEditorElement: HTMLElement;
+  extensionEditorTitleElement: HTMLElement;
+  extensionEditorInputElement: HTMLTextAreaElement;
+  extensionEditorSaveButton: HTMLButtonElement;
+  extensionEditorCancelButton: HTMLButtonElement;
+  extensionEditorCloseButton: HTMLButtonElement;
   widgetBusySlotElement: HTMLElement;
   extensionWidgetsAboveElement: HTMLElement;
   extensionWidgetsBelowElement: HTMLElement;
@@ -64,11 +70,17 @@ export function getWebviewDom(): WebviewDom {
     customUiElement: queryRequired<HTMLElement>('.custom-ui'),
     customUiOutputElement: queryRequired<HTMLElement>('.custom-ui__output'),
     customUiCloseButton: queryRequired<HTMLButtonElement>('.custom-ui__close'),
+    extensionEditorElement: queryRequired<HTMLElement>('.extension-editor'),
+    extensionEditorTitleElement: queryRequired<HTMLElement>('.extension-editor__title'),
+    extensionEditorInputElement: queryRequired<HTMLTextAreaElement>('.extension-editor__input'),
+    extensionEditorSaveButton: queryRequired<HTMLButtonElement>('.extension-editor__save'),
+    extensionEditorCancelButton: queryRequired<HTMLButtonElement>('.extension-editor__cancel'),
+    extensionEditorCloseButton: queryRequired<HTMLButtonElement>('.extension-editor__close'),
     widgetBusySlotElement: queryRequired<HTMLElement>('.composer__widget-busy-slot'),
     extensionWidgetsAboveElement: queryRequired<HTMLElement>('.extension-widgets--above'),
     extensionWidgetsBelowElement: queryRequired<HTMLElement>('.extension-widgets--below'),
     form: queryRequired<HTMLFormElement>('.composer'),
-    textarea: queryRequired<HTMLTextAreaElement>('textarea'),
+    textarea: queryRequired<HTMLTextAreaElement>('.composer__input'),
     composerStatusElement: queryRequired<HTMLElement>('.composer-status'),
     composerStatusTextElement: queryRequired<HTMLElement>('.composer-status__text'),
     slashMenuElement: queryRequired<HTMLElement>('.composer__slash-menu'),

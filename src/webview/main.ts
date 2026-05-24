@@ -4,6 +4,7 @@ import { getAnsiLineBackground, renderAnsiTextInto } from './messages/ansi';
 import { configureMarkdownImageRendering, handleMarkdownImageMessage } from './messages/markdown';
 import { ComposerController } from './composer/composer';
 import { CustomUiController } from './customUI/customUi';
+import { ExtensionEditorDialogController } from './extensionEditorDialog';
 import { getWebviewDom } from './dom';
 import { MessageListController } from './messages/messageList';
 import { SessionViewController } from './sessions/sessionView';
@@ -36,6 +37,12 @@ const {
   customUiElement,
   customUiOutputElement,
   customUiCloseButton,
+  extensionEditorElement,
+  extensionEditorTitleElement,
+  extensionEditorInputElement,
+  extensionEditorSaveButton,
+  extensionEditorCancelButton,
+  extensionEditorCloseButton,
   widgetBusySlotElement,
   extensionWidgetsAboveElement,
   extensionWidgetsBelowElement,
@@ -98,6 +105,16 @@ const customUiController = new CustomUiController({
   customUiCloseButton,
   form,
   onClose: handleCustomUiClose
+});
+
+const extensionEditorDialogController = new ExtensionEditorDialogController({
+  vscode,
+  element: extensionEditorElement,
+  titleElement: extensionEditorTitleElement,
+  inputElement: extensionEditorInputElement,
+  saveButton: extensionEditorSaveButton,
+  cancelButton: extensionEditorCancelButton,
+  closeButton: extensionEditorCloseButton
 });
 
 const messagesController = new MessageListController({
@@ -168,6 +185,7 @@ composerController.attachEventListeners();
 sessionsController.attachEventListeners();
 settingsController.attachEventListeners();
 customUiController.attachEventListeners();
+extensionEditorDialogController.attachEventListeners();
 
 helpCloseButton.addEventListener('click', () => closeHelpOverlay());
 newSessionButton.addEventListener('click', startNewSession);
@@ -176,6 +194,10 @@ messagesElement.addEventListener('click', (event) => messagesController.handleMe
 messagesElement.addEventListener('scroll', () => messagesController.handleMessagesScroll());
 
 window.addEventListener('message', (event) => {
+  if (extensionEditorDialogController.handleHostMessage(event.data)) {
+    return;
+  }
+
   if (customUiController.handleHostMessage(event.data)) {
     return;
   }
@@ -300,6 +322,10 @@ window.addEventListener('click', (event) => {
 });
 
 window.addEventListener('keydown', (event) => {
+  if (extensionEditorDialogController.handleGlobalKeydown(event)) {
+    return;
+  }
+
   if (customUiController.handleGlobalKeydown(event)) {
     return;
   }
@@ -494,7 +520,7 @@ function render(): void {
   messagesController.syncBusyStatus();
   composerController.syncModelLabel();
   composerController.syncPromptContextBadges();
-  if (!customUiController.isActive()) {
+  if (!customUiController.isActive() && !extensionEditorDialogController.isActive()) {
     composerController.syncComposer();
   }
   composerController.syncSlashMenu();

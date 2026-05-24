@@ -2620,6 +2620,93 @@
     return event.target instanceof Element ? event.target : null;
   }
 
+  // src/webview/extensionEditorDialog.ts
+  var ExtensionEditorDialogController = class {
+    constructor(options) {
+      this.options = options;
+    }
+    options;
+    activeId;
+    attachEventListeners() {
+      this.options.saveButton.addEventListener("click", () => this.save());
+      this.options.cancelButton.addEventListener("click", () => this.cancel());
+      this.options.closeButton.addEventListener("click", () => this.cancel());
+    }
+    handleHostMessage(message) {
+      if (!isExtensionEditorHostMessage(message)) {
+        return false;
+      }
+      if (message.type === "extensionEditorShow") {
+        this.show(message.id, message.title, message.prefill ?? "");
+        return true;
+      }
+      if (!this.activeId || message.id === this.activeId) {
+        this.hide();
+      }
+      return true;
+    }
+    handleGlobalKeydown(event) {
+      if (!this.activeId || this.options.element.hidden) {
+        return false;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.cancel();
+        return true;
+      }
+      return false;
+    }
+    isActive() {
+      return Boolean(this.activeId) && !this.options.element.hidden;
+    }
+    show(id, title, prefill) {
+      this.activeId = id;
+      this.options.titleElement.textContent = title || "Edit text";
+      this.options.inputElement.value = prefill;
+      this.options.element.hidden = false;
+      this.options.element.inert = false;
+      requestAnimationFrame(() => {
+        this.options.inputElement.focus();
+        this.options.inputElement.selectionStart = this.options.inputElement.value.length;
+        this.options.inputElement.selectionEnd = this.options.inputElement.value.length;
+      });
+    }
+    save() {
+      if (!this.activeId) {
+        return;
+      }
+      const id = this.activeId;
+      const text = this.options.inputElement.value;
+      this.hide();
+      this.options.vscode.postMessage({ type: "extensionEditorSave", id, text });
+    }
+    cancel() {
+      if (!this.activeId) {
+        return;
+      }
+      const id = this.activeId;
+      this.hide();
+      this.options.vscode.postMessage({ type: "extensionEditorCancel", id });
+    }
+    hide() {
+      this.activeId = void 0;
+      this.options.element.hidden = true;
+      this.options.element.inert = true;
+      this.options.inputElement.value = "";
+    }
+  };
+  function isExtensionEditorHostMessage(message) {
+    if (!message || typeof message !== "object") {
+      return false;
+    }
+    const value = message;
+    if (value.type === "extensionEditorShow") {
+      return typeof value.id === "string" && value.id.length > 0 && typeof value.title === "string" && (value.prefill === void 0 || typeof value.prefill === "string");
+    }
+    return value.type === "extensionEditorHide" && typeof value.id === "string" && value.id.length > 0;
+  }
+
   // src/webview/dom.ts
   function getWebviewDom() {
     return {
@@ -2642,11 +2729,17 @@
       customUiElement: queryRequired(".custom-ui"),
       customUiOutputElement: queryRequired(".custom-ui__output"),
       customUiCloseButton: queryRequired(".custom-ui__close"),
+      extensionEditorElement: queryRequired(".extension-editor"),
+      extensionEditorTitleElement: queryRequired(".extension-editor__title"),
+      extensionEditorInputElement: queryRequired(".extension-editor__input"),
+      extensionEditorSaveButton: queryRequired(".extension-editor__save"),
+      extensionEditorCancelButton: queryRequired(".extension-editor__cancel"),
+      extensionEditorCloseButton: queryRequired(".extension-editor__close"),
       widgetBusySlotElement: queryRequired(".composer__widget-busy-slot"),
       extensionWidgetsAboveElement: queryRequired(".extension-widgets--above"),
       extensionWidgetsBelowElement: queryRequired(".extension-widgets--below"),
       form: queryRequired(".composer"),
-      textarea: queryRequired("textarea"),
+      textarea: queryRequired(".composer__input"),
       composerStatusElement: queryRequired(".composer-status"),
       composerStatusTextElement: queryRequired(".composer-status__text"),
       slashMenuElement: queryRequired(".composer__slash-menu"),
@@ -6685,6 +6778,12 @@ ${after}`;
     customUiElement,
     customUiOutputElement,
     customUiCloseButton,
+    extensionEditorElement,
+    extensionEditorTitleElement,
+    extensionEditorInputElement,
+    extensionEditorSaveButton,
+    extensionEditorCancelButton,
+    extensionEditorCloseButton,
     widgetBusySlotElement,
     extensionWidgetsAboveElement,
     extensionWidgetsBelowElement,
@@ -6743,6 +6842,15 @@ ${after}`;
     customUiCloseButton,
     form,
     onClose: handleCustomUiClose
+  });
+  var extensionEditorDialogController = new ExtensionEditorDialogController({
+    vscode,
+    element: extensionEditorElement,
+    titleElement: extensionEditorTitleElement,
+    inputElement: extensionEditorInputElement,
+    saveButton: extensionEditorSaveButton,
+    cancelButton: extensionEditorCancelButton,
+    closeButton: extensionEditorCloseButton
   });
   var messagesController = new MessageListController({
     getState: () => state,
@@ -6808,12 +6916,16 @@ ${after}`;
   sessionsController.attachEventListeners();
   settingsController.attachEventListeners();
   customUiController.attachEventListeners();
+  extensionEditorDialogController.attachEventListeners();
   helpCloseButton.addEventListener("click", () => closeHelpOverlay());
   newSessionButton.addEventListener("click", startNewSession);
   diffSummaryElement.addEventListener("click", showCurrentChanges);
   messagesElement.addEventListener("click", (event) => messagesController.handleMessageClick(event));
   messagesElement.addEventListener("scroll", () => messagesController.handleMessagesScroll());
   window.addEventListener("message", (event) => {
+    if (extensionEditorDialogController.handleHostMessage(event.data)) {
+      return;
+    }
     if (customUiController.handleHostMessage(event.data)) {
       return;
     }
@@ -6910,6 +7022,9 @@ ${after}`;
     handleHelpWindowClick(target);
   });
   window.addEventListener("keydown", (event) => {
+    if (extensionEditorDialogController.handleGlobalKeydown(event)) {
+      return;
+    }
     if (customUiController.handleGlobalKeydown(event)) {
       return;
     }
@@ -7071,7 +7186,7 @@ ${after}`;
     messagesController.syncBusyStatus();
     composerController.syncModelLabel();
     composerController.syncPromptContextBadges();
-    if (!customUiController.isActive()) {
+    if (!customUiController.isActive() && !extensionEditorDialogController.isActive()) {
       composerController.syncComposer();
     }
     composerController.syncSlashMenu();

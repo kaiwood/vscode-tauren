@@ -1019,6 +1019,7 @@ suite('TauChatController', () => {
       animationsEnabled: true,
       customUiTheme: 'default',
       extensionStatus: [],
+      extensionWidgets: [],
       allowRemoteImages: false
     });
     harness.controller.dispose();

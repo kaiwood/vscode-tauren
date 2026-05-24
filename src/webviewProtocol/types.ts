@@ -83,6 +83,8 @@ export type WebviewMessage =
   | { type: 'customUiCancel'; id: string }
   | { type: 'customUiDimensions'; id: string; columns: number; rows: number }
   | { type: 'extensionWidgetDimensions'; key: string; columns: number; rows: number }
+  | { type: 'extensionEditorSave'; id: string; text: string }
+  | { type: 'extensionEditorCancel'; id: string }
   | { type: 'submit'; text: string; streamingBehavior?: WebviewStreamingBehavior }
   | { type: 'setModel'; provider: string; modelId: string }
   | { type: 'setThinkingLevel'; level: string }

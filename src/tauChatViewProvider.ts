@@ -11,7 +11,7 @@ import { type PiClientFactory, type PiClient } from './pi/clientTypes';
 import type { PiClientOptions } from './pi/types';
 import { PiSdkClient } from './sdk/piSdkClient';
 import type { CustomUiHostMessage } from './extensionUi/customUiHost';
-import type { ExtensionUi } from './extensionUi/types';
+import type { ExtensionEditorHostMessage, ExtensionUi } from './extensionUi/types';
 import { createSessionDiffStatsFileWatcher, readSessionDiffSnapshot, writeSessionDiffSnapshot } from './diff/sessionDiffStorage';
 import { SessionDiffViewer } from './diff/sessionDiffViewer';
 import { ShikiCodeRenderer } from './highlighting/shikiCodeRenderer';
@@ -137,6 +137,10 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
         isAvailable: () => Boolean(this.webviewReady && this.webviewView),
         postMessage: (message) => this.postCustomUiMessage(message),
         getOutputColors: () => getOutputColorsSetting()
+      },
+      extensionEditor: {
+        isAvailable: () => Boolean(this.webviewReady && this.webviewView),
+        postMessage: (message) => this.postExtensionEditorMessage(message)
       },
       initialSessionMeta: readCachedSessionMeta(this.workspaceState),
       initialSessionFile,
@@ -575,6 +579,15 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
   }
 
   private postCustomUiMessage(message: CustomUiHostMessage): boolean {
+    if (!this.webviewReady || !this.webviewView) {
+      return false;
+    }
+
+    void this.webviewView.webview.postMessage(message);
+    return true;
+  }
+
+  private postExtensionEditorMessage(message: ExtensionEditorHostMessage): boolean {
     if (!this.webviewReady || !this.webviewView) {
       return false;
     }

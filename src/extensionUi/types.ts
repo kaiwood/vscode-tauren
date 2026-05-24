@@ -18,11 +18,16 @@ export type ExtensionWidgetContent =
   | ((tui: SdkExtensionCustomUiFactoryArgs[0], theme: SdkExtensionCustomUiFactoryArgs[1]) => { render(width: number): string[]; invalidate(): void; dispose?(): void; focused?: boolean });
 export type ExtensionWidgetSetOptions = Pick<ExtensionWidgetOptions, 'placement'>;
 
+export type ExtensionEditorHostMessage =
+  | { type: 'extensionEditorShow'; id: string; title: string; prefill: string }
+  | { type: 'extensionEditorHide'; id: string };
+
 export type ExtensionUi = {
   notify(message: string, notifyType: string): void;
   select(title: string, options: string[]): MaybePromise<string | undefined>;
   confirm(title: string, message: string | undefined): MaybePromise<boolean | undefined>;
   input(title: string, placeholder: string | undefined): MaybePromise<string | undefined>;
+  editor?(title: string, prefill: string | undefined): MaybePromise<string | undefined>;
   custom?<T>(factory: ExtensionCustomUiFactory<T>, options?: ExtensionCustomUiOptions): MaybePromise<T | undefined>;
   setStatus?(key: string, text: string | undefined): void;
   clearStatuses?(): void;

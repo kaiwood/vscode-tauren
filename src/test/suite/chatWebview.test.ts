@@ -59,6 +59,7 @@ suite('Chat webview helpers', () => {
         animationsEnabled: true,
         customUiTheme: 'default',
         extensionStatus: [],
+        extensionWidgets: [],
         allowRemoteImages: false
       }
     );
@@ -88,6 +89,7 @@ suite('Chat webview helpers', () => {
         animationsEnabled: true,
         customUiTheme: 'default',
         extensionStatus: [],
+        extensionWidgets: [],
         allowRemoteImages: false
       }
     );
@@ -214,6 +216,14 @@ suite('Chat webview helpers', () => {
       { type: 'customUiDimensions', id: 'custom-ui-1', columns: 80, rows: 12 }
     );
     assert.deepStrictEqual(
+      parseWebviewMessage({ type: 'extensionEditorSave', id: 'extension-editor-1', text: '' }),
+      { type: 'extensionEditorSave', id: 'extension-editor-1', text: '' }
+    );
+    assert.deepStrictEqual(
+      parseWebviewMessage({ type: 'extensionEditorCancel', id: 'extension-editor-1' }),
+      { type: 'extensionEditorCancel', id: 'extension-editor-1' }
+    );
+    assert.deepStrictEqual(
       parseWebviewMessage({ type: 'submit', text: 'hello' }),
       { type: 'submit', text: 'hello' }
     );
@@ -267,6 +277,9 @@ suite('Chat webview helpers', () => {
     assert.deepStrictEqual(parseWebviewMessage({ type: 'customUiCancel', id: '' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'customUiDimensions', id: 'custom-ui-1', columns: 0, rows: 12 }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'customUiDimensions', id: 'custom-ui-1', columns: 80, rows: '12' }), { type: 'unknown' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'extensionEditorSave', id: '', text: 'x' }), { type: 'unknown' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'extensionEditorSave', id: 'extension-editor-1', text: 42 }), { type: 'unknown' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'extensionEditorCancel', id: '' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'submit', text: 'hello', streamingBehavior: 'later' }), { type: 'unknown' });
     assert.deepStrictEqual(
       parseWebviewMessage({ type: 'setModel', provider: 'openai' }),

@@ -203,6 +203,14 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
         ? { type: 'extensionWidgetDimensions', key: value.key, columns, rows }
         : { type: 'unknown' };
     }
+    case 'extensionEditorSave':
+      return typeof value.id === 'string' && value.id && typeof value.text === 'string'
+        ? { type: 'extensionEditorSave', id: value.id, text: value.text }
+        : { type: 'unknown' };
+    case 'extensionEditorCancel':
+      return typeof value.id === 'string' && value.id
+        ? { type: 'extensionEditorCancel', id: value.id }
+        : { type: 'unknown' };
     case 'submit': {
       if (typeof value.text !== 'string') {
         return { type: 'unknown' };
@@ -449,6 +457,19 @@ ${createInitialEmptyStateHtml(Boolean(options.welcomeDismissed))}
             <button class="custom-ui__close" type="button" aria-label="Close extension UI">×</button>
           </div>
           <div class="custom-ui__output" aria-live="polite"></div>
+        </section>
+        <section class="extension-editor" aria-label="Pi extension editor" role="dialog" aria-modal="true" hidden>
+          <div class="extension-editor__panel">
+            <header class="extension-editor__header">
+              <h2 class="extension-editor__title">Edit text</h2>
+              <button class="extension-editor__close" type="button" aria-label="Cancel editor">×</button>
+            </header>
+            <textarea class="extension-editor__input" aria-label="Editor text" spellcheck="false"></textarea>
+            <footer class="extension-editor__actions">
+              <button class="extension-editor__button extension-editor__cancel" type="button">Cancel</button>
+              <button class="extension-editor__button extension-editor__save" type="button">Save</button>
+            </footer>
+          </div>
         </section>
         <div class="composer__widget-busy-slot" hidden></div>
         <section class="extension-widgets extension-widgets--above" aria-label="Pi extension widgets above composer" hidden></section>

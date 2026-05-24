@@ -1,7 +1,7 @@
 import { TauChatController } from '../tauChatController';
 import { ExtensionCustomUiHost, type CustomUiHostMessage } from '../extensionUi/customUiHost';
 import { ExtensionWidgetHost } from '../extensionUi/extensionWidgetHost';
-import type { ExtensionUi } from '../extensionUi/types';
+import type { ExtensionEditorHostMessage, ExtensionUi } from '../extensionUi/types';
 import type { TauChatControllerOptions } from '../controller/types';
 import type { TauChatSessionMetaSnapshot } from '../metadata/types';
 import type { PiPromptContextInput } from '../prompt/types';
@@ -13,12 +13,22 @@ export type TauSessionManagerOptions = TauChatControllerOptions & {
     postMessage(message: CustomUiHostMessage): boolean;
     getOutputColors(): boolean;
   };
+  extensionEditor?: {
+    isAvailable(): boolean;
+    postMessage(message: ExtensionEditorHostMessage): boolean;
+  };
 };
 
 type OpenSessionStatus = 'idle' | 'running' | 'done' | 'error';
 
 const inactiveSessionDisposeAfterMs = 30 * 60 * 1000;
 const maxInactiveOpenSessions = 3;
+
+type PendingExtensionEditor = {
+  id: string;
+  sessionId: string;
+  resolve(value: string | undefined): void;
+};
 
 type OpenSession = {
   id: string;
@@ -46,12 +56,16 @@ export class TauSessionManager {
   private activeSessionId = '';
   private sessionSequence = 0;
   private composerPasteRevision = 0;
+  private extensionEditorSequence = 0;
+  private pendingExtensionEditor: PendingExtensionEditor | undefined;
 
   public constructor(private readonly options: TauSessionManagerOptions) {
     this.createSession({ initial: true });
   }
 
   public dispose(): void {
+    this.cancelPendingExtensionEditor();
+
     for (const session of this.sessions.splice(0)) {
       this.clearInactiveDisposal(session);
       session.customUiHost?.dispose();
@@ -112,6 +126,16 @@ export class TauSessionManager {
 
     if (message.type === 'extensionWidgetDimensions') {
       this.active().extensionWidgetHost.updateDimensions(message.key, message.columns, message.rows);
+      return;
+    }
+
+    if (message.type === 'extensionEditorSave') {
+      this.resolvePendingExtensionEditor(message.id, message.text);
+      return;
+    }
+
+    if (message.type === 'extensionEditorCancel') {
+      this.resolvePendingExtensionEditor(message.id, undefined);
       return;
     }
 
@@ -214,6 +238,7 @@ export class TauSessionManager {
     active.title = sessionFile ? 'Loading session' : 'New session';
     active.unread = false;
     active.status = 'idle';
+    this.cancelPendingExtensionEditor();
     active.customUiHost?.cancelActive();
     active.customUiOpen = false;
     active.extensionWidgetHost.clearWidgets();
@@ -224,6 +249,11 @@ export class TauSessionManager {
 
   private createSession(options: { initial?: boolean; activate?: boolean; sessionFile?: string } = {}): OpenSession {
     const previousActive = this.activeSessionId ? this.active() : undefined;
+
+    if (options.activate) {
+      this.cancelPendingExtensionEditor();
+    }
+
     const id = `open-${++this.sessionSequence}`;
     const initialSessionFile = options.initial ? this.options.initialSessionFile : options.sessionFile;
     const customUiHost = this.createCustomUiHost(id);
@@ -294,6 +324,10 @@ export class TauSessionManager {
 
     const previousActive = this.active();
 
+    if (this.pendingExtensionEditor && this.pendingExtensionEditor.sessionId !== id) {
+      this.cancelPendingExtensionEditor();
+    }
+
     this.activeSessionId = id;
     session.unread = false;
     session.forceFullStatePost = true;
@@ -358,9 +392,62 @@ export class TauSessionManager {
       clearStatuses: () => this.clearExtensionStatuses(id),
       setWidget: (key, content, options) => extensionWidgetHost.setWidget(key, content, options),
       clearWidgets: () => extensionWidgetHost.clearWidgets(),
+      editor: (title, prefill) => this.openExtensionEditorForSession(id, title, prefill),
       setEditorText: (text) => this.setEditorTextForSession(id, text),
       pasteToEditor: (text) => this.pasteToEditorForSession(id, text)
     };
+  }
+
+  private openExtensionEditorForSession(id: string, title: string, prefill: string | undefined): Promise<string | undefined> {
+    if (this.pendingExtensionEditor) {
+      return Promise.resolve(undefined);
+    }
+
+    const session = this.showSessionComposer(id);
+    const extensionEditor = this.options.extensionEditor;
+
+    if (!session || !extensionEditor?.isAvailable()) {
+      return Promise.resolve(undefined);
+    }
+
+    const editorId = `extension-editor-${++this.extensionEditorSequence}`;
+
+    return new Promise((resolve) => {
+      this.pendingExtensionEditor = { id: editorId, sessionId: id, resolve };
+      const posted = extensionEditor.postMessage({
+        type: 'extensionEditorShow',
+        id: editorId,
+        title,
+        prefill: prefill ?? ''
+      });
+
+      if (!posted) {
+        this.resolvePendingExtensionEditor(editorId, undefined);
+      }
+    });
+  }
+
+  private resolvePendingExtensionEditor(id: string, value: string | undefined): void {
+    const pending = this.pendingExtensionEditor;
+
+    if (!pending || pending.id !== id) {
+      return;
+    }
+
+    this.pendingExtensionEditor = undefined;
+    pending.resolve(value);
+  }
+
+  private cancelPendingExtensionEditor(): void {
+    const pending = this.pendingExtensionEditor;
+
+    if (!pending) {
+      return;
+    }
+
+    this.pendingExtensionEditor = undefined;
+    this.options.extensionEditor?.postMessage({ type: 'extensionEditorHide', id: pending.id });
+    pending.resolve(undefined);
   }
 
   private setEditorTextForSession(id: string, text: string): void {
