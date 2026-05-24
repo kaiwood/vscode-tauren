@@ -178,7 +178,7 @@
       "view/title": [
         {
           "command": "tau.newSession",
-          "when": "view == tau.chatView && !tau.busy",
+          "when": "view == tau.chatView",
           "group": "tau@1"
         },
         {

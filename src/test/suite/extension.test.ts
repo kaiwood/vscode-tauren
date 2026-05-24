@@ -3,6 +3,11 @@ import * as vscode from 'vscode';
 
 type PackageJson = {
   name?: unknown;
+  contributes?: {
+    menus?: {
+      'view/title'?: Array<{ command?: unknown; when?: unknown }>;
+    };
+  };
 };
 
 suite('Tau extension', () => {
@@ -43,6 +48,18 @@ suite('Tau extension', () => {
     assert.ok(commands.includes('tau.toggleSteerFollowUp'));
     assert.ok(commands.includes('tau.addContext'));
     assert.ok(commands.includes('tau.traceOrigin'));
+  });
+
+  test('keeps native new session action visible while busy', () => {
+    const extension = findTauExtension();
+
+    assert.ok(extension, 'Expected the tau extension to be available');
+
+    const packageJson = extension.packageJSON as PackageJson;
+    const newSessionMenu = packageJson.contributes?.menus?.['view/title']?.find((entry) => entry.command === 'tau.newSession');
+
+    assert.ok(newSessionMenu, 'Expected tau.newSession in the native view title menu');
+    assert.strictEqual(newSessionMenu.when, 'view == tau.chatView');
   });
 });
 
