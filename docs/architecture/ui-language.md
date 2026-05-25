@@ -26,7 +26,7 @@
 
 ## Elements
 
-- Dialog: modal overlay surface for important interactions.
+- Composer Suggestions: Narrow-down area above the prompt for slash-commands, @-file-suggestions etc.
 - Toast: transient notification surface.
 - Busy bar: Bar at the top of the composer containing Changes and Steer/Follow-up controls, shown when Pi is busy.
 - Widget: small interactive element provided by Pi extensions
