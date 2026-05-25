@@ -2058,6 +2058,9 @@
       this.options.form.addEventListener("drop", (event) => {
         void this.handleComposerDrop(event);
       });
+      this.options.textarea.addEventListener("paste", (event) => {
+        void this.handleComposerPaste(event);
+      });
       this.options.submitButton.addEventListener("click", (event) => this.handleSubmitButtonClick(event));
       this.options.attachButton.addEventListener("click", () => {
         this.options.postMessage({ type: "selectPromptImages" });
@@ -2396,6 +2399,28 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
       this.composerDragDepth = 0;
       this.syncComposerDragState("none");
       const message = await createDroppedPromptImagesMessage(event.dataTransfer);
+      if (message) {
+        this.options.postMessage(message);
+      }
+      this.options.focusPromptInput();
+    }
+    async handleComposerPaste(event) {
+      if (!event.clipboardData) {
+        return;
+      }
+      const files = getPastedPromptImageFiles(event.clipboardData);
+      if (files.length === 0) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const rejections = getPromptImageFileRejections(files);
+      if (rejections.length > 0) {
+        this.options.postMessage({ type: "dropPromptImages", files: [], uris: [], rejections });
+        this.options.focusPromptInput();
+        return;
+      }
+      const message = await createPromptImagesMessageFromFiles(files);
       if (message) {
         this.options.postMessage(message);
       }
@@ -2943,17 +2968,20 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
     if (files.length === 0 && uris.length === 0) {
       return void 0;
     }
-    const rejections = getDroppedFileRejections(files);
+    const rejections = getPromptImageFileRejections(files);
     if (rejections.length > 0) {
       return { type: "dropPromptImages", files: [], uris: [], rejections };
     }
+    return createPromptImagesMessageFromFiles(files, uris);
+  }
+  async function createPromptImagesMessageFromFiles(files, uris = []) {
     const droppedFiles = [];
     for (const file of files) {
       try {
         droppedFiles.push({
-          label: getDroppedFileLabel(file),
-          title: getDroppedFileLabel(file),
-          mimeType: getSupportedPromptImageMimeType(getDroppedFileLabel(file)) ?? file.type,
+          label: getPromptImageFileLabel(file),
+          title: getPromptImageFileLabel(file),
+          mimeType: getSupportedPromptImageMimeType(getPromptImageFileLabel(file)) ?? file.type,
           sizeBytes: file.size,
           data: await readFileAsBase64(file)
         });
@@ -2962,16 +2990,16 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
           type: "dropPromptImages",
           files: [],
           uris: [],
-          rejections: [`Cannot read attachment: ${getDroppedFileLabel(file)}.`]
+          rejections: [`Cannot read attachment: ${getPromptImageFileLabel(file)}.`]
         };
       }
     }
     return { type: "dropPromptImages", files: droppedFiles, uris };
   }
-  function getDroppedFileRejections(files) {
+  function getPromptImageFileRejections(files) {
     const rejections = [];
     for (const file of files) {
-      const label = getDroppedFileLabel(file);
+      const label = getPromptImageFileLabel(file);
       if (!getSupportedPromptImageMimeType(label)) {
         rejections.push(getUnsupportedPromptImageMessage(label));
         continue;
@@ -2982,8 +3010,18 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
     }
     return rejections;
   }
-  function getDroppedFileLabel(file) {
+  function getPromptImageFileLabel(file) {
     return file.name || "dropped file";
+  }
+  function getPastedPromptImageFiles(dataTransfer) {
+    const files = Array.from(dataTransfer.files ?? []).filter(hasClipboardFileName);
+    if (files.length > 0) {
+      return files;
+    }
+    return Array.from(dataTransfer.items ?? []).filter((item) => item.kind === "file").map((item) => item.getAsFile()).filter((file) => Boolean(file && hasClipboardFileName(file)));
+  }
+  function hasClipboardFileName(file) {
+    return typeof file.name === "string" && file.name.length > 0;
   }
   function readFileAsBase64(file) {
     return new Promise((resolve, reject) => {
@@ -3005,7 +3043,7 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
     }
     const files = Array.from(dataTransfer.files ?? []);
     if (files.length > 0) {
-      return getDroppedFileRejections(files).length > 0 ? "invalid" : "valid";
+      return getPromptImageFileRejections(files).length > 0 ? "invalid" : "valid";
     }
     const itemStates = Array.from(dataTransfer.items ?? []).filter((item) => item.kind === "file").map(classifyDataTransferFileItem);
     if (itemStates.includes("invalid")) {
@@ -3019,7 +3057,7 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
   function classifyDataTransferFileItem(item) {
     const file = item.getAsFile();
     if (file?.name) {
-      return getDroppedFileRejections([file]).length > 0 ? "invalid" : "valid";
+      return getPromptImageFileRejections([file]).length > 0 ? "invalid" : "valid";
     }
     if (item.type) {
       return isSupportedPromptImageMimeType(item.type) ? "valid" : "invalid";

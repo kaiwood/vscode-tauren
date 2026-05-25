@@ -86,6 +86,9 @@ export class ComposerController {
     this.options.form.addEventListener('drop', (event) => {
       void this.handleComposerDrop(event);
     });
+    this.options.textarea.addEventListener('paste', (event) => {
+      void this.handleComposerPaste(event);
+    });
     this.options.submitButton.addEventListener('click', (event) => this.handleSubmitButtonClick(event));
     this.options.attachButton.addEventListener('click', () => {
       this.options.postMessage({ type: 'selectPromptImages' });
@@ -509,6 +512,37 @@ export class ComposerController {
     this.syncComposerDragState('none');
 
     const message = await createDroppedPromptImagesMessage(event.dataTransfer);
+
+    if (message) {
+      this.options.postMessage(message);
+    }
+
+    this.options.focusPromptInput();
+  }
+
+  private async handleComposerPaste(event: ClipboardEvent): Promise<void> {
+    if (!event.clipboardData) {
+      return;
+    }
+
+    const files = getPastedPromptImageFiles(event.clipboardData);
+
+    if (files.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const rejections = getPromptImageFileRejections(files);
+
+    if (rejections.length > 0) {
+      this.options.postMessage({ type: 'dropPromptImages', files: [], uris: [], rejections });
+      this.options.focusPromptInput();
+      return;
+    }
+
+    const message = await createPromptImagesMessageFromFiles(files);
 
     if (message) {
       this.options.postMessage(message);
@@ -1227,20 +1261,24 @@ async function createDroppedPromptImagesMessage(dataTransfer: DataTransfer): Pro
     return undefined;
   }
 
-  const rejections = getDroppedFileRejections(files);
+  const rejections = getPromptImageFileRejections(files);
 
   if (rejections.length > 0) {
     return { type: 'dropPromptImages', files: [], uris: [], rejections };
   }
 
+  return createPromptImagesMessageFromFiles(files, uris);
+}
+
+async function createPromptImagesMessageFromFiles(files: readonly File[], uris: string[] = []): Promise<unknown | undefined> {
   const droppedFiles = [];
 
   for (const file of files) {
     try {
       droppedFiles.push({
-        label: getDroppedFileLabel(file),
-        title: getDroppedFileLabel(file),
-        mimeType: getSupportedPromptImageMimeType(getDroppedFileLabel(file)) ?? file.type,
+        label: getPromptImageFileLabel(file),
+        title: getPromptImageFileLabel(file),
+        mimeType: getSupportedPromptImageMimeType(getPromptImageFileLabel(file)) ?? file.type,
         sizeBytes: file.size,
         data: await readFileAsBase64(file)
       });
@@ -1249,7 +1287,7 @@ async function createDroppedPromptImagesMessage(dataTransfer: DataTransfer): Pro
         type: 'dropPromptImages',
         files: [],
         uris: [],
-        rejections: [`Cannot read attachment: ${getDroppedFileLabel(file)}.`]
+        rejections: [`Cannot read attachment: ${getPromptImageFileLabel(file)}.`]
       };
     }
   }
@@ -1257,11 +1295,11 @@ async function createDroppedPromptImagesMessage(dataTransfer: DataTransfer): Pro
   return { type: 'dropPromptImages', files: droppedFiles, uris };
 }
 
-function getDroppedFileRejections(files: readonly File[]): string[] {
+function getPromptImageFileRejections(files: readonly File[]): string[] {
   const rejections: string[] = [];
 
   for (const file of files) {
-    const label = getDroppedFileLabel(file);
+    const label = getPromptImageFileLabel(file);
 
     if (!getSupportedPromptImageMimeType(label)) {
       rejections.push(getUnsupportedPromptImageMessage(label));
@@ -1276,8 +1314,25 @@ function getDroppedFileRejections(files: readonly File[]): string[] {
   return rejections;
 }
 
-function getDroppedFileLabel(file: File): string {
+function getPromptImageFileLabel(file: File): string {
   return file.name || 'dropped file';
+}
+
+export function getPastedPromptImageFiles(dataTransfer: DataTransfer): File[] {
+  const files = Array.from(dataTransfer.files ?? []).filter(hasClipboardFileName);
+
+  if (files.length > 0) {
+    return files;
+  }
+
+  return Array.from(dataTransfer.items ?? [])
+    .filter((item) => item.kind === 'file')
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => Boolean(file && hasClipboardFileName(file)));
+}
+
+function hasClipboardFileName(file: File): boolean {
+  return typeof file.name === 'string' && file.name.length > 0;
 }
 
 function readFileAsBase64(file: File): Promise<string> {
@@ -1305,7 +1360,7 @@ function classifyComposerDragState(dataTransfer: DataTransfer | null): ComposerD
   const files = Array.from(dataTransfer.files ?? []);
 
   if (files.length > 0) {
-    return getDroppedFileRejections(files).length > 0 ? 'invalid' : 'valid';
+    return getPromptImageFileRejections(files).length > 0 ? 'invalid' : 'valid';
   }
 
   const itemStates = Array.from(dataTransfer.items ?? [])
@@ -1327,7 +1382,7 @@ function classifyDataTransferFileItem(item: DataTransferItem): Exclude<ComposerD
   const file = item.getAsFile();
 
   if (file?.name) {
-    return getDroppedFileRejections([file]).length > 0 ? 'invalid' : 'valid';
+    return getPromptImageFileRejections([file]).length > 0 ? 'invalid' : 'valid';
   }
 
   if (item.type) {
