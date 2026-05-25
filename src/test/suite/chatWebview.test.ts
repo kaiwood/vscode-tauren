@@ -216,6 +216,14 @@ suite('Chat webview helpers', () => {
       { type: 'customUiDimensions', id: 'custom-ui-1', columns: 80, rows: 12 }
     );
     assert.deepStrictEqual(
+      parseWebviewMessage({ type: 'customUiDimensions', id: 'custom-ui-1', columns: 80, rows: 12, cellWidthPx: 7.5, cellHeightPx: 16.2 }),
+      { type: 'customUiDimensions', id: 'custom-ui-1', columns: 80, rows: 12, cellWidthPx: 7.5, cellHeightPx: 16.2 }
+    );
+    assert.deepStrictEqual(
+      parseWebviewMessage({ type: 'extensionWidgetDimensions', key: 'status', columns: 40, rows: 3, cellWidthPx: 8, cellHeightPx: 18 }),
+      { type: 'extensionWidgetDimensions', key: 'status', columns: 40, rows: 3, cellWidthPx: 8, cellHeightPx: 18 }
+    );
+    assert.deepStrictEqual(
       parseWebviewMessage({ type: 'extensionEditorSave', id: 'extension-editor-1', text: '' }),
       { type: 'extensionEditorSave', id: 'extension-editor-1', text: '' }
     );

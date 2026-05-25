@@ -1,5 +1,6 @@
 import { normalizeDiffLineCount } from '../diff/lineCount';
 import { isSettingId, normalizeSettingValue } from '../settings/settingsRegistry';
+import { cloneWebviewExtensionRenderBlocks } from '../webviewProtocol/renderBlocks';
 import {
   parseWebviewChatFace,
   parseWebviewLane,
@@ -190,17 +191,35 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
     case 'customUiDimensions': {
       const columns = parsePositiveInteger(value.columns);
       const rows = parsePositiveInteger(value.rows);
+      const cellWidthPx = parsePositiveNumber(value.cellWidthPx);
+      const cellHeightPx = parsePositiveNumber(value.cellHeightPx);
 
       return typeof value.id === 'string' && value.id && columns !== undefined && rows !== undefined
-        ? { type: 'customUiDimensions', id: value.id, columns, rows }
+        ? {
+          type: 'customUiDimensions',
+          id: value.id,
+          columns,
+          rows,
+          ...(cellWidthPx !== undefined ? { cellWidthPx } : {}),
+          ...(cellHeightPx !== undefined ? { cellHeightPx } : {})
+        }
         : { type: 'unknown' };
     }
     case 'extensionWidgetDimensions': {
       const columns = parsePositiveInteger(value.columns);
       const rows = parsePositiveInteger(value.rows);
+      const cellWidthPx = parsePositiveNumber(value.cellWidthPx);
+      const cellHeightPx = parsePositiveNumber(value.cellHeightPx);
 
       return typeof value.key === 'string' && value.key && columns !== undefined && rows !== undefined
-        ? { type: 'extensionWidgetDimensions', key: value.key, columns, rows }
+        ? {
+          type: 'extensionWidgetDimensions',
+          key: value.key,
+          columns,
+          rows,
+          ...(cellWidthPx !== undefined ? { cellWidthPx } : {}),
+          ...(cellHeightPx !== undefined ? { cellHeightPx } : {})
+        }
         : { type: 'unknown' };
     }
     case 'extensionEditorSave':
@@ -287,7 +306,11 @@ export function createWebviewStateMessage({
     animationsEnabled,
     customUiTheme,
     extensionStatus: extensionStatus.map((entry) => ({ ...entry })),
-    extensionWidgets: extensionWidgets.map((entry) => ({ ...entry, lines: entry.lines.slice() })),
+    extensionWidgets: extensionWidgets.map((entry) => ({
+      ...entry,
+      lines: entry.lines.slice(),
+      ...(entry.blocks ? { blocks: cloneWebviewExtensionRenderBlocks(entry.blocks) } : {})
+    })),
     allowRemoteImages: Boolean(allowRemoteImages)
   };
 
@@ -596,6 +619,10 @@ function escapeHtmlAttribute(value: string): string {
 
 function parsePositiveInteger(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
+function parsePositiveNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -4,6 +4,7 @@ All notable changes to Tau will be documented in this file.
 
 ## Unreleased
 
+- Added webview rendering for Pi TUI Image components in extension widgets and custom UI overlays using measured cell sizing, and fixed mixed ANSI backgrounds so image colors do not bleed into full-row stripes.
 - Fixed the transcript bottom gap when above-composer extension widgets move the busy submit bar into the widget stack.
 - Added a sidebar-only Extensions setting for using monospace font in Pi extension widgets and status.
 - Fixed fully background-colored Pi extension widgets so their whole area, including borders, uses the same background.

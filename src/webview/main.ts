@@ -1,6 +1,8 @@
 import { configureCodeHighlighting, handleCodeHighlightMessage, watchCodeHighlightThemeChanges } from './codeHighlighting';
 import { prepareCustomUiLines } from './customUI/customUi';
-import { getAnsiFullWidgetBackground, getAnsiLineBackground, renderAnsiTextInto } from './messages/ansi';
+import { roundDevicePixelMetric } from './metrics';
+import { createExtensionImageElement, normalizeExtensionRenderBlocks } from './extensionRenderBlocks';
+import { getAnsiFullWidgetBackground, getAnsiLineBackground, isAnsiBlockImageLine, renderAnsiBlockImageLineInto, renderAnsiTextInto } from './messages/ansi';
 import { configureMarkdownImageRendering, handleMarkdownImageMessage } from './messages/markdown';
 import { ComposerController } from './composer/composer';
 import { CustomUiController } from './customUI/customUi';
@@ -576,7 +578,9 @@ function renderExtensionWidgetContainer(container: HTMLElement, widgets: Webview
     element.dataset.widgetKey = widget.key;
     element.setAttribute('aria-label', `Pi extension widget ${widget.key}`);
 
-    const prepared = prepareCustomUiLines(widget.lines);
+    const blocks = normalizeExtensionRenderBlocks(widget.blocks, widget.lines);
+    const textLines = blocks.length === 1 && blocks[0]?.type === 'text' ? blocks[0].lines : [];
+    const prepared = prepareCustomUiLines(textLines);
     const backgroundColorsEnabled = areExtensionBackgroundColorsEnabled();
     const widgetBackground = getAnsiFullWidgetBackground(prepared.lines, backgroundColorsEnabled && state.outputColors);
 
@@ -586,16 +590,30 @@ function renderExtensionWidgetContainer(container: HTMLElement, widgets: Webview
       element.style.borderColor = widgetBackground;
     }
 
-    for (const line of prepared.lines) {
-      const lineElement = document.createElement('div');
-      lineElement.className = 'extension-widget__line';
-      const background = backgroundColorsEnabled ? getAnsiLineBackground(line, state.outputColors) : undefined;
-      if (background) {
-        lineElement.classList.add('extension-widget__line--ansi-background');
-        lineElement.style.backgroundColor = background;
+    for (const block of blocks) {
+      if (block.type === 'image') {
+        element.append(createExtensionImageElement(block));
+        continue;
       }
-      renderAnsiTextInto(lineElement, line, state.outputColors, { suppressBackgrounds: !backgroundColorsEnabled });
-      element.append(lineElement);
+
+      for (const line of prepareCustomUiLines(block.lines).lines) {
+        const lineElement = document.createElement('div');
+        lineElement.className = 'extension-widget__line';
+        const background = backgroundColorsEnabled ? getAnsiLineBackground(line, state.outputColors) : undefined;
+        if (background) {
+          lineElement.classList.add('extension-widget__line--ansi-background');
+          lineElement.style.backgroundColor = background;
+        }
+        if (isAnsiBlockImageLine(line)) {
+          lineElement.classList.add('extension-widget__line--ansi-image');
+          if (renderAnsiBlockImageLineInto(lineElement, line, state.outputColors)) {
+            element.append(lineElement);
+            continue;
+          }
+        }
+        renderAnsiTextInto(lineElement, line, state.outputColors, { suppressBackgrounds: !backgroundColorsEnabled });
+        element.append(lineElement);
+      }
     }
 
     fragment.append(element);
@@ -627,7 +645,7 @@ function scheduleExtensionWidgetDimensionsPost(container: HTMLElement, widgets: 
       }
 
       const dimensions = measureExtensionWidgetDimensions(element);
-      const signature = `${dimensions.columns}x${dimensions.rows}`;
+      const signature = `${dimensions.columns}x${dimensions.rows}@${dimensions.cellWidthPx}x${dimensions.cellHeightPx}`;
       const signatureKey = widget.key;
 
       if (widgetDimensionSignatures.get(signatureKey) === signature) {
@@ -639,13 +657,15 @@ function scheduleExtensionWidgetDimensionsPost(container: HTMLElement, widgets: 
         type: 'extensionWidgetDimensions',
         key: widget.key,
         columns: dimensions.columns,
-        rows: dimensions.rows
+        rows: dimensions.rows,
+        cellWidthPx: dimensions.cellWidthPx,
+        cellHeightPx: dimensions.cellHeightPx
       });
     }
   });
 }
 
-function measureExtensionWidgetDimensions(element: HTMLElement): { columns: number; rows: number } {
+function measureExtensionWidgetDimensions(element: HTMLElement): { columns: number; rows: number; cellWidthPx: number; cellHeightPx: number } {
   const style = window.getComputedStyle(element);
   const font = `${style.fontStyle} ${style.fontVariant} ${style.fontWeight} ${style.fontSize} / ${style.lineHeight} ${style.fontFamily}`;
   const canvas = document.createElement('canvas');
@@ -669,7 +689,12 @@ function measureExtensionWidgetDimensions(element: HTMLElement): { columns: numb
   const columns = Math.max(20, Math.floor(contentWidth / charWidth));
   const rows = Math.max(1, Math.min(80, Math.floor(contentHeight / lineHeight)));
 
-  return { columns, rows };
+  return {
+    columns,
+    rows,
+    cellWidthPx: roundDevicePixelMetric(charWidth),
+    cellHeightPx: roundDevicePixelMetric(lineHeight)
+  };
 }
 
 function cssEscape(value: string): string {

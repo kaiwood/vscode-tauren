@@ -1,9 +1,12 @@
-import { renderAnsiTextInto } from '../messages/ansi';
+import type { WebviewExtensionRenderBlock } from '../../webviewProtocol/types';
+import { createExtensionImageElement, normalizeExtensionRenderBlocks } from '../extensionRenderBlocks';
+import { isAnsiBlockImageLine, renderAnsiBlockImageLineInto, renderAnsiTextInto } from '../messages/ansi';
+import { roundDevicePixelMetric } from '../metrics';
 import type { WebviewApi } from '../types';
 
 type CustomUiHostMessage =
   | { type: 'customUiShow'; id: string }
-  | { type: 'customUiRender'; id: string; lines: string[]; outputColors?: boolean }
+  | { type: 'customUiRender'; id: string; lines: string[]; blocks?: WebviewExtensionRenderBlock[]; outputColors?: boolean }
   | { type: 'customUiHide'; id: string };
 
 type CustomUiControllerOptions = {
@@ -18,6 +21,7 @@ type CustomUiControllerOptions = {
 type PendingCustomUiRender = {
   id: string;
   lines: string[];
+  blocks?: WebviewExtensionRenderBlock[];
   outputColors: boolean;
 };
 
@@ -86,7 +90,7 @@ export class CustomUiController {
     }
 
     if (message.type === 'customUiRender') {
-      this.scheduleRender(message.id, message.lines, message.outputColors !== false);
+      this.scheduleRender(message.id, message.lines, message.blocks, message.outputColors !== false);
       return true;
     }
 
@@ -168,12 +172,12 @@ export class CustomUiController {
     this.scheduleDimensionsPost();
   }
 
-  private scheduleRender(id: string, lines: string[], outputColors: boolean): void {
+  private scheduleRender(id: string, lines: string[], blocks: WebviewExtensionRenderBlock[] | undefined, outputColors: boolean): void {
     if (this.activeId !== id) {
       return;
     }
 
-    this.pendingRender = { id, lines, outputColors };
+    this.pendingRender = { id, lines, ...(blocks ? { blocks } : {}), outputColors };
 
     if (this.renderFrame !== undefined) {
       return;
@@ -188,26 +192,20 @@ export class CustomUiController {
         return;
       }
 
-      this.renderNow(pending.id, pending.lines, pending.outputColors);
+      this.renderNow(pending.id, pending.lines, pending.blocks, pending.outputColors);
     });
   }
 
-  private renderNow(id: string, lines: string[], outputColors: boolean): void {
+  private renderNow(id: string, lines: string[], blocks: WebviewExtensionRenderBlock[] | undefined, outputColors: boolean): void {
     if (this.activeId !== id) {
       return;
     }
 
-    const prepared = prepareCustomUiLines(lines);
-    const fragment = document.createDocumentFragment();
-    for (const line of prepared.lines) {
-      const lineElement = document.createElement('div');
-      lineElement.className = 'custom-ui__line';
-      renderAnsiTextInto(lineElement, line, outputColors);
-      fragment.append(lineElement);
-    }
+    const contentBlocks = normalizeExtensionRenderBlocks(blocks, lines);
+    const rendered = renderCustomUiBlocks(contentBlocks, outputColors);
 
-    this.options.customUiOutputElement.replaceChildren(fragment);
-    this.updateCursor(prepared.cursor);
+    this.options.customUiOutputElement.replaceChildren(rendered.fragment);
+    this.updateCursor(rendered.cursor);
     this.scheduleDimensionsPost();
   }
 
@@ -489,7 +487,7 @@ export class CustomUiController {
     }
 
     const dimensions = measureTerminalDimensions(this.options.customUiOutputElement);
-    const signature = `${dimensions.columns}x${dimensions.rows}`;
+    const signature = `${dimensions.columns}x${dimensions.rows}@${dimensions.cellWidthPx}x${dimensions.cellHeightPx}`;
     if (signature === this.lastDimensionSignature) {
       return;
     }
@@ -499,9 +497,51 @@ export class CustomUiController {
       type: 'customUiDimensions',
       id: this.activeId,
       columns: dimensions.columns,
-      rows: dimensions.rows
+      rows: dimensions.rows,
+      cellWidthPx: dimensions.cellWidthPx,
+      cellHeightPx: dimensions.cellHeightPx
     });
   }
+}
+
+function renderCustomUiBlocks(blocks: WebviewExtensionRenderBlock[], outputColors: boolean): { fragment: DocumentFragment; cursor: CustomUiCursorPosition | undefined } {
+  const fragment = document.createDocumentFragment();
+  let cursor: CustomUiCursorPosition | undefined;
+  let rowOffset = 0;
+
+  for (const block of blocks) {
+    if (block.type === 'image') {
+      fragment.append(createExtensionImageElement(block));
+      rowOffset += Math.max(1, block.rows);
+      continue;
+    }
+
+    const prepared = prepareCustomUiLines(block.lines);
+    for (const line of prepared.lines) {
+      const lineElement = document.createElement('div');
+      lineElement.className = 'custom-ui__line';
+      if (isAnsiBlockImageLine(line)) {
+        lineElement.classList.add('custom-ui__line--ansi-image');
+        if (renderAnsiBlockImageLineInto(lineElement, line, outputColors)) {
+          fragment.append(lineElement);
+          continue;
+        }
+      }
+      renderAnsiTextInto(lineElement, line, outputColors);
+      fragment.append(lineElement);
+    }
+
+    if (!cursor && prepared.cursor) {
+      cursor = {
+        row: rowOffset + prepared.cursor.row,
+        column: prepared.cursor.column
+      };
+    }
+
+    rowOffset += prepared.lines.length;
+  }
+
+  return { fragment, cursor };
 }
 
 export function prepareCustomUiLines(lines: string[]): PreparedCustomUiLines {
@@ -620,14 +660,19 @@ function measureTerminalMetrics(element: HTMLElement): TerminalMetrics {
   };
 }
 
-function measureTerminalDimensions(element: HTMLElement): { columns: number; rows: number } {
+function measureTerminalDimensions(element: HTMLElement): { columns: number; rows: number; cellWidthPx: number; cellHeightPx: number } {
   const metrics = measureTerminalMetrics(element);
   const rect = element.getBoundingClientRect();
   const columns = Math.max(20, Math.floor(rect.width / metrics.charWidth));
   const targetHeight = Math.max(rect.height, Math.min(window.innerHeight * 0.7, window.innerHeight - 140));
   const rows = Math.max(4, Math.min(80, Math.floor(Math.max(120, targetHeight) / metrics.lineHeight)));
 
-  return { columns, rows };
+  return {
+    columns,
+    rows,
+    cellWidthPx: roundDevicePixelMetric(metrics.charWidth),
+    cellHeightPx: roundDevicePixelMetric(metrics.lineHeight)
+  };
 }
 
 type CustomUiKeyEventType = 'press' | 'repeat' | 'release';
@@ -769,5 +814,6 @@ function isCustomUiHostMessage(value: unknown): value is CustomUiHostMessage {
     && typeof message.id === 'string'
     && message.id.length > 0
     && Array.isArray(message.lines)
-    && message.lines.every((line) => typeof line === 'string');
+    && message.lines.every((line) => typeof line === 'string')
+    && (message.blocks === undefined || Array.isArray(message.blocks));
 }

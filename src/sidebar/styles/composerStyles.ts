@@ -87,6 +87,41 @@ export const composerStyles = /* css */ `    .tau-view--has-extension-status {
       background-clip: padding-box;
     }
 
+    .extension-widget__line--ansi-image {
+      display: flex;
+      align-items: stretch;
+      height: 1.35em;
+      height: 1lh;
+      min-height: 1.35em;
+      min-height: 1lh;
+      line-height: inherit;
+    }
+
+    .extension-widget__line--ansi-image .tau-ansi-block-image-cell {
+      display: block;
+      flex: 0 0 1ch;
+      width: 1ch;
+      height: 1.35em;
+      height: 1lh;
+    }
+
+    .extension-render-image {
+      display: block;
+      max-width: 100%;
+      overflow: hidden;
+      background: var(--vscode-terminal-background, var(--vscode-editor-background, var(--vscode-input-background)));
+      font-size: 0;
+      line-height: 0;
+    }
+
+    .extension-render-image__img {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      height: 100%;
+      object-fit: fill;
+    }
+
     .composer {
       position: relative;
       grid-row: 4;

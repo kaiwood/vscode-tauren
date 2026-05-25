@@ -128,7 +128,8 @@ function parseExtensionWidgets(value: unknown): WebviewState['extensionWidgets']
   return value.filter(isExtensionWidgetEntry).map((entry) => ({
     key: entry.key,
     placement: entry.placement,
-    lines: entry.lines.map((line) => String(line))
+    lines: entry.lines.map((line) => String(line)),
+    ...(Array.isArray(entry.blocks) ? { blocks: entry.blocks } : {})
   }));
 }
 

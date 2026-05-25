@@ -130,6 +130,24 @@ export const customUiStyles = /* css */ `    .custom-ui {
       white-space: pre;
     }
 
+    .custom-ui__line--ansi-image {
+      display: flex;
+      align-items: stretch;
+      height: 1.35em;
+      height: 1lh;
+      min-height: 1.35em;
+      min-height: 1lh;
+      line-height: inherit;
+    }
+
+    .custom-ui__line--ansi-image .tau-ansi-block-image-cell {
+      display: block;
+      flex: 0 0 1ch;
+      width: 1ch;
+      height: 1.35em;
+      height: 1lh;
+    }
+
     body[class*="tau-custom-ui-theme-"] .custom-ui__header,
     body[class*="tau-custom-ui-theme-"] .custom-ui__output {
       position: relative;

@@ -1,4 +1,7 @@
+import { hasWebviewExtensionImageBlock } from '../webviewProtocol/renderBlocks';
+import type { WebviewExtensionRenderBlock } from '../webviewProtocol/types';
 import type { ExtensionCustomUiFactory, ExtensionCustomUiOptions } from './types';
+import { defaultCellDimensions, renderComponentContent, type ExtensionCellDimensions } from './renderContent';
 
 export type CustomUiComponent = {
   render(width: number): string[];
@@ -12,7 +15,7 @@ export type CustomUiComponent = {
 export type CustomUiTerminal = {
   columns: number;
   rows: number;
-};
+} & ExtensionCellDimensions;
 
 type ActiveCustomUi<T = unknown> = {
   id: string;
@@ -25,7 +28,7 @@ type ActiveCustomUi<T = unknown> = {
 
 export type CustomUiHostMessage =
   | { type: 'customUiShow'; id: string }
-  | { type: 'customUiRender'; id: string; lines: string[]; outputColors: boolean }
+  | { type: 'customUiRender'; id: string; lines: string[]; blocks?: WebviewExtensionRenderBlock[]; outputColors: boolean }
   | { type: 'customUiHide'; id: string };
 
 export type ExtensionCustomUiHostOptions = {
@@ -40,6 +43,11 @@ export type ExtensionCustomUiHostOptions = {
 const defaultColumns = 80;
 const defaultRows = 12;
 const renderFrameMs = 16;
+const defaultTerminalDimensions: CustomUiTerminal = {
+  columns: defaultColumns,
+  rows: defaultRows,
+  ...defaultCellDimensions
+};
 
 export class ExtensionCustomUiHost {
   private active: ActiveCustomUi | undefined;
@@ -57,7 +65,7 @@ export class ExtensionCustomUiHost {
     this.cancelActive();
 
     const id = `${this.options.idPrefix ?? 'custom-ui'}-${this.nextId++}`;
-    const terminal: CustomUiTerminal = { columns: defaultColumns, rows: defaultRows };
+    const terminal: CustomUiTerminal = { ...defaultTerminalDimensions };
 
     return new Promise<T | undefined>((resolve) => {
       let completedBeforeMount = false;
@@ -156,7 +164,7 @@ export class ExtensionCustomUiHost {
     }
   }
 
-  public updateDimensions(id: string, columns: number, rows: number): void {
+  public updateDimensions(id: string, columns: number, rows: number, cellWidthPx?: number, cellHeightPx?: number): void {
     const active = this.active;
 
     if (!active || active.id !== id || active.finished) {
@@ -165,13 +173,22 @@ export class ExtensionCustomUiHost {
 
     const nextColumns = clampInteger(columns, 20, 240, defaultColumns);
     const nextRows = clampInteger(rows, 4, 80, defaultRows);
+    const nextCellWidthPx = clampPositiveNumber(cellWidthPx, active.terminal.widthPx);
+    const nextCellHeightPx = clampPositiveNumber(cellHeightPx, active.terminal.heightPx);
 
-    if (active.terminal.columns === nextColumns && active.terminal.rows === nextRows) {
+    if (
+      active.terminal.columns === nextColumns
+      && active.terminal.rows === nextRows
+      && active.terminal.widthPx === nextCellWidthPx
+      && active.terminal.heightPx === nextCellHeightPx
+    ) {
       return;
     }
 
     active.terminal.columns = nextColumns;
     active.terminal.rows = nextRows;
+    active.terminal.widthPx = nextCellWidthPx;
+    active.terminal.heightPx = nextCellHeightPx;
     this.scheduleRender(id);
   }
 
@@ -210,11 +227,12 @@ export class ExtensionCustomUiHost {
     }
 
     try {
-      const lines = active.component.render(active.terminal.columns);
+      const rendered = renderComponentContent(active.component, active.terminal.columns, active.terminal);
       this.options.postMessage({
         type: 'customUiRender',
         id,
-        lines: Array.isArray(lines) ? lines.map((line) => String(line)) : [],
+        lines: rendered.lines,
+        ...(hasWebviewExtensionImageBlock(rendered.blocks) ? { blocks: rendered.blocks } : {}),
         outputColors: this.options.getOutputColors()
       });
     } catch (error) {
@@ -298,6 +316,10 @@ export function setComponentFocused(component: CustomUiComponent, focused: boole
   if ('focused' in component) {
     component.focused = focused;
   }
+}
+
+function clampPositiveNumber(value: number | undefined, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
 function clampInteger(value: number, min: number, max: number, fallback: number): number {

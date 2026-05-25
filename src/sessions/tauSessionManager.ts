@@ -141,12 +141,12 @@ export class TauSessionManager {
     }
 
     if (message.type === 'customUiDimensions') {
-      this.active().customUiHost?.updateDimensions(message.id, message.columns, message.rows);
+      this.active().customUiHost?.updateDimensions(message.id, message.columns, message.rows, message.cellWidthPx, message.cellHeightPx);
       return;
     }
 
     if (message.type === 'extensionWidgetDimensions') {
-      this.active().extensionWidgetHost.updateDimensions(message.key, message.columns, message.rows);
+      this.active().extensionWidgetHost.updateDimensions(message.key, message.columns, message.rows, message.cellWidthPx, message.cellHeightPx);
       return;
     }
 

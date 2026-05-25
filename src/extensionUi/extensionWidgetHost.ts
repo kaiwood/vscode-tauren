@@ -1,3 +1,5 @@
+import { cloneWebviewExtensionRenderBlocks, hasWebviewExtensionImageBlock } from '../webviewProtocol/renderBlocks';
+import type { WebviewExtensionRenderBlock } from '../webviewProtocol/types';
 import type { ExtensionWidgetContent, ExtensionWidgetPlacement } from './types';
 import {
   createTuiFacade,
@@ -6,11 +8,15 @@ import {
   type CustomUiComponent,
   type CustomUiTerminal
 } from './customUiHost';
+import { defaultCellDimensions, renderComponentContent, renderTextContent, type ExtensionCellDimensions } from './renderContent';
+
+type ExtensionTerminalDimensions = CustomUiTerminal & ExtensionCellDimensions;
 
 export type ExtensionWidgetEntry = {
   key: string;
   placement: ExtensionWidgetPlacement;
   lines: string[];
+  blocks?: WebviewExtensionRenderBlock[];
 };
 
 type StoredWidget = {
@@ -18,7 +24,8 @@ type StoredWidget = {
   placement: ExtensionWidgetPlacement;
   order: number;
   lines: string[];
-  terminal: CustomUiTerminal;
+  blocks: WebviewExtensionRenderBlock[];
+  terminal: ExtensionTerminalDimensions;
   component: CustomUiComponent | undefined;
   renderTimer: ReturnType<typeof setTimeout> | undefined;
   version: number;
@@ -32,6 +39,11 @@ export type ExtensionWidgetHostOptions = {
 const defaultColumns = 80;
 const defaultRows = 4;
 const renderFrameMs = 16;
+const defaultTerminalDimensions: ExtensionTerminalDimensions = {
+  columns: defaultColumns,
+  rows: defaultRows,
+  ...defaultCellDimensions
+};
 
 export class ExtensionWidgetHost {
   private readonly widgets = new Map<string, StoredWidget>();
@@ -53,7 +65,7 @@ export class ExtensionWidgetHost {
 
     const placement = normalizePlacement(options?.placement);
     const existing = this.widgets.get(normalizedKey);
-    const terminal = existing?.terminal ?? { columns: defaultColumns, rows: defaultRows };
+    const terminal = existing?.terminal ?? { ...defaultTerminalDimensions };
     const order = existing?.order ?? this.nextOrder++;
     const version = (existing?.version ?? 0) + 1;
 
@@ -66,6 +78,7 @@ export class ExtensionWidgetHost {
       placement,
       order,
       lines: [],
+      blocks: [],
       terminal,
       component: undefined,
       renderTimer: undefined,
@@ -75,7 +88,9 @@ export class ExtensionWidgetHost {
     this.widgets.set(normalizedKey, widget);
 
     if (Array.isArray(content)) {
-      widget.lines = normalizeLines(content);
+      const rendered = renderTextContent(content);
+      widget.lines = rendered.lines;
+      widget.blocks = rendered.blocks;
       this.options.onChange();
       return;
     }
@@ -83,7 +98,7 @@ export class ExtensionWidgetHost {
     this.mountComponentWidget(widget, content);
   }
 
-  public updateDimensions(key: string, columns: number, rows: number): void {
+  public updateDimensions(key: string, columns: number, rows: number, cellWidthPx?: number, cellHeightPx?: number): void {
     const widget = this.widgets.get(key.trim());
 
     if (!widget) {
@@ -92,13 +107,22 @@ export class ExtensionWidgetHost {
 
     const nextColumns = clampInteger(columns, 20, 240, defaultColumns);
     const nextRows = clampInteger(rows, 1, 80, defaultRows);
+    const nextCellWidthPx = clampPositiveNumber(cellWidthPx, widget.terminal.widthPx);
+    const nextCellHeightPx = clampPositiveNumber(cellHeightPx, widget.terminal.heightPx);
 
-    if (widget.terminal.columns === nextColumns && widget.terminal.rows === nextRows) {
+    if (
+      widget.terminal.columns === nextColumns
+      && widget.terminal.rows === nextRows
+      && widget.terminal.widthPx === nextCellWidthPx
+      && widget.terminal.heightPx === nextCellHeightPx
+    ) {
       return;
     }
 
     widget.terminal.columns = nextColumns;
     widget.terminal.rows = nextRows;
+    widget.terminal.widthPx = nextCellWidthPx;
+    widget.terminal.heightPx = nextCellHeightPx;
 
     if (widget.component) {
       this.scheduleRender(widget.key);
@@ -129,11 +153,15 @@ export class ExtensionWidgetHost {
   public getEntries(): ExtensionWidgetEntry[] {
     return [...this.widgets.values()]
       .sort((left, right) => left.order - right.order)
-      .map((widget) => ({
-        key: widget.key,
-        placement: widget.placement,
-        lines: widget.lines.slice()
-      }));
+      .map((widget) => {
+        const blocks = cloneWebviewExtensionRenderBlocks(widget.blocks);
+        return {
+          key: widget.key,
+          placement: widget.placement,
+          lines: widget.lines.slice(),
+          ...(hasWebviewExtensionImageBlock(blocks) ? { blocks } : {})
+        };
+      });
   }
 
   public dispose(): void {
@@ -208,7 +236,9 @@ export class ExtensionWidgetHost {
     }
 
     try {
-      widget.lines = normalizeLines(widget.component.render(widget.terminal.columns));
+      const rendered = renderComponentContent(widget.component, widget.terminal.columns, widget.terminal);
+      widget.lines = rendered.lines;
+      widget.blocks = rendered.blocks;
       this.options.onChange();
     } catch (error) {
       this.options.notify(`Pi extension widget render failed: ${error instanceof Error ? error.message : String(error)}`, 'error');
@@ -238,8 +268,8 @@ function normalizePlacement(value: ExtensionWidgetPlacement | undefined): Extens
   return value === 'belowEditor' ? 'belowEditor' : 'aboveEditor';
 }
 
-function normalizeLines(lines: unknown): string[] {
-  return Array.isArray(lines) ? lines.map((line) => String(line)) : [];
+function clampPositiveNumber(value: number | undefined, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
 function clampInteger(value: number, min: number, max: number, fallback: number): number {

@@ -21,20 +21,40 @@ type AnsiRenderOptions = {
   suppressBackgrounds?: boolean;
 };
 
+export type AnsiBlockImageCell = {
+  top: string | undefined;
+  bottom: string | undefined;
+};
+
 export function getAnsiLineBackground(value: string, outputColors: boolean): string | undefined {
   if (!outputColors) {
     return undefined;
   }
 
+  const lineBackground = getUniformAnsiLineBackground(value);
+  return lineBackground.hasVisibleText ? lineBackground.background : undefined;
+}
+
+export function isAnsiBlockImageLine(value: string): boolean {
+  const stripped = stripAnsiSequences(value);
+  return containsAnsiEscape(value)
+    && /[▀▄█]/.test(stripped)
+    && /^[▀▄█ ]+$/.test(stripped);
+}
+
+export function getAnsiBlockImageCells(value: string, outputColors: boolean): AnsiBlockImageCell[] | undefined {
+  if (!outputColors || !isAnsiBlockImageLine(value)) {
+    return undefined;
+  }
+
+  const cells: AnsiBlockImageCell[] = [];
   const csiPattern = /\x1b\[([0-?]*)([ -/]*)?([@-~])/g;
   let style: AnsiStyle = {};
   let index = 0;
   let match: RegExpExecArray | null;
 
   while ((match = csiPattern.exec(value)) !== null) {
-    if (hasVisibleText(value.slice(index, match.index))) {
-      return effectiveBackground(style);
-    }
+    appendAnsiBlockImageCells(cells, value.slice(index, match.index), style);
 
     if (match[3] === 'm') {
       style = applyAnsiSgr(match[1], style);
@@ -43,7 +63,28 @@ export function getAnsiLineBackground(value: string, outputColors: boolean): str
     index = match.index + match[0].length;
   }
 
-  return hasVisibleText(value.slice(index)) ? effectiveBackground(style) : undefined;
+  appendAnsiBlockImageCells(cells, value.slice(index), style);
+  return cells.length > 0 ? cells : undefined;
+}
+
+export function renderAnsiBlockImageLineInto(element: HTMLElement, value: string, outputColors: boolean): boolean {
+  const cells = getAnsiBlockImageCells(value, outputColors);
+
+  if (!cells) {
+    return false;
+  }
+
+  element.replaceChildren();
+
+  for (const cell of cells) {
+    const cellElement = document.createElement('span');
+    cellElement.className = 'tau-ansi-block-image-cell';
+    cellElement.setAttribute('aria-hidden', 'true');
+    applyAnsiBlockImageCellStyle(cellElement, cell);
+    element.append(cellElement);
+  }
+
+  return true;
 }
 
 export function getAnsiFullWidgetBackground(lines: readonly string[], outputColors: boolean): string | undefined {
@@ -120,6 +161,35 @@ function appendAnsiText(element: HTMLElement, value: string, style: AnsiStyle, o
   span.textContent = value;
   applyAnsiStyle(span, style, options);
   element.append(span);
+}
+
+function appendAnsiBlockImageCells(cells: AnsiBlockImageCell[], value: string, style: AnsiStyle): void {
+  for (const character of Array.from(value)) {
+    const foreground = effectiveForeground(style);
+    const background = effectiveBackground(style);
+
+    if (character === '▀') {
+      cells.push({ top: foreground, bottom: background });
+    } else if (character === '▄') {
+      cells.push({ top: background, bottom: foreground });
+    } else if (character === '█') {
+      cells.push({ top: foreground, bottom: foreground });
+    } else if (character === ' ') {
+      cells.push({ top: background, bottom: background });
+    }
+  }
+}
+
+function applyAnsiBlockImageCellStyle(element: HTMLElement, cell: AnsiBlockImageCell): void {
+  const top = cell.top ?? 'transparent';
+  const bottom = cell.bottom ?? 'transparent';
+
+  if (top === bottom) {
+    element.style.background = top;
+    return;
+  }
+
+  element.style.background = `linear-gradient(to bottom, ${top} 0 50%, ${bottom} 50% 100%)`;
 }
 
 function getUniformAnsiLineBackground(value: string): { hasVisibleText: boolean; background: string | undefined } {

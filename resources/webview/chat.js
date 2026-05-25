@@ -237,6 +237,75 @@
     return typeof value === "object" && value !== null;
   }
 
+  // src/webview/extensionRenderBlocks.ts
+  function normalizeExtensionRenderBlocks(blocks, fallbackLines) {
+    if (Array.isArray(blocks)) {
+      const normalized = blocks.map(normalizeExtensionRenderBlock).filter((block) => Boolean(block));
+      if (normalized.length > 0) {
+        return normalized;
+      }
+    }
+    return fallbackLines.length > 0 ? [{ type: "text", lines: fallbackLines }] : [];
+  }
+  function createExtensionImageElement(block) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "extension-render-image";
+    if (block.cellWidthPx && block.cellHeightPx) {
+      wrapper.style.width = `${block.columns * block.cellWidthPx}px`;
+      wrapper.style.height = `${block.rows * block.cellHeightPx}px`;
+    } else {
+      wrapper.style.width = `calc(${block.columns} * 1ch)`;
+      wrapper.style.height = `calc(${block.rows} * 1lh)`;
+    }
+    if (block.indentColumns && block.indentColumns > 0) {
+      wrapper.style.marginLeft = block.cellWidthPx ? `${block.indentColumns * block.cellWidthPx}px` : `calc(${block.indentColumns} * 1ch)`;
+    }
+    const image = document.createElement("img");
+    image.className = "extension-render-image__img";
+    image.alt = block.alt || "Image";
+    image.loading = "lazy";
+    image.decoding = "async";
+    image.src = `data:${block.mimeType};base64,${block.data}`;
+    wrapper.append(image);
+    return wrapper;
+  }
+  function normalizeExtensionRenderBlock(value) {
+    if (!isRecord2(value)) {
+      return void 0;
+    }
+    if (value.type === "text" && Array.isArray(value.lines)) {
+      return { type: "text", lines: value.lines.map((line) => String(line)) };
+    }
+    if (value.type === "image" && typeof value.data === "string" && value.data.length > 0 && typeof value.mimeType === "string" && isSupportedImageMimeType(value.mimeType)) {
+      const columns = clampPositiveInteger(value.columns, 1);
+      const rows = clampPositiveInteger(value.rows, 1);
+      return {
+        type: "image",
+        data: value.data,
+        mimeType: value.mimeType.toLowerCase(),
+        columns,
+        rows,
+        ...typeof value.widthPx === "number" && Number.isFinite(value.widthPx) && value.widthPx > 0 ? { widthPx: Math.floor(value.widthPx) } : {},
+        ...typeof value.heightPx === "number" && Number.isFinite(value.heightPx) && value.heightPx > 0 ? { heightPx: Math.floor(value.heightPx) } : {},
+        ...typeof value.cellWidthPx === "number" && Number.isFinite(value.cellWidthPx) && value.cellWidthPx > 0 ? { cellWidthPx: value.cellWidthPx } : {},
+        ...typeof value.cellHeightPx === "number" && Number.isFinite(value.cellHeightPx) && value.cellHeightPx > 0 ? { cellHeightPx: value.cellHeightPx } : {},
+        ...typeof value.alt === "string" && value.alt ? { alt: value.alt } : {},
+        ...typeof value.indentColumns === "number" && Number.isFinite(value.indentColumns) && value.indentColumns > 0 ? { indentColumns: Math.floor(value.indentColumns) } : {}
+      };
+    }
+    return void 0;
+  }
+  function isSupportedImageMimeType(value) {
+    const mimeType = value.toLowerCase();
+    return mimeType === "image/png" || mimeType === "image/jpeg" || mimeType === "image/gif" || mimeType === "image/webp";
+  }
+  function clampPositiveInteger(value, fallback) {
+    return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+  }
+  function isRecord2(value) {
+    return typeof value === "object" && value !== null;
+  }
+
   // src/webview/messages/ansi.ts
   function containsAnsiEscape(value) {
     return /\x1b\[[0-?]*(?:[ -/][0-?]*)?[@-~]/.test(value);
@@ -248,20 +317,46 @@
     if (!outputColors) {
       return void 0;
     }
+    const lineBackground = getUniformAnsiLineBackground(value);
+    return lineBackground.hasVisibleText ? lineBackground.background : void 0;
+  }
+  function isAnsiBlockImageLine(value) {
+    const stripped = stripAnsiSequences(value);
+    return containsAnsiEscape(value) && /[▀▄█]/.test(stripped) && /^[▀▄█ ]+$/.test(stripped);
+  }
+  function getAnsiBlockImageCells(value, outputColors) {
+    if (!outputColors || !isAnsiBlockImageLine(value)) {
+      return void 0;
+    }
+    const cells = [];
     const csiPattern = /\x1b\[([0-?]*)([ -/]*)?([@-~])/g;
     let style = {};
     let index = 0;
     let match;
     while ((match = csiPattern.exec(value)) !== null) {
-      if (hasVisibleText(value.slice(index, match.index))) {
-        return effectiveBackground(style);
-      }
+      appendAnsiBlockImageCells(cells, value.slice(index, match.index), style);
       if (match[3] === "m") {
         style = applyAnsiSgr(match[1], style);
       }
       index = match.index + match[0].length;
     }
-    return hasVisibleText(value.slice(index)) ? effectiveBackground(style) : void 0;
+    appendAnsiBlockImageCells(cells, value.slice(index), style);
+    return cells.length > 0 ? cells : void 0;
+  }
+  function renderAnsiBlockImageLineInto(element, value, outputColors) {
+    const cells = getAnsiBlockImageCells(value, outputColors);
+    if (!cells) {
+      return false;
+    }
+    element.replaceChildren();
+    for (const cell of cells) {
+      const cellElement = document.createElement("span");
+      cellElement.className = "tau-ansi-block-image-cell";
+      cellElement.setAttribute("aria-hidden", "true");
+      applyAnsiBlockImageCellStyle(cellElement, cell);
+      element.append(cellElement);
+    }
+    return true;
   }
   function getAnsiFullWidgetBackground(lines, outputColors) {
     if (!outputColors) {
@@ -319,6 +414,30 @@
     span.textContent = value;
     applyAnsiStyle(span, style, options);
     element.append(span);
+  }
+  function appendAnsiBlockImageCells(cells, value, style) {
+    for (const character of Array.from(value)) {
+      const foreground = effectiveForeground(style);
+      const background = effectiveBackground(style);
+      if (character === "\u2580") {
+        cells.push({ top: foreground, bottom: background });
+      } else if (character === "\u2584") {
+        cells.push({ top: background, bottom: foreground });
+      } else if (character === "\u2588") {
+        cells.push({ top: foreground, bottom: foreground });
+      } else if (character === " ") {
+        cells.push({ top: background, bottom: background });
+      }
+    }
+  }
+  function applyAnsiBlockImageCellStyle(element, cell) {
+    const top = cell.top ?? "transparent";
+    const bottom = cell.bottom ?? "transparent";
+    if (top === bottom) {
+      element.style.background = top;
+      return;
+    }
+    element.style.background = `linear-gradient(to bottom, ${top} 0 50%, ${bottom} 50% 100%)`;
   }
   function getUniformAnsiLineBackground(value) {
     const csiPattern = /\x1b\[([0-?]*)([ -/]*)?([@-~])/g;
@@ -642,6 +761,12 @@
     return Math.max(0, Math.min(255, value));
   }
 
+  // src/webview/metrics.ts
+  function roundDevicePixelMetric(value) {
+    const devicePixelRatio = Number.isFinite(window.devicePixelRatio) && window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
+    return Math.max(1 / devicePixelRatio, Math.round(value * devicePixelRatio) / devicePixelRatio);
+  }
+
   // src/webview/customUI/customUi.ts
   var cursorMarker = "\x1B_pi:c\x07";
   var cursorMarkerPattern = /\x1b_pi:c\x07/g;
@@ -694,7 +819,7 @@
         return true;
       }
       if (message.type === "customUiRender") {
-        this.scheduleRender(message.id, message.lines, message.outputColors !== false);
+        this.scheduleRender(message.id, message.lines, message.blocks, message.outputColors !== false);
         return true;
       }
       this.hide(message.id);
@@ -760,11 +885,11 @@
       this.focusInputCapture();
       this.scheduleDimensionsPost();
     }
-    scheduleRender(id, lines, outputColors) {
+    scheduleRender(id, lines, blocks, outputColors) {
       if (this.activeId !== id) {
         return;
       }
-      this.pendingRender = { id, lines, outputColors };
+      this.pendingRender = { id, lines, ...blocks ? { blocks } : {}, outputColors };
       if (this.renderFrame !== void 0) {
         return;
       }
@@ -775,23 +900,17 @@
         if (!pending) {
           return;
         }
-        this.renderNow(pending.id, pending.lines, pending.outputColors);
+        this.renderNow(pending.id, pending.lines, pending.blocks, pending.outputColors);
       });
     }
-    renderNow(id, lines, outputColors) {
+    renderNow(id, lines, blocks, outputColors) {
       if (this.activeId !== id) {
         return;
       }
-      const prepared = prepareCustomUiLines(lines);
-      const fragment = document.createDocumentFragment();
-      for (const line of prepared.lines) {
-        const lineElement = document.createElement("div");
-        lineElement.className = "custom-ui__line";
-        renderAnsiTextInto(lineElement, line, outputColors);
-        fragment.append(lineElement);
-      }
-      this.options.customUiOutputElement.replaceChildren(fragment);
-      this.updateCursor(prepared.cursor);
+      const contentBlocks = normalizeExtensionRenderBlocks(blocks, lines);
+      const rendered = renderCustomUiBlocks(contentBlocks, outputColors);
+      this.options.customUiOutputElement.replaceChildren(rendered.fragment);
+      this.updateCursor(rendered.cursor);
       this.scheduleDimensionsPost();
     }
     hide(id) {
@@ -1022,7 +1141,7 @@
         return;
       }
       const dimensions = measureTerminalDimensions(this.options.customUiOutputElement);
-      const signature = `${dimensions.columns}x${dimensions.rows}`;
+      const signature = `${dimensions.columns}x${dimensions.rows}@${dimensions.cellWidthPx}x${dimensions.cellHeightPx}`;
       if (signature === this.lastDimensionSignature) {
         return;
       }
@@ -1031,10 +1150,46 @@
         type: "customUiDimensions",
         id: this.activeId,
         columns: dimensions.columns,
-        rows: dimensions.rows
+        rows: dimensions.rows,
+        cellWidthPx: dimensions.cellWidthPx,
+        cellHeightPx: dimensions.cellHeightPx
       });
     }
   };
+  function renderCustomUiBlocks(blocks, outputColors) {
+    const fragment = document.createDocumentFragment();
+    let cursor;
+    let rowOffset = 0;
+    for (const block of blocks) {
+      if (block.type === "image") {
+        fragment.append(createExtensionImageElement(block));
+        rowOffset += Math.max(1, block.rows);
+        continue;
+      }
+      const prepared = prepareCustomUiLines(block.lines);
+      for (const line of prepared.lines) {
+        const lineElement = document.createElement("div");
+        lineElement.className = "custom-ui__line";
+        if (isAnsiBlockImageLine(line)) {
+          lineElement.classList.add("custom-ui__line--ansi-image");
+          if (renderAnsiBlockImageLineInto(lineElement, line, outputColors)) {
+            fragment.append(lineElement);
+            continue;
+          }
+        }
+        renderAnsiTextInto(lineElement, line, outputColors);
+        fragment.append(lineElement);
+      }
+      if (!cursor && prepared.cursor) {
+        cursor = {
+          row: rowOffset + prepared.cursor.row,
+          column: prepared.cursor.column
+        };
+      }
+      rowOffset += prepared.lines.length;
+    }
+    return { fragment, cursor };
+  }
   function prepareCustomUiLines(lines) {
     let cursor;
     const preparedLines = lines.map((line, row) => {
@@ -1110,7 +1265,12 @@
     const columns = Math.max(20, Math.floor(rect.width / metrics.charWidth));
     const targetHeight = Math.max(rect.height, Math.min(window.innerHeight * 0.7, window.innerHeight - 140));
     const rows = Math.max(4, Math.min(80, Math.floor(Math.max(120, targetHeight) / metrics.lineHeight)));
-    return { columns, rows };
+    return {
+      columns,
+      rows,
+      cellWidthPx: roundDevicePixelMetric(metrics.charWidth),
+      cellHeightPx: roundDevicePixelMetric(metrics.lineHeight)
+    };
   }
   function isTextInputKeyboardEvent(event) {
     return !event.metaKey && !event.ctrlKey && !event.altKey && isSingleCodePoint(event.key);
@@ -1218,7 +1378,7 @@
     if (message.type === "customUiShow" || message.type === "customUiHide") {
       return typeof message.id === "string" && message.id.length > 0;
     }
-    return message.type === "customUiRender" && typeof message.id === "string" && message.id.length > 0 && Array.isArray(message.lines) && message.lines.every((line) => typeof line === "string");
+    return message.type === "customUiRender" && typeof message.id === "string" && message.id.length > 0 && Array.isArray(message.lines) && message.lines.every((line) => typeof line === "string") && (message.blocks === void 0 || Array.isArray(message.blocks));
   }
 
   // src/webview/messages/actionButtons.ts
@@ -1403,12 +1563,12 @@
     return !/^[A-Za-z][A-Za-z0-9+.-]*:/.test(src) && /\.(?:png|jpe?g|gif|webp)(?:[?#].*)?$/i.test(src);
   }
   function isLocalImageResolveResult(message) {
-    if (!isRecord2(message) || message.type !== "resolveLocalImageResult") {
+    if (!isRecord3(message) || message.type !== "resolveLocalImageResult") {
       return false;
     }
     return typeof message.id === "string" && (!("uri" in message) || typeof message.uri === "string") && (!("error" in message) || typeof message.error === "string");
   }
-  function isRecord2(value) {
+  function isRecord3(value) {
     return typeof value === "object" && value !== null;
   }
   function linkifyFileReferences(root) {
@@ -6668,7 +6828,7 @@ ${after}`;
     sessionLoading: false
   };
   function parseWebviewStateMessage(data, previousState) {
-    const record = isRecord3(data) ? data : {};
+    const record = isRecord4(data) ? data : {};
     return {
       messages: parseMessages(record, previousState?.messages ?? []),
       busy: Boolean(record.busy),
@@ -6713,7 +6873,7 @@ ${after}`;
     };
   }
   function parseComposerPaste(value) {
-    if (!isRecord3(value) || typeof value.text !== "string" || typeof value.revision !== "number") {
+    if (!isRecord4(value) || typeof value.text !== "string" || typeof value.revision !== "number") {
       return void 0;
     }
     return {
@@ -6731,7 +6891,7 @@ ${after}`;
     }));
   }
   function isExtensionStatusEntry(value) {
-    return isRecord3(value) && typeof value.key === "string" && typeof value.text === "string";
+    return isRecord4(value) && typeof value.key === "string" && typeof value.text === "string";
   }
   function parseExtensionWidgets(value) {
     if (!Array.isArray(value)) {
@@ -6740,14 +6900,15 @@ ${after}`;
     return value.filter(isExtensionWidgetEntry).map((entry) => ({
       key: entry.key,
       placement: entry.placement,
-      lines: entry.lines.map((line) => String(line))
+      lines: entry.lines.map((line) => String(line)),
+      ...Array.isArray(entry.blocks) ? { blocks: entry.blocks } : {}
     }));
   }
   function isExtensionWidgetEntry(value) {
-    return isRecord3(value) && typeof value.key === "string" && (value.placement === "aboveEditor" || value.placement === "belowEditor") && Array.isArray(value.lines);
+    return isRecord4(value) && typeof value.key === "string" && (value.placement === "aboveEditor" || value.placement === "belowEditor") && Array.isArray(value.lines);
   }
   function parseAuthState(value) {
-    if (!isRecord3(value)) {
+    if (!isRecord4(value)) {
       return { providers: [] };
     }
     return {
@@ -6760,7 +6921,7 @@ ${after}`;
     };
   }
   function isAuthProvider(value) {
-    return isRecord3(value) && typeof value.id === "string" && typeof value.name === "string" && (value.authType === "oauth" || value.authType === "api_key") && typeof value.configured === "boolean" && typeof value.canLogout === "boolean";
+    return isRecord4(value) && typeof value.id === "string" && typeof value.name === "string" && (value.authType === "oauth" || value.authType === "api_key") && typeof value.configured === "boolean" && typeof value.canLogout === "boolean";
   }
   function sanitizeAuthProvider(provider) {
     return {
@@ -6776,14 +6937,14 @@ ${after}`;
     };
   }
   function isAuthProgress(value) {
-    return isRecord3(value) && typeof value.message === "string" && (!("providerId" in value) || typeof value.providerId === "string") && (!("url" in value) || typeof value.url === "string") && (!("userCode" in value) || typeof value.userCode === "string") && (!("verificationUri" in value) || typeof value.verificationUri === "string");
+    return isRecord4(value) && typeof value.message === "string" && (!("providerId" in value) || typeof value.providerId === "string") && (!("url" in value) || typeof value.url === "string") && (!("userCode" in value) || typeof value.userCode === "string") && (!("verificationUri" in value) || typeof value.verificationUri === "string");
   }
   function parseSettingsState(value) {
-    if (!isRecord3(value)) {
+    if (!isRecord4(value)) {
       return { values: {} };
     }
     const parsedValues = {};
-    const values = isRecord3(value.values) ? value.values : {};
+    const values = isRecord4(value.values) ? value.values : {};
     for (const [settingId, settingValue] of Object.entries(values)) {
       if (!isSettingId(settingId)) {
         continue;
@@ -6800,7 +6961,7 @@ ${after}`;
     };
   }
   function parseSettingsErrors(value) {
-    if (!isRecord3(value)) {
+    if (!isRecord4(value)) {
       return void 0;
     }
     const parsedErrors = {};
@@ -6825,7 +6986,7 @@ ${after}`;
     return applyMessagePatch(previousMessages, patch);
   }
   function parseMessagePatch(value) {
-    if (!isRecord3(value)) {
+    if (!isRecord4(value)) {
       return void 0;
     }
     const upserts = Array.isArray(value.upserts) ? value.upserts.filter(isMessagePatchUpsert) : void 0;
@@ -6839,10 +7000,10 @@ ${after}`;
     };
   }
   function isMessagePatchUpsert(value) {
-    if (!isRecord3(value)) {
+    if (!isRecord4(value)) {
       return false;
     }
-    return typeof value.index === "number" && Number.isInteger(value.index) && value.index >= 0 && isRecord3(value.message) && typeof value.message.role === "string" && typeof value.message.text === "string";
+    return typeof value.index === "number" && Number.isInteger(value.index) && value.index >= 0 && isRecord4(value.message) && typeof value.message.role === "string" && typeof value.message.text === "string";
   }
   function applyMessagePatch(previousMessages, patch) {
     const messages = previousMessages.slice();
@@ -6878,7 +7039,7 @@ ${after}`;
     });
   }
   function parseWorkspaceDiffStats(value) {
-    if (!isRecord3(value)) {
+    if (!isRecord4(value)) {
       return { addedLines: 0, removedLines: 0 };
     }
     return {
@@ -6886,7 +7047,7 @@ ${after}`;
       removedLines: normalizeDiffLineCount(value.removedLines)
     };
   }
-  function isRecord3(value) {
+  function isRecord4(value) {
     return typeof value === "object" && value !== null;
   }
 
@@ -7366,7 +7527,9 @@ ${after}`;
       element.className = "extension-widget";
       element.dataset.widgetKey = widget.key;
       element.setAttribute("aria-label", `Pi extension widget ${widget.key}`);
-      const prepared = prepareCustomUiLines(widget.lines);
+      const blocks = normalizeExtensionRenderBlocks(widget.blocks, widget.lines);
+      const textLines = blocks.length === 1 && blocks[0]?.type === "text" ? blocks[0].lines : [];
+      const prepared = prepareCustomUiLines(textLines);
       const backgroundColorsEnabled = areExtensionBackgroundColorsEnabled();
       const widgetBackground = getAnsiFullWidgetBackground(prepared.lines, backgroundColorsEnabled && state.outputColors);
       if (widgetBackground) {
@@ -7374,16 +7537,29 @@ ${after}`;
         element.style.backgroundColor = widgetBackground;
         element.style.borderColor = widgetBackground;
       }
-      for (const line of prepared.lines) {
-        const lineElement = document.createElement("div");
-        lineElement.className = "extension-widget__line";
-        const background = backgroundColorsEnabled ? getAnsiLineBackground(line, state.outputColors) : void 0;
-        if (background) {
-          lineElement.classList.add("extension-widget__line--ansi-background");
-          lineElement.style.backgroundColor = background;
+      for (const block of blocks) {
+        if (block.type === "image") {
+          element.append(createExtensionImageElement(block));
+          continue;
         }
-        renderAnsiTextInto(lineElement, line, state.outputColors, { suppressBackgrounds: !backgroundColorsEnabled });
-        element.append(lineElement);
+        for (const line of prepareCustomUiLines(block.lines).lines) {
+          const lineElement = document.createElement("div");
+          lineElement.className = "extension-widget__line";
+          const background = backgroundColorsEnabled ? getAnsiLineBackground(line, state.outputColors) : void 0;
+          if (background) {
+            lineElement.classList.add("extension-widget__line--ansi-background");
+            lineElement.style.backgroundColor = background;
+          }
+          if (isAnsiBlockImageLine(line)) {
+            lineElement.classList.add("extension-widget__line--ansi-image");
+            if (renderAnsiBlockImageLineInto(lineElement, line, state.outputColors)) {
+              element.append(lineElement);
+              continue;
+            }
+          }
+          renderAnsiTextInto(lineElement, line, state.outputColors, { suppressBackgrounds: !backgroundColorsEnabled });
+          element.append(lineElement);
+        }
       }
       fragment.append(element);
     }
@@ -7407,7 +7583,7 @@ ${after}`;
           continue;
         }
         const dimensions = measureExtensionWidgetDimensions(element);
-        const signature = `${dimensions.columns}x${dimensions.rows}`;
+        const signature = `${dimensions.columns}x${dimensions.rows}@${dimensions.cellWidthPx}x${dimensions.cellHeightPx}`;
         const signatureKey = widget.key;
         if (widgetDimensionSignatures.get(signatureKey) === signature) {
           continue;
@@ -7417,7 +7593,9 @@ ${after}`;
           type: "extensionWidgetDimensions",
           key: widget.key,
           columns: dimensions.columns,
-          rows: dimensions.rows
+          rows: dimensions.rows,
+          cellWidthPx: dimensions.cellWidthPx,
+          cellHeightPx: dimensions.cellHeightPx
         });
       }
     });
@@ -7439,7 +7617,12 @@ ${after}`;
     const contentHeight = Math.max(lineHeight, rect.height - (Number.parseFloat(style.paddingTop) || 0) - (Number.parseFloat(style.paddingBottom) || 0));
     const columns = Math.max(20, Math.floor(contentWidth / charWidth));
     const rows = Math.max(1, Math.min(80, Math.floor(contentHeight / lineHeight)));
-    return { columns, rows };
+    return {
+      columns,
+      rows,
+      cellWidthPx: roundDevicePixelMetric(charWidth),
+      cellHeightPx: roundDevicePixelMetric(lineHeight)
+    };
   }
   function cssEscape(value) {
     return typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(value) : value.replace(/[^a-zA-Z0-9_-]/g, "\\$&");

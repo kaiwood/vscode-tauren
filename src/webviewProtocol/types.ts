@@ -81,8 +81,8 @@ export type WebviewMessage =
   | { type: 'resolveLocalImage'; id: string; src: string }
   | { type: 'customUiInput'; id: string; data: string }
   | { type: 'customUiCancel'; id: string }
-  | { type: 'customUiDimensions'; id: string; columns: number; rows: number }
-  | { type: 'extensionWidgetDimensions'; key: string; columns: number; rows: number }
+  | { type: 'customUiDimensions'; id: string; columns: number; rows: number; cellWidthPx?: number; cellHeightPx?: number }
+  | { type: 'extensionWidgetDimensions'; key: string; columns: number; rows: number; cellWidthPx?: number; cellHeightPx?: number }
   | { type: 'extensionEditorSave'; id: string; text: string }
   | { type: 'extensionEditorCancel'; id: string }
   | { type: 'submit'; text: string; streamingBehavior?: WebviewStreamingBehavior }
@@ -167,10 +167,32 @@ export type WebviewExtensionStatusEntry = {
   text: string;
 };
 
+export type WebviewExtensionTextBlock = {
+  type: 'text';
+  lines: string[];
+};
+
+export type WebviewExtensionImageBlock = {
+  type: 'image';
+  data: string;
+  mimeType: string;
+  columns: number;
+  rows: number;
+  widthPx?: number;
+  heightPx?: number;
+  cellWidthPx?: number;
+  cellHeightPx?: number;
+  alt?: string;
+  indentColumns?: number;
+};
+
+export type WebviewExtensionRenderBlock = WebviewExtensionTextBlock | WebviewExtensionImageBlock;
+
 export type WebviewExtensionWidgetEntry = {
   key: string;
   placement: 'aboveEditor' | 'belowEditor';
   lines: string[];
+  blocks?: WebviewExtensionRenderBlock[];
 };
 
 export type WebviewMessagePatch = {
