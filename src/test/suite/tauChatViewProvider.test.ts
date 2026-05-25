@@ -21,7 +21,7 @@ type ProviderWithDeleteSession = {
 suite('TauChatViewProvider', () => {
   test('posts cached legacy model metadata and persists refreshed session metadata', async () => {
     const workspaceState = new FakeMemento({
-      'tau.cachedModelMeta': {
+      'tauren.cachedModelMeta': {
         label: 'cached-model High',
         provider: 'anthropic',
         id: 'cached-model',
@@ -58,7 +58,7 @@ suite('TauChatViewProvider', () => {
     assert.strictEqual(lastPostedState(view).modelLabel, 'live-model Medium');
     assert.strictEqual(lastPostedState(view).contextUsageLabel, '60%');
     assert.strictEqual(lastPostedState(view).metadataRefreshing, false);
-    assert.deepStrictEqual(workspaceState.get<unknown>('tau.cachedSessionMeta'), {
+    assert.deepStrictEqual(workspaceState.get<unknown>('tauren.cachedSessionMeta'), {
       model: {
         label: 'live-model Medium',
         provider: 'openai',
@@ -75,7 +75,7 @@ suite('TauChatViewProvider', () => {
         level: 'medium'
       }
     });
-    assert.strictEqual(workspaceState.get<unknown>('tau.cachedModelMeta'), undefined);
+    assert.strictEqual(workspaceState.get<unknown>('tauren.cachedModelMeta'), undefined);
     provider.dispose();
   });
 
@@ -86,7 +86,7 @@ suite('TauChatViewProvider', () => {
     try {
       await fs.writeFile(sessionFile, JSON.stringify({ type: 'session', cwd: '/' }) + '\n', 'utf8');
       const workspaceState = new FakeMemento({
-        'tau.currentSessionFile': sessionFile
+        'tauren.currentSessionFile': sessionFile
       });
       const clientOptions: unknown[] = [];
       const client = new FakePiClient({
@@ -113,7 +113,7 @@ suite('TauChatViewProvider', () => {
       await flushPromises();
 
       assert.deepStrictEqual(clientOptions.map(withoutExtensionUi), [{ cwd: '/workspace' }]);
-      assert.strictEqual(workspaceState.get<unknown>('tau.currentSessionFile'), '/sessions/new.jsonl');
+      assert.strictEqual(workspaceState.get<unknown>('tauren.currentSessionFile'), '/sessions/new.jsonl');
       provider.dispose();
     } finally {
       await fs.rm(tempDir, { recursive: true, force: true });
@@ -149,7 +149,7 @@ suite('TauChatViewProvider', () => {
 
   test('restores and persists current session file through workspace state', async () => {
     const workspaceState = new FakeMemento({
-      'tau.currentSessionFile': '/sessions/current.jsonl'
+      'tauren.currentSessionFile': '/sessions/current.jsonl'
     });
     const clientOptions: unknown[] = [];
     const client = new FakePiClient({
@@ -181,12 +181,12 @@ suite('TauChatViewProvider', () => {
     assert.deepStrictEqual(lastPostedState(view).messages, [
       { role: 'user', text: 'Restored prompt' }
     ]);
-    assert.strictEqual(workspaceState.get<unknown>('tau.currentSessionFile'), '/sessions/updated.jsonl');
+    assert.strictEqual(workspaceState.get<unknown>('tauren.currentSessionFile'), '/sessions/updated.jsonl');
     provider.dispose();
   });
 
   test('persists dismissed welcome state as a setting and posts updated state', async () => {
-    const configuration = vscode.workspace.getConfiguration('tau');
+    const configuration = vscode.workspace.getConfiguration('tauren');
     const previousValue = configuration.inspect<boolean>('showWelcome')?.globalValue;
     const globalState = new FakeMemento();
     const provider = new TauChatViewProvider(
@@ -208,8 +208,8 @@ suite('TauChatViewProvider', () => {
 
       view.webview.fireMessage({ type: 'dismissWelcome' });
       await waitForAssertion(() => {
-        assert.strictEqual(vscode.workspace.getConfiguration('tau').get<boolean>('showWelcome'), false);
-        assert.strictEqual(globalState.get<unknown>('tau.welcomeDismissed'), undefined);
+        assert.strictEqual(vscode.workspace.getConfiguration('tauren').get<boolean>('showWelcome'), false);
+        assert.strictEqual(globalState.get<unknown>('tauren.welcomeDismissed'), undefined);
         assert.strictEqual(lastPostedState(view).welcomeDismissed, true);
       });
     } finally {
@@ -219,9 +219,9 @@ suite('TauChatViewProvider', () => {
   });
 
   test('uses plain initial empty state after welcome is dismissed', async () => {
-    const configuration = vscode.workspace.getConfiguration('tau');
+    const configuration = vscode.workspace.getConfiguration('tauren');
     const previousValue = configuration.inspect<boolean>('showWelcome')?.globalValue;
-    const globalState = new FakeMemento({ 'tau.welcomeDismissed': true });
+    const globalState = new FakeMemento({ 'tauren.welcomeDismissed': true });
     const provider = new TauChatViewProvider(
       vscode.Uri.file('/extension'),
       () => {
@@ -237,19 +237,19 @@ suite('TauChatViewProvider', () => {
       provider.resolveWebviewView(view.asWebviewView());
 
       assert.doesNotMatch(view.webview.html, /Don't show again/);
-      assert.match(view.webview.html, /Ask Tau about this workspace\./);
+      assert.match(view.webview.html, /Ask Tauren about this workspace\./);
       assert.strictEqual(lastPostedState(view).welcomeDismissed, true);
-      assert.strictEqual(lastPostedState(view).settings?.values['tau.showWelcome'], false);
+      assert.strictEqual(lastPostedState(view).settings?.values['tauren.showWelcome'], false);
     } finally {
       provider.dispose();
       await configuration.update('showWelcome', previousValue, vscode.ConfigurationTarget.Global);
     }
   });
 
-  test('can turn the welcome message back on from Tau settings', async () => {
-    const configuration = vscode.workspace.getConfiguration('tau');
+  test('can turn the welcome message back on from Tauren settings', async () => {
+    const configuration = vscode.workspace.getConfiguration('tauren');
     const previousValue = configuration.inspect<boolean>('showWelcome')?.globalValue;
-    const globalState = new FakeMemento({ 'tau.welcomeDismissed': true });
+    const globalState = new FakeMemento({ 'tauren.welcomeDismissed': true });
     const provider = new TauChatViewProvider(
       vscode.Uri.file('/extension'),
       () => {
@@ -265,11 +265,11 @@ suite('TauChatViewProvider', () => {
       provider.resolveWebviewView(view.asWebviewView());
       assert.strictEqual(lastPostedState(view).welcomeDismissed, true);
 
-      view.webview.fireMessage({ type: 'updateSetting', settingId: 'tau.showWelcome', value: true });
+      view.webview.fireMessage({ type: 'updateSetting', settingId: 'tauren.showWelcome', value: true });
       await waitForAssertion(() => {
-        assert.strictEqual(vscode.workspace.getConfiguration('tau').get<boolean>('showWelcome'), true);
+        assert.strictEqual(vscode.workspace.getConfiguration('tauren').get<boolean>('showWelcome'), true);
         assert.strictEqual(lastPostedState(view).welcomeDismissed, false);
-        assert.strictEqual(lastPostedState(view).settings?.values['tau.showWelcome'], true);
+        assert.strictEqual(lastPostedState(view).settings?.values['tauren.showWelcome'], true);
       });
     } finally {
       provider.dispose();
@@ -352,7 +352,7 @@ suite('TauChatViewProvider', () => {
       type: 'dropPromptImages',
       files: [{ label: 'diagram.png', title: 'diagram.png', mimeType: 'image/png', sizeBytes: 4, data: 'AAAA' }],
       uris: [],
-      rejections: ['Unsupported attachment: notes.txt. Tau currently supports PNG, JPEG, GIF, and WebP images.']
+      rejections: ['Unsupported attachment: notes.txt. Tauren currently supports PNG, JPEG, GIF, and WebP images.']
     });
     await flushPromises();
 
@@ -416,7 +416,7 @@ suite('TauChatViewProvider', () => {
   test('deletes sessions without confirmation when configured', async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tau-delete-session-'));
     const sessionFile = path.join(tempDir, 'session.jsonl');
-    const configuration = vscode.workspace.getConfiguration('tau');
+    const configuration = vscode.workspace.getConfiguration('tauren');
     const previousValue = configuration.inspect<boolean>('confirmSessionDeletion')?.globalValue;
     const provider = new TauChatViewProvider(vscode.Uri.file('/extension'), () => {
       throw new Error('Unexpected Pi client creation');

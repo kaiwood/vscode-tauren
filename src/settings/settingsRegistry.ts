@@ -1,18 +1,18 @@
 export type TauSettingId =
-  | 'tau.outputColors'
-  | 'tau.animationsEnabled'
-  | 'tau.showWelcome'
-  | 'tau.customUiTheme'
-  | 'tau.extensions.aboveWidgetsEnabled'
-  | 'tau.extensions.belowWidgetsEnabled'
-  | 'tau.extensions.statusBarEnabled'
-  | 'tau.extensions.backgroundColorsEnabled'
-  | 'tau.extensions.monospaceFontEnabled'
-  | 'tau.blockHttpsImages'
-  | 'tau.confirmSessionDeletion'
-  | 'tau.rejectEditWriteOutsideWorkspace'
-  | 'tau.readyScript'
-  | 'tau.readyScriptEnabled';
+  | 'tauren.outputColors'
+  | 'tauren.animationsEnabled'
+  | 'tauren.showWelcome'
+  | 'tauren.customUiTheme'
+  | 'tauren.extensions.aboveWidgetsEnabled'
+  | 'tauren.extensions.belowWidgetsEnabled'
+  | 'tauren.extensions.statusBarEnabled'
+  | 'tauren.extensions.backgroundColorsEnabled'
+  | 'tauren.extensions.monospaceFontEnabled'
+  | 'tauren.blockHttpsImages'
+  | 'tauren.confirmSessionDeletion'
+  | 'tauren.rejectEditWriteOutsideWorkspace'
+  | 'tauren.readyScript'
+  | 'tauren.readyScriptEnabled';
 
 export type PiSettingId =
   | 'defaultProvider'
@@ -94,16 +94,16 @@ export const settingsSections = [
   {
     id: 'appearance',
     label: 'Appearance',
-    eyebrow: 'Tau host',
+    eyebrow: 'Tauren host',
     title: 'Appearance',
-    description: 'Tau-owned presentation controls for the sidebar and Pi extension UI.'
+    description: 'Tauren-owned presentation controls for the sidebar and Pi extension UI.'
   },
   {
     id: 'extensions',
     label: 'Extensions',
     eyebrow: 'Pi extensions',
     title: 'Extensions',
-    description: 'Sidebar-only controls for Pi extension surfaces in Tau.'
+    description: 'Sidebar-only controls for Pi extension surfaces in Tauren.'
   },
   {
     id: 'runtime',
@@ -124,23 +124,23 @@ export const settingsSections = [
     label: 'Advanced',
     eyebrow: 'Advanced',
     title: 'Advanced',
-    description: 'Less common controls shown plainly, without turning Tau into a settings dump.'
+    description: 'Less common controls shown plainly, without turning Tauren into a settings dump.'
   }
 ] as const;
 
 export const settingDefinitions = [
   {
-    id: 'tau.outputColors',
+    id: 'tauren.outputColors',
     owner: 'tau',
     section: 'appearance',
     label: 'Output colors',
-    description: 'Render ANSI and syntax colors in Tau output.',
+    description: 'Render ANSI and syntax colors in Tauren output.',
     control: 'toggle',
     defaultValue: true,
     liveBehavior: 'immediate'
   },
   {
-    id: 'tau.animationsEnabled',
+    id: 'tauren.animationsEnabled',
     owner: 'tau',
     section: 'appearance',
     label: 'Animations',
@@ -151,17 +151,17 @@ export const settingDefinitions = [
     liveBehavior: 'immediate'
   },
   {
-    id: 'tau.showWelcome',
+    id: 'tauren.showWelcome',
     owner: 'tau',
     section: 'appearance',
     label: 'Welcome message',
-    description: 'Show the Welcome to Tau empty state for new chats.',
+    description: 'Show the Welcome to Tauren empty state for new chats.',
     control: 'toggle',
     defaultValue: true,
     liveBehavior: 'immediate'
   },
   {
-    id: 'tau.customUiTheme',
+    id: 'tauren.customUiTheme',
     owner: 'tau',
     section: 'appearance',
     label: 'Custom UI theme',
@@ -172,7 +172,7 @@ export const settingDefinitions = [
     liveBehavior: 'immediate'
   },
   {
-    id: 'tau.extensions.aboveWidgetsEnabled',
+    id: 'tauren.extensions.aboveWidgetsEnabled',
     owner: 'tau',
     section: 'extensions',
     label: 'Enable above widgets',
@@ -183,7 +183,7 @@ export const settingDefinitions = [
     liveBehavior: 'immediate'
   },
   {
-    id: 'tau.extensions.belowWidgetsEnabled',
+    id: 'tauren.extensions.belowWidgetsEnabled',
     owner: 'tau',
     section: 'extensions',
     label: 'Enable below widgets',
@@ -194,7 +194,7 @@ export const settingDefinitions = [
     liveBehavior: 'immediate'
   },
   {
-    id: 'tau.extensions.statusBarEnabled',
+    id: 'tauren.extensions.statusBarEnabled',
     owner: 'tau',
     section: 'extensions',
     label: 'Enable status bar',
@@ -205,7 +205,7 @@ export const settingDefinitions = [
     liveBehavior: 'immediate'
   },
   {
-    id: 'tau.extensions.backgroundColorsEnabled',
+    id: 'tauren.extensions.backgroundColorsEnabled',
     owner: 'tau',
     section: 'extensions',
     label: 'Enable background colors',
@@ -216,7 +216,7 @@ export const settingDefinitions = [
     liveBehavior: 'immediate'
   },
   {
-    id: 'tau.extensions.monospaceFontEnabled',
+    id: 'tauren.extensions.monospaceFontEnabled',
     owner: 'tau',
     section: 'extensions',
     label: 'Use monospace font',
@@ -226,7 +226,7 @@ export const settingDefinitions = [
     liveBehavior: 'immediate'
   },
   {
-    id: 'tau.blockHttpsImages',
+    id: 'tauren.blockHttpsImages',
     owner: 'tau',
     section: 'workspaceSafety',
     label: 'Block HTTPS images',
@@ -312,18 +312,18 @@ export const settingDefinitions = [
     liveBehavior: 'immediate'
   },
   {
-    id: 'tau.confirmSessionDeletion',
+    id: 'tauren.confirmSessionDeletion',
     owner: 'tau',
     section: 'workspaceSafety',
     label: 'Confirm deletion',
-    description: 'Ask before moving Tau sessions to Trash.',
+    description: 'Ask before moving Tauren sessions to Trash.',
     control: 'toggle',
     defaultValue: true,
     liveBehavior: 'immediate',
     danger: true
   },
   {
-    id: 'tau.rejectEditWriteOutsideWorkspace',
+    id: 'tauren.rejectEditWriteOutsideWorkspace',
     owner: 'tau',
     section: 'workspaceSafety',
     label: 'Reject external edits',
@@ -335,11 +335,11 @@ export const settingDefinitions = [
     danger: true
   },
   {
-    id: 'tau.readyScript',
+    id: 'tauren.readyScript',
     owner: 'tau',
     section: 'advanced',
     label: 'Ready script',
-    description: 'Executable script Tau runs when Pi becomes ready.',
+    description: 'Executable script Tauren runs when Pi becomes ready.',
     control: 'text',
     defaultValue: '',
     helper: 'Relative paths resolve from the workspace folder.',
@@ -347,7 +347,7 @@ export const settingDefinitions = [
     subtle: true
   },
   {
-    id: 'tau.readyScriptEnabled',
+    id: 'tauren.readyScriptEnabled',
     owner: 'tau',
     section: 'advanced',
     label: 'Run ready script',
@@ -402,7 +402,7 @@ export const settingDefinitions = [
     description: 'Model patterns Pi uses for model cycling.',
     control: 'readonlyList',
     defaultValue: [],
-    helper: 'Read-only in Tau for now to avoid saving malformed model patterns.',
+    helper: 'Read-only in Tauren for now to avoid saving malformed model patterns.',
     liveBehavior: 'reload',
     readOnly: true,
     subtle: true

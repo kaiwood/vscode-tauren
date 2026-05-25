@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import type * as vscode from 'vscode';
 import { readSessionDiffSnapshot, writeSessionDiffSnapshot } from '../../diff/sessionDiffStorage';
 
-const sessionDiffSnapshotsStorageKey = 'tau.sessionDiffSnapshots';
+const sessionDiffSnapshotsStorageKey = 'tauren.sessionDiffSnapshots';
 
 suite('SessionDiffStorage', () => {
   test('prunes stored snapshots to the most recent 50', () => {

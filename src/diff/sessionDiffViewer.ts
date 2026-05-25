@@ -62,7 +62,7 @@ export class SessionDiffViewer implements vscode.TextDocumentContentProvider, vs
   }
 
   private async openMultiFileDiff(displayName: string, fileDiffs: SessionFileDiff[], reconstructed: boolean): Promise<void> {
-    const title = reconstructed ? `Tau Changes: ${displayName}` : `Tau Changes: ${displayName} (recorded edits)`;
+    const title = reconstructed ? `Tauren Changes: ${displayName}` : `Tauren Changes: ${displayName} (recorded edits)`;
     const generation = ++this.diffViewGeneration;
     const documents = fileDiffs.map((diff) => this.createDiffDocuments(diff, generation));
     const changesResources = documents.map(({ label, original, modified }) => [label, original.uri, modified.uri]);

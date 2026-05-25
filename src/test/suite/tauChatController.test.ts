@@ -91,7 +91,7 @@ suite('TauChatController', () => {
     assert.strictEqual(harness.createCalls, 0);
     assert.match(harness.notifications[0]?.message ?? '', /rejectEditWriteOutsideWorkspace is enabled/);
     assert.deepStrictEqual(lastState(harness).messages, [
-      { role: 'system', text: 'Tau cannot start Pi engine because no workspace folder is available while tau.rejectEditWriteOutsideWorkspace is enabled. Open a project folder and try again.', error: true }
+      { role: 'system', text: 'Tauren cannot start Pi engine because no workspace folder is available while tauren.rejectEditWriteOutsideWorkspace is enabled. Open a project folder and try again.', error: true }
     ]);
     harness.controller.dispose();
   });
@@ -1070,14 +1070,14 @@ suite('TauChatController', () => {
         kind: 'selection',
         label: 'foo.ts:2-4',
         title: 'src/foo.ts:2-4',
-        xml: '<ide_context source="vscode-tau">\nUser-attached IDE context.\n\n<selection path="src/foo.ts" start_line="2" end_line="4" language="typescript"><![CDATA[\nconst answer = 42;\n]]></selection>\n</ide_context>'
+        xml: '<ide_context source="vscode-tauren">\nUser-attached IDE context.\n\n<selection path="src/foo.ts" start_line="2" end_line="4" language="typescript"><![CDATA[\nconst answer = 42;\n]]></selection>\n</ide_context>'
       }
     ]);
 
     await harness.controller.handleWebviewMessage({ type: 'submit', text: 'explain this' });
 
     assert.strictEqual(client.prompts.length, 1);
-    assert.ok(client.prompts[0].startsWith('explain this\n\n<ide_context source="vscode-tau">\n'));
+    assert.ok(client.prompts[0].startsWith('explain this\n\n<ide_context source="vscode-tauren">\n'));
     assert.ok(!client.prompts[0].includes('<!-- tau:ide-context'));
     assert.ok(client.prompts[0].includes('<selection path="src/foo.ts" start_line="2" end_line="4" language="typescript"><![CDATA[\nconst answer = 42;\n]]></selection>'));
     assert.ok(!client.prompts[0].includes('```typescript'));
@@ -1180,7 +1180,7 @@ suite('TauChatController', () => {
 
     assert.strictEqual(client.prompts.length, 2);
     assert.strictEqual(client.prompts[0], 'hello');
-    assert.ok(client.prompts[1].startsWith('change direction\n\n<ide_context source="vscode-tau">\n'));
+    assert.ok(client.prompts[1].startsWith('change direction\n\n<ide_context source="vscode-tauren">\n'));
     assert.ok(client.prompts[1].includes('<file path="src/foo.ts" />'));
     assert.strictEqual(lastState(harness).messages[1].activities?.[0]?.summary, 'change direction');
     assert.strictEqual(lastState(harness).promptContext, undefined);
@@ -1205,7 +1205,7 @@ suite('TauChatController', () => {
     await flushPromises();
 
     assert.deepStrictEqual(lastState(harness).promptContext, [
-      { id: 'context-1', kind: 'file', label: 'foo.ts', title: 'src/foo.ts', xml: '<ide_context source="vscode-tau">\nUser-attached IDE context.\n\n<file path="src/foo.ts" />\n</ide_context>' }
+      { id: 'context-1', kind: 'file', label: 'foo.ts', title: 'src/foo.ts', xml: '<ide_context source="vscode-tauren">\nUser-attached IDE context.\n\n<file path="src/foo.ts" />\n</ide_context>' }
     ]);
     harness.controller.dispose();
   });
@@ -1232,7 +1232,7 @@ suite('TauChatController', () => {
 
     assert.deepStrictEqual(client.switchedSessions, ['/sessions/next.jsonl']);
     assert.deepStrictEqual(lastState(harness).promptContext, [
-      { id: 'context-1', kind: 'file', label: 'foo.ts', title: 'src/foo.ts', xml: '<ide_context source="vscode-tau">\nUser-attached IDE context.\n\n<file path="src/foo.ts" />\n</ide_context>' }
+      { id: 'context-1', kind: 'file', label: 'foo.ts', title: 'src/foo.ts', xml: '<ide_context source="vscode-tauren">\nUser-attached IDE context.\n\n<file path="src/foo.ts" />\n</ide_context>' }
     ]);
     assert.deepStrictEqual(lastState(harness).messages, [
       { role: 'user', text: 'Next prompt' }
@@ -2008,7 +2008,7 @@ suite('TauChatController', () => {
     assert.strictEqual(newClient.commandsCalls, 1);
     assert.deepStrictEqual(lastState(harness).messages, [
       { role: 'system', text: 'Reloading Pi engine resources...' },
-      { role: 'system', text: 'Reloaded Tau by restarting the Pi engine. Skills, prompts, extensions, and metadata were rediscovered. Current persisted session was reconnected.' }
+      { role: 'system', text: 'Reloaded Tauren by restarting the Pi engine. Skills, prompts, extensions, and metadata were rediscovered. Current persisted session was reconnected.' }
     ]);
     assert.deepStrictEqual(lastState(harness).slashCommands, [
       { name: 'skill:new-skill', description: 'Newly added skill', source: 'skill', location: 'project', path: undefined }

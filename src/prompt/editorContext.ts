@@ -25,7 +25,7 @@ export function createPromptContextFromEditor(editor: vscode.TextEditor): PiProm
     const lineRange = getSelectedLineRange(selection);
     const lineLabel = formatLineRange(lineRange.startLine, lineRange.endLine);
     const title = diffContext
-      ? `${path}:${lineLabel} (${diffContext.side} side of Tau session diff; lines are diff-view section lines)`
+      ? `${path}:${lineLabel} (${diffContext.side} side of Tauren session diff; lines are diff-view section lines)`
       : `${path}:${lineLabel}`;
 
     return [{
@@ -51,7 +51,7 @@ export function createPromptContextFromEditor(editor: vscode.TextEditor): PiProm
     kind: 'file',
     path,
     label: diffContext ? `${getPathBasename(path)} (${diffContext.side} diff)` : getPathBasename(path),
-    title: diffContext ? `${path} (${diffContext.side} side of Tau session diff)` : path,
+    title: diffContext ? `${path} (${diffContext.side} side of Tauren session diff)` : path,
     ...(diffContext ? { note: getSessionDiffContextNote(diffContext.side) } : {})
   }];
 }
@@ -65,7 +65,7 @@ function getDocumentContextPath(document: vscode.TextDocument): string {
 }
 
 function getSessionDiffContextNote(side: 'original' | 'modified'): string {
-  return `This context comes from the ${side} side of a Tau session diff view. The line numbers refer to the diff viewer's virtual section document, not to the current workspace file.`;
+  return `This context comes from the ${side} side of a Tauren session diff view. The line numbers refer to the diff viewer's virtual section document, not to the current workspace file.`;
 }
 
 function getSelectedLineRange(selection: vscode.Selection): { startLine: number; endLine: number } {

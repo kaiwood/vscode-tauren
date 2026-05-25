@@ -10,11 +10,11 @@ type PackageJson = {
   };
 };
 
-suite('Tau extension', () => {
+suite('Tauren extension', () => {
   test('activates the development extension', async () => {
     const extension = findTauExtension();
 
-    assert.ok(extension, 'Expected the tau extension to be available');
+    assert.ok(extension, 'Expected the Tauren extension to be available');
     await extension.activate();
 
     assert.strictEqual(extension.isActive, true);
@@ -23,43 +23,43 @@ suite('Tau extension', () => {
   test('registers contributed commands', async () => {
     const extension = findTauExtension();
 
-    assert.ok(extension, 'Expected the tau extension to be available');
+    assert.ok(extension, 'Expected the Tauren extension to be available');
     await extension.activate();
 
     const commands = await vscode.commands.getCommands(true);
 
-    assert.ok(commands.includes('tau.newSession'));
-    assert.ok(commands.includes('tau.resume'));
-    assert.ok(commands.includes('tau.fork'));
-    assert.ok(commands.includes('tau.clone'));
-    assert.ok(commands.includes('tau.showSessionTree'));
-    assert.ok(commands.includes('tau.toggleSessionList'));
-    assert.ok(commands.includes('tau.openSessionDiff'));
-    assert.ok(commands.includes('tau.renameSession'));
-    assert.ok(commands.includes('tau.compactSession'));
-    assert.ok(commands.includes('tau.exportSession'));
-    assert.ok(commands.includes('tau.moveSessionToTrash'));
-    assert.ok(commands.includes('tau.reloadPi'));
-    assert.ok(commands.includes('tau.copyLastResponse'));
-    assert.ok(commands.includes('tau.openModelPicker'));
-    assert.ok(commands.includes('tau.toggleSettings'));
-    assert.ok(commands.includes('tau.toggleHelp'));
-    assert.ok(commands.includes('tau.stop'));
-    assert.ok(commands.includes('tau.toggleSteerFollowUp'));
-    assert.ok(commands.includes('tau.addContext'));
-    assert.ok(commands.includes('tau.traceOrigin'));
+    assert.ok(commands.includes('tauren.newSession'));
+    assert.ok(commands.includes('tauren.resume'));
+    assert.ok(commands.includes('tauren.fork'));
+    assert.ok(commands.includes('tauren.clone'));
+    assert.ok(commands.includes('tauren.showSessionTree'));
+    assert.ok(commands.includes('tauren.toggleSessionList'));
+    assert.ok(commands.includes('tauren.openSessionDiff'));
+    assert.ok(commands.includes('tauren.renameSession'));
+    assert.ok(commands.includes('tauren.compactSession'));
+    assert.ok(commands.includes('tauren.exportSession'));
+    assert.ok(commands.includes('tauren.moveSessionToTrash'));
+    assert.ok(commands.includes('tauren.reloadPi'));
+    assert.ok(commands.includes('tauren.copyLastResponse'));
+    assert.ok(commands.includes('tauren.openModelPicker'));
+    assert.ok(commands.includes('tauren.toggleSettings'));
+    assert.ok(commands.includes('tauren.toggleHelp'));
+    assert.ok(commands.includes('tauren.stop'));
+    assert.ok(commands.includes('tauren.toggleSteerFollowUp'));
+    assert.ok(commands.includes('tauren.addContext'));
+    assert.ok(commands.includes('tauren.traceOrigin'));
   });
 
   test('keeps native new session action visible while busy', () => {
     const extension = findTauExtension();
 
-    assert.ok(extension, 'Expected the tau extension to be available');
+    assert.ok(extension, 'Expected the Tauren extension to be available');
 
     const packageJson = extension.packageJSON as PackageJson;
-    const newSessionMenu = packageJson.contributes?.menus?.['view/title']?.find((entry) => entry.command === 'tau.newSession');
+    const newSessionMenu = packageJson.contributes?.menus?.['view/title']?.find((entry) => entry.command === 'tauren.newSession');
 
-    assert.ok(newSessionMenu, 'Expected tau.newSession in the native view title menu');
-    assert.strictEqual(newSessionMenu.when, 'view == tau.chatView');
+    assert.ok(newSessionMenu, 'Expected tauren.newSession in the native view title menu');
+    assert.strictEqual(newSessionMenu.when, 'view == tauren.chatView');
   });
 });
 
@@ -67,6 +67,6 @@ function findTauExtension(): vscode.Extension<unknown> | undefined {
   return vscode.extensions.all.find((extension) => {
     const packageJson = extension.packageJSON as PackageJson;
 
-    return packageJson.name === 'tau';
+    return packageJson.name === 'tauren';
   });
 }

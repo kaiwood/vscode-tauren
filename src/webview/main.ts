@@ -455,7 +455,7 @@ function renderWithInstrumentation(): void {
   const duration = performance.now() - started;
 
   if (duration > 8) {
-    console.debug(`[Tau] render ${duration.toFixed(1)}ms`, {
+    console.debug(`[Tauren] render ${duration.toFixed(1)}ms`, {
       messages: state.messages.length,
       sessions: state.sessions.length,
       treeItems: state.treeItems.length,
@@ -706,23 +706,23 @@ function cssEscape(value: string): string {
 }
 
 function areExtensionAboveWidgetsEnabled(): boolean {
-  return state.settings.values['tau.extensions.aboveWidgetsEnabled'] !== false;
+  return state.settings.values['tauren.extensions.aboveWidgetsEnabled'] !== false;
 }
 
 function areExtensionBelowWidgetsEnabled(): boolean {
-  return state.settings.values['tau.extensions.belowWidgetsEnabled'] !== false;
+  return state.settings.values['tauren.extensions.belowWidgetsEnabled'] !== false;
 }
 
 function areExtensionStatusBarEnabled(): boolean {
-  return state.settings.values['tau.extensions.statusBarEnabled'] !== false;
+  return state.settings.values['tauren.extensions.statusBarEnabled'] !== false;
 }
 
 function areExtensionBackgroundColorsEnabled(): boolean {
-  return state.settings.values['tau.extensions.backgroundColorsEnabled'] !== false;
+  return state.settings.values['tauren.extensions.backgroundColorsEnabled'] !== false;
 }
 
 function isExtensionMonospaceFontEnabled(): boolean {
-  return state.settings.values['tau.extensions.monospaceFontEnabled'] === true;
+  return state.settings.values['tauren.extensions.monospaceFontEnabled'] === true;
 }
 
 function syncExtensionStatus(hiddenBySurface: boolean): void {

@@ -53,7 +53,7 @@ suite('readyScript', () => {
     });
     process.emit('error', new Error('permission denied'));
 
-    assert.deepStrictEqual(errors, ['Failed to run Tau ready script: permission denied']);
+    assert.deepStrictEqual(errors, ['Failed to run Tauren ready script: permission denied']);
   });
 
   test('reports synchronous spawn failures', () => {
@@ -66,7 +66,7 @@ suite('readyScript', () => {
     });
 
     assert.strictEqual(ran, false);
-    assert.deepStrictEqual(errors, ['Failed to run Tau ready script: bad path']);
+    assert.deepStrictEqual(errors, ['Failed to run Tauren ready script: bad path']);
   });
 });
 

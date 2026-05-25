@@ -34,13 +34,13 @@ import { readCachedSessionMeta, writeCachedSessionMeta } from './metadata/cache'
 import { readSessionJsonlHeaderCwdSync } from './pi/sessionJsonl';
 import { getPiStartupCwdState, isSafeWorkspaceCwd, getUnsafeCwdReason } from './workspace/cwdSafety';
 
-export const tauChatViewType = 'tau.chatView';
+export const tauChatViewType = 'tauren.chatView';
 export type { PiClient } from './pi/clientTypes';
 
-const currentSessionFileStorageKey = 'tau.currentSessionFile';
-const welcomeDismissedStorageKey = 'tau.welcomeDismissed';
-const tauSidebarFocusContextKey = 'tau.sidebarFocus';
-const tauBusyContextKey = 'tau.busy';
+const currentSessionFileStorageKey = 'tauren.currentSessionFile';
+const welcomeDismissedStorageKey = 'tauren.welcomeDismissed';
+const tauSidebarFocusContextKey = 'tauren.sidebarFocus';
+const tauBusyContextKey = 'tauren.busy';
 const contextUsagePollingIntervalMs = 2000;
 const sessionDiffStatsRefreshDelayMs = 250;
 
@@ -169,13 +169,13 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
 
     this.disposables.push(
       vscode.workspace.onDidChangeConfiguration((event) => {
-        const affectsRemoteImages = event.affectsConfiguration('tau.blockHttpsImages');
+        const affectsRemoteImages = event.affectsConfiguration('tauren.blockHttpsImages');
 
         if (affectsRemoteImages) {
           this.refreshWebviewHtml();
         }
 
-        const affectsWelcome = event.affectsConfiguration('tau.showWelcome');
+        const affectsWelcome = event.affectsConfiguration('tauren.showWelcome');
         const affectsExtensionSettings = affectsAnyTauExtensionSetting(event);
 
         if (affectsExtensionSettings) {
@@ -187,17 +187,17 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
         }
 
         if (
-          event.affectsConfiguration('tau.outputColors')
-          || event.affectsConfiguration('tau.animationsEnabled')
+          event.affectsConfiguration('tauren.outputColors')
+          || event.affectsConfiguration('tauren.animationsEnabled')
           || affectsWelcome
-          || event.affectsConfiguration('tau.customUiTheme')
+          || event.affectsConfiguration('tauren.customUiTheme')
           || affectsRemoteImages
           || affectsExtensionSettings
         ) {
           this.controller.postState();
         }
 
-        if (event.affectsConfiguration('tau.rejectEditWriteOutsideWorkspace')) {
+        if (event.affectsConfiguration('tauren.rejectEditWriteOutsideWorkspace')) {
           this.handleWorkspaceFoldersChanged();
         }
 
@@ -454,7 +454,7 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
       canSelectFiles: true,
       canSelectFolders: false,
       canSelectMany: true,
-      title: 'Attach images to next Tau prompt',
+      title: 'Attach images to next Tauren prompt',
       filters: {
         Images: supportedPromptImageExtensions,
         'All files': ['*']
@@ -614,7 +614,7 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
     const editor = vscode.window.activeTextEditor;
 
     if (!editor) {
-      this.showNotification('Open a file before sending code to the Tau composer.', 'warning');
+      this.showNotification('Open a file before sending code to the Tauren composer.', 'warning');
       return;
     }
 
@@ -628,7 +628,7 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
     const editor = vscode.window.activeTextEditor;
 
     if (!editor) {
-      this.showNotification('Open a file or select code before tracing its Tau origin.', 'warning');
+      this.showNotification('Open a file or select code before tracing its Tauren origin.', 'warning');
       return;
     }
 
@@ -652,7 +652,7 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
       });
 
       if (!traceLinkedCommit) {
-        this.showNotification('No Tau session origin found for the selected code or file.', 'info');
+        this.showNotification('No Tauren session origin found for the selected code or file.', 'info');
         return;
       }
 
@@ -743,7 +743,7 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
     this.controller.postState();
 
     try {
-      await updateTauSetting('tau.showWelcome', false);
+      await updateTauSetting('tauren.showWelcome', false);
       await this.globalState?.update(welcomeDismissedStorageKey, undefined);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -754,7 +754,7 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
   private async updateTauSetting(id: TauSettingId, value: SettingValue): Promise<void> {
     await updateTauSetting(id, value);
 
-    if (id === 'tau.showWelcome' && typeof value === 'boolean') {
+    if (id === 'tauren.showWelcome' && typeof value === 'boolean') {
       await this.globalState?.update(welcomeDismissedStorageKey, undefined);
     }
   }
@@ -1110,7 +1110,7 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
       return sessionFile;
     }
 
-    const message = `Tau ignored persisted session ${sessionFile} because ${unsafeReason}. Starting a new session in ${workspaceCwd}.`;
+    const message = `Tauren ignored persisted session ${sessionFile} because ${unsafeReason}. Starting a new session in ${workspaceCwd}.`;
     void this.workspaceState?.update(currentSessionFileStorageKey, undefined).then(undefined, () => undefined);
     this.showNotification(message, 'warning');
     this.pendingToastMessages.push({ message, kind: 'warning' });
@@ -1245,7 +1245,7 @@ function createOriginPromptContext(
     ...entry,
     source: 'origin',
     label: `Origin: ${entry.label ?? getPathBasename(entry.path)}`,
-    title: `${entry.title ?? entry.path}\nTraced to Tau session: ${match.sessionPath}`,
+    title: `${entry.title ?? entry.path}\nTraced to Tauren session: ${match.sessionPath}`,
     traceOrigin: {
       historicalPath: match.filePath,
       currentRelativePath: entry.path,
@@ -1268,23 +1268,23 @@ function getPathBasename(filePath: string): string {
 }
 
 function getOutputColorsSetting(): boolean {
-  return vscode.workspace.getConfiguration('tau').get<boolean>('outputColors', true);
+  return vscode.workspace.getConfiguration('tauren').get<boolean>('outputColors', true);
 }
 
 function getAnimationsEnabledSetting(): boolean {
-  return vscode.workspace.getConfiguration('tau').get<boolean>('animationsEnabled', true);
+  return vscode.workspace.getConfiguration('tauren').get<boolean>('animationsEnabled', true);
 }
 
 function getShowWelcomeSetting(globalState?: vscode.Memento): boolean {
   if (hasConfiguredShowWelcomeSetting()) {
-    return vscode.workspace.getConfiguration('tau').get<boolean>('showWelcome', true);
+    return vscode.workspace.getConfiguration('tauren').get<boolean>('showWelcome', true);
   }
 
   return globalState?.get<boolean>(welcomeDismissedStorageKey) === true ? false : true;
 }
 
 function hasConfiguredShowWelcomeSetting(): boolean {
-  const inspected = vscode.workspace.getConfiguration('tau').inspect<boolean>('showWelcome');
+  const inspected = vscode.workspace.getConfiguration('tauren').inspect<boolean>('showWelcome');
 
   return [
     inspected?.globalValue,
@@ -1297,16 +1297,16 @@ function hasConfiguredShowWelcomeSetting(): boolean {
 }
 
 function getConfirmSessionDeletionSetting(): boolean {
-  return vscode.workspace.getConfiguration('tau').get<boolean>('confirmSessionDeletion', true);
+  return vscode.workspace.getConfiguration('tauren').get<boolean>('confirmSessionDeletion', true);
 }
 
 function getCustomUiThemeSetting(): WebviewCustomUiTheme {
-  const value = vscode.workspace.getConfiguration('tau').get<string>('customUiTheme', 'default');
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('customUiTheme', 'default');
   return parseWebviewCustomUiTheme(value);
 }
 
 function getBlockHttpsImagesSetting(): boolean {
-  return vscode.workspace.getConfiguration('tau').get<boolean>('blockHttpsImages', true);
+  return vscode.workspace.getConfiguration('tauren').get<boolean>('blockHttpsImages', true);
 }
 
 function getAllowRemoteImagesSetting(): boolean {
@@ -1314,73 +1314,73 @@ function getAllowRemoteImagesSetting(): boolean {
 }
 
 function getReadyScriptSetting(): string | undefined {
-  const value = vscode.workspace.getConfiguration('tau').get<string>('readyScript', '').trim();
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('readyScript', '').trim();
   return value || undefined;
 }
 
 function getReadyScriptEnabledSetting(): boolean {
-  return vscode.workspace.getConfiguration('tau').get<boolean>('readyScriptEnabled', true);
+  return vscode.workspace.getConfiguration('tauren').get<boolean>('readyScriptEnabled', true);
 }
 
 function getRejectEditWriteOutsideWorkspaceSetting(): boolean {
-  return vscode.workspace.getConfiguration('tau').get<boolean>('rejectEditWriteOutsideWorkspace', false);
+  return vscode.workspace.getConfiguration('tauren').get<boolean>('rejectEditWriteOutsideWorkspace', false);
 }
 
 function affectsAnyTauExtensionSetting(event: vscode.ConfigurationChangeEvent): boolean {
-  return event.affectsConfiguration('tau.extensions.aboveWidgetsEnabled')
-    || event.affectsConfiguration('tau.extensions.belowWidgetsEnabled')
-    || event.affectsConfiguration('tau.extensions.statusBarEnabled')
-    || event.affectsConfiguration('tau.extensions.backgroundColorsEnabled')
-    || event.affectsConfiguration('tau.extensions.monospaceFontEnabled');
+  return event.affectsConfiguration('tauren.extensions.aboveWidgetsEnabled')
+    || event.affectsConfiguration('tauren.extensions.belowWidgetsEnabled')
+    || event.affectsConfiguration('tauren.extensions.statusBarEnabled')
+    || event.affectsConfiguration('tauren.extensions.backgroundColorsEnabled')
+    || event.affectsConfiguration('tauren.extensions.monospaceFontEnabled');
 }
 
 function getExtensionAboveWidgetsEnabledSetting(): boolean {
-  return vscode.workspace.getConfiguration('tau').get<boolean>('extensions.aboveWidgetsEnabled', true);
+  return vscode.workspace.getConfiguration('tauren').get<boolean>('extensions.aboveWidgetsEnabled', true);
 }
 
 function getExtensionBelowWidgetsEnabledSetting(): boolean {
-  return vscode.workspace.getConfiguration('tau').get<boolean>('extensions.belowWidgetsEnabled', true);
+  return vscode.workspace.getConfiguration('tauren').get<boolean>('extensions.belowWidgetsEnabled', true);
 }
 
 function getExtensionStatusBarEnabledSetting(): boolean {
-  return vscode.workspace.getConfiguration('tau').get<boolean>('extensions.statusBarEnabled', true);
+  return vscode.workspace.getConfiguration('tauren').get<boolean>('extensions.statusBarEnabled', true);
 }
 
 function getExtensionBackgroundColorsEnabledSetting(): boolean {
-  return vscode.workspace.getConfiguration('tau').get<boolean>('extensions.backgroundColorsEnabled', true);
+  return vscode.workspace.getConfiguration('tauren').get<boolean>('extensions.backgroundColorsEnabled', true);
 }
 
 function getExtensionMonospaceFontEnabledSetting(): boolean {
-  return vscode.workspace.getConfiguration('tau').get<boolean>('extensions.monospaceFontEnabled', true);
+  return vscode.workspace.getConfiguration('tauren').get<boolean>('extensions.monospaceFontEnabled', true);
 }
 
 function getTauSettingValues(globalState?: vscode.Memento): Partial<Record<TauSettingId, SettingValue>> {
   return {
-    'tau.outputColors': getOutputColorsSetting(),
-    'tau.animationsEnabled': getAnimationsEnabledSetting(),
-    'tau.showWelcome': getShowWelcomeSetting(globalState),
-    'tau.customUiTheme': getCustomUiThemeSetting(),
-    'tau.extensions.aboveWidgetsEnabled': getExtensionAboveWidgetsEnabledSetting(),
-    'tau.extensions.belowWidgetsEnabled': getExtensionBelowWidgetsEnabledSetting(),
-    'tau.extensions.statusBarEnabled': getExtensionStatusBarEnabledSetting(),
-    'tau.extensions.backgroundColorsEnabled': getExtensionBackgroundColorsEnabledSetting(),
-    'tau.extensions.monospaceFontEnabled': getExtensionMonospaceFontEnabledSetting(),
-    'tau.blockHttpsImages': getBlockHttpsImagesSetting(),
-    'tau.confirmSessionDeletion': getConfirmSessionDeletionSetting(),
-    'tau.rejectEditWriteOutsideWorkspace': getRejectEditWriteOutsideWorkspaceSetting(),
-    'tau.readyScript': getReadyScriptSetting() ?? '',
-    'tau.readyScriptEnabled': getReadyScriptEnabledSetting()
+    'tauren.outputColors': getOutputColorsSetting(),
+    'tauren.animationsEnabled': getAnimationsEnabledSetting(),
+    'tauren.showWelcome': getShowWelcomeSetting(globalState),
+    'tauren.customUiTheme': getCustomUiThemeSetting(),
+    'tauren.extensions.aboveWidgetsEnabled': getExtensionAboveWidgetsEnabledSetting(),
+    'tauren.extensions.belowWidgetsEnabled': getExtensionBelowWidgetsEnabledSetting(),
+    'tauren.extensions.statusBarEnabled': getExtensionStatusBarEnabledSetting(),
+    'tauren.extensions.backgroundColorsEnabled': getExtensionBackgroundColorsEnabledSetting(),
+    'tauren.extensions.monospaceFontEnabled': getExtensionMonospaceFontEnabledSetting(),
+    'tauren.blockHttpsImages': getBlockHttpsImagesSetting(),
+    'tauren.confirmSessionDeletion': getConfirmSessionDeletionSetting(),
+    'tauren.rejectEditWriteOutsideWorkspace': getRejectEditWriteOutsideWorkspaceSetting(),
+    'tauren.readyScript': getReadyScriptSetting() ?? '',
+    'tauren.readyScriptEnabled': getReadyScriptEnabledSetting()
   };
 }
 
 async function updateTauSetting(id: TauSettingId, value: SettingValue): Promise<void> {
-  const configKey = id.slice('tau.'.length);
+  const configKey = id.slice('tauren.'.length);
 
   if (Array.isArray(value)) {
-    throw new Error(`Unsupported Tau setting value for ${id}.`);
+    throw new Error(`Unsupported Tauren setting value for ${id}.`);
   }
 
-  await vscode.workspace.getConfiguration('tau').update(configKey, value, vscode.ConfigurationTarget.Global);
+  await vscode.workspace.getConfiguration('tauren').update(configKey, value, vscode.ConfigurationTarget.Global);
 }
 
 function resolveWorkspaceFileUri(filePath: string): vscode.Uri | undefined {

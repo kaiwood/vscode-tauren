@@ -25,7 +25,7 @@ suite('Pi prompt formatting helpers', () => {
       }
     ]);
 
-    assert.ok(prompt.startsWith('explain this\n\n<ide_context source="vscode-tau">\n'));
+    assert.ok(prompt.startsWith('explain this\n\n<ide_context source="vscode-tauren">\n'));
     assert.ok(!prompt.includes('<!-- tau:ide-context'));
     assert.ok(prompt.includes('<file path="src/a&amp;b.ts" />'));
     assert.ok(prompt.includes('<selection path="src/foo.ts" start_line="2" end_line="4" language="typescript"><![CDATA[\nconst answer = 42;\n]]></selection>'));

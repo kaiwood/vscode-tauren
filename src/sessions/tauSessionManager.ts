@@ -30,11 +30,11 @@ type ExtensionSettings = {
   monospaceFontEnabled: boolean;
 };
 
-const extensionAboveWidgetSettingId = 'tau.extensions.aboveWidgetsEnabled';
-const extensionBelowWidgetSettingId = 'tau.extensions.belowWidgetsEnabled';
-const extensionStatusSettingId = 'tau.extensions.statusBarEnabled';
-const extensionBackgroundColorSettingId = 'tau.extensions.backgroundColorsEnabled';
-const extensionMonospaceFontSettingId = 'tau.extensions.monospaceFontEnabled';
+const extensionAboveWidgetSettingId = 'tauren.extensions.aboveWidgetsEnabled';
+const extensionBelowWidgetSettingId = 'tauren.extensions.belowWidgetsEnabled';
+const extensionStatusSettingId = 'tauren.extensions.statusBarEnabled';
+const extensionBackgroundColorSettingId = 'tauren.extensions.backgroundColorsEnabled';
+const extensionMonospaceFontSettingId = 'tauren.extensions.monospaceFontEnabled';
 const extensionSettingIds = [
   extensionAboveWidgetSettingId,
   extensionBelowWidgetSettingId,
@@ -310,11 +310,11 @@ export class TauSessionManager {
   private async updateTauSetting(settingId: TauSettingId, value: SettingValue): Promise<void> {
     if (isExtensionSettingId(settingId)) {
       if (typeof value !== 'boolean') {
-        throw new Error(`Unsupported Tau setting value for ${settingId}.`);
+        throw new Error(`Unsupported Tauren setting value for ${settingId}.`);
       }
 
       if (!this.options.updateTauSetting) {
-        throw new Error('Tau settings are not available in this session.');
+        throw new Error('Tauren settings are not available in this session.');
       }
 
       await this.options.updateTauSetting(settingId, value);
@@ -323,7 +323,7 @@ export class TauSessionManager {
     }
 
     if (!this.options.updateTauSetting) {
-      throw new Error('Tau settings are not available in this session.');
+      throw new Error('Tauren settings are not available in this session.');
     }
 
     await this.options.updateTauSetting(settingId, value);

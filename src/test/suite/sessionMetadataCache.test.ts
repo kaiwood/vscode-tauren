@@ -5,7 +5,7 @@ import type { SessionMetadataCacheStorage } from '../../metadata/types';
 suite('Session metadata cache', () => {
   test('reads legacy cached model metadata', () => {
     const storage = new FakeMetadataCacheStorage({
-      'tau.cachedModelMeta': {
+      'tauren.cachedModelMeta': {
         label: 'cached High',
         provider: 'anthropic',
         id: 'cached',
@@ -26,7 +26,7 @@ suite('Session metadata cache', () => {
   });
 
   test('writes session metadata and clears legacy cache', () => {
-    const storage = new FakeMetadataCacheStorage({ 'tau.cachedModelMeta': { id: 'legacy' } });
+    const storage = new FakeMetadataCacheStorage({ 'tauren.cachedModelMeta': { id: 'legacy' } });
 
     writeCachedSessionMeta(storage, {
       model: {
@@ -38,7 +38,7 @@ suite('Session metadata cache', () => {
       }
     });
 
-    assert.deepStrictEqual(storage.get<unknown>('tau.cachedSessionMeta'), {
+    assert.deepStrictEqual(storage.get<unknown>('tauren.cachedSessionMeta'), {
       model: {
         label: 'live Medium',
         provider: 'openai',
@@ -47,7 +47,7 @@ suite('Session metadata cache', () => {
         thinkingLevel: 'medium'
       }
     });
-    assert.strictEqual(storage.get<unknown>('tau.cachedModelMeta'), undefined);
+    assert.strictEqual(storage.get<unknown>('tauren.cachedModelMeta'), undefined);
   });
 });
 

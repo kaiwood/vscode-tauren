@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { SessionDiffDocumentContext } from './types';
 
-export const sessionDiffScheme = 'tau-session-diff';
+export const sessionDiffScheme = 'tauren-session-diff';
 
 export function getSessionDiffDocumentContext(uri: vscode.Uri): SessionDiffDocumentContext | undefined {
   if (uri.scheme !== sessionDiffScheme || (uri.authority !== 'original' && uri.authority !== 'modified')) {

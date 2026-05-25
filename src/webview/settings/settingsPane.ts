@@ -297,7 +297,7 @@ export class SettingsPaneController {
       const emptyActiveCard = document.createElement('article');
       emptyActiveCard.className = 'settings-surface__card';
       emptyActiveCard.append(createTextElement('h4', 'settings-surface__card-title', 'No active stored logins'));
-      emptyActiveCard.append(createTextElement('p', 'settings-surface__card-body', 'Environment variables and models.json credentials may still be active outside Tau logout.'));
+      emptyActiveCard.append(createTextElement('p', 'settings-surface__card-body', 'Environment variables and models.json credentials may still be active outside Tauren logout.'));
       activeGroup.append(emptyActiveCard);
     } else {
       for (const provider of activeProviders) {
@@ -432,7 +432,7 @@ export class SettingsPaneController {
     const titleRow = document.createElement('div');
     titleRow.className = 'settings-surface__card-title-row';
     titleRow.append(createTextElement('h4', 'settings-surface__card-title', definition.label));
-    titleRow.append(createTextElement('span', `settings-surface__card-status settings-surface__card-status--${definition.owner}`, definition.owner === 'tau' ? 'Tau' : 'Pi'));
+    titleRow.append(createTextElement('span', `settings-surface__card-status settings-surface__card-status--${definition.owner}`, definition.owner === 'tau' ? 'Tauren' : 'Pi'));
 
     const control = this.createControl(definition, value, state);
     const body = createTextElement('p', 'settings-surface__card-body', definition.description);

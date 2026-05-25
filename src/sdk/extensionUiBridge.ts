@@ -68,7 +68,7 @@ export function createSdkExtensionUiContext(ui?: ExtensionUi): ExtensionUIContex
       return undefined;
     },
     setTheme() {
-      return { success: false, error: 'Theme switching is not supported in Tau' };
+      return { success: false, error: 'Theme switching is not supported in Tauren' };
     },
     getToolsExpanded() {
       return false;

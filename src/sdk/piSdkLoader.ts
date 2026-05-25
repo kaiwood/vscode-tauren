@@ -14,7 +14,7 @@ let piSdkModulePromise: Promise<PiSdkModule> | undefined;
 function setBundledSdkPackageDir(): void {
   // The bundled Pi SDK resolves package assets through process.env.PI_PACKAGE_DIR.
   // This is an intentional process-wide side effect, isolated to SDK loading and
-  // applied before import so Pi reads Tau's packaged runtime assets.
+  // applied before import so Pi reads Tauren's packaged runtime assets.
   process.env.PI_PACKAGE_DIR = bundledSdkPackageDir;
 }
 

@@ -347,7 +347,7 @@ suite('PiSdkClient', () => {
     harness.client.dispose();
   });
 
-  test('maps extension UI bridge methods to Tau UI callbacks', async () => {
+  test('maps extension UI bridge methods to Tauren UI callbacks', async () => {
     const notifications: Array<{ message: string; notifyType: string }> = [];
     const statuses: Array<{ key: string; text: string | undefined }> = [];
     const widgets: Array<{ key: string; lines: string[] | undefined; placement?: 'aboveEditor' | 'belowEditor' }> = [];

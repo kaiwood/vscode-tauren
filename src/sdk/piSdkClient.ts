@@ -106,7 +106,7 @@ export class PiSdkClient implements PiClient {
       void session.prompt(message, {
         ...(streamingBehavior ? { streamingBehavior } : {}),
         ...(images && images.length > 0 ? { images } : {}),
-        // Preserve Pi extension compatibility: Tau historically reached Pi through RPC,
+        // Preserve Pi extension compatibility: Tauren historically reached Pi through RPC,
         // and extensions may branch on the upstream input source literal.
         source: 'rpc',
         preflightResult: (success) => {
@@ -421,7 +421,7 @@ export class PiSdkClient implements PiClient {
         await this.flushSettings();
         return { applied: 'reload', message: 'Saved. Reload Pi or start a new session to apply.' };
       case 'enabledModels':
-        throw new Error('Editing enabledModels from Tau is deferred to avoid saving malformed model patterns. Edit Pi settings JSON directly for now.');
+        throw new Error('Editing enabledModels from Tauren is deferred to avoid saving malformed model patterns. Edit Pi settings JSON directly for now.');
       default:
         throw new Error(`Unsupported Pi setting: ${settingId}`);
     }

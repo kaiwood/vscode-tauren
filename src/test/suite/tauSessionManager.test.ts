@@ -140,12 +140,12 @@ suite('TauSessionManager', () => {
 
     await harness.manager.handleWebviewMessage({
       type: 'updateSetting',
-      settingId: 'tau.extensions.aboveWidgetsEnabled',
+      settingId: 'tauren.extensions.aboveWidgetsEnabled',
       value: false
     });
 
     assert.strictEqual(disposed, true);
-    assert.strictEqual(lastState(harness).settings?.values['tau.extensions.aboveWidgetsEnabled'], false);
+    assert.strictEqual(lastState(harness).settings?.values['tauren.extensions.aboveWidgetsEnabled'], false);
     assert.deepStrictEqual(lastState(harness).extensionWidgets, [
       { key: 'below', placement: 'belowEditor', lines: ['Below'] }
     ]);
@@ -167,15 +167,15 @@ suite('TauSessionManager', () => {
       { key: 'below', placement: 'belowEditor', lines: ['Below'] },
       { key: 'below-2', placement: 'belowEditor', lines: ['Still enabled'] }
     ]);
-    assert.strictEqual(harness.tauSettings['tau.extensions.aboveWidgetsEnabled'], false);
+    assert.strictEqual(harness.tauSettings['tauren.extensions.aboveWidgetsEnabled'], false);
     harness.manager.dispose();
   });
 
-  test('initializes extension widget and status settings from persisted Tau settings', async () => {
+  test('initializes extension widget and status settings from persisted Tauren settings', async () => {
     const harness = createManagerHarness([new FakePiClient()], {
       tauSettings: {
-        'tau.extensions.aboveWidgetsEnabled': false,
-        'tau.extensions.statusBarEnabled': false
+        'tauren.extensions.aboveWidgetsEnabled': false,
+        'tauren.extensions.statusBarEnabled': false
       }
     });
 
@@ -188,8 +188,8 @@ suite('TauSessionManager', () => {
     extensionUi.setWidget?.('below', ['Below'], { placement: 'belowEditor' });
     extensionUi.setStatus?.('ignored', 'Ignored');
 
-    assert.strictEqual(lastState(harness).settings?.values['tau.extensions.aboveWidgetsEnabled'], false);
-    assert.strictEqual(lastState(harness).settings?.values['tau.extensions.statusBarEnabled'], false);
+    assert.strictEqual(lastState(harness).settings?.values['tauren.extensions.aboveWidgetsEnabled'], false);
+    assert.strictEqual(lastState(harness).settings?.values['tauren.extensions.statusBarEnabled'], false);
     assert.deepStrictEqual(lastState(harness).extensionWidgets, [
       { key: 'below', placement: 'belowEditor', lines: ['Below'] }
     ]);
@@ -197,7 +197,7 @@ suite('TauSessionManager', () => {
     harness.manager.dispose();
   });
 
-  test('refreshes extension settings changed outside the Tau settings face', async () => {
+  test('refreshes extension settings changed outside the Tauren settings face', async () => {
     const harness = createManagerHarness([new FakePiClient()]);
 
     await harness.manager.handleWebviewMessage({ type: 'submit', text: 'hello' });
@@ -214,12 +214,12 @@ suite('TauSessionManager', () => {
       { key: 'plan', text: 'Planning' }
     ]);
 
-    harness.tauSettings['tau.extensions.aboveWidgetsEnabled'] = false;
-    harness.tauSettings['tau.extensions.statusBarEnabled'] = false;
+    harness.tauSettings['tauren.extensions.aboveWidgetsEnabled'] = false;
+    harness.tauSettings['tauren.extensions.statusBarEnabled'] = false;
     harness.manager.refreshTauSettingValues();
 
-    assert.strictEqual(lastState(harness).settings?.values['tau.extensions.aboveWidgetsEnabled'], false);
-    assert.strictEqual(lastState(harness).settings?.values['tau.extensions.statusBarEnabled'], false);
+    assert.strictEqual(lastState(harness).settings?.values['tauren.extensions.aboveWidgetsEnabled'], false);
+    assert.strictEqual(lastState(harness).settings?.values['tauren.extensions.statusBarEnabled'], false);
     assert.deepStrictEqual(lastState(harness).extensionWidgets, []);
     assert.deepStrictEqual(lastState(harness).extensionStatus, []);
     harness.manager.dispose();
@@ -242,11 +242,11 @@ suite('TauSessionManager', () => {
 
     await harness.manager.handleWebviewMessage({
       type: 'updateSetting',
-      settingId: 'tau.extensions.belowWidgetsEnabled',
+      settingId: 'tauren.extensions.belowWidgetsEnabled',
       value: false
     });
 
-    assert.strictEqual(lastState(harness).settings?.values['tau.extensions.belowWidgetsEnabled'], false);
+    assert.strictEqual(lastState(harness).settings?.values['tauren.extensions.belowWidgetsEnabled'], false);
     assert.deepStrictEqual(lastState(harness).extensionWidgets, [
       { key: 'above', placement: 'aboveEditor', lines: ['Above'] }
     ]);
@@ -275,12 +275,12 @@ suite('TauSessionManager', () => {
 
     await harness.manager.handleWebviewMessage({
       type: 'updateSetting',
-      settingId: 'tau.extensions.statusBarEnabled',
+      settingId: 'tauren.extensions.statusBarEnabled',
       value: false
     });
 
-    assert.strictEqual(lastState(harness).settings?.values['tau.extensions.statusBarEnabled'], false);
-    assert.strictEqual(harness.tauSettings['tau.extensions.statusBarEnabled'], false);
+    assert.strictEqual(lastState(harness).settings?.values['tauren.extensions.statusBarEnabled'], false);
+    assert.strictEqual(harness.tauSettings['tauren.extensions.statusBarEnabled'], false);
     assert.deepStrictEqual(lastState(harness).extensionStatus, []);
 
     extensionUi.setStatus?.('ignored', 'Ignored');
@@ -623,13 +623,13 @@ suite('TauSessionManager', () => {
     await flushPromises();
 
     assert.deepStrictEqual(lastState(harness).promptContext, [
-      { id: 'context-1', kind: 'file', label: 'foo.ts', title: 'src/foo.ts', xml: '<ide_context source="vscode-tau">\nUser-attached IDE context.\n\n<file path="src/foo.ts" />\n</ide_context>' }
+      { id: 'context-1', kind: 'file', label: 'foo.ts', title: 'src/foo.ts', xml: '<ide_context source="vscode-tauren">\nUser-attached IDE context.\n\n<file path="src/foo.ts" />\n</ide_context>' }
     ]);
 
     await harness.manager.handleWebviewMessage({ type: 'submit', text: 'explain this' });
 
     assert.strictEqual(client.prompts.length, 1);
-    assert.ok(client.prompts[0].startsWith('explain this\n\n<ide_context source="vscode-tau">\n'));
+    assert.ok(client.prompts[0].startsWith('explain this\n\n<ide_context source="vscode-tauren">\n'));
     assert.ok(client.prompts[0].includes('<file path="src/foo.ts" />'));
     assert.strictEqual(lastState(harness).promptContext, undefined);
     harness.manager.dispose();
@@ -655,7 +655,7 @@ suite('TauSessionManager', () => {
     await flushPromises();
 
     assert.deepStrictEqual(lastState(harness).promptContext, [
-      { id: 'context-1', kind: 'file', label: 'foo.ts', title: 'src/foo.ts', xml: '<ide_context source="vscode-tau">\nUser-attached IDE context.\n\n<file path="src/foo.ts" />\n</ide_context>' }
+      { id: 'context-1', kind: 'file', label: 'foo.ts', title: 'src/foo.ts', xml: '<ide_context source="vscode-tauren">\nUser-attached IDE context.\n\n<file path="src/foo.ts" />\n</ide_context>' }
     ]);
 
     await harness.manager.handleWebviewMessage({ type: 'submit', text: 'explain this' });

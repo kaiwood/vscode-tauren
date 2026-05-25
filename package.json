@@ -1,12 +1,12 @@
 {
-  "name": "tau",
-  "displayName": "Tau",
+  "name": "tauren",
+  "displayName": "Tauren",
   "description": "Transparent AI coding assistant with code traceability",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "publisher": "kaiwood",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kaiwood/vscode-tau.git"
+    "url": "https://github.com/kaiwood/vscode-tauren.git"
   },
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -24,7 +24,7 @@
     "assistant",
     "chat",
     "pi",
-    "tau",
+    "tauren",
     "session",
     "diff",
     "traceability"
@@ -33,235 +33,235 @@
   "contributes": {
     "commands": [
       {
-        "command": "tau.newSession",
+        "command": "tauren.newSession",
         "title": "New Session",
-        "category": "Tau"
+        "category": "Tauren"
       },
       {
-        "command": "tau.resume",
+        "command": "tauren.resume",
         "title": "Toggle Session List",
-        "category": "Tau"
+        "category": "Tauren"
       },
       {
-        "command": "tau.fork",
+        "command": "tauren.fork",
         "title": "Fork Session",
-        "category": "Tau"
+        "category": "Tauren"
       },
       {
-        "command": "tau.clone",
+        "command": "tauren.clone",
         "title": "Clone Session",
-        "category": "Tau"
+        "category": "Tauren"
       },
       {
-        "command": "tau.showSessionTree",
+        "command": "tauren.showSessionTree",
         "title": "Toggle Session Tree",
-        "category": "Tau"
+        "category": "Tauren"
       },
       {
-        "command": "tau.toggleSessionList",
+        "command": "tauren.toggleSessionList",
         "title": "Toggle Session List",
-        "category": "Tau"
+        "category": "Tauren"
       },
       {
-        "command": "tau.openSessionDiff",
+        "command": "tauren.openSessionDiff",
         "title": "Open Session Diff",
-        "category": "Tau"
+        "category": "Tauren"
       },
       {
-        "command": "tau.renameSession",
+        "command": "tauren.renameSession",
         "title": "Rename Session",
-        "category": "Tau"
+        "category": "Tauren"
       },
       {
-        "command": "tau.compactSession",
+        "command": "tauren.compactSession",
         "title": "Compact Session",
-        "category": "Tau"
+        "category": "Tauren"
       },
       {
-        "command": "tau.exportSession",
+        "command": "tauren.exportSession",
         "title": "Export as HTML",
-        "category": "Tau"
+        "category": "Tauren"
       },
       {
-        "command": "tau.moveSessionToTrash",
+        "command": "tauren.moveSessionToTrash",
         "title": "Move to Trash",
-        "category": "Tau"
+        "category": "Tauren"
       },
       {
-        "command": "tau.reloadPi",
+        "command": "tauren.reloadPi",
         "title": "Reload Pi Engine",
-        "category": "Tau"
+        "category": "Tauren"
       },
       {
-        "command": "tau.copyLastResponse",
+        "command": "tauren.copyLastResponse",
         "title": "Copy Last Response",
-        "category": "Tau"
+        "category": "Tauren"
       },
       {
-        "command": "tau.openModelPicker",
+        "command": "tauren.openModelPicker",
         "title": "Open Model Picker",
-        "category": "Tau"
+        "category": "Tauren"
       },
       {
-        "command": "tau.toggleSettings",
+        "command": "tauren.toggleSettings",
         "title": "Toggle Settings",
-        "category": "Tau",
+        "category": "Tauren",
         "icon": "$(gear)"
       },
       {
-        "command": "tau.toggleHelp",
+        "command": "tauren.toggleHelp",
         "title": "Toggle Help",
-        "category": "Tau",
+        "category": "Tauren",
         "icon": "$(question)"
       },
       {
-        "command": "tau.stop",
+        "command": "tauren.stop",
         "title": "Stop Current Response",
-        "category": "Tau"
+        "category": "Tauren"
       },
       {
-        "command": "tau.toggleSteerFollowUp",
+        "command": "tauren.toggleSteerFollowUp",
         "title": "Toggle Steer / Follow-up",
-        "category": "Tau"
+        "category": "Tauren"
       },
       {
-        "command": "tau.addContext",
+        "command": "tauren.addContext",
         "title": "Add Context",
-        "category": "Tau"
+        "category": "Tauren"
       },
       {
-        "command": "tau.sendSelectionToComposer",
+        "command": "tauren.sendSelectionToComposer",
         "title": "Send Selection to Composer",
-        "category": "Tau"
+        "category": "Tauren"
       },
       {
-        "command": "tau.traceOrigin",
+        "command": "tauren.traceOrigin",
         "title": "Trace Origin",
-        "category": "Tau"
+        "category": "Tauren"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "tau",
-          "title": "Tau",
-          "icon": "resources/tau.svg"
+          "id": "tauren",
+          "title": "Tauren",
+          "icon": "resources/tauren.svg"
         }
       ]
     },
     "views": {
-      "tau": [
+      "tauren": [
         {
-          "id": "tau.chatView",
-          "name": "Tau",
+          "id": "tauren.chatView",
+          "name": "Tauren",
           "type": "webview",
-          "icon": "resources/tau.svg"
+          "icon": "resources/tauren.svg"
         }
       ]
     },
     "menus": {
       "editor/context": [
         {
-          "command": "tau.addContext",
+          "command": "tauren.addContext",
           "when": "editorTextFocus",
           "group": "navigation@90"
         },
         {
-          "command": "tau.traceOrigin",
+          "command": "tauren.traceOrigin",
           "when": "editorTextFocus",
           "group": "navigation@91"
         }
       ],
       "commandPalette": [
         {
-          "command": "tau.showSessionTree"
+          "command": "tauren.showSessionTree"
         },
         {
-          "command": "tau.toggleSessionList"
+          "command": "tauren.toggleSessionList"
         }
       ],
       "view/title": [
         {
-          "command": "tau.newSession",
-          "when": "view == tau.chatView",
-          "group": "tau@1"
+          "command": "tauren.newSession",
+          "when": "view == tauren.chatView",
+          "group": "tauren@1"
         },
         {
-          "command": "tau.renameSession",
-          "when": "view == tau.chatView",
-          "group": "tau@3"
+          "command": "tauren.renameSession",
+          "when": "view == tauren.chatView",
+          "group": "tauren@3"
         },
         {
-          "command": "tau.compactSession",
-          "when": "view == tau.chatView && !tau.busy",
-          "group": "tau@4"
+          "command": "tauren.compactSession",
+          "when": "view == tauren.chatView && !tauren.busy",
+          "group": "tauren@4"
         },
         {
-          "command": "tau.exportSession",
-          "when": "view == tau.chatView && !tau.busy",
-          "group": "tau@5"
+          "command": "tauren.exportSession",
+          "when": "view == tauren.chatView && !tauren.busy",
+          "group": "tauren@5"
         },
         {
-          "command": "tau.moveSessionToTrash",
-          "when": "view == tau.chatView && !tau.busy",
-          "group": "tau@6"
+          "command": "tauren.moveSessionToTrash",
+          "when": "view == tauren.chatView && !tauren.busy",
+          "group": "tauren@6"
         },
         {
-          "command": "tau.toggleSettings",
-          "when": "view == tau.chatView",
+          "command": "tauren.toggleSettings",
+          "when": "view == tauren.chatView",
           "group": "navigation@40"
         },
         {
-          "command": "tau.toggleHelp",
-          "when": "view == tau.chatView",
+          "command": "tauren.toggleHelp",
+          "when": "view == tauren.chatView",
           "group": "navigation@50"
         },
         {
-          "command": "tau.toggleSteerFollowUp",
-          "when": "view == tau.chatView && tau.busy",
-          "group": "tau@90"
+          "command": "tauren.toggleSteerFollowUp",
+          "when": "view == tauren.chatView && tauren.busy",
+          "group": "tauren@90"
         },
         {
-          "command": "tau.stop",
-          "when": "view == tau.chatView && tau.busy",
-          "group": "tau@91"
+          "command": "tauren.stop",
+          "when": "view == tauren.chatView && tauren.busy",
+          "group": "tauren@91"
         }
       ]
     },
     "keybindings": [
       {
-        "command": "tau.newSession",
+        "command": "tauren.newSession",
         "key": "ctrl+n",
         "mac": "cmd+n",
-        "when": "tau.sidebarFocus"
+        "when": "tauren.sidebarFocus"
       }
     ],
     "configuration": {
-      "id": "tau",
-      "title": "Tau",
+      "id": "tauren",
+      "title": "Tauren",
       "type": "object",
       "properties": {
-        "tau.outputColors": {
+        "tauren.outputColors": {
           "type": "boolean",
           "default": true,
-          "description": "Enable ANSI and syntax colors in Tau output boxes. When disabled, ANSI escape sequences are stripped."
+          "description": "Enable ANSI and syntax colors in Tauren output boxes. When disabled, ANSI escape sequences are stripped."
         },
-        "tau.animationsEnabled": {
+        "tauren.animationsEnabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable animations in the Tau sidebar. Reduced-motion preferences still disable motion."
+          "description": "Enable animations in the Tauren sidebar. Reduced-motion preferences still disable motion."
         },
-        "tau.showWelcome": {
+        "tauren.showWelcome": {
           "type": "boolean",
           "default": true,
-          "description": "Show the Welcome to Tau empty state for new chats. Turn this back on to restore the welcome message after dismissing it."
+          "description": "Show the Welcome to Tauren empty state for new chats. Turn this back on to restore the welcome message after dismissing it."
         },
-        "tau.confirmSessionDeletion": {
+        "tauren.confirmSessionDeletion": {
           "type": "boolean",
           "default": true,
-          "description": "Ask for confirmation before moving Tau sessions to Trash."
+          "description": "Ask for confirmation before moving Tauren sessions to Trash."
         },
-        "tau.customUiTheme": {
+        "tauren.customUiTheme": {
           "type": "string",
           "default": "default",
           "enum": [
@@ -272,55 +272,55 @@
             "matrix"
           ],
           "enumDescriptions": [
-            "Use Tau's default custom UI styling.",
-            "Use Tau's default custom UI styling inside a modern black monitor frame.",
+            "Use Tauren's default custom UI styling.",
+            "Use Tauren's default custom UI styling inside a modern black monitor frame.",
             "Use a green phosphor CRT-style custom UI terminal.",
             "Use an amber monochrome custom UI terminal.",
             "Use a high-contrast green matrix-style custom UI terminal."
           ],
           "description": "Choose the visual theme for Pi extension custom UI terminal panels."
         },
-        "tau.extensions.aboveWidgetsEnabled": {
+        "tauren.extensions.aboveWidgetsEnabled": {
           "type": "boolean",
           "default": true,
-          "description": "Show Pi extension widgets above the Tau composer."
+          "description": "Show Pi extension widgets above the Tauren composer."
         },
-        "tau.extensions.belowWidgetsEnabled": {
+        "tauren.extensions.belowWidgetsEnabled": {
           "type": "boolean",
           "default": true,
-          "description": "Show Pi extension widgets below the Tau composer."
+          "description": "Show Pi extension widgets below the Tauren composer."
         },
-        "tau.extensions.statusBarEnabled": {
+        "tauren.extensions.statusBarEnabled": {
           "type": "boolean",
           "default": true,
-          "description": "Show one-line Pi extension status updates below the Tau composer."
+          "description": "Show one-line Pi extension status updates below the Tauren composer."
         },
-        "tau.extensions.backgroundColorsEnabled": {
+        "tauren.extensions.backgroundColorsEnabled": {
           "type": "boolean",
           "default": true,
           "description": "Render background colors sent by Pi extension widgets."
         },
-        "tau.extensions.monospaceFontEnabled": {
+        "tauren.extensions.monospaceFontEnabled": {
           "type": "boolean",
           "default": true,
           "description": "Use the editor monospace font for Pi extension widgets and status."
         },
-        "tau.blockHttpsImages": {
+        "tauren.blockHttpsImages": {
           "type": "boolean",
           "default": true,
-          "description": "Block Tau chat markdown from loading remote HTTPS images while still allowing Pi engine image data and workspace images."
+          "description": "Block Tauren chat markdown from loading remote HTTPS images while still allowing Pi engine image data and workspace images."
         },
-        "tau.readyScript": {
+        "tauren.readyScript": {
           "type": "string",
           "default": "",
           "description": "Path to an executable script to run when the Pi engine becomes ready: after starting a new Pi engine process without resuming a session, and after each agent run completes. Relative paths resolve from the workspace folder. Leave empty to disable."
         },
-        "tau.readyScriptEnabled": {
+        "tauren.readyScriptEnabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable running tau.readyScript when the Pi engine becomes ready. Turn this off to temporarily disable the script without clearing its path."
+          "description": "Enable running tauren.readyScript when the Pi engine becomes ready. Turn this off to temporarily disable the script without clearing its path."
         },
-        "tau.rejectEditWriteOutsideWorkspace": {
+        "tauren.rejectEditWriteOutsideWorkspace": {
           "type": "boolean",
           "default": false,
           "description": "Reject Pi engine edit/write tool mutations outside the active workspace folder. This does not restrict bash commands."
@@ -335,7 +335,7 @@
     "compile:webview": "esbuild src/webview/main.ts --bundle --format=iife --target=es2022 --outfile=resources/webview/chat.js",
     "sync:vendor": "node scripts/sync-vendor-deps.js",
     "update:pi-sdk": "node scripts/update-pi-sdk.js",
-    "install:local": "npm run compile && npx --yes @vscode/vsce package --out tau-local.vsix && code --install-extension tau-local.vsix --force && node scripts/restart-vscode-extension-host.js",
+    "install:local": "npm run compile && npx --yes @vscode/vsce package --out tauren-local.vsix && code --install-extension tauren-local.vsix --force && node scripts/restart-vscode-extension-host.js",
     "test": "npm run compile -- --pretty false && vscode-test",
     "watch": "npm run compile:sdk && node scripts/watch.js",
     "compile:sdk": "node scripts/build-sdk-bundle.js"

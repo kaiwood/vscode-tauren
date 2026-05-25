@@ -5,8 +5,8 @@ import type {
   SessionMetadataCacheStorage
 } from './types';
 
-const cachedSessionMetaStorageKey = 'tau.cachedSessionMeta';
-const legacyCachedModelMetaStorageKey = 'tau.cachedModelMeta';
+const cachedSessionMetaStorageKey = 'tauren.cachedSessionMeta';
+const legacyCachedModelMetaStorageKey = 'tauren.cachedModelMeta';
 
 export function readCachedSessionMeta(storage: SessionMetadataCacheStorage | undefined): TauChatSessionMetaSnapshot | undefined {
   const value = storage?.get<unknown>(cachedSessionMetaStorageKey);

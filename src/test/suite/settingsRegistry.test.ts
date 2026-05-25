@@ -4,14 +4,14 @@ import * as path from 'node:path';
 import { getSettingsForSection, normalizeSettingValue, settingDefinitions } from '../../settings/settingsRegistry';
 
 suite('Settings registry', () => {
-  test('keeps Tau and Pi settings in requested product sections', () => {
+  test('keeps Tauren and Pi settings in requested product sections', () => {
     assert.deepStrictEqual(
       getSettingsForSection('appearance').map((setting) => setting.id),
-      ['tau.outputColors', 'tau.animationsEnabled', 'tau.showWelcome', 'tau.customUiTheme']
+      ['tauren.outputColors', 'tauren.animationsEnabled', 'tauren.showWelcome', 'tauren.customUiTheme']
     );
     assert.deepStrictEqual(
       getSettingsForSection('extensions').map((setting) => setting.id),
-      ['tau.extensions.aboveWidgetsEnabled', 'tau.extensions.belowWidgetsEnabled', 'tau.extensions.statusBarEnabled', 'tau.extensions.backgroundColorsEnabled', 'tau.extensions.monospaceFontEnabled']
+      ['tauren.extensions.aboveWidgetsEnabled', 'tauren.extensions.belowWidgetsEnabled', 'tauren.extensions.statusBarEnabled', 'tauren.extensions.backgroundColorsEnabled', 'tauren.extensions.monospaceFontEnabled']
     );
     assert.deepStrictEqual(
       getSettingsForSection('runtime').map((setting) => setting.id),
@@ -19,7 +19,7 @@ suite('Settings registry', () => {
     );
     assert.deepStrictEqual(
       getSettingsForSection('workspaceSafety').map((setting) => setting.id),
-      ['tau.blockHttpsImages', 'tau.confirmSessionDeletion', 'tau.rejectEditWriteOutsideWorkspace']
+      ['tauren.blockHttpsImages', 'tauren.confirmSessionDeletion', 'tauren.rejectEditWriteOutsideWorkspace']
     );
   });
 
@@ -27,11 +27,11 @@ suite('Settings registry', () => {
     const ids = settingDefinitions.map((setting) => setting.id);
 
     for (const excluded of ['theme', 'quietStartup', 'terminal.showImages', 'shellPath', 'httpIdleTimeoutMs']) {
-      assert.ok(!ids.includes(excluded as never), `${excluded} should not be in Tau settings`);
+      assert.ok(!ids.includes(excluded as never), `${excluded} should not be in Tauren settings`);
     }
   });
 
-  test('contributes every Tau-owned setting to VS Code configuration', () => {
+  test('contributes every Tauren-owned setting to VS Code configuration', () => {
     const packageJsonPath = path.join(process.cwd(), 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {
       contributes?: { configuration?: { properties?: Record<string, unknown> } };
@@ -46,14 +46,14 @@ suite('Settings registry', () => {
   });
 
   test('validates setting values conservatively', () => {
-    assert.strictEqual(normalizeSettingValue('tau.outputColors', true), true);
-    assert.strictEqual(normalizeSettingValue('tau.outputColors', 'true'), undefined);
-    assert.strictEqual(normalizeSettingValue('tau.showWelcome', false), false);
-    assert.strictEqual(normalizeSettingValue('tau.extensions.aboveWidgetsEnabled', false), false);
-    assert.strictEqual(normalizeSettingValue('tau.extensions.belowWidgetsEnabled', false), false);
-    assert.strictEqual(normalizeSettingValue('tau.extensions.monospaceFontEnabled', false), false);
-    assert.strictEqual(normalizeSettingValue('tau.customUiTheme', 'matrix'), 'matrix');
-    assert.strictEqual(normalizeSettingValue('tau.customUiTheme', 'random'), undefined);
+    assert.strictEqual(normalizeSettingValue('tauren.outputColors', true), true);
+    assert.strictEqual(normalizeSettingValue('tauren.outputColors', 'true'), undefined);
+    assert.strictEqual(normalizeSettingValue('tauren.showWelcome', false), false);
+    assert.strictEqual(normalizeSettingValue('tauren.extensions.aboveWidgetsEnabled', false), false);
+    assert.strictEqual(normalizeSettingValue('tauren.extensions.belowWidgetsEnabled', false), false);
+    assert.strictEqual(normalizeSettingValue('tauren.extensions.monospaceFontEnabled', false), false);
+    assert.strictEqual(normalizeSettingValue('tauren.customUiTheme', 'matrix'), 'matrix');
+    assert.strictEqual(normalizeSettingValue('tauren.customUiTheme', 'random'), undefined);
     assert.strictEqual(normalizeSettingValue('enabledModels', ['gpt-*', ' claude-* '])?.toString(), 'gpt-*,claude-*');
   });
 });

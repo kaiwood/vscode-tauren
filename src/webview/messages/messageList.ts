@@ -548,7 +548,7 @@ function pruneDisconnectedMessageRenderState(): void {
 function createPlainEmptyStateElement(): HTMLElement {
   const empty = document.createElement('p');
   empty.className = 'empty-state';
-  empty.textContent = 'Ask Tau about this workspace.';
+  empty.textContent = 'Ask Tauren about this workspace.';
   return empty;
 }
 
@@ -558,10 +558,10 @@ function createWelcomeStateElement(): HTMLElement {
 
   const title = document.createElement('h2');
   title.className = 'empty-state__title';
-  title.textContent = 'Welcome to Tau';
+  title.textContent = 'Welcome to Tauren';
 
   const description = document.createElement('p');
-  description.textContent = 'Ask Tau about this workspace, review code, plan changes, or make edits.';
+  description.textContent = 'Ask Tauren about this workspace, review code, plan changes, or make edits.';
 
   const commandHint = document.createElement('p');
   commandHint.textContent = 'Type / for commands, or add a file/selection as context from the editor.';

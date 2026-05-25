@@ -715,7 +715,7 @@ export class TauChatController {
     const apiKey = await this.options.inputSecret?.(
       `API key for ${provider.name}`,
       'Paste API key',
-      'The key is stored in Pi auth.json and is not sent to the Tau webview.'
+      'The key is stored in Pi auth.json and is not sent to the Tauren webview.'
     );
 
     if (!apiKey) {
@@ -794,7 +794,7 @@ export class TauChatController {
         void this.options.openExternalUrl?.(info.verificationUri);
       },
       onPrompt: async (prompt) => {
-        const value = await this.options.inputSecret?.(prompt.message, prompt.placeholder, 'OAuth input is kept out of Tau webview state.');
+        const value = await this.options.inputSecret?.(prompt.message, prompt.placeholder, 'OAuth input is kept out of Tauren webview state.');
         if (value === undefined || (!prompt.allowEmpty && !value.trim())) {
           throw new Error('Login cancelled');
         }
@@ -913,7 +913,7 @@ export class TauChatController {
     try {
       if (isTauSettingId(settingId)) {
         if (!this.options.updateTauSetting) {
-          throw new Error('Tau settings are not available in this session.');
+          throw new Error('Tauren settings are not available in this session.');
         }
 
         await this.options.updateTauSetting(settingId, value);
@@ -1298,7 +1298,7 @@ export class TauChatController {
   }
 
   private getPiStartupErrorMessage(state: Extract<PiStartupCwdState, { status: 'blocked' }>): string {
-    return `Tau cannot start Pi engine because ${state.reason}. Open a project folder and try again.`;
+    return `Tauren cannot start Pi engine because ${state.reason}. Open a project folder and try again.`;
   }
 
   private handlePiStartupBlocked(message: string): void {

@@ -626,7 +626,7 @@ function roleLabel(role: string): string {
   }
 
   if (role === 'assistant') {
-    return 'Tau';
+    return 'Tauren';
   }
 
   return 'System';

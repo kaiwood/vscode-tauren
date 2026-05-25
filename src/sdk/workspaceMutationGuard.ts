@@ -62,8 +62,8 @@ export async function assertWorkspaceMutationAllowed(
   }
 
   throw new Error(
-    `Tau blocked ${toolName}: ${absolutePath} is outside the workspace (${options.workspaceRoot}). `
-    + 'Disable tau.rejectEditWriteOutsideWorkspace to allow this mutation.'
+    `Tauren blocked ${toolName}: ${absolutePath} is outside the workspace (${options.workspaceRoot}). `
+    + 'Disable tauren.rejectEditWriteOutsideWorkspace to allow this mutation.'
   );
 }
 

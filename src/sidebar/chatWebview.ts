@@ -427,7 +427,7 @@ export function createWebviewHtml(scriptUris: WebviewScriptUris, options: Create
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${imageSources}; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
-  <title>Tau</title>
+  <title>Tauren</title>
   <style>
 ${chatWebviewStyles}
   </style>
@@ -441,7 +441,7 @@ ${chatWebviewStyles}
         </svg>
         <span class="tau-icon-action-tooltip">Show sessions</span>
       </button>
-      <div class="tau-toolbar__title"><span class="tau-toolbar__title-text">Tau</span><span class="tau-toolbar__timestamp" hidden></span><input class="tau-toolbar__title-input" type="text" aria-label="Session name" spellcheck="false" hidden></div>
+      <div class="tau-toolbar__title"><span class="tau-toolbar__title-text">Tauren</span><span class="tau-toolbar__timestamp" hidden></span><input class="tau-toolbar__title-input" type="text" aria-label="Session name" spellcheck="false" hidden></div>
       <button class="tau-toolbar__tree" type="button" aria-label="Show tree">
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none">
           <path d="M6.75 4.5L11.25 9L6.75 13.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
@@ -450,10 +450,10 @@ ${chatWebviewStyles}
       </button>
     </header>
     <div class="tau-toast" role="status" aria-live="polite" hidden></div>
-    <section class="tau-help-overlay" role="dialog" aria-label="Tau help" tabindex="-1" hidden>
+    <section class="tau-help-overlay" role="dialog" aria-label="Tauren help" tabindex="-1" hidden>
       <header class="tau-help-overlay__header">
         <div>
-          <div class="tau-help-overlay__eyebrow">Tau shortcuts</div>
+          <div class="tau-help-overlay__eyebrow">Tauren shortcuts</div>
           <h2 class="tau-help-overlay__title">Help</h2>
         </div>
         <button class="tau-help-overlay__close" type="button" aria-label="Close help">×</button>
@@ -497,9 +497,9 @@ ${chatWebviewStyles}
         </section>
       </div>
     </section>
-    <div class="tau-chat-surface" aria-label="Tau chat surface">
+    <div class="tau-chat-surface" aria-label="Tauren chat surface">
       <div class="tau-chat-surface__face tau-chat-surface__main">
-        <section class="messages" aria-live="polite" aria-label="Tau conversation">
+        <section class="messages" aria-live="polite" aria-label="Tauren conversation">
 ${createInitialEmptyStateHtml(Boolean(options.welcomeDismissed))}
         </section>
         <section class="custom-ui" aria-label="Pi extension UI" role="dialog" tabindex="0" hidden>
@@ -590,11 +590,11 @@ ${createInitialEmptyStateHtml(Boolean(options.welcomeDismissed))}
           <span class="composer-status__text"></span>
         </section>
       </div>
-      <section class="settings-surface tau-chat-surface__face tau-chat-surface__settings" aria-label="Tau settings" tabindex="-1" aria-hidden="true">
+      <section class="settings-surface tau-chat-surface__face tau-chat-surface__settings" aria-label="Tauren settings" tabindex="-1" aria-hidden="true">
         <div class="settings-surface__chrome" aria-hidden="true"></div>
         <header class="settings-surface__header">
           <div>
-            <div class="settings-surface__eyebrow">Tau settings</div>
+            <div class="settings-surface__eyebrow">Tauren settings</div>
             <h2 class="settings-surface__title">Settings</h2>
           </div>
           <button class="settings-surface__back" type="button" aria-label="Back to chat">Back</button>
@@ -602,8 +602,8 @@ ${createInitialEmptyStateHtml(Boolean(options.welcomeDismissed))}
         <div class="settings-surface__body"></div>
       </section>
     </div>
-    <section class="sessions" aria-label="Tau sessions" role="listbox" tabindex="-1" aria-hidden="true"></section>
-    <section class="session-tree" aria-label="Tau session tree" role="listbox" tabindex="-1" aria-hidden="true"></section>
+    <section class="sessions" aria-label="Tauren sessions" role="listbox" tabindex="-1" aria-hidden="true"></section>
+    <section class="session-tree" aria-label="Tauren session tree" role="listbox" tabindex="-1" aria-hidden="true"></section>
   </main>
 
   <script nonce="${nonce}" src="${scriptUris.markdownItScriptUri}"></script>
@@ -615,12 +615,12 @@ ${createInitialEmptyStateHtml(Boolean(options.welcomeDismissed))}
 
 function createInitialEmptyStateHtml(welcomeDismissed: boolean): string {
   if (welcomeDismissed) {
-    return '      <p class="empty-state">Ask Tau about this workspace.</p>';
+    return '      <p class="empty-state">Ask Tauren about this workspace.</p>';
   }
 
   return /* html */ `      <div class="empty-state empty-state--welcome">
-        <h2 class="empty-state__title">Welcome to Tau</h2>
-        <p>Ask Tau about this workspace, review code, plan changes, or make edits.</p>
+        <h2 class="empty-state__title">Welcome to Tauren</h2>
+        <p>Ask Tauren about this workspace, review code, plan changes, or make edits.</p>
         <p>Type / for commands, or add a file/selection as context from the editor.</p>
         <p class="empty-state__try-label">Try:</p>
         <ul class="empty-state__prompts">

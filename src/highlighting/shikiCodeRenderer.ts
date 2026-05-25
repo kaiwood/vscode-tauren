@@ -114,11 +114,11 @@ export class ShikiCodeRenderer implements vscode.Disposable {
       this.setThemeIdHint(themeIdHint);
       void this.getState().catch((error) => {
         this.statePromise = undefined;
-        console.warn('Tau failed to warm up Shiki.', error);
+        console.warn('Tauren failed to warm up Shiki.', error);
       });
     } catch (error) {
       this.statePromise = undefined;
-      console.warn('Tau failed to warm up Shiki.', error);
+      console.warn('Tauren failed to warm up Shiki.', error);
     }
   }
 
@@ -155,7 +155,7 @@ export class ShikiCodeRenderer implements vscode.Disposable {
       return result;
     } catch (error) {
       this.statePromise = undefined;
-      console.warn(`Tau failed to highlight ${languageHint || 'code'} with Shiki.`, error);
+      console.warn(`Tauren failed to highlight ${languageHint || 'code'} with Shiki.`, error);
       return undefined;
     }
   }
@@ -234,7 +234,7 @@ export class ShikiCodeRenderer implements vscode.Disposable {
 
       return state;
     } catch (error) {
-      console.warn('Tau failed to initialize Shiki with the active VS Code theme. Falling back to the bundled Shiki theme.', error);
+      console.warn('Tauren failed to initialize Shiki with the active VS Code theme. Falling back to the bundled Shiki theme.', error);
       const state = await createFallbackState(shiki);
 
       if (generation === this.stateGeneration) {
@@ -254,7 +254,7 @@ export class ShikiCodeRenderer implements vscode.Disposable {
         mergeSameStyleTokens: true
       }));
     } catch (error) {
-      console.warn(`Tau failed to highlight ${language} with Shiki.`, error);
+      console.warn(`Tauren failed to highlight ${language} with Shiki.`, error);
       throw error;
     }
   }

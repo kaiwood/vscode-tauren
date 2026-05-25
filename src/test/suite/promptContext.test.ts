@@ -23,14 +23,14 @@ suite('PromptContextStore', () => {
         kind: 'file',
         label: 'example.ts',
         title: 'src/example.ts',
-        xml: '<ide_context source="vscode-tau">\nUser-attached IDE context.\n\n<file path="src/example.ts" />\n</ide_context>'
+        xml: '<ide_context source="vscode-tauren">\nUser-attached IDE context.\n\n<file path="src/example.ts" />\n</ide_context>'
       },
       {
         id: 'context-2',
         kind: 'selection',
         label: 'other.ts:3-5',
         title: 'src/other.ts:3-5',
-        xml: '<ide_context source="vscode-tau">\nUser-attached IDE context.\n\n<selection path="src/other.ts" start_line="3" end_line="5" language="typescript"><![CDATA[\nconst value = 1;\n\n]]></selection>\n</ide_context>'
+        xml: '<ide_context source="vscode-tauren">\nUser-attached IDE context.\n\n<selection path="src/other.ts" start_line="3" end_line="5" language="typescript"><![CDATA[\nconst value = 1;\n\n]]></selection>\n</ide_context>'
       }
     ]);
   });
@@ -66,7 +66,7 @@ suite('PromptContextStore', () => {
     const attachment = store.getWebviewAttachments()[0];
 
     assert.strictEqual(attachment.source, 'origin');
-    assert.ok(attachment.xml?.startsWith('<ide_context source="vscode-tau">\nUser-attached IDE context.'));
+    assert.ok(attachment.xml?.startsWith('<ide_context source="vscode-tauren">\nUser-attached IDE context.'));
     assert.ok(attachment.xml?.includes('<trace_origin_instructions>'));
     assert.ok(attachment.xml?.includes('<trace_origin_data>'));
     assert.ok(attachment.xml?.includes('"historicalPath": "src/old.ts"'));

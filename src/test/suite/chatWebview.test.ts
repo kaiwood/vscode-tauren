@@ -144,7 +144,7 @@ suite('Chat webview helpers', () => {
     assert.deepStrictEqual(parseWebviewMessage({ type: 'showChatFace', chatFace: 'settings' }), { type: 'showChatFace', chatFace: 'settings' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'hideChatFace' }), { type: 'hideChatFace' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'setSettingsSection', section: 'runtime' }), { type: 'setSettingsSection', section: 'runtime' });
-    assert.deepStrictEqual(parseWebviewMessage({ type: 'updateSetting', settingId: 'tau.outputColors', value: false }), { type: 'updateSetting', settingId: 'tau.outputColors', value: false });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'updateSetting', settingId: 'tauren.outputColors', value: false }), { type: 'updateSetting', settingId: 'tauren.outputColors', value: false });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'updateSetting', settingId: 'defaultThinkingLevel', value: 'high' }), { type: 'updateSetting', settingId: 'defaultThinkingLevel', value: 'high' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'authLogin', providerId: 'anthropic' }), { type: 'authLogin', providerId: 'anthropic' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'authLogin', providerId: 'anthropic', authType: 'oauth' }), { type: 'authLogin', providerId: 'anthropic', authType: 'oauth' });
@@ -408,11 +408,11 @@ suite('Chat webview helpers', () => {
     assert.ok(!html.includes('data-session-command="clone"'));
     assert.ok(!html.includes('data-session-command="delete"'));
     assert.ok(!html.includes('tau-toolbar__session-menu'));
-    assert.ok(html.includes('class="messages" aria-live="polite" aria-label="Tau conversation"'));
+    assert.ok(html.includes('class="messages" aria-live="polite" aria-label="Tauren conversation"'));
     assert.ok(html.includes('Don\'t show again'));
-    assert.ok(html.includes('class="sessions" aria-label="Tau sessions" role="listbox" tabindex="-1" aria-hidden="true"'));
-    assert.ok(html.includes('class="session-tree" aria-label="Tau session tree" role="listbox" tabindex="-1" aria-hidden="true"'));
-    assert.ok(!html.includes('class="session-tree" aria-label="Tau session tree" role="listbox" tabindex="-1" hidden'));
+    assert.ok(html.includes('class="sessions" aria-label="Tauren sessions" role="listbox" tabindex="-1" aria-hidden="true"'));
+    assert.ok(html.includes('class="session-tree" aria-label="Tauren session tree" role="listbox" tabindex="-1" aria-hidden="true"'));
+    assert.ok(!html.includes('class="session-tree" aria-label="Tauren session tree" role="listbox" tabindex="-1" hidden'));
     assert.ok(html.includes('<form class="composer" aria-label="Prompt input">'));
     assert.ok(html.includes('class="composer__button composer__add"'));
     assert.ok(!html.includes('class="composer__button composer__fork"'));
@@ -442,7 +442,7 @@ suite('Chat webview helpers', () => {
       domPurifyScriptUri: 'vscode-resource://dompurify.js',
       webviewScriptUri: 'vscode-resource://chat.js'
     }, { welcomeDismissed: true });
-    assert.ok(dismissedHtml.includes('<p class="empty-state">Ask Tau about this workspace.</p>'));
+    assert.ok(dismissedHtml.includes('<p class="empty-state">Ask Tauren about this workspace.</p>'));
     assert.ok(!dismissedHtml.includes('Don\'t show again'));
   });
 

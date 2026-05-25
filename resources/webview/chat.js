@@ -1792,7 +1792,7 @@
     return void 0;
   }
   function getUnsupportedPromptImageMessage(label) {
-    return `Unsupported attachment: ${label}. Tau currently supports PNG, JPEG, GIF, and WebP images.`;
+    return `Unsupported attachment: ${label}. Tauren currently supports PNG, JPEG, GIF, and WebP images.`;
   }
   function getPromptImageTooLargeMessage(label) {
     return `Image too large: ${label} exceeds 10MB.`;
@@ -3871,7 +3871,7 @@ ${after}`;
       return "You";
     }
     if (role === "assistant") {
-      return "Tau";
+      return "Tauren";
     }
     return "System";
   }
@@ -4316,7 +4316,7 @@ ${after}`;
   function createPlainEmptyStateElement() {
     const empty = document.createElement("p");
     empty.className = "empty-state";
-    empty.textContent = "Ask Tau about this workspace.";
+    empty.textContent = "Ask Tauren about this workspace.";
     return empty;
   }
   function createWelcomeStateElement() {
@@ -4324,9 +4324,9 @@ ${after}`;
     empty.className = "empty-state empty-state--welcome";
     const title = document.createElement("h2");
     title.className = "empty-state__title";
-    title.textContent = "Welcome to Tau";
+    title.textContent = "Welcome to Tauren";
     const description = document.createElement("p");
-    description.textContent = "Ask Tau about this workspace, review code, plan changes, or make edits.";
+    description.textContent = "Ask Tauren about this workspace, review code, plan changes, or make edits.";
     const commandHint = document.createElement("p");
     commandHint.textContent = "Type / for commands, or add a file/selection as context from the editor.";
     const tryLabel = document.createElement("p");
@@ -4539,16 +4539,16 @@ ${after}`;
     {
       id: "appearance",
       label: "Appearance",
-      eyebrow: "Tau host",
+      eyebrow: "Tauren host",
       title: "Appearance",
-      description: "Tau-owned presentation controls for the sidebar and Pi extension UI."
+      description: "Tauren-owned presentation controls for the sidebar and Pi extension UI."
     },
     {
       id: "extensions",
       label: "Extensions",
       eyebrow: "Pi extensions",
       title: "Extensions",
-      description: "Sidebar-only controls for Pi extension surfaces in Tau."
+      description: "Sidebar-only controls for Pi extension surfaces in Tauren."
     },
     {
       id: "runtime",
@@ -4569,22 +4569,22 @@ ${after}`;
       label: "Advanced",
       eyebrow: "Advanced",
       title: "Advanced",
-      description: "Less common controls shown plainly, without turning Tau into a settings dump."
+      description: "Less common controls shown plainly, without turning Tauren into a settings dump."
     }
   ];
   var settingDefinitions = [
     {
-      id: "tau.outputColors",
+      id: "tauren.outputColors",
       owner: "tau",
       section: "appearance",
       label: "Output colors",
-      description: "Render ANSI and syntax colors in Tau output.",
+      description: "Render ANSI and syntax colors in Tauren output.",
       control: "toggle",
       defaultValue: true,
       liveBehavior: "immediate"
     },
     {
-      id: "tau.animationsEnabled",
+      id: "tauren.animationsEnabled",
       owner: "tau",
       section: "appearance",
       label: "Animations",
@@ -4595,17 +4595,17 @@ ${after}`;
       liveBehavior: "immediate"
     },
     {
-      id: "tau.showWelcome",
+      id: "tauren.showWelcome",
       owner: "tau",
       section: "appearance",
       label: "Welcome message",
-      description: "Show the Welcome to Tau empty state for new chats.",
+      description: "Show the Welcome to Tauren empty state for new chats.",
       control: "toggle",
       defaultValue: true,
       liveBehavior: "immediate"
     },
     {
-      id: "tau.customUiTheme",
+      id: "tauren.customUiTheme",
       owner: "tau",
       section: "appearance",
       label: "Custom UI theme",
@@ -4616,7 +4616,7 @@ ${after}`;
       liveBehavior: "immediate"
     },
     {
-      id: "tau.extensions.aboveWidgetsEnabled",
+      id: "tauren.extensions.aboveWidgetsEnabled",
       owner: "tau",
       section: "extensions",
       label: "Enable above widgets",
@@ -4627,7 +4627,7 @@ ${after}`;
       liveBehavior: "immediate"
     },
     {
-      id: "tau.extensions.belowWidgetsEnabled",
+      id: "tauren.extensions.belowWidgetsEnabled",
       owner: "tau",
       section: "extensions",
       label: "Enable below widgets",
@@ -4638,7 +4638,7 @@ ${after}`;
       liveBehavior: "immediate"
     },
     {
-      id: "tau.extensions.statusBarEnabled",
+      id: "tauren.extensions.statusBarEnabled",
       owner: "tau",
       section: "extensions",
       label: "Enable status bar",
@@ -4649,7 +4649,7 @@ ${after}`;
       liveBehavior: "immediate"
     },
     {
-      id: "tau.extensions.backgroundColorsEnabled",
+      id: "tauren.extensions.backgroundColorsEnabled",
       owner: "tau",
       section: "extensions",
       label: "Enable background colors",
@@ -4660,7 +4660,7 @@ ${after}`;
       liveBehavior: "immediate"
     },
     {
-      id: "tau.extensions.monospaceFontEnabled",
+      id: "tauren.extensions.monospaceFontEnabled",
       owner: "tau",
       section: "extensions",
       label: "Use monospace font",
@@ -4670,7 +4670,7 @@ ${after}`;
       liveBehavior: "immediate"
     },
     {
-      id: "tau.blockHttpsImages",
+      id: "tauren.blockHttpsImages",
       owner: "tau",
       section: "workspaceSafety",
       label: "Block HTTPS images",
@@ -4756,18 +4756,18 @@ ${after}`;
       liveBehavior: "immediate"
     },
     {
-      id: "tau.confirmSessionDeletion",
+      id: "tauren.confirmSessionDeletion",
       owner: "tau",
       section: "workspaceSafety",
       label: "Confirm deletion",
-      description: "Ask before moving Tau sessions to Trash.",
+      description: "Ask before moving Tauren sessions to Trash.",
       control: "toggle",
       defaultValue: true,
       liveBehavior: "immediate",
       danger: true
     },
     {
-      id: "tau.rejectEditWriteOutsideWorkspace",
+      id: "tauren.rejectEditWriteOutsideWorkspace",
       owner: "tau",
       section: "workspaceSafety",
       label: "Reject external edits",
@@ -4779,11 +4779,11 @@ ${after}`;
       danger: true
     },
     {
-      id: "tau.readyScript",
+      id: "tauren.readyScript",
       owner: "tau",
       section: "advanced",
       label: "Ready script",
-      description: "Executable script Tau runs when Pi becomes ready.",
+      description: "Executable script Tauren runs when Pi becomes ready.",
       control: "text",
       defaultValue: "",
       helper: "Relative paths resolve from the workspace folder.",
@@ -4791,7 +4791,7 @@ ${after}`;
       subtle: true
     },
     {
-      id: "tau.readyScriptEnabled",
+      id: "tauren.readyScriptEnabled",
       owner: "tau",
       section: "advanced",
       label: "Run ready script",
@@ -4846,7 +4846,7 @@ ${after}`;
       description: "Model patterns Pi uses for model cycling.",
       control: "readonlyList",
       defaultValue: [],
-      helper: "Read-only in Tau for now to avoid saving malformed model patterns.",
+      helper: "Read-only in Tauren for now to avoid saving malformed model patterns.",
       liveBehavior: "reload",
       readOnly: true,
       subtle: true
@@ -7041,7 +7041,7 @@ ${after}`;
         const emptyActiveCard = document.createElement("article");
         emptyActiveCard.className = "settings-surface__card";
         emptyActiveCard.append(createTextElement("h4", "settings-surface__card-title", "No active stored logins"));
-        emptyActiveCard.append(createTextElement("p", "settings-surface__card-body", "Environment variables and models.json credentials may still be active outside Tau logout."));
+        emptyActiveCard.append(createTextElement("p", "settings-surface__card-body", "Environment variables and models.json credentials may still be active outside Tauren logout."));
         activeGroup.append(emptyActiveCard);
       } else {
         for (const provider of activeProviders) {
@@ -7149,7 +7149,7 @@ ${after}`;
       const titleRow = document.createElement("div");
       titleRow.className = "settings-surface__card-title-row";
       titleRow.append(createTextElement("h4", "settings-surface__card-title", definition.label));
-      titleRow.append(createTextElement("span", `settings-surface__card-status settings-surface__card-status--${definition.owner}`, definition.owner === "tau" ? "Tau" : "Pi"));
+      titleRow.append(createTextElement("span", `settings-surface__card-status settings-surface__card-status--${definition.owner}`, definition.owner === "tau" ? "Tauren" : "Pi"));
       const control = this.createControl(definition, value, state2);
       const body = createTextElement("p", "settings-surface__card-body", definition.description);
       const helperText = getHelperText(definition);
@@ -7948,7 +7948,7 @@ ${after}`;
     render();
     const duration = performance.now() - started;
     if (duration > 8) {
-      console.debug(`[Tau] render ${duration.toFixed(1)}ms`, {
+      console.debug(`[Tauren] render ${duration.toFixed(1)}ms`, {
         messages: state.messages.length,
         sessions: state.sessions.length,
         treeItems: state.treeItems.length,
@@ -8153,19 +8153,19 @@ ${after}`;
     return typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(value) : value.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
   }
   function areExtensionAboveWidgetsEnabled() {
-    return state.settings.values["tau.extensions.aboveWidgetsEnabled"] !== false;
+    return state.settings.values["tauren.extensions.aboveWidgetsEnabled"] !== false;
   }
   function areExtensionBelowWidgetsEnabled() {
-    return state.settings.values["tau.extensions.belowWidgetsEnabled"] !== false;
+    return state.settings.values["tauren.extensions.belowWidgetsEnabled"] !== false;
   }
   function areExtensionStatusBarEnabled() {
-    return state.settings.values["tau.extensions.statusBarEnabled"] !== false;
+    return state.settings.values["tauren.extensions.statusBarEnabled"] !== false;
   }
   function areExtensionBackgroundColorsEnabled() {
-    return state.settings.values["tau.extensions.backgroundColorsEnabled"] !== false;
+    return state.settings.values["tauren.extensions.backgroundColorsEnabled"] !== false;
   }
   function isExtensionMonospaceFontEnabled() {
-    return state.settings.values["tau.extensions.monospaceFontEnabled"] === true;
+    return state.settings.values["tauren.extensions.monospaceFontEnabled"] === true;
   }
   function syncExtensionStatus(hiddenBySurface) {
     const statusEnabled = areExtensionStatusBarEnabled();

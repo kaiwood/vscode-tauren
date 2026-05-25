@@ -45,7 +45,7 @@ export function formatIdeContextXml(context: PiPromptFormattingContextAttachment
   ].join('\n\n');
 
   return [
-    '<ide_context source="vscode-tau">',
+    '<ide_context source="vscode-tauren">',
     'User-attached IDE context.',
     '',
     contextBody,

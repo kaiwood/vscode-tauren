@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-Tau originally treated the sidebar session list and session tree as variations of the same shared pane.
+Tauren originally treated the sidebar session list and session tree as variations of the same shared pane.
 
 This worked initially, but became increasingly fragile as:
 
@@ -37,7 +37,7 @@ This caused:
 
 ## Decision
 
-Tau now models the sidebar as a true three-lane system:
+Tauren now models the sidebar as a true three-lane system:
 
 ```text
 | Session List | Chat | Session Tree |
@@ -82,7 +82,7 @@ Each lane has its own independent surface and transition behavior.
 
 ## Notes
 
-The three-lane model intentionally mirrors Tau's workflow philosophy:
+The three-lane model intentionally mirrors Tauren's workflow philosophy:
 
 - left = session/file-level navigation
 - center = active runtime/work surface

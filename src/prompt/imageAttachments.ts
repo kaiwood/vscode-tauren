@@ -24,7 +24,7 @@ export function getSupportedPromptImageMimeType(filePath: string): string | unde
 }
 
 export function getUnsupportedPromptImageMessage(label: string): string {
-  return `Unsupported attachment: ${label}. Tau currently supports PNG, JPEG, GIF, and WebP images.`;
+  return `Unsupported attachment: ${label}. Tauren currently supports PNG, JPEG, GIF, and WebP images.`;
 }
 
 export function getPromptImageTooLargeMessage(label: string): string {

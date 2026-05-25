@@ -29,12 +29,12 @@ export function runReadyScript(
       stdio: 'ignore'
     });
   } catch (error) {
-    options.onError?.(`Failed to run Tau ready script: ${getErrorMessage(error)}`);
+    options.onError?.(`Failed to run Tauren ready script: ${getErrorMessage(error)}`);
     return false;
   }
 
   child.once('error', (error) => {
-    options.onError?.(`Failed to run Tau ready script: ${error.message}`);
+    options.onError?.(`Failed to run Tauren ready script: ${error.message}`);
   });
   child.unref();
 

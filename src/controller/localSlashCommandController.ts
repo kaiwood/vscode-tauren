@@ -373,8 +373,8 @@ export class LocalSlashCommandController {
 
     this.options.session.addSystemMessage(restartedClient
       ? restoredSession
-        ? 'Reloaded Tau by restarting the Pi engine. Skills, prompts, extensions, and metadata were rediscovered. Current persisted session was reconnected.'
-        : 'Reloaded Tau by restarting the Pi engine. Skills, prompts, extensions, and metadata were rediscovered. No persisted session was available to reconnect.'
+        ? 'Reloaded Tauren by restarting the Pi engine. Skills, prompts, extensions, and metadata were rediscovered. Current persisted session was reconnected.'
+        : 'Reloaded Tauren by restarting the Pi engine. Skills, prompts, extensions, and metadata were rediscovered. No persisted session was available to reconnect.'
       : 'Reloaded keybindings, extensions, skills, prompts, and themes.');
     this.options.postState();
   }

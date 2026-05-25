@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { normalizeDiffLineCount } from './lineCount';
 import type { SessionDiffSnapshot } from './types';
 
-const sessionDiffSnapshotsStorageKey = 'tau.sessionDiffSnapshots';
+const sessionDiffSnapshotsStorageKey = 'tauren.sessionDiffSnapshots';
 const maxSessionDiffSnapshots = 50;
 
 type StoredSessionDiffSnapshot = {

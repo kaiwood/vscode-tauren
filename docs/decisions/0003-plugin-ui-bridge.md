@@ -8,7 +8,7 @@ Accepted
 
 Pi extensions/plugins were originally designed primarily for terminal/TUI environments.
 
-As Tau adopted the bundled Pi SDK runtime, Pi extensions gained access to:
+As Tauren adopted the bundled Pi SDK runtime, Pi extensions gained access to:
 
 - `ctx.ui.*`
 - custom runtime UI flows
@@ -16,13 +16,13 @@ As Tau adopted the bundled Pi SDK runtime, Pi extensions gained access to:
 - terminal-style rendering
 - extension-driven workflows
 
-Tau initially only supported:
+Tauren initially only supported:
 
 - transcript rendering
 - notifications
 - simple prompts/selects
 
-This prevented many Pi plugins from functioning correctly inside Tau.
+This prevented many Pi plugins from functioning correctly inside Tauren.
 
 Examples:
 
@@ -30,7 +30,7 @@ Examples:
 - `pi-btw`
 - `pi-doom`
 
-At the same time, Tau's architecture already contained:
+At the same time, Tauren's architecture already contained:
 
 - runtime overlays
 - keyboard-first navigation
@@ -42,7 +42,7 @@ This made a richer runtime bridge feasible.
 
 ## Decision
 
-Tau now hosts Pi extension UI interactions through an internal plugin/custom UI bridge.
+Tauren now hosts Pi extension UI interactions through an internal plugin/custom UI bridge.
 
 Pi extensions remain runtime-agnostic and do not directly depend on VS Code APIs.
 
@@ -51,11 +51,11 @@ The architecture is:
 ```text
 Pi extension intent
 → Pi ctx/ui API
-→ Tau bridge
+→ Tauren bridge
 → VS Code/webview/runtime surface
 ```
 
-Tau is responsible for:
+Tauren is responsible for:
 
 - rendering
 - keyboard routing
@@ -78,17 +78,17 @@ Initial bridge support includes:
 - key repeat/release events
 - cursor rendering
 
-Custom runtime UIs are hosted inside Tau runtime surfaces and remain scoped to their originating session.
+Custom runtime UIs are hosted inside Tauren runtime surfaces and remain scoped to their originating session.
 
 ## Consequences
 
 ### Positive
 
-- Pi plugin ecosystem becomes usable inside Tau
+- Pi plugin ecosystem becomes usable inside Tauren
 - Interactive runtime workflows are possible
 - Multiple concurrent plugin/runtime surfaces are supported
-- Tau becomes a richer runtime host instead of only a transcript viewer
-- Plugins remain portable between terminal Pi and Tau
+- Tauren becomes a richer runtime host instead of only a transcript viewer
+- Plugins remain portable between terminal Pi and Tauren
 
 ### Negative
 
@@ -99,7 +99,7 @@ Custom runtime UIs are hosted inside Tau runtime surfaces and remain scoped to t
 
 ## Notes
 
-Tau intentionally treats plugin/runtime surfaces as:
+Tauren intentionally treats plugin/runtime surfaces as:
 
 - runtime work surfaces
 - not generic webview applications
