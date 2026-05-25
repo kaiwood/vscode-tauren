@@ -32,7 +32,7 @@
 - Widget: small interactive element provided by Pi extensions
 - Above widget: Widget above the composer
 - Below widget: Widget below the composer
-- Status bar: Provided by Pi extensions, below composer and below widgets, above the VS Code status bar.
+- Footer: Provided by Pi extensions, status line below composer and below widgets, above the VS Code status bar. Can be filled via setText()
 
 ## Runtime UI
 
