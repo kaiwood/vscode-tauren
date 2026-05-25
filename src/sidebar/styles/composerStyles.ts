@@ -247,21 +247,21 @@ export const composerStyles = /* css */ `    .tau-view--has-extension-status {
       z-index: var(--tau-z-composer-menu);
       display: none;
       width: auto;
-      max-height: min(280px, 45vh);
+      max-height: min(272px, 45vh);
       overflow-y: auto;
-      padding: 5px;
+      padding: 4px;
       color: var(--vscode-foreground);
-      background: var(--vscode-dropdown-background, var(--vscode-editorWidget-background));
-      border: 1px solid var(--vscode-dropdown-border, var(--vscode-input-border, transparent));
+      background: color-mix(in srgb, var(--vscode-dropdown-background, var(--vscode-editorWidget-background)) 94%, var(--vscode-sideBar-background) 6%);
+      border: 1px solid color-mix(in srgb, var(--vscode-dropdown-border, var(--vscode-input-border, transparent)) 78%, transparent);
       border-radius: 8px;
-      box-shadow: 0 4px 16px color-mix(in srgb, #000 38%, transparent);
+      box-shadow: 0 3px 12px color-mix(in srgb, #000 28%, transparent);
       font-size: 12px;
       line-height: 1.35;
     }
 
     .composer__slash-menu[open] {
       display: grid;
-      gap: 2px;
+      gap: 1px;
     }
 
     .composer__slash-item {
@@ -270,7 +270,7 @@ export const composerStyles = /* css */ `    .tau-view--has-extension-status {
       gap: 2px 8px;
       width: 100%;
       min-width: 0;
-      padding: 6px 9px;
+      padding: 5px 8px;
       color: inherit;
       background: transparent;
       border: 0;
@@ -282,8 +282,8 @@ export const composerStyles = /* css */ `    .tau-view--has-extension-status {
 
     .composer__slash-menu--pointer-hover .composer__slash-item:hover,
     .composer__slash-item--active {
-      color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
-      background: var(--vscode-list-activeSelectionBackground, color-mix(in srgb, var(--vscode-foreground) 14%, transparent));
+      color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
+      background: var(--vscode-list-inactiveSelectionBackground, color-mix(in srgb, var(--vscode-foreground) 10%, transparent));
     }
 
     .composer__slash-label {
@@ -295,15 +295,24 @@ export const composerStyles = /* css */ `    .tau-view--has-extension-status {
     }
 
     .composer__slash-source {
+      align-self: start;
+      padding: 0 5px;
       color: var(--vscode-descriptionForeground);
-      font-size: 11px;
+      background: color-mix(in srgb, var(--vscode-foreground) 5%, transparent);
+      border: 1px solid color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+      border-radius: 999px;
+      font-size: 10px;
+      line-height: 1.45;
       white-space: nowrap;
+      opacity: 0.78;
     }
 
     .composer__slash-item--active .composer__slash-source,
     .composer__slash-menu--pointer-hover .composer__slash-item:hover .composer__slash-source {
       color: inherit;
-      opacity: 0.78;
+      background: color-mix(in srgb, currentColor 7%, transparent);
+      border-color: color-mix(in srgb, currentColor 12%, transparent);
+      opacity: 0.72;
     }
 
     .composer__slash-description {
@@ -319,7 +328,7 @@ export const composerStyles = /* css */ `    .tau-view--has-extension-status {
     .composer__slash-item--active .composer__slash-description,
     .composer__slash-menu--pointer-hover .composer__slash-item:hover .composer__slash-description {
       color: inherit;
-      opacity: 0.78;
+      opacity: 0.7;
     }
 
     .composer__slash-empty {
@@ -335,7 +344,9 @@ export const composerStyles = /* css */ `    .tau-view--has-extension-status {
       flex-wrap: wrap;
       gap: 5px;
       min-width: 0;
+      max-height: 45px;
       padding: 0 4px 9px;
+      overflow: visible;
     }
 
     .composer__context-badges[hidden] {
@@ -366,6 +377,12 @@ export const composerStyles = /* css */ `    .tau-view--has-extension-status {
       color: var(--vscode-foreground);
       background: color-mix(in srgb, #a371f7 28%, var(--vscode-input-background) 72%);
       border-color: color-mix(in srgb, #a371f7 62%, transparent);
+    }
+
+    .composer__context-badge--overflow {
+      background: color-mix(in srgb, var(--vscode-foreground) 10%, var(--vscode-input-background) 90%);
+      border-color: color-mix(in srgb, var(--vscode-foreground) 24%, transparent);
+      color: var(--vscode-descriptionForeground);
     }
 
     .composer__context-label {
@@ -640,7 +657,7 @@ export const composerStyles = /* css */ `    .tau-view--has-extension-status {
       grid-column: 1;
       display: flex;
       align-items: center;
-      gap: 1px;
+      gap: 2px;
       padding-bottom: 2px;
     }
 
@@ -674,6 +691,11 @@ export const composerStyles = /* css */ `    .tau-view--has-extension-status {
 
     .composer__button svg {
       display: block;
+    }
+
+    .composer__session-actions .composer__button svg {
+      width: 18px;
+      height: 18px;
     }
 
     .composer__attach,
@@ -736,7 +758,7 @@ export const composerStyles = /* css */ `    .tau-view--has-extension-status {
       display: flex;
       justify-content: flex-end;
       align-items: baseline;
-      gap: 14px;
+      gap: 12px;
       width: 100%;
       padding: 0 2px 8px 0;
       min-width: 0;

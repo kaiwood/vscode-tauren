@@ -540,15 +540,15 @@ ${createInitialEmptyStateHtml(Boolean(options.welcomeDismissed))}
       </div>
       <div class="composer__session-actions" role="group" aria-label="Session actions">
         <button class="composer__button composer__attach" type="button" aria-label="Attach image">
-          <svg aria-hidden="true" width="19" height="19" viewBox="0 0 19 19" fill="none">
-            <path d="M9.5 4.25V14.75M4.25 9.5H14.75" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 19 19" fill="none">
+            <path d="M9.5 4.35V14.65M4.35 9.5H14.65" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"/>
           </svg>
           <span class="composer__button-tooltip">Attach image</span>
         </button>
         <button class="composer__button composer__add" type="button" aria-label="New session">
-          <svg aria-hidden="true" width="19" height="19" viewBox="0 0 19 19" fill="none">
-            <path d="M4.25 5.25C4.25 4.42 4.92 3.75 5.75 3.75H11.9C12.73 3.75 13.4 4.42 13.4 5.25V9.8C13.4 10.63 12.73 11.3 11.9 11.3H8.2L5.25 14.05V11.3C4.7 11.3 4.25 10.85 4.25 10.3V5.25Z" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>
-            <path d="M14.6 12.2L15.15 13.35L16.3 13.9L15.15 14.45L14.6 15.6L14.05 14.45L12.9 13.9L14.05 13.35L14.6 12.2Z" fill="currentColor"/>
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 19 19" fill="none">
+            <path d="M4.25 5.25C4.25 4.42 4.92 3.75 5.75 3.75H11.9C12.73 3.75 13.4 4.42 13.4 5.25V9.8C13.4 10.63 12.73 11.3 11.9 11.3H8.2L5.25 14.05V11.3C4.7 11.3 4.25 10.85 4.25 10.3V5.25Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+            <path d="M14.6 12.25L15.12 13.38L16.22 13.9L15.12 14.42L14.6 15.55L14.08 14.42L12.98 13.9L14.08 13.38L14.6 12.25Z" fill="currentColor"/>
           </svg>
           <span class="composer__button-tooltip">New session</span>
         </button>

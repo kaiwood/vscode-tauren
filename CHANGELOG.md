@@ -4,6 +4,7 @@ All notable changes to Tau will be documented in this file.
 
 ## Unreleased
 
+- Refined the composer attachment badge overflow, slash-command completion menu, and lower control cluster styling.
 - Added copy-and-paste image file attachments to the composer.
 - Added drag-and-drop image attachments to the composer with valid, invalid, and neutral drag-over states.
 - Fixed the composer New session icon size so it matches the Attach image icon.

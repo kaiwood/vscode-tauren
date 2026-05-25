@@ -104,6 +104,8 @@ export class ComposerController {
     this.options.modelSelectElement.addEventListener('change', () => this.selectModel());
     this.options.thinkingSelectElement.addEventListener('change', () => this.selectThinkingLevel());
 
+    window.addEventListener('resize', () => this.syncPromptContextBadgeOverflow());
+
     this.options.textarea.addEventListener('keydown', (event) => {
       if (this.handleSlashMenuKeydown(event)) {
         return;
@@ -251,6 +253,8 @@ export class ComposerController {
       const badgeLabel = attachment.source === 'origin'
         ? attachment.label
         : 'Context: ' + attachment.label;
+      badge.dataset.overflowLabel = badgeLabel;
+      badge.dataset.overflowTitle = attachment.title || badgeLabel;
 
       const label = document.createElement('span');
       label.className = 'composer__context-label';
@@ -281,6 +285,8 @@ export class ComposerController {
     for (const image of images) {
       const badge = document.createElement('span');
       badge.className = 'composer__context-badge composer__context-badge--image';
+      badge.dataset.overflowLabel = 'Image: ' + image.label;
+      badge.dataset.overflowTitle = image.title || image.label;
 
       const label = document.createElement('span');
       label.className = 'composer__context-label';
@@ -303,6 +309,55 @@ export class ComposerController {
 
       badge.append(label, remove, tooltip);
       this.options.contextBadgesElement.append(badge);
+    }
+
+    this.syncPromptContextBadgeOverflow();
+  }
+
+  private syncPromptContextBadgeOverflow(): void {
+    const container = this.options.contextBadgesElement;
+
+    if (!container || container.hidden) {
+      return;
+    }
+
+    container.querySelector<HTMLElement>('.composer__context-badge--overflow')?.remove();
+
+    const badges = Array.from(container.querySelectorAll<HTMLElement>('.composer__context-badge'));
+
+    for (const badge of badges) {
+      badge.hidden = false;
+    }
+
+    if (badges.length === 0) {
+      return;
+    }
+
+    for (const badge of getContextBadgesPastSecondRow(badges)) {
+      badge.hidden = true;
+    }
+
+    let hiddenBadges = badges.filter((badge) => badge.hidden);
+
+    if (hiddenBadges.length === 0) {
+      return;
+    }
+
+    const overflowBadge = createContextOverflowBadge();
+    container.append(overflowBadge);
+    updateContextOverflowBadge(overflowBadge, hiddenBadges);
+
+    while (getContextBadgeRowIndex(overflowBadge) > 1) {
+      const visibleBadges = badges.filter((badge) => !badge.hidden);
+      const badgeToHide = visibleBadges[visibleBadges.length - 1];
+
+      if (!badgeToHide) {
+        break;
+      }
+
+      badgeToHide.hidden = true;
+      hiddenBadges = badges.filter((badge) => badge.hidden);
+      updateContextOverflowBadge(overflowBadge, hiddenBadges);
     }
   }
 
@@ -1445,6 +1500,85 @@ function getModelOptionsSignature(modelOptions: readonly ModelOption[]): string 
   return modelOptions
     .map((model) => [model.provider, model.id, model.name, model.reasoning ? '1' : '0'].join('\u0000'))
     .join('\u0001');
+}
+
+function getContextBadgesPastSecondRow(badges: readonly HTMLElement[]): HTMLElement[] {
+  const rowTops: number[] = [];
+  const overflowBadges: HTMLElement[] = [];
+
+  for (const badge of badges) {
+    const rowIndex = getOrAddContextBadgeRowIndex(rowTops, badge.offsetTop);
+
+    if (rowIndex > 1) {
+      overflowBadges.push(badge);
+    }
+  }
+
+  return overflowBadges;
+}
+
+function getContextBadgeRowIndex(badge: HTMLElement): number {
+  const parent = badge.parentElement;
+
+  if (!parent) {
+    return 0;
+  }
+
+  const visibleBadges = Array.from(parent.querySelectorAll<HTMLElement>('.composer__context-badge'))
+    .filter((candidate) => !candidate.hidden);
+  const rowTops: number[] = [];
+
+  for (const visibleBadge of visibleBadges) {
+    getOrAddContextBadgeRowIndex(rowTops, visibleBadge.offsetTop);
+  }
+
+  return rowTops.findIndex((top) => Math.abs(top - badge.offsetTop) <= 2);
+}
+
+function getOrAddContextBadgeRowIndex(rowTops: number[], top: number): number {
+  const existingIndex = rowTops.findIndex((rowTop) => Math.abs(rowTop - top) <= 2);
+
+  if (existingIndex >= 0) {
+    return existingIndex;
+  }
+
+  rowTops.push(top);
+  return rowTops.length - 1;
+}
+
+function createContextOverflowBadge(): HTMLElement {
+  const badge = document.createElement('span');
+  badge.className = 'composer__context-badge composer__context-badge--overflow';
+
+  const label = document.createElement('span');
+  label.className = 'composer__context-label';
+
+  const tooltip = document.createElement('span');
+  tooltip.className = 'composer__context-badge-tooltip';
+  const tooltipPre = document.createElement('pre');
+  const tooltipCode = document.createElement('code');
+  tooltipPre.append(tooltipCode);
+  tooltip.append(tooltipPre);
+  badge.append(label, tooltip);
+
+  return badge;
+}
+
+function updateContextOverflowBadge(badge: HTMLElement, hiddenBadges: readonly HTMLElement[]): void {
+  const label = badge.querySelector<HTMLElement>('.composer__context-label');
+  const tooltipCode = badge.querySelector<HTMLElement>('.composer__context-badge-tooltip code');
+  const attachmentLabels = hiddenBadges.map((hiddenBadge) => hiddenBadge.dataset.overflowTitle || hiddenBadge.dataset.overflowLabel || 'Attachment');
+  const tooltipText = attachmentLabels.map((attachmentLabel) => '• ' + attachmentLabel).join('\n');
+
+  if (label) {
+    label.textContent = '+' + hiddenBadges.length + ' more';
+  }
+
+  if (tooltipCode) {
+    tooltipCode.textContent = tooltipText;
+  }
+
+  badge.title = tooltipText;
 }
 
 function modelKey(provider: string, id: string): string {
