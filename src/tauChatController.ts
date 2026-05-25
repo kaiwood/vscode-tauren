@@ -76,7 +76,7 @@ export class TauChatController {
   private readonly navigation: NavigationController;
   private readonly sessionView: SessionViewController;
   private readonly settingsView: SettingsViewController;
-  private pendingComposerText: { text: string; revision: number } | undefined;
+  private pendingComposerText: { text: string; revision: number; mode?: 'replace' | 'append' } | undefined;
   private composerTextRevision = 0;
   private readonly clientManager: PiClientManager;
   private readonly sessionHistory: SessionHistoryController;
@@ -596,7 +596,8 @@ export class TauChatController {
       composer: this.pendingComposerText
         ? {
           text: this.pendingComposerText.text,
-          revision: this.pendingComposerText.revision
+          revision: this.pendingComposerText.revision,
+          mode: this.pendingComposerText.mode
         }
         : undefined,
       contextUsage: metadataState.contextUsage,
@@ -1199,13 +1200,18 @@ export class TauChatController {
   }
 
   public setComposerText(text: string): void {
-    this.setPendingComposerText(text);
+    this.setPendingComposerText(text, 'replace');
     this.postState();
   }
 
-  private setPendingComposerText(text: string): void {
+  public appendComposerText(text: string): void {
+    this.setPendingComposerText(text, 'append');
+    this.postState();
+  }
+
+  private setPendingComposerText(text: string, mode: 'replace' | 'append' = 'replace'): void {
     this.composerTextRevision += 1;
-    this.pendingComposerText = { text, revision: this.composerTextRevision };
+    this.pendingComposerText = { text, revision: this.composerTextRevision, mode };
   }
 
   private resetSessionMeta(): void {

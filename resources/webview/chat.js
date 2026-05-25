@@ -1918,6 +1918,22 @@
     return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
   }
 
+  // src/webview/composer/appendText.ts
+  function appendComposerText(existingText, appendedText) {
+    if (existingText.length === 0) {
+      return {
+        text: appendedText,
+        cursor: appendedText.length
+      };
+    }
+    const separator = existingText.endsWith("\n") ? "" : "\n";
+    const text = `${existingText}${separator}${appendedText}`;
+    return {
+      text,
+      cursor: text.length
+    };
+  }
+
   // src/webview/composer/paste.ts
   var pasteMarkerRegex = /\[paste #(\d+)( (\+\d+ lines|\d+ chars))?\]/g;
   var csiuControlRegex = /\x1b\[(\d+);5u/g;
@@ -2304,11 +2320,29 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
         return;
       }
       this.appliedComposerTextRevision = state2.composerTextRevision;
-      this.options.textarea.value = state2.composerText;
+      if (state2.composerTextMode === "append") {
+        const result = appendComposerText(this.options.textarea.value, state2.composerText);
+        this.options.textarea.value = result.text;
+        this.options.textarea.selectionStart = result.cursor;
+        this.options.textarea.selectionEnd = result.cursor;
+        this.revealTextareaEnd();
+      } else {
+        this.options.textarea.value = state2.composerText;
+      }
       this.pasteBuffer.clear();
       this.closeSlashMenu();
       this.syncComposer({ preserveBottom: true });
+      if (state2.composerTextMode === "append") {
+        this.revealTextareaEnd();
+      }
       this.options.focusPromptInput();
+    }
+    revealTextareaEnd() {
+      const textarea2 = this.options.textarea;
+      textarea2.scrollTop = textarea2.scrollHeight;
+      requestAnimationFrame(() => {
+        textarea2.scrollTop = textarea2.scrollHeight;
+      });
     }
     pasteToEditor(text) {
       const textarea2 = this.options.textarea;
@@ -7204,6 +7238,7 @@ ${after}`;
     promptImages: [],
     composerText: "",
     composerTextRevision: 0,
+    composerTextMode: "replace",
     lane: "chat",
     chatFace: "main",
     settingsSection: "appearance",
@@ -7248,6 +7283,7 @@ ${after}`;
       promptImages: parsePromptImages(record.promptImages),
       composerText: typeof record.composerText === "string" ? record.composerText : "",
       composerTextRevision: typeof record.composerTextRevision === "number" ? record.composerTextRevision : 0,
+      composerTextMode: record.composerTextMode === "append" ? "append" : "replace",
       composerPaste: parseComposerPaste(record.composerPaste),
       lane: parseWebviewLane(record.lane, "chat"),
       chatFace: parseChatFace(record.chatFace, parseWebviewLane(record.lane, "chat")),

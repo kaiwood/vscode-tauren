@@ -620,7 +620,7 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
 
     const text = getEditorLineTextForComposer(editor);
     clearEditorSelection(editor);
-    this.controller.sendTextToComposer(text);
+    this.controller.appendTextToComposer(text);
     await this.focus();
   }
 

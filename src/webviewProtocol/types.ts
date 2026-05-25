@@ -2,6 +2,7 @@ import type { ChatSnapshotMessage, ChatSnapshotState, ChatState } from '../chat/
 import type { SettingId, SettingValue, TauSettingsSection } from '../settings/settingsRegistry';
 
 export type WebviewStreamingBehavior = 'steer' | 'followUp';
+export type WebviewComposerTextMode = 'replace' | 'append';
 export type WebviewCustomUiTheme = 'default' | 'modern' | 'crt' | 'amber' | 'matrix';
 
 export type WebviewPromptContextAttachment = {
@@ -247,6 +248,7 @@ export type WebviewStateMessage = Omit<ChatState, 'messages'> & {
   promptImages?: WebviewPromptImageAttachment[];
   composerText?: string;
   composerTextRevision?: number;
+  composerTextMode?: WebviewComposerTextMode;
   composerPaste?: {
     text: string;
     revision: number;
@@ -300,6 +302,7 @@ export type CreateWebviewStateMessageOptions = {
   composer?: {
     text?: string;
     revision?: number;
+    mode?: WebviewComposerTextMode;
   };
   navigation?: WebviewNavigationState;
   sessionView?: {

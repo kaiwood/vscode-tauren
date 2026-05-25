@@ -104,6 +104,7 @@ export type WebviewState = {
   promptImages: PromptImageAttachment[];
   composerText: string;
   composerTextRevision: number;
+  composerTextMode: 'replace' | 'append';
   composerPaste?: {
     text: string;
     revision: number;

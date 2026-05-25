@@ -358,6 +358,9 @@ export function createWebviewStateMessage({
   if (composer && typeof composer.revision === 'number' && composer.revision > 0) {
     message.composerText = composer.text ?? '';
     message.composerTextRevision = composer.revision;
+    if (composer.mode === 'append') {
+      message.composerTextMode = 'append';
+    }
   }
 
   if (navigation) {

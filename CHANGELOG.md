@@ -4,6 +4,7 @@ All notable changes to Tau will be documented in this file.
 
 ## Unreleased
 
+- Changed `Tau: Send Selection to Composer` to append to existing composer text with newline separation.
 - Changed the Extensions monospace font setting to default on.
 - Refined the composer attachment badge overflow, slash-command completion menu, and lower control cluster styling.
 - Added copy-and-paste image file attachments to the composer.

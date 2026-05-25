@@ -6,6 +6,7 @@ import {
 } from '../../prompt/imageAttachments';
 import { requestCodeHighlight } from '../codeHighlighting';
 import { createDiffCounter, formatDiffLineCount, normalizeDiffLineCount, updateDiffCounter } from './diffCounter';
+import { appendComposerText } from './appendText';
 import { ComposerPasteBuffer } from './paste';
 import {
   hiddenLocalSlashCommandNames,
@@ -398,11 +399,34 @@ export class ComposerController {
     }
 
     this.appliedComposerTextRevision = state.composerTextRevision;
-    this.options.textarea.value = state.composerText;
+
+    if (state.composerTextMode === 'append') {
+      const result = appendComposerText(this.options.textarea.value, state.composerText);
+      this.options.textarea.value = result.text;
+      this.options.textarea.selectionStart = result.cursor;
+      this.options.textarea.selectionEnd = result.cursor;
+      this.revealTextareaEnd();
+    } else {
+      this.options.textarea.value = state.composerText;
+    }
+
     this.pasteBuffer.clear();
     this.closeSlashMenu();
     this.syncComposer({ preserveBottom: true });
+
+    if (state.composerTextMode === 'append') {
+      this.revealTextareaEnd();
+    }
+
     this.options.focusPromptInput();
+  }
+
+  private revealTextareaEnd(): void {
+    const textarea = this.options.textarea;
+    textarea.scrollTop = textarea.scrollHeight;
+    requestAnimationFrame(() => {
+      textarea.scrollTop = textarea.scrollHeight;
+    });
   }
 
   public pasteToEditor(text: string): void {

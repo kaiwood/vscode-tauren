@@ -43,6 +43,7 @@ suite('Webview state helpers', () => {
       promptImages: [{ id: 'prompt-image-1', label: 'screenshot.png', title: '/tmp/screenshot.png', mimeType: 'image/png', sizeBytes: 123 }],
       composerText: 'draft',
       composerTextRevision: 2,
+      composerTextMode: 'append',
       composerPaste: { text: 'paste', revision: 3 },
       lane: 'sessions',
       chatFace: 'settings',
@@ -92,6 +93,7 @@ suite('Webview state helpers', () => {
     assert.strictEqual(parsed.sessions[0]?.path, '/session.jsonl');
     assert.strictEqual(parsed.treeItems[0]?.entryId, 'entry-1');
     assert.strictEqual(parsed.sessionLoading, true);
+    assert.strictEqual(parsed.composerTextMode, 'append');
     assert.deepStrictEqual(parsed.composerPaste, { text: 'paste', revision: 3 });
     assert.deepStrictEqual(parsed.promptImages, [{ id: 'prompt-image-1', label: 'screenshot.png', title: '/tmp/screenshot.png', mimeType: 'image/png', sizeBytes: 123 }]);
 
@@ -156,6 +158,7 @@ suite('Webview state helpers', () => {
     assert.strictEqual(parsed.modelLabel, '');
     assert.deepStrictEqual(parsed.workspaceDiffStats, { addedLines: 0, removedLines: 0 });
     assert.strictEqual(parsed.composerTextRevision, 0);
+    assert.strictEqual(parsed.composerTextMode, 'replace');
     assert.strictEqual(parsed.composerPaste, undefined);
     assert.strictEqual(parsed.lane, 'chat');
     assert.strictEqual(parsed.chatFace, 'main');

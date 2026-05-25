@@ -381,6 +381,7 @@ suite('TauChatViewProvider', () => {
     await provider.sendSelectionToComposer();
 
     assert.strictEqual(findPostedComposerText(view), 'beta\ngamma');
+    assert.strictEqual(findPostedComposerTextMode(view), 'append');
     assert.strictEqual(editor.selection.isEmpty, true);
     assert.deepStrictEqual(editor.selection.active, new vscode.Position(2, 3));
     provider.dispose();
@@ -407,6 +408,7 @@ suite('TauChatViewProvider', () => {
     await provider.sendSelectionToComposer();
 
     assert.strictEqual(findPostedComposerText(view), 'beta');
+    assert.strictEqual(findPostedComposerTextMode(view), 'append');
     assert.strictEqual(editor.selection.isEmpty, true);
     provider.dispose();
   });
@@ -737,6 +739,13 @@ function findPostedComposerText(view: FakeWebviewView): string | undefined {
     .filter(isWebviewStateMessage)
     .find((message) => typeof message.composerText === 'string')
     ?.composerText;
+}
+
+function findPostedComposerTextMode(view: FakeWebviewView): WebviewStateMessage['composerTextMode'] | undefined {
+  return view.webview.messages
+    .filter(isWebviewStateMessage)
+    .find((message) => typeof message.composerText === 'string')
+    ?.composerTextMode;
 }
 
 function findPostedPromptImages(view: FakeWebviewView): WebviewStateMessage['promptImages'] | undefined {

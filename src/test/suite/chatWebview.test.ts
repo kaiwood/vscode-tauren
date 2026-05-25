@@ -123,6 +123,17 @@ suite('Chat webview helpers', () => {
     );
   });
 
+  test('createWebviewStateMessage includes append composer mode when requested', () => {
+    const message = createWebviewStateMessage({
+      state: { messages: [], busy: false },
+      composer: { text: 'selected line', revision: 1, mode: 'append' }
+    });
+
+    assert.strictEqual(message.composerText, 'selected line');
+    assert.strictEqual(message.composerTextRevision, 1);
+    assert.strictEqual(message.composerTextMode, 'append');
+  });
+
   test('parseWebviewMessage narrows valid inbound messages', () => {
     assert.deepStrictEqual(parseWebviewMessage({ type: 'ready' }), { type: 'ready' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'focusChanged', focused: true }), { type: 'focusChanged', focused: true });

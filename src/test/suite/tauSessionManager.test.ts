@@ -790,6 +790,20 @@ suite('TauSessionManager', () => {
     harness.manager.dispose();
   });
 
+  test('appends text to the active visible composer', async () => {
+    const harness = createManagerHarness([new FakePiClient()]);
+    await flushPromises();
+
+    harness.manager.appendTextToComposer('selected line');
+
+    const state = findComposerState(harness, 'selected line');
+    assert.ok(state);
+    assert.strictEqual(state.composerTextRevision, 1);
+    assert.strictEqual(state.composerTextMode, 'append');
+    assert.strictEqual(harness.createCalls, 0);
+    harness.manager.dispose();
+  });
+
   test('opens a new chat session when sending text from a hidden composer lane', async () => {
     const harness = createManagerHarness([new FakePiClient()]);
 
@@ -800,6 +814,22 @@ suite('TauSessionManager', () => {
     await flushPromises();
 
     assert.ok(findComposerState(harness, 'selected line'));
+    assert.strictEqual(harness.createCalls, 1);
+    harness.manager.dispose();
+  });
+
+  test('opens a new chat session when appending text from a hidden composer lane', async () => {
+    const harness = createManagerHarness([new FakePiClient()]);
+
+    await harness.manager.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
+    assert.strictEqual(lastState(harness).lane, 'sessions');
+
+    harness.manager.appendTextToComposer('selected line');
+    await flushPromises();
+
+    const state = findComposerState(harness, 'selected line');
+    assert.ok(state);
+    assert.strictEqual(state.composerTextMode, 'append');
     assert.strictEqual(harness.createCalls, 1);
     harness.manager.dispose();
   });

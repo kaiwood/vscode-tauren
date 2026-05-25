@@ -222,6 +222,11 @@ export class TauSessionManager {
     session.controller.setComposerText(text);
   }
 
+  public appendTextToComposer(text: string): void {
+    const session = this.isActiveComposerVisible() ? this.active() : this.createSession({ activate: true });
+    session.controller.appendComposerText(text);
+  }
+
   public postState(): void {
     this.postActiveState();
   }
