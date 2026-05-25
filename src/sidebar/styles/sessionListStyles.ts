@@ -402,6 +402,11 @@ export const sessionListStyles = /* css */ `    .sessions__search {
       box-shadow: 0 6px 18px color-mix(in srgb, #000 28%, transparent);
     }
 
+    .sessions__menu--context {
+      position: fixed;
+      right: auto;
+    }
+
     .sessions__menu[hidden] {
       display: none;
     }

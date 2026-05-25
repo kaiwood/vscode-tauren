@@ -5106,6 +5106,11 @@ ${after}`;
     menu.className = "sessions__menu";
     menu.setAttribute("role", "menu");
     menu.hidden = options.openMenuIndex !== options.index;
+    if (!menu.hidden && options.menuPosition) {
+      menu.classList.add("sessions__menu--context");
+      menu.style.left = options.menuPosition.x + "px";
+      menu.style.top = options.menuPosition.y + "px";
+    }
     for (let commandIndex = 0; commandIndex < sessionItemMenuCommands.length; commandIndex += 1) {
       const command = sessionItemMenuCommands[commandIndex];
       menu.append(createSessionItemMenuButton(command, commandIndex, options));
@@ -5832,6 +5837,7 @@ ${after}`;
   }
 
   // src/webview/sessions/sessionView.ts
+  var sessionItemMenuCloseDelayMs = 250;
   var SessionViewController = class {
     constructor(options) {
       this.options = options;
@@ -5864,6 +5870,8 @@ ${after}`;
     sessionPointerHoverEnabled = false;
     openSessionListMenuIndex;
     openSessionListMenuCommandIndex = 0;
+    openSessionListMenuPosition;
+    pendingSessionItemMenuClose;
     sessionListNameEditPath;
     sessionListNameEditInitialValue = "";
     sessionListNameEditValue = "";
@@ -5879,6 +5887,8 @@ ${after}`;
       this.topControls.attachEventListeners();
       this.options.sessionsElement.addEventListener("keydown", (event) => this.handleSessionListKeydown(event));
       this.options.sessionsElement.addEventListener("pointermove", (event) => this.handleSessionListPointerMove(event));
+      this.options.sessionsElement.addEventListener("pointerleave", () => this.scheduleSessionItemMenuClose());
+      this.options.sessionsElement.addEventListener("contextmenu", (event) => this.handleSessionListContextMenu(event));
       this.options.sessionsElement.addEventListener("click", (event) => this.handleSessionsClick(event));
       this.options.sessionTreeElement.addEventListener("keydown", (event) => this.handleSessionListKeydown(event));
       this.options.sessionTreeElement.addEventListener("click", (event) => this.handleSessionsClick(event));
@@ -5942,6 +5952,8 @@ ${after}`;
         this.sessionNamedOnlyFilter = false;
         this.openSessionListMenuIndex = void 0;
         this.openSessionListMenuCommandIndex = 0;
+        this.openSessionListMenuPosition = void 0;
+        this.clearPendingSessionItemMenuClose();
         this.stopSessionListNameEdit();
       }
       this.topControls.syncForRender(isSessionLane);
@@ -5971,6 +5983,8 @@ ${after}`;
       header.className = "sessions__header";
       if (this.openSessionListMenuIndex !== void 0 && !visibleIndexes.includes(this.openSessionListMenuIndex)) {
         this.openSessionListMenuIndex = void 0;
+        this.openSessionListMenuPosition = void 0;
+        this.clearPendingSessionItemMenuClose();
       }
       header.textContent = state2.sessionsRefreshing ? "Loading sessions..." : filtersActive && visibleIndexes.length !== count ? visibleIndexes.length + " of " + count + " sessions" : count === 1 ? "1 session" : count + " sessions";
       this.options.sessionsElement.append(header);
@@ -5995,6 +6009,7 @@ ${after}`;
             nameEditPath: this.sessionListNameEditPath,
             nameEditValue: this.sessionListNameEditValue,
             openMenuIndex: this.openSessionListMenuIndex,
+            menuPosition: this.openSessionListMenuIndex === index ? this.openSessionListMenuPosition : void 0,
             canRunSessionItemCommand: (session, command) => this.canRunSessionItemCommand(session, command),
             onNameInputInput: (value) => this.updateSessionListNameEditValue(value),
             onNameInputBlur: () => this.handleSessionListNameInputBlur(),
@@ -6016,6 +6031,9 @@ ${after}`;
       if (this.pendingSessionListScrollRestore) {
         this.pendingSessionListScrollRestore = false;
         this.restoreSessionListScrollPositionOrRevealSelection();
+      }
+      if (this.openSessionListMenuPosition) {
+        requestAnimationFrame(() => this.clampOpenSessionItemContextMenu());
       }
     }
     renderTree() {
@@ -6071,11 +6089,13 @@ ${after}`;
       this.topControls.closeSessionCommandMenu();
     }
     closeSessionItemMenus() {
+      this.clearPendingSessionItemMenuClose();
       if (this.openSessionListMenuIndex === void 0) {
         return;
       }
       this.openSessionListMenuIndex = void 0;
       this.openSessionListMenuCommandIndex = 0;
+      this.openSessionListMenuPosition = void 0;
       for (const menu of this.options.sessionsElement.querySelectorAll(".sessions__menu")) {
         menu.hidden = true;
       }
@@ -6115,6 +6135,28 @@ ${after}`;
       this.closeSessionItemMenus();
       const index = Number(item.getAttribute("data-index"));
       state2.lane === "tree" ? this.treeController.selectIndex(index) : this.selectSessionIndex(index);
+    }
+    handleSessionListContextMenu(event) {
+      const state2 = this.options.getState();
+      if (state2.lane !== "sessions") {
+        return;
+      }
+      const target = eventTargetElement3(event);
+      if (target?.closest(".sessions__name-input")) {
+        return;
+      }
+      const item = target?.closest(".sessions__item");
+      if (!(item instanceof HTMLElement) || !this.options.sessionsElement.contains(item)) {
+        return;
+      }
+      const index = Number(item.getAttribute("data-index"));
+      if (!Number.isInteger(index) || !this.isSessionIndexVisible(index)) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      this.disableSessionPointerHover();
+      this.openSessionItemMenu(index, { focusMenu: true, position: { x: event.clientX, y: event.clientY } });
     }
     getCurrentSessionTitle() {
       const state2 = this.options.getState();
@@ -6230,18 +6272,24 @@ ${after}`;
       }
       const item = eventTargetElement3(event)?.closest(".sessions__item");
       if (!(item instanceof HTMLElement) || !this.options.sessionsElement.contains(item)) {
+        this.scheduleSessionItemMenuClose();
         return;
       }
       const index = Number(item.getAttribute("data-index"));
       if (!Number.isInteger(index) || !this.isSessionIndexVisible(index)) {
+        this.scheduleSessionItemMenuClose();
         return;
+      }
+      if (this.openSessionListMenuIndex !== void 0) {
+        if (this.openSessionListMenuIndex !== index) {
+          this.scheduleSessionItemMenuClose();
+          return;
+        }
+        this.clearPendingSessionItemMenuClose();
       }
       const previousIndex = this.sessionListSelectedIndex;
       if (index === previousIndex) {
         return;
-      }
-      if (this.openSessionListMenuIndex !== void 0 && this.openSessionListMenuIndex !== index) {
-        this.closeSessionItemMenus();
       }
       this.sessionListSelectedIndex = index;
       this.updateRenderedSessionSelection(previousIndex);
@@ -6350,6 +6398,7 @@ ${after}`;
     }
     openSessionItemMenu(index, options = {}) {
       const state2 = this.options.getState();
+      this.clearPendingSessionItemMenuClose();
       if (!Number.isInteger(index) || index < 0 || state2.lane !== "sessions" || !this.isSessionIndexVisible(index)) {
         return;
       }
@@ -6360,11 +6409,42 @@ ${after}`;
       this.sessionListSelectedIndex = this.clampSessionIndex(index);
       this.openSessionListMenuIndex = this.sessionListSelectedIndex;
       this.openSessionListMenuCommandIndex = this.getFirstEnabledSessionItemMenuCommandIndex(session);
+      this.openSessionListMenuPosition = options.position;
       this.renderSessions();
       document.getElementById("session-" + this.sessionListSelectedIndex)?.scrollIntoView({ block: "nearest" });
       if (options.focusMenu) {
         requestAnimationFrame(() => this.focusSessionItemMenuCommand(this.openSessionListMenuIndex, this.openSessionListMenuCommandIndex));
       }
+    }
+    scheduleSessionItemMenuClose() {
+      if (this.openSessionListMenuIndex === void 0 || this.pendingSessionItemMenuClose !== void 0) {
+        return;
+      }
+      this.pendingSessionItemMenuClose = setTimeout(() => {
+        this.pendingSessionItemMenuClose = void 0;
+        this.closeSessionItemMenus();
+      }, sessionItemMenuCloseDelayMs);
+    }
+    clearPendingSessionItemMenuClose() {
+      if (this.pendingSessionItemMenuClose === void 0) {
+        return;
+      }
+      clearTimeout(this.pendingSessionItemMenuClose);
+      this.pendingSessionItemMenuClose = void 0;
+    }
+    clampOpenSessionItemContextMenu() {
+      const menu = this.options.sessionsElement.querySelector(".sessions__menu--context:not([hidden])");
+      if (!menu || !this.openSessionListMenuPosition) {
+        return;
+      }
+      const margin = 8;
+      const rect = menu.getBoundingClientRect();
+      const maxLeft = Math.max(margin, window.innerWidth - rect.width - margin);
+      const maxTop = Math.max(margin, window.innerHeight - rect.height - margin);
+      const left = Math.max(margin, Math.min(this.openSessionListMenuPosition.x, maxLeft));
+      const top = Math.max(margin, Math.min(this.openSessionListMenuPosition.y, maxTop));
+      menu.style.left = left + "px";
+      menu.style.top = top + "px";
     }
     handleSessionItemMenuKeydown(event) {
       if (event.key === "Escape") {

@@ -1,4 +1,5 @@
 import { createSessionItemElement } from './sessionElements';
+import type { SessionItemMenuPosition } from './sessionElements';
 import { getSessionDisplayName } from './sessionFormat';
 import {
   ensureVisibleSessionSelection,
@@ -15,6 +16,8 @@ import { TopSessionControls } from './topSessionControls';
 import type { SessionItem, SessionItemCommand, WebviewState } from '../types';
 
 type PostMessage = (message: unknown) => void;
+
+const sessionItemMenuCloseDelayMs = 250;
 
 export type SessionViewControllerOptions = {
   getState: () => WebviewState;
@@ -40,6 +43,8 @@ export class SessionViewController {
   private sessionPointerHoverEnabled = false;
   private openSessionListMenuIndex: number | undefined;
   private openSessionListMenuCommandIndex = 0;
+  private openSessionListMenuPosition: SessionItemMenuPosition | undefined;
+  private pendingSessionItemMenuClose: ReturnType<typeof setTimeout> | undefined;
   private sessionListNameEditPath: string | undefined;
   private sessionListNameEditInitialValue = '';
   private sessionListNameEditValue = '';
@@ -80,6 +85,8 @@ export class SessionViewController {
     this.topControls.attachEventListeners();
     this.options.sessionsElement.addEventListener('keydown', (event) => this.handleSessionListKeydown(event));
     this.options.sessionsElement.addEventListener('pointermove', (event) => this.handleSessionListPointerMove(event));
+    this.options.sessionsElement.addEventListener('pointerleave', () => this.scheduleSessionItemMenuClose());
+    this.options.sessionsElement.addEventListener('contextmenu', (event) => this.handleSessionListContextMenu(event));
     this.options.sessionsElement.addEventListener('click', (event) => this.handleSessionsClick(event));
     this.options.sessionTreeElement.addEventListener('keydown', (event) => this.handleSessionListKeydown(event));
     this.options.sessionTreeElement.addEventListener('click', (event) => this.handleSessionsClick(event));
@@ -162,6 +169,8 @@ export class SessionViewController {
       this.sessionNamedOnlyFilter = false;
       this.openSessionListMenuIndex = undefined;
       this.openSessionListMenuCommandIndex = 0;
+      this.openSessionListMenuPosition = undefined;
+      this.clearPendingSessionItemMenuClose();
       this.stopSessionListNameEdit();
     }
 
@@ -195,6 +204,8 @@ export class SessionViewController {
     header.className = 'sessions__header';
     if (this.openSessionListMenuIndex !== undefined && !visibleIndexes.includes(this.openSessionListMenuIndex)) {
       this.openSessionListMenuIndex = undefined;
+      this.openSessionListMenuPosition = undefined;
+      this.clearPendingSessionItemMenuClose();
     }
     header.textContent = state.sessionsRefreshing
       ? 'Loading sessions...'
@@ -227,6 +238,7 @@ export class SessionViewController {
           nameEditPath: this.sessionListNameEditPath,
           nameEditValue: this.sessionListNameEditValue,
           openMenuIndex: this.openSessionListMenuIndex,
+          menuPosition: this.openSessionListMenuIndex === index ? this.openSessionListMenuPosition : undefined,
           canRunSessionItemCommand: (session, command) => this.canRunSessionItemCommand(session, command),
           onNameInputInput: (value) => this.updateSessionListNameEditValue(value),
           onNameInputBlur: () => this.handleSessionListNameInputBlur(),
@@ -250,6 +262,10 @@ export class SessionViewController {
     if (this.pendingSessionListScrollRestore) {
       this.pendingSessionListScrollRestore = false;
       this.restoreSessionListScrollPositionOrRevealSelection();
+    }
+
+    if (this.openSessionListMenuPosition) {
+      requestAnimationFrame(() => this.clampOpenSessionItemContextMenu());
     }
   }
 
@@ -325,12 +341,15 @@ export class SessionViewController {
   }
 
   public closeSessionItemMenus(): void {
+    this.clearPendingSessionItemMenuClose();
+
     if (this.openSessionListMenuIndex === undefined) {
       return;
     }
 
     this.openSessionListMenuIndex = undefined;
     this.openSessionListMenuCommandIndex = 0;
+    this.openSessionListMenuPosition = undefined;
 
     for (const menu of this.options.sessionsElement.querySelectorAll<HTMLElement>('.sessions__menu')) {
       menu.hidden = true;
@@ -381,6 +400,37 @@ export class SessionViewController {
     this.closeSessionItemMenus();
     const index = Number(item.getAttribute('data-index'));
     state.lane === 'tree' ? this.treeController.selectIndex(index) : this.selectSessionIndex(index);
+  }
+
+  private handleSessionListContextMenu(event: MouseEvent): void {
+    const state = this.options.getState();
+
+    if (state.lane !== 'sessions') {
+      return;
+    }
+
+    const target = eventTargetElement(event);
+
+    if (target?.closest('.sessions__name-input')) {
+      return;
+    }
+
+    const item = target?.closest('.sessions__item');
+
+    if (!(item instanceof HTMLElement) || !this.options.sessionsElement.contains(item)) {
+      return;
+    }
+
+    const index = Number(item.getAttribute('data-index'));
+
+    if (!Number.isInteger(index) || !this.isSessionIndexVisible(index)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.disableSessionPointerHover();
+    this.openSessionItemMenu(index, { focusMenu: true, position: { x: event.clientX, y: event.clientY } });
   }
 
   private getCurrentSessionTitle(): string {
@@ -532,23 +582,30 @@ export class SessionViewController {
     const item = eventTargetElement(event)?.closest('.sessions__item');
 
     if (!(item instanceof HTMLElement) || !this.options.sessionsElement.contains(item)) {
+      this.scheduleSessionItemMenuClose();
       return;
     }
 
     const index = Number(item.getAttribute('data-index'));
 
     if (!Number.isInteger(index) || !this.isSessionIndexVisible(index)) {
+      this.scheduleSessionItemMenuClose();
       return;
+    }
+
+    if (this.openSessionListMenuIndex !== undefined) {
+      if (this.openSessionListMenuIndex !== index) {
+        this.scheduleSessionItemMenuClose();
+        return;
+      }
+
+      this.clearPendingSessionItemMenuClose();
     }
 
     const previousIndex = this.sessionListSelectedIndex;
 
     if (index === previousIndex) {
       return;
-    }
-
-    if (this.openSessionListMenuIndex !== undefined && this.openSessionListMenuIndex !== index) {
-      this.closeSessionItemMenus();
     }
 
     this.sessionListSelectedIndex = index;
@@ -693,8 +750,10 @@ export class SessionViewController {
     this.openSessionItemMenu(index, { focusMenu: true });
   }
 
-  private openSessionItemMenu(index: number, options: { focusMenu?: boolean } = {}): void {
+  private openSessionItemMenu(index: number, options: { focusMenu?: boolean; position?: SessionItemMenuPosition } = {}): void {
     const state = this.options.getState();
+
+    this.clearPendingSessionItemMenuClose();
 
     if (!Number.isInteger(index) || index < 0 || state.lane !== 'sessions' || !this.isSessionIndexVisible(index)) {
       return;
@@ -709,12 +768,51 @@ export class SessionViewController {
     this.sessionListSelectedIndex = this.clampSessionIndex(index);
     this.openSessionListMenuIndex = this.sessionListSelectedIndex;
     this.openSessionListMenuCommandIndex = this.getFirstEnabledSessionItemMenuCommandIndex(session);
+    this.openSessionListMenuPosition = options.position;
     this.renderSessions();
     document.getElementById('session-' + this.sessionListSelectedIndex)?.scrollIntoView({ block: 'nearest' });
 
     if (options.focusMenu) {
       requestAnimationFrame(() => this.focusSessionItemMenuCommand(this.openSessionListMenuIndex, this.openSessionListMenuCommandIndex));
     }
+  }
+
+  private scheduleSessionItemMenuClose(): void {
+    if (this.openSessionListMenuIndex === undefined || this.pendingSessionItemMenuClose !== undefined) {
+      return;
+    }
+
+    this.pendingSessionItemMenuClose = setTimeout(() => {
+      this.pendingSessionItemMenuClose = undefined;
+      this.closeSessionItemMenus();
+    }, sessionItemMenuCloseDelayMs);
+  }
+
+  private clearPendingSessionItemMenuClose(): void {
+    if (this.pendingSessionItemMenuClose === undefined) {
+      return;
+    }
+
+    clearTimeout(this.pendingSessionItemMenuClose);
+    this.pendingSessionItemMenuClose = undefined;
+  }
+
+  private clampOpenSessionItemContextMenu(): void {
+    const menu = this.options.sessionsElement.querySelector<HTMLElement>('.sessions__menu--context:not([hidden])');
+
+    if (!menu || !this.openSessionListMenuPosition) {
+      return;
+    }
+
+    const margin = 8;
+    const rect = menu.getBoundingClientRect();
+    const maxLeft = Math.max(margin, window.innerWidth - rect.width - margin);
+    const maxTop = Math.max(margin, window.innerHeight - rect.height - margin);
+    const left = Math.max(margin, Math.min(this.openSessionListMenuPosition.x, maxLeft));
+    const top = Math.max(margin, Math.min(this.openSessionListMenuPosition.y, maxTop));
+
+    menu.style.left = left + 'px';
+    menu.style.top = top + 'px';
   }
 
   private handleSessionItemMenuKeydown(event: KeyboardEvent): boolean {

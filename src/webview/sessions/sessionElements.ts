@@ -6,6 +6,11 @@ import {
 } from './sessionItemCommands';
 import type { SessionItem, SessionItemCommand, TreeItem } from '../types';
 
+export type SessionItemMenuPosition = {
+  x: number;
+  y: number;
+};
+
 export type CreateSessionItemElementOptions = {
   session: SessionItem;
   index: number;
@@ -13,6 +18,7 @@ export type CreateSessionItemElementOptions = {
   nameEditPath: string | undefined;
   nameEditValue: string;
   openMenuIndex: number | undefined;
+  menuPosition: SessionItemMenuPosition | undefined;
   canRunSessionItemCommand: (session: SessionItem, command?: SessionItemCommand) => boolean;
   onNameInputInput: (value: string) => void;
   onNameInputBlur: () => void;
@@ -221,6 +227,12 @@ function createSessionItemMenuElement(options: CreateSessionItemElementOptions):
   menu.className = 'sessions__menu';
   menu.setAttribute('role', 'menu');
   menu.hidden = options.openMenuIndex !== options.index;
+
+  if (!menu.hidden && options.menuPosition) {
+    menu.classList.add('sessions__menu--context');
+    menu.style.left = options.menuPosition.x + 'px';
+    menu.style.top = options.menuPosition.y + 'px';
+  }
 
   for (let commandIndex = 0; commandIndex < sessionItemMenuCommands.length; commandIndex += 1) {
     const command = sessionItemMenuCommands[commandIndex];

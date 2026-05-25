@@ -4,6 +4,7 @@ All notable changes to Tau will be documented in this file.
 
 ## Unreleased
 
+- Added a right-click context menu to session list rows with the same commands as the row actions menu and a short pointer-leave close grace period.
 - Changed `/compact` output to show three collapsed lines and restored its running status message.
 - Changed `Tau: Send Selection to Composer` to append to existing composer text with newline separation.
 - Changed the Extensions monospace font setting to default on.
