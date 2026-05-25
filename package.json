@@ -280,6 +280,31 @@
           ],
           "description": "Choose the visual theme for Pi extension custom UI terminal panels."
         },
+        "tau.extensions.aboveWidgetsEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show Pi extension widgets above the Tau composer."
+        },
+        "tau.extensions.belowWidgetsEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show Pi extension widgets below the Tau composer."
+        },
+        "tau.extensions.statusBarEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show one-line Pi extension status updates below the Tau composer."
+        },
+        "tau.extensions.backgroundColorsEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Render background colors sent by Pi extension widgets."
+        },
+        "tau.extensions.monospaceFontEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use the editor monospace font for Pi extension widgets and status."
+        },
         "tau.blockHttpsImages": {
           "type": "boolean",
           "default": true,

@@ -168,6 +168,11 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
         }
 
         const affectsWelcome = event.affectsConfiguration('tau.showWelcome');
+        const affectsExtensionSettings = affectsAnyTauExtensionSetting(event);
+
+        if (affectsExtensionSettings) {
+          this.controller.refreshTauSettingValues();
+        }
 
         if (affectsWelcome && hasConfiguredShowWelcomeSetting()) {
           void this.globalState?.update(welcomeDismissedStorageKey, undefined).then(undefined, () => undefined);
@@ -179,6 +184,7 @@ export class TauChatViewProvider implements vscode.WebviewViewProvider, vscode.D
           || affectsWelcome
           || event.affectsConfiguration('tau.customUiTheme')
           || affectsRemoteImages
+          || affectsExtensionSettings
         ) {
           this.controller.postState();
         }
@@ -1141,12 +1147,45 @@ function getRejectEditWriteOutsideWorkspaceSetting(): boolean {
   return vscode.workspace.getConfiguration('tau').get<boolean>('rejectEditWriteOutsideWorkspace', false);
 }
 
+function affectsAnyTauExtensionSetting(event: vscode.ConfigurationChangeEvent): boolean {
+  return event.affectsConfiguration('tau.extensions.aboveWidgetsEnabled')
+    || event.affectsConfiguration('tau.extensions.belowWidgetsEnabled')
+    || event.affectsConfiguration('tau.extensions.statusBarEnabled')
+    || event.affectsConfiguration('tau.extensions.backgroundColorsEnabled')
+    || event.affectsConfiguration('tau.extensions.monospaceFontEnabled');
+}
+
+function getExtensionAboveWidgetsEnabledSetting(): boolean {
+  return vscode.workspace.getConfiguration('tau').get<boolean>('extensions.aboveWidgetsEnabled', true);
+}
+
+function getExtensionBelowWidgetsEnabledSetting(): boolean {
+  return vscode.workspace.getConfiguration('tau').get<boolean>('extensions.belowWidgetsEnabled', true);
+}
+
+function getExtensionStatusBarEnabledSetting(): boolean {
+  return vscode.workspace.getConfiguration('tau').get<boolean>('extensions.statusBarEnabled', true);
+}
+
+function getExtensionBackgroundColorsEnabledSetting(): boolean {
+  return vscode.workspace.getConfiguration('tau').get<boolean>('extensions.backgroundColorsEnabled', true);
+}
+
+function getExtensionMonospaceFontEnabledSetting(): boolean {
+  return vscode.workspace.getConfiguration('tau').get<boolean>('extensions.monospaceFontEnabled', false);
+}
+
 function getTauSettingValues(globalState?: vscode.Memento): Partial<Record<TauSettingId, SettingValue>> {
   return {
     'tau.outputColors': getOutputColorsSetting(),
     'tau.animationsEnabled': getAnimationsEnabledSetting(),
     'tau.showWelcome': getShowWelcomeSetting(globalState),
     'tau.customUiTheme': getCustomUiThemeSetting(),
+    'tau.extensions.aboveWidgetsEnabled': getExtensionAboveWidgetsEnabledSetting(),
+    'tau.extensions.belowWidgetsEnabled': getExtensionBelowWidgetsEnabledSetting(),
+    'tau.extensions.statusBarEnabled': getExtensionStatusBarEnabledSetting(),
+    'tau.extensions.backgroundColorsEnabled': getExtensionBackgroundColorsEnabledSetting(),
+    'tau.extensions.monospaceFontEnabled': getExtensionMonospaceFontEnabledSetting(),
     'tau.blockHttpsImages': getBlockHttpsImagesSetting(),
     'tau.confirmSessionDeletion': getConfirmSessionDeletionSetting(),
     'tau.rejectEditWriteOutsideWorkspace': getRejectEditWriteOutsideWorkspaceSetting(),

@@ -35,8 +35,20 @@ const extensionBelowWidgetSettingId = 'tau.extensions.belowWidgetsEnabled';
 const extensionStatusSettingId = 'tau.extensions.statusBarEnabled';
 const extensionBackgroundColorSettingId = 'tau.extensions.backgroundColorsEnabled';
 const extensionMonospaceFontSettingId = 'tau.extensions.monospaceFontEnabled';
+const extensionSettingIds = [
+  extensionAboveWidgetSettingId,
+  extensionBelowWidgetSettingId,
+  extensionStatusSettingId,
+  extensionBackgroundColorSettingId,
+  extensionMonospaceFontSettingId
+] as const satisfies readonly TauSettingId[];
+type ExtensionSettingId = typeof extensionSettingIds[number];
 const inactiveSessionDisposeAfterMs = 30 * 60 * 1000;
 const maxInactiveOpenSessions = 3;
+
+function isExtensionSettingId(settingId: TauSettingId): settingId is ExtensionSettingId {
+  return (extensionSettingIds as readonly TauSettingId[]).includes(settingId);
+}
 
 type PendingExtensionEditor = {
   id: string;
@@ -81,6 +93,7 @@ export class TauSessionManager {
   };
 
   public constructor(private readonly options: TauSessionManagerOptions) {
+    this.syncExtensionSettingsFromOptions();
     this.createSession({ initial: true });
   }
 
@@ -221,6 +234,12 @@ export class TauSessionManager {
     void this.active().controller.refreshSessionDiffStats();
   }
 
+  public refreshTauSettingValues(): void {
+    if (this.syncExtensionSettingsFromOptions()) {
+      this.active().controller.postState();
+    }
+  }
+
   public setCustomUiViewAttached(attached: boolean): void {
     if (this.customUiViewAttached === attached) {
       return;
@@ -280,7 +299,17 @@ export class TauSessionManager {
   }
 
   private async updateTauSetting(settingId: TauSettingId, value: SettingValue): Promise<void> {
-    if (this.updateExtensionSetting(settingId, value)) {
+    if (isExtensionSettingId(settingId)) {
+      if (typeof value !== 'boolean') {
+        throw new Error(`Unsupported Tau setting value for ${settingId}.`);
+      }
+
+      if (!this.options.updateTauSetting) {
+        throw new Error('Tau settings are not available in this session.');
+      }
+
+      await this.options.updateTauSetting(settingId, value);
+      this.applyExtensionSetting(settingId, value);
       return;
     }
 
@@ -291,12 +320,25 @@ export class TauSessionManager {
     await this.options.updateTauSetting(settingId, value);
   }
 
-  private updateExtensionSetting(settingId: TauSettingId, value: SettingValue): boolean {
-    if (typeof value !== 'boolean') {
-      return false;
+  private syncExtensionSettingsFromOptions(): boolean {
+    const values = this.options.getTauSettingValues?.() ?? {};
+    let changed = false;
+
+    for (const settingId of extensionSettingIds) {
+      const value = values[settingId];
+      if (typeof value === 'boolean') {
+        changed = this.applyExtensionSetting(settingId, value) || changed;
+      }
     }
 
+    return changed;
+  }
+
+  private applyExtensionSetting(settingId: ExtensionSettingId, value: boolean): boolean {
     if (settingId === extensionAboveWidgetSettingId) {
+      if (this.extensionSettings.aboveWidgetsEnabled === value) {
+        return false;
+      }
       this.extensionSettings.aboveWidgetsEnabled = value;
       if (!value) {
         this.clearAllExtensionWidgets('aboveEditor');
@@ -305,6 +347,9 @@ export class TauSessionManager {
     }
 
     if (settingId === extensionBelowWidgetSettingId) {
+      if (this.extensionSettings.belowWidgetsEnabled === value) {
+        return false;
+      }
       this.extensionSettings.belowWidgetsEnabled = value;
       if (!value) {
         this.clearAllExtensionWidgets('belowEditor');
@@ -313,6 +358,9 @@ export class TauSessionManager {
     }
 
     if (settingId === extensionStatusSettingId) {
+      if (this.extensionSettings.statusBarEnabled === value) {
+        return false;
+      }
       this.extensionSettings.statusBarEnabled = value;
       if (!value) {
         this.clearAllExtensionStatuses();
@@ -321,11 +369,17 @@ export class TauSessionManager {
     }
 
     if (settingId === extensionBackgroundColorSettingId) {
+      if (this.extensionSettings.backgroundColorsEnabled === value) {
+        return false;
+      }
       this.extensionSettings.backgroundColorsEnabled = value;
       return true;
     }
 
     if (settingId === extensionMonospaceFontSettingId) {
+      if (this.extensionSettings.monospaceFontEnabled === value) {
+        return false;
+      }
       this.extensionSettings.monospaceFontEnabled = value;
       return true;
     }

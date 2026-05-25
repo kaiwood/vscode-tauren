@@ -1,4 +1,6 @@
 import * as assert from 'assert';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { getSettingsForSection, normalizeSettingValue, settingDefinitions } from '../../settings/settingsRegistry';
 
 suite('Settings registry', () => {
@@ -26,6 +28,20 @@ suite('Settings registry', () => {
 
     for (const excluded of ['theme', 'quietStartup', 'terminal.showImages', 'shellPath', 'httpIdleTimeoutMs']) {
       assert.ok(!ids.includes(excluded as never), `${excluded} should not be in Tau settings`);
+    }
+  });
+
+  test('contributes every Tau-owned setting to VS Code configuration', () => {
+    const packageJsonPath = path.join(process.cwd(), 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {
+      contributes?: { configuration?: { properties?: Record<string, unknown> } };
+    };
+    const contributedSettings = Object.keys(packageJson.contributes?.configuration?.properties ?? {});
+
+    for (const setting of settingDefinitions) {
+      if (setting.owner === 'tau') {
+        assert.ok(contributedSettings.includes(setting.id), `${setting.id} should be contributed in package.json`);
+      }
     }
   });
 

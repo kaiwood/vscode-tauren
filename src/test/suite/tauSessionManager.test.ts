@@ -3,6 +3,7 @@ import { TauSessionManager, type TauSessionManagerOptions } from '../../sessions
 import type { CustomUiHostMessage } from '../../extensionUi/customUiHost';
 import type { ExtensionEditorHostMessage } from '../../extensionUi/types';
 import type { WebviewSessionItem, WebviewStateMessage, WebviewTreeItem } from '../../webviewProtocol/types';
+import type { SettingValue, TauSettingId } from '../../settings/settingsRegistry';
 import type { PiClient } from '../../pi/clientTypes';
 import type {
   PiAgentMessage,
@@ -166,6 +167,61 @@ suite('TauSessionManager', () => {
       { key: 'below', placement: 'belowEditor', lines: ['Below'] },
       { key: 'below-2', placement: 'belowEditor', lines: ['Still enabled'] }
     ]);
+    assert.strictEqual(harness.tauSettings['tau.extensions.aboveWidgetsEnabled'], false);
+    harness.manager.dispose();
+  });
+
+  test('initializes extension widget and status settings from persisted Tau settings', async () => {
+    const harness = createManagerHarness([new FakePiClient()], {
+      tauSettings: {
+        'tau.extensions.aboveWidgetsEnabled': false,
+        'tau.extensions.statusBarEnabled': false
+      }
+    });
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'hello' });
+
+    const extensionUi = harness.clientOptions[0].extensionUi;
+    assert.ok(extensionUi);
+
+    extensionUi.setWidget?.('ignored-above', ['Ignored']);
+    extensionUi.setWidget?.('below', ['Below'], { placement: 'belowEditor' });
+    extensionUi.setStatus?.('ignored', 'Ignored');
+
+    assert.strictEqual(lastState(harness).settings?.values['tau.extensions.aboveWidgetsEnabled'], false);
+    assert.strictEqual(lastState(harness).settings?.values['tau.extensions.statusBarEnabled'], false);
+    assert.deepStrictEqual(lastState(harness).extensionWidgets, [
+      { key: 'below', placement: 'belowEditor', lines: ['Below'] }
+    ]);
+    assert.deepStrictEqual(lastState(harness).extensionStatus, []);
+    harness.manager.dispose();
+  });
+
+  test('refreshes extension settings changed outside the Tau settings face', async () => {
+    const harness = createManagerHarness([new FakePiClient()]);
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'hello' });
+
+    const extensionUi = harness.clientOptions[0].extensionUi;
+    assert.ok(extensionUi);
+
+    extensionUi.setWidget?.('above', ['Above']);
+    extensionUi.setStatus?.('plan', 'Planning');
+    assert.deepStrictEqual(lastState(harness).extensionWidgets, [
+      { key: 'above', placement: 'aboveEditor', lines: ['Above'] }
+    ]);
+    assert.deepStrictEqual(lastState(harness).extensionStatus, [
+      { key: 'plan', text: 'Planning' }
+    ]);
+
+    harness.tauSettings['tau.extensions.aboveWidgetsEnabled'] = false;
+    harness.tauSettings['tau.extensions.statusBarEnabled'] = false;
+    harness.manager.refreshTauSettingValues();
+
+    assert.strictEqual(lastState(harness).settings?.values['tau.extensions.aboveWidgetsEnabled'], false);
+    assert.strictEqual(lastState(harness).settings?.values['tau.extensions.statusBarEnabled'], false);
+    assert.deepStrictEqual(lastState(harness).extensionWidgets, []);
+    assert.deepStrictEqual(lastState(harness).extensionStatus, []);
     harness.manager.dispose();
   });
 
@@ -224,6 +280,7 @@ suite('TauSessionManager', () => {
     });
 
     assert.strictEqual(lastState(harness).settings?.values['tau.extensions.statusBarEnabled'], false);
+    assert.strictEqual(harness.tauSettings['tau.extensions.statusBarEnabled'], false);
     assert.deepStrictEqual(lastState(harness).extensionStatus, []);
 
     extensionUi.setStatus?.('ignored', 'Ignored');
@@ -774,12 +831,14 @@ type ManagerHarness = {
   clientOptions: PiClientOptions[];
   customUiMessages: CustomUiHostMessage[];
   extensionEditorMessages: ExtensionEditorHostMessage[];
+  tauSettings: Partial<Record<TauSettingId, SettingValue>>;
   readonly createCalls: number;
 };
 
 type ManagerHarnessOptions = {
   cwd?: string;
   initialSessionFile?: string;
+  tauSettings?: Partial<Record<TauSettingId, SettingValue>>;
   onSessionFileChange?: (sessionFile: string | undefined) => void;
   listSessions?: TauSessionManagerOptions['listSessions'];
   loadSessionDiffSnapshot?: TauSessionManagerOptions['loadSessionDiffSnapshot'];
@@ -794,6 +853,7 @@ function createManagerHarness(
   const clientOptions: PiClientOptions[] = [];
   const customUiMessages: CustomUiHostMessage[] = [];
   const extensionEditorMessages: ExtensionEditorHostMessage[] = [];
+  const tauSettings: Partial<Record<TauSettingId, SettingValue>> = { ...(options.tauSettings ?? {}) };
   const pendingClients = [...clients];
   let createCalls = 0;
 
@@ -808,6 +868,10 @@ function createManagerHarness(
     postState: (message) => states.push(message),
     showNotification: (message, type) => notifications.push({ message, type }),
     getCwd: () => options.cwd === undefined && Object.prototype.hasOwnProperty.call(options, 'cwd') ? undefined : options.cwd ?? '/workspace',
+    getTauSettingValues: () => ({ ...tauSettings }),
+    updateTauSetting: async (settingId, value) => {
+      tauSettings[settingId] = value;
+    },
     initialSessionFile: options.initialSessionFile,
     onSessionFileChange: options.onSessionFileChange,
     listSessions: options.listSessions,
@@ -842,6 +906,7 @@ function createManagerHarness(
     clientOptions,
     customUiMessages,
     extensionEditorMessages,
+    tauSettings,
     get createCalls(): number {
       return createCalls;
     }
