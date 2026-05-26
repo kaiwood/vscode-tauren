@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.0 - 2026-05-26
+
 - Optimized caching and rendering strategy for the List->Chat transition
 - Added transcript top/bottom scroll commands with sidebar-scoped keyboard shortcuts
 - Added searchable transcript UI with command and keyboard shortcut support.
