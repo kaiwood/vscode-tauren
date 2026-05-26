@@ -99,6 +99,12 @@ async function listSessionsFromDir(sessionDir: string, options: ListPiSessionsOp
   });
 
   const entries = [...cachedEntries, ...parsedEntries];
+  options.onMetrics?.({
+    sessionCount: entries.length,
+    totalBytes: existingFiles.reduce((total, file) => total + file.stats.size, 0),
+    cacheHits: cachedEntries.length,
+    cacheMisses: filesToParse.length
+  });
 
   if (parsedEntries.length > 0 || persistedCache.size !== entries.length) {
     await writeSessionMetadataCache(options.sessionMetadataCacheFile, entries);

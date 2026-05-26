@@ -131,6 +131,7 @@ export type WebviewState = {
   treeRefreshing: boolean;
   treeError: string;
   sessionLoading: boolean;
+  perfEnabled: boolean;
 };
 
 export type LocalImageResolveResult = {

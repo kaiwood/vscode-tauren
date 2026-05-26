@@ -11,6 +11,7 @@ export type TaurenSettingId =
   | 'tauren.blockHttpsImages'
   | 'tauren.confirmSessionDeletion'
   | 'tauren.rejectEditWriteOutsideWorkspace'
+  | 'tauren.debugPerformance'
   | 'tauren.readyScript'
   | 'tauren.readyScriptEnabled';
 
@@ -333,6 +334,17 @@ export const settingDefinitions = [
     helper: 'This guardrail does not restrict bash commands.',
     liveBehavior: 'immediate',
     danger: true
+  },
+  {
+    id: 'tauren.debugPerformance',
+    owner: 'tauren',
+    section: 'advanced',
+    label: 'Debug performance',
+    description: 'Collect Tauren performance diagnostics in the output channel and diagnostics view.',
+    control: 'toggle',
+    defaultValue: false,
+    liveBehavior: 'immediate',
+    subtle: true
   },
   {
     id: 'tauren.readyScript',

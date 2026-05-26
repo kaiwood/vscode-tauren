@@ -310,6 +310,10 @@ export class SessionViewController {
     return Boolean(this.sessionListNameEditPath);
   }
 
+  public getVisibleSessionCount(): number {
+    return this.getVisibleSessionIndexes().length;
+  }
+
   public isSessionSearchFocused(): boolean {
     return document.activeElement instanceof HTMLInputElement
       && document.activeElement.classList.contains('sessions__search-input');

@@ -76,7 +76,8 @@ suite('Chat webview helpers', () => {
         customUiTheme: 'default',
         extensionStatus: [],
         extensionWidgets: [],
-        allowRemoteImages: false
+        allowRemoteImages: false,
+        perfEnabled: false
       }
     );
   });
@@ -106,7 +107,8 @@ suite('Chat webview helpers', () => {
         customUiTheme: 'default',
         extensionStatus: [],
         extensionWidgets: [],
-        allowRemoteImages: false
+        allowRemoteImages: false,
+        perfEnabled: false
       }
     );
   });
@@ -163,6 +165,32 @@ suite('Chat webview helpers', () => {
   test('parseWebviewMessage narrows valid inbound messages', () => {
     assert.deepStrictEqual(parseWebviewMessage({ type: 'ready' }), { type: 'ready' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'focusChanged', focused: true }), { type: 'focusChanged', focused: true });
+    assert.deepStrictEqual(
+      parseWebviewMessage({
+        type: 'perfEvent',
+        event: {
+          name: 'sessionList.render',
+          durationMs: 12.5,
+          lane: 'sessions',
+          sessionCount: 4,
+          visibleItemCount: 3,
+          currentSessionFile: '/sessions/current.jsonl',
+          sessionLoading: false
+        }
+      }),
+      {
+        type: 'perfEvent',
+        event: {
+          name: 'sessionList.render',
+          durationMs: 12.5,
+          lane: 'sessions',
+          sessionCount: 4,
+          visibleItemCount: 3,
+          currentSessionFile: '/sessions/current.jsonl',
+          sessionLoading: false
+        }
+      }
+    );
     assert.deepStrictEqual(parseWebviewMessage({ type: 'newSession' }), { type: 'newSession' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'showLane', lane: 'sessions' }), { type: 'showLane', lane: 'sessions' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'showLane', lane: 'tree' }), { type: 'showLane', lane: 'tree' });

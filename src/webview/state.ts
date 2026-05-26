@@ -46,7 +46,8 @@ export const initialWebviewState: WebviewState = {
   treeItems: [],
   treeRefreshing: false,
   treeError: '',
-  sessionLoading: false
+  sessionLoading: false,
+  perfEnabled: false
 };
 
 export function parseWebviewStateMessage(data: unknown, previousState?: WebviewState): WebviewState {
@@ -96,7 +97,8 @@ export function parseWebviewStateMessage(data: unknown, previousState?: WebviewS
     treeItems: Array.isArray(record.treeItems) ? record.treeItems : [],
     treeRefreshing: Boolean(record.treeRefreshing),
     treeError: typeof record.treeError === 'string' ? record.treeError : '',
-    sessionLoading: Boolean(record.sessionLoading)
+    sessionLoading: Boolean(record.sessionLoading),
+    perfEnabled: Boolean(record.perfEnabled)
   };
 }
 

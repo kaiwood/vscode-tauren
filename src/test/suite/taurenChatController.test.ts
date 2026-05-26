@@ -1021,7 +1021,8 @@ suite('TaurenChatController', () => {
       customUiTheme: 'default',
       extensionStatus: [],
       extensionWidgets: [],
-      allowRemoteImages: false
+      allowRemoteImages: false,
+      perfEnabled: false
     });
     harness.controller.dispose();
   });

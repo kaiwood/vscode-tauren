@@ -545,6 +545,29 @@ function renderWithInstrumentation(): void {
   }
 }
 
+function measureRenderBoundary(name: 'transcript.render' | 'sessionList.render' | 'tree.render', renderBoundary: () => void): void {
+  if (!state.perfEnabled) {
+    renderBoundary();
+    return;
+  }
+
+  const started = performance.now();
+  renderBoundary();
+  vscode.postMessage({
+    type: 'perfEvent',
+    event: {
+      name,
+      durationMs: performance.now() - started,
+      lane: state.lane,
+      messageCount: state.messages.length,
+      sessionCount: state.sessions.length,
+      visibleItemCount: name === 'sessionList.render' ? sessionsController.getVisibleSessionCount() : undefined,
+      currentSessionFile: state.currentSessionFile,
+      sessionLoading: state.sessionLoading
+    }
+  });
+}
+
 function render(): void {
   const isSessionLane = state.lane === 'sessions' || state.lane === 'tree';
   const isSettingsFaceVisible = !isSessionLane && state.chatFace === 'settings';
@@ -589,7 +612,9 @@ function render(): void {
 
   if (isSessionLane) {
     busyStatusElement.hidden = true;
-    state.lane === 'tree' ? sessionsController.renderTree() : sessionsController.renderSessions();
+    state.lane === 'tree'
+      ? measureRenderBoundary('tree.render', () => sessionsController.renderTree())
+      : measureRenderBoundary('sessionList.render', () => sessionsController.renderSessions());
     composerController.closeSlashMenu();
     composerController.closeModelMenu();
     sessionsController.closeSessionCommandMenu();
@@ -603,7 +628,7 @@ function render(): void {
     return;
   }
 
-  messagesController.renderMessageList();
+  measureRenderBoundary('transcript.render', () => messagesController.renderMessageList());
   transcriptSearchController.syncForRender();
 
   messagesController.syncBusyStatus();

@@ -6,7 +6,7 @@ import {
 } from './sidebar/chatWebview';
 import { parseWebviewCustomUiTheme } from './webviewProtocol/values';
 import type { SettingValue, TaurenSettingId } from './settings/settingsRegistry';
-import type { WebviewCustomUiTheme, WebviewMessage, WebviewStateMessage } from './webviewProtocol/types';
+import type { WebviewCustomUiTheme, WebviewLane, WebviewMessage, WebviewPerfEvent, WebviewSessionItem, WebviewStateMessage } from './webviewProtocol/types';
 import { type PiClientFactory, type PiClient } from './pi/clientTypes';
 import type { PiClientOptions } from './pi/types';
 import { PiSdkClient } from './sdk/piSdkClient';
@@ -34,6 +34,7 @@ import { readCachedSessionMeta, writeCachedSessionMeta } from './metadata/cache'
 import { readSessionJsonlHeaderCwdSync } from './pi/sessionJsonl';
 import { getPiStartupCwdState, isSafeWorkspaceCwd, getUnsafeCwdReason } from './workspace/cwdSafety';
 import { getAtFileSuggestions } from './fileSuggestions/fileSuggestionProvider';
+import { TaurenPerfRecorder, type TaurenPerfTimer } from './perf/taurenPerf';
 
 export const taurenChatViewType = 'tauren.chatView';
 export type { PiClient } from './pi/clientTypes';
@@ -50,6 +51,12 @@ type ConfiguredPiClientDependencies = {
   extensionUi: ExtensionUi;
   showNotification: (message: string, notifyType: string) => void;
   getRejectEditWriteOutsideWorkspace: () => boolean;
+};
+
+type PendingPerfBoundary = {
+  timer: TaurenPerfTimer;
+  target?: string;
+  timeout: ReturnType<typeof setTimeout>;
 };
 
 function getSessionMetadataCacheFile(storageUri: vscode.Uri | undefined): string | undefined {
@@ -88,6 +95,15 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
   private readonly webviewDisposables: vscode.Disposable[] = [];
   private sidebarFocusContext: boolean | undefined;
   private busyContext: boolean | undefined;
+  private perfOutputChannel: vscode.OutputChannel | undefined;
+  private debugPerformanceEnabled = getDebugPerformanceSetting();
+  private readonly perf = new TaurenPerfRecorder({
+    isEnabled: () => this.debugPerformanceEnabled,
+    writeLine: (line) => this.writePerfLine(line)
+  });
+  private pendingLaneSwitch: PendingPerfBoundary | undefined;
+  private pendingSessionSwitch: PendingPerfBoundary | undefined;
+  private lastWebviewLane: WebviewLane = 'chat';
 
   public constructor(
     private readonly extensionUri: vscode.Uri,
@@ -164,12 +180,7 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
       onSessionFileChange: (sessionFile) => this.writeCurrentSessionFile(sessionFile),
       loadSessionDiffSnapshot: (sessionFile) => readSessionDiffSnapshot(this.workspaceState, sessionFile),
       saveSessionDiffSnapshot: (sessionFile, snapshot) => writeSessionDiffSnapshot(this.workspaceState, sessionFile, snapshot),
-      listSessions: (cwd, currentSessionFile, options) => listPiSessions({
-        cwd,
-        currentSessionFile,
-        sessionMetadataCacheFile: getSessionMetadataCacheFile(this.sessionMetadataStorageUri),
-        onProgress: options?.onProgress
-      }),
+      listSessions: (cwd, currentSessionFile, options) => this.listSessionsWithPerf(cwd, currentSessionFile, options?.onProgress),
       deleteSession: (sessionPath, displayName) => this.deleteSession(sessionPath, displayName),
       showSessionChanges: (sessionPath, displayName) => this.sessionDiffViewer.showSessionChanges(sessionPath, displayName)
     });
@@ -189,7 +200,12 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
         }
 
         const affectsWelcome = event.affectsConfiguration('tauren.showWelcome');
+        const affectsDebugPerformance = event.affectsConfiguration('tauren.debugPerformance');
         const affectsExtensionSettings = affectsAnyTaurenExtensionSetting(event);
+
+        if (affectsDebugPerformance) {
+          this.debugPerformanceEnabled = getDebugPerformanceSetting();
+        }
 
         if (affectsExtensionSettings) {
           this.controller.refreshTaurenSettingValues();
@@ -204,6 +220,7 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
           || event.affectsConfiguration('tauren.animationsEnabled')
           || affectsWelcome
           || event.affectsConfiguration('tauren.customUiTheme')
+          || affectsDebugPerformance
           || affectsRemoteImages
           || affectsExtensionSettings
         ) {
@@ -224,6 +241,34 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
     );
   }
 
+  private async listSessionsWithPerf(
+    cwd: string | undefined,
+    currentSessionFile: string | undefined,
+    onProgress: ((sessions: WebviewSessionItem[]) => void) | undefined
+  ): Promise<WebviewSessionItem[]> {
+    const timer = this.perf.start('sessionList.load');
+    let metrics: { sessionCount: number; totalBytes: number; cacheHits: number; cacheMisses: number } | undefined;
+    const sessions = await listPiSessions({
+      cwd,
+      currentSessionFile,
+      sessionMetadataCacheFile: getSessionMetadataCacheFile(this.sessionMetadataStorageUri),
+      onProgress,
+      ...(this.perf.enabled ? {
+        onMetrics: (nextMetrics) => {
+          metrics = nextMetrics;
+        }
+      } : {})
+    });
+
+    this.perf.finish(timer, {
+      sessionCount: metrics?.sessionCount ?? sessions.length,
+      totalBytes: metrics?.totalBytes,
+      cacheHits: metrics?.cacheHits,
+      cacheMisses: metrics?.cacheMisses
+    });
+    return sessions;
+  }
+
   public dispose(): void {
     this.setSidebarFocusContext(false);
     this.setBusyContext(false);
@@ -235,6 +280,11 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
       disposable.dispose();
     }
 
+    this.clearPendingPerfBoundary(this.pendingLaneSwitch);
+    this.clearPendingPerfBoundary(this.pendingSessionSwitch);
+    this.pendingLaneSwitch = undefined;
+    this.pendingSessionSwitch = undefined;
+    this.perfOutputChannel?.dispose();
     this.codeRenderer.dispose();
     this.sessionDiffViewer.dispose();
     this.controller.dispose();
@@ -356,11 +406,13 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
   }
 
   public async toggleSessionList(): Promise<void> {
+    this.startLaneSwitchTiming(this.lastWebviewLane === 'sessions' ? 'chat' : 'sessions');
     this.controller.toggleSessionList();
     await this.focus();
   }
 
   public async toggleSessionTree(): Promise<void> {
+    this.startLaneSwitchTiming(this.lastWebviewLane === 'tree' ? 'chat' : 'tree');
     this.controller.toggleSessionTree();
     await this.focus();
   }
@@ -714,12 +766,34 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
       after: match.timestamp
     });
 
+    this.startSessionSwitchTiming(match.sessionPath);
     await this.controller.handleWebviewMessage({ type: 'selectSession', sessionPath: match.sessionPath });
     this.controller.addPromptContext(createOriginPromptContext(context, match, traceLinkedCommit));
     await this.focus();
   }
 
+  public async showDiagnostics(): Promise<void> {
+    const document = await vscode.workspace.openTextDocument({
+      content: this.perf.formatDiagnostics(),
+      language: 'plaintext'
+    });
+    await vscode.window.showTextDocument(document, { preview: true });
+  }
+
   private async handleWebviewMessage(message: WebviewMessage): Promise<void> {
+    if (message.type === 'perfEvent') {
+      this.handlePerfEvent(message.event);
+      return;
+    }
+
+    if (message.type === 'showLane') {
+      this.startLaneSwitchTiming(message.lane);
+    }
+
+    if (message.type === 'selectSession') {
+      this.startSessionSwitchTiming(message.sessionPath);
+    }
+
     if (message.type === 'focusChanged') {
       this.setSidebarFocusContext(Boolean(message.focused && this.webviewView?.visible));
       return;
@@ -778,12 +852,101 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
     await this.controller.handleWebviewMessage(message);
   }
 
+  private handlePerfEvent(event: WebviewPerfEvent): void {
+    this.perf.record(event.name, event.durationMs, {
+      lane: event.lane,
+      messageCount: event.messageCount,
+      sessionCount: event.sessionCount,
+      visibleItemCount: event.visibleItemCount,
+      currentSessionFile: event.currentSessionFile,
+      sessionLoading: event.sessionLoading
+    });
+
+    if (this.pendingLaneSwitch && this.pendingLaneSwitch.target === event.lane) {
+      const pending = this.pendingLaneSwitch;
+      this.pendingLaneSwitch = undefined;
+      this.clearPendingPerfBoundary(pending);
+      this.perf.finish(pending.timer, {
+        lane: event.lane,
+        renderEvent: event.name,
+        messageCount: event.messageCount,
+        visibleItemCount: event.visibleItemCount
+      });
+    }
+
+    if (this.pendingSessionSwitch
+      && event.currentSessionFile === this.pendingSessionSwitch.target
+      && event.sessionLoading !== true) {
+      const pending = this.pendingSessionSwitch;
+      this.pendingSessionSwitch = undefined;
+      this.clearPendingPerfBoundary(pending);
+      this.perf.finish(pending.timer, {
+        sessionPath: event.currentSessionFile,
+        renderEvent: event.name,
+        messageCount: event.messageCount
+      });
+    }
+  }
+
+  private startLaneSwitchTiming(lane: WebviewLane): void {
+    const timer = this.perf.start('lane.switch', { lane });
+
+    if (!timer) {
+      return;
+    }
+
+    this.pendingLaneSwitch = this.replacePendingPerfBoundary(this.pendingLaneSwitch, timer, lane);
+  }
+
+  private startSessionSwitchTiming(sessionPath: string): void {
+    const timer = this.perf.start('session.switch', { sessionPath });
+
+    if (!timer) {
+      return;
+    }
+
+    this.pendingSessionSwitch = this.replacePendingPerfBoundary(this.pendingSessionSwitch, timer, sessionPath);
+  }
+
+  private replacePendingPerfBoundary(
+    previous: PendingPerfBoundary | undefined,
+    timer: TaurenPerfTimer,
+    target: string
+  ): PendingPerfBoundary {
+    this.clearPendingPerfBoundary(previous);
+    const pending: PendingPerfBoundary = {
+      timer,
+      target,
+      timeout: setTimeout(() => {
+        if (this.pendingLaneSwitch === pending) {
+          this.pendingLaneSwitch = undefined;
+        }
+
+        if (this.pendingSessionSwitch === pending) {
+          this.pendingSessionSwitch = undefined;
+        }
+      }, 30_000)
+    };
+    return pending;
+  }
+
+  private clearPendingPerfBoundary(pending: PendingPerfBoundary | undefined): void {
+    if (pending) {
+      clearTimeout(pending.timeout);
+    }
+  }
+
   private withProviderState(message: WebviewStateMessage): WebviewStateMessage {
+    if (message.lane) {
+      this.lastWebviewLane = message.lane;
+    }
+
     return {
       ...message,
       customUiTheme: getCustomUiThemeSetting(),
       allowRemoteImages: getAllowRemoteImagesSetting(),
-      welcomeDismissed: this.isWelcomeDismissed()
+      welcomeDismissed: this.isWelcomeDismissed(),
+      perfEnabled: this.debugPerformanceEnabled
     };
   }
 
@@ -917,6 +1080,14 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
     }
 
     void this.webviewView.webview.postMessage({ type: 'toast', message, kind });
+  }
+
+  private writePerfLine(line: string): void {
+    if (!this.perfOutputChannel) {
+      this.perfOutputChannel = vscode.window.createOutputChannel('Tauren Performance');
+    }
+
+    this.perfOutputChannel.appendLine(line);
   }
 
   private showNotification(message: string, notifyType: string): void {
@@ -1396,6 +1567,10 @@ function getRejectEditWriteOutsideWorkspaceSetting(): boolean {
   return vscode.workspace.getConfiguration('tauren').get<boolean>('rejectEditWriteOutsideWorkspace', false);
 }
 
+function getDebugPerformanceSetting(): boolean {
+  return vscode.workspace.getConfiguration('tauren').get<boolean>('debugPerformance', false);
+}
+
 function affectsAnyTaurenExtensionSetting(event: vscode.ConfigurationChangeEvent): boolean {
   return event.affectsConfiguration('tauren.extensions.aboveWidgetsEnabled')
     || event.affectsConfiguration('tauren.extensions.belowWidgetsEnabled')
@@ -1438,6 +1613,7 @@ function getTaurenSettingValues(globalState?: vscode.Memento): Partial<Record<Ta
     'tauren.blockHttpsImages': getBlockHttpsImagesSetting(),
     'tauren.confirmSessionDeletion': getConfirmSessionDeletionSetting(),
     'tauren.rejectEditWriteOutsideWorkspace': getRejectEditWriteOutsideWorkspaceSetting(),
+    'tauren.debugPerformance': getDebugPerformanceSetting(),
     'tauren.readyScript': getReadyScriptSetting() ?? '',
     'tauren.readyScriptEnabled': getReadyScriptEnabledSetting()
   };

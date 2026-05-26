@@ -145,15 +145,22 @@ suite('Pi session list', () => {
       }]);
 
       const progress: number[] = [];
+      const metrics: Array<{ sessionCount: number; totalBytes: number; cacheHits: number; cacheMisses: number }> = [];
       const sessions = await listPiSessions({
         sessionDir: dir,
         sessionMetadataCacheFile: cacheFile,
-        onProgress: (items) => progress.push(items.length)
+        onProgress: (items) => progress.push(items.length),
+        onMetrics: (entry) => metrics.push(entry)
       });
 
       assert.strictEqual(sessions.length, 1);
       assert.strictEqual(sessions[0].name, 'Cached work');
       assert.deepStrictEqual(progress, [1]);
+      assert.strictEqual(metrics.length, 1);
+      assert.strictEqual(metrics[0].sessionCount, 1);
+      assert.strictEqual(metrics[0].cacheHits, 1);
+      assert.strictEqual(metrics[0].cacheMisses, 0);
+      assert.ok(metrics[0].totalBytes > 0);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

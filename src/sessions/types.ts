@@ -14,6 +14,13 @@ export type PiSessionListItem = {
   current: boolean;
 };
 
+export type SessionListLoadMetrics = {
+  sessionCount: number;
+  totalBytes: number;
+  cacheHits: number;
+  cacheMisses: number;
+};
+
 export type ListPiSessionsOptions = {
   cwd?: string;
   sessionDir?: string;
@@ -21,6 +28,7 @@ export type ListPiSessionsOptions = {
   env?: NodeJS.ProcessEnv;
   sessionMetadataCacheFile?: string;
   onProgress?: (sessions: PiSessionListItem[]) => void;
+  onMetrics?: (metrics: SessionListLoadMetrics) => void;
 };
 
 export type PiSessionCandidate = {

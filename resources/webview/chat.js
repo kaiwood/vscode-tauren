@@ -5349,6 +5349,17 @@ ${after}`;
       danger: true
     },
     {
+      id: "tauren.debugPerformance",
+      owner: "tauren",
+      section: "advanced",
+      label: "Debug performance",
+      description: "Collect Tauren performance diagnostics in the output channel and diagnostics view.",
+      control: "toggle",
+      defaultValue: false,
+      liveBehavior: "immediate",
+      subtle: true
+    },
+    {
       id: "tauren.readyScript",
       owner: "tauren",
       section: "advanced",
@@ -6638,6 +6649,9 @@ ${after}`;
     isSessionListNameEditing() {
       return Boolean(this.sessionListNameEditPath);
     }
+    getVisibleSessionCount() {
+      return this.getVisibleSessionIndexes().length;
+    }
     isSessionSearchFocused() {
       return document.activeElement instanceof HTMLInputElement && document.activeElement.classList.contains("sessions__search-input");
     }
@@ -7905,7 +7919,8 @@ ${after}`;
     treeItems: [],
     treeRefreshing: false,
     treeError: "",
-    sessionLoading: false
+    sessionLoading: false,
+    perfEnabled: false
   };
   function parseWebviewStateMessage(data, previousState) {
     const record = isRecord5(data) ? data : {};
@@ -7953,7 +7968,8 @@ ${after}`;
       treeItems: Array.isArray(record.treeItems) ? record.treeItems : [],
       treeRefreshing: Boolean(record.treeRefreshing),
       treeError: typeof record.treeError === "string" ? record.treeError : "",
-      sessionLoading: Boolean(record.sessionLoading)
+      sessionLoading: Boolean(record.sessionLoading),
+      perfEnabled: Boolean(record.perfEnabled)
     };
   }
   function parsePromptImages(value) {
@@ -8612,6 +8628,27 @@ ${after}`;
       });
     }
   }
+  function measureRenderBoundary(name, renderBoundary) {
+    if (!state.perfEnabled) {
+      renderBoundary();
+      return;
+    }
+    const started = performance.now();
+    renderBoundary();
+    vscode.postMessage({
+      type: "perfEvent",
+      event: {
+        name,
+        durationMs: performance.now() - started,
+        lane: state.lane,
+        messageCount: state.messages.length,
+        sessionCount: state.sessions.length,
+        visibleItemCount: name === "sessionList.render" ? sessionsController.getVisibleSessionCount() : void 0,
+        currentSessionFile: state.currentSessionFile,
+        sessionLoading: state.sessionLoading
+      }
+    });
+  }
   function render() {
     const isSessionLane = state.lane === "sessions" || state.lane === "tree";
     const isSettingsFaceVisible = !isSessionLane && state.chatFace === "settings";
@@ -8652,7 +8689,7 @@ ${after}`;
     }
     if (isSessionLane) {
       busyStatusElement.hidden = true;
-      state.lane === "tree" ? sessionsController.renderTree() : sessionsController.renderSessions();
+      state.lane === "tree" ? measureRenderBoundary("tree.render", () => sessionsController.renderTree()) : measureRenderBoundary("sessionList.render", () => sessionsController.renderSessions());
       composerController.closeSlashMenu();
       composerController.closeModelMenu();
       sessionsController.closeSessionCommandMenu();
@@ -8663,7 +8700,7 @@ ${after}`;
       }
       return;
     }
-    messagesController.renderMessageList();
+    measureRenderBoundary("transcript.render", () => messagesController.renderMessageList());
     transcriptSearchController.syncForRender();
     messagesController.syncBusyStatus();
     composerController.syncModelLabel();
