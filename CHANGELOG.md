@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.2.0 - 2026-05-26
+
 This release is dedicated to performance updates.
 
 - Added a smoother new-session startup: the empty transcript now appears immediately while the sidebar finishes loading its controls and cached details.
