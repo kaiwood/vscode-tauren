@@ -4,6 +4,7 @@ import { homedir } from 'os';
 import { dirname, isAbsolute, join, resolve } from 'path';
 import { extractPiMessageText } from '../pi/messageContent';
 import { parseSessionJsonlFileRecords, readSessionJsonlHeader } from '../pi/sessionJsonl';
+import { readSessionMetadataCache, writeSessionMetadataCache, type CachedSessionInfo } from './sessionMetadataCache';
 import type { ListPiSessionsOptions, PiSessionCandidate, PiSessionListItem, RawSessionInfo, SessionTreeNode } from './types';
 export type { ListPiSessionsOptions, PiSessionCandidate, PiSessionListItem } from './types';
 
@@ -11,15 +12,21 @@ const piSessionDirEnvName = 'PI_CODING_AGENT_SESSION_DIR';
 const maxConcurrentSessionFileReads = 8;
 const maxCachedSessionInfos = 5000;
 const maxSessionFirstMessageLength = 500;
+const sessionListProgressBatchSize = 50;
 const truncationMarker = '…';
 
 const sessionInfoCache = new Map<string, { mtimeMs: number; size: number; session: RawSessionInfo }>();
+
+type SessionFileStats = {
+  path: string;
+  stats: Stats;
+};
 
 export async function listPiSessions(options: ListPiSessionsOptions = {}): Promise<PiSessionListItem[]> {
   const env = options.env ?? process.env;
   const sessionDir = options.sessionDir
     ?? await resolveConfiguredSessionDir(options.cwd, options.currentSessionFile, env);
-  const sessions = sessionDir ? await listSessionsFromDir(sessionDir) : [];
+  const sessions = sessionDir ? await listSessionsFromDir(sessionDir, options) : [];
 
   return decorateSessions(sessions, options.currentSessionFile);
 }
@@ -32,7 +39,7 @@ export async function listPiSessionCandidates(options: ListPiSessionsOptions = {
   return sessionDir ? listSessionCandidatesFromDir(sessionDir) : [];
 }
 
-async function listSessionsFromDir(sessionDir: string): Promise<RawSessionInfo[]> {
+async function listSessionsFromDir(sessionDir: string, options: ListPiSessionsOptions): Promise<RawSessionInfo[]> {
   if (!existsSync(sessionDir)) {
     return [];
   }
@@ -45,15 +52,59 @@ async function listSessionsFromDir(sessionDir: string): Promise<RawSessionInfo[]
     return [];
   }
 
-  const sessions = await mapWithConcurrency(
+  const fileStats = await mapWithConcurrency(
     names
       .filter((name) => name.endsWith('.jsonl'))
       .map((name) => join(sessionDir, name)),
     maxConcurrentSessionFileReads,
-    buildSessionInfo
+    statSessionFile
   );
+  const existingFiles = fileStats.filter((file): file is SessionFileStats => Boolean(file));
+  const persistedCache = await readSessionMetadataCache(options.sessionMetadataCacheFile);
+  const cachedEntries: CachedSessionInfo[] = [];
+  const filesToParse: SessionFileStats[] = [];
 
-  return sessions.filter((session): session is RawSessionInfo => Boolean(session));
+  for (const file of existingFiles) {
+    const cached = persistedCache.get(file.path);
+
+    if (cached && cached.mtimeMs === file.stats.mtimeMs && cached.size === file.stats.size) {
+      cachedEntries.push({
+        mtimeMs: cached.mtimeMs,
+        size: cached.size,
+        session: { ...cached.session, path: file.path }
+      });
+    } else {
+      filesToParse.push(file);
+    }
+  }
+
+  const parsedEntries: CachedSessionInfo[] = [];
+  const publishProgress = (): void => {
+    options.onProgress?.(decorateSessions(
+      [...cachedEntries, ...parsedEntries].map((entry) => entry.session),
+      options.currentSessionFile
+    ));
+  };
+
+  if (cachedEntries.length > 0) {
+    publishProgress();
+  }
+
+  await parseSessionInfoFiles(filesToParse, (entry) => {
+    parsedEntries.push(entry);
+
+    if (parsedEntries.length % sessionListProgressBatchSize === 0) {
+      publishProgress();
+    }
+  });
+
+  const entries = [...cachedEntries, ...parsedEntries];
+
+  if (parsedEntries.length > 0 || persistedCache.size !== entries.length) {
+    await writeSessionMetadataCache(options.sessionMetadataCacheFile, entries);
+  }
+
+  return entries.map((entry) => entry.session);
 }
 
 async function listSessionCandidatesFromDir(sessionDir: string): Promise<PiSessionCandidate[]> {
@@ -183,9 +234,9 @@ async function buildSessionCandidate(filePath: string): Promise<PiSessionCandida
   }
 }
 
-async function buildSessionInfo(filePath: string): Promise<RawSessionInfo | undefined> {
+async function buildSessionInfo(filePath: string, knownStats?: Stats): Promise<RawSessionInfo | undefined> {
   try {
-    const stats = await stat(filePath);
+    const stats = knownStats ?? await stat(filePath);
     const cached = getCachedSessionInfo(filePath, stats);
 
     if (cached) {
@@ -260,6 +311,46 @@ async function buildSessionInfo(filePath: string): Promise<RawSessionInfo | unde
   } catch {
     return undefined;
   }
+}
+
+async function statSessionFile(filePath: string): Promise<SessionFileStats | undefined> {
+  try {
+    return { path: filePath, stats: await stat(filePath) };
+  } catch {
+    return undefined;
+  }
+}
+
+async function parseSessionInfoFiles(
+  files: SessionFileStats[],
+  onSession: (entry: CachedSessionInfo) => void
+): Promise<void> {
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    for (;;) {
+      const index = nextIndex;
+      nextIndex += 1;
+
+      if (index >= files.length) {
+        return;
+      }
+
+      const file = files[index];
+      const session = await buildSessionInfo(file.path, file.stats);
+
+      if (session) {
+        onSession({
+          mtimeMs: file.stats.mtimeMs,
+          size: file.stats.size,
+          session
+        });
+      }
+    }
+  }
+
+  const workerCount = Math.min(maxConcurrentSessionFileReads, files.length);
+  await Promise.all(Array.from({ length: workerCount }, worker));
 }
 
 function truncateSessionFirstMessage(value: string): string {

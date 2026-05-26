@@ -19,6 +19,8 @@ export type ListPiSessionsOptions = {
   sessionDir?: string;
   currentSessionFile?: string;
   env?: NodeJS.ProcessEnv;
+  sessionMetadataCacheFile?: string;
+  onProgress?: (sessions: PiSessionListItem[]) => void;
 };
 
 export type PiSessionCandidate = {

@@ -10,6 +10,10 @@ import type {
 } from '../webviewProtocol/types';
 import type { StatePublisherScheduler } from './statePublisher';
 
+export type SessionListProgressOptions = {
+  onProgress?: (sessions: WebviewSessionItem[]) => void;
+};
+
 export type TaurenChatControllerOptions = {
   createClient: PiClientFactory;
   postState: (message: WebviewStateMessage) => void;
@@ -35,7 +39,11 @@ export type TaurenChatControllerOptions = {
   onSessionMetaChange?: (metadata: TaurenChatSessionMetaSnapshot) => void;
   onSessionFileChange?: (sessionFile: string | undefined) => void;
   writeClipboard?: (text: string) => PromiseLike<void> | Promise<void> | void;
-  listSessions?: (cwd: string | undefined, currentSessionFile: string | undefined) => Promise<WebviewSessionItem[]>;
+  listSessions?: (
+    cwd: string | undefined,
+    currentSessionFile: string | undefined,
+    options?: SessionListProgressOptions
+  ) => Promise<WebviewSessionItem[]>;
   deleteSession?: (sessionPath: string, displayName: string) => Promise<boolean>;
   renameOpenSession?: (sessionPath: string, name: string) => Promise<boolean>;
   showSessionChanges?: (sessionPath: string, displayName: string) => Promise<void>;

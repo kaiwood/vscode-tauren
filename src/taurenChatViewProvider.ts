@@ -44,12 +44,17 @@ const taurenSidebarFocusContextKey = 'tauren.sidebarFocus';
 const taurenBusyContextKey = 'tauren.busy';
 const contextUsagePollingIntervalMs = 2000;
 const sessionDiffStatsRefreshDelayMs = 250;
+const sessionMetadataCacheFileName = 'sessionMetadataCache.json';
 
 type ConfiguredPiClientDependencies = {
   extensionUi: ExtensionUi;
   showNotification: (message: string, notifyType: string) => void;
   getRejectEditWriteOutsideWorkspace: () => boolean;
 };
+
+function getSessionMetadataCacheFile(storageUri: vscode.Uri | undefined): string | undefined {
+  return storageUri ? path.join(storageUri.fsPath, sessionMetadataCacheFileName) : undefined;
+}
 
 function createConfiguredPiClient(
   options: PiClientOptions,
@@ -90,7 +95,8 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
     private readonly workspaceState?: vscode.Memento,
     private readonly globalState?: vscode.Memento,
     private readonly workspaceCwdProvider: () => string | undefined = () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
-    private readonly devRenderInstrumentation = false
+    private readonly devRenderInstrumentation = false,
+    private readonly sessionMetadataStorageUri?: vscode.Uri
   ) {
     const extensionUi: ExtensionUi = {
       notify: (message, notifyType) => this.showNotification(message, notifyType),
@@ -158,7 +164,12 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
       onSessionFileChange: (sessionFile) => this.writeCurrentSessionFile(sessionFile),
       loadSessionDiffSnapshot: (sessionFile) => readSessionDiffSnapshot(this.workspaceState, sessionFile),
       saveSessionDiffSnapshot: (sessionFile, snapshot) => writeSessionDiffSnapshot(this.workspaceState, sessionFile, snapshot),
-      listSessions: (cwd, currentSessionFile) => listPiSessions({ cwd, currentSessionFile }),
+      listSessions: (cwd, currentSessionFile, options) => listPiSessions({
+        cwd,
+        currentSessionFile,
+        sessionMetadataCacheFile: getSessionMetadataCacheFile(this.sessionMetadataStorageUri),
+        onProgress: options?.onProgress
+      }),
       deleteSession: (sessionPath, displayName) => this.deleteSession(sessionPath, displayName),
       showSessionChanges: (sessionPath, displayName) => this.sessionDiffViewer.showSessionChanges(sessionPath, displayName)
     });

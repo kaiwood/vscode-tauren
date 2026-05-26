@@ -8,7 +8,8 @@ export function activate(context: vscode.ExtensionContext): void {
     context.workspaceState,
     context.globalState,
     undefined,
-    context.extensionMode === vscode.ExtensionMode.Development
+    context.extensionMode === vscode.ExtensionMode.Development,
+    context.storageUri ?? context.globalStorageUri
   );
 
   context.subscriptions.push(

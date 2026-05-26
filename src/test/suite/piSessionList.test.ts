@@ -1,8 +1,9 @@
 import * as assert from 'assert';
-import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { listPiSessionCandidates, listPiSessions } from '../../sessions/piSessionList';
+import { readSessionMetadataCache, writeSessionMetadataCache } from '../../sessions/sessionMetadataCache';
 
 suite('Pi session list', () => {
   test('lists lightweight session candidates from headers only', async () => {
@@ -98,6 +99,123 @@ suite('Pi session list', () => {
       assert.strictEqual(sessions.length, 1);
       assert.strictEqual(sessions[0].firstMessage.length, 500);
       assert.strictEqual(sessions[0].firstMessage, 'A'.repeat(499) + '…');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('ignores corrupt persisted metadata cache files', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tauren-sessions-cache-corrupt-'));
+
+    try {
+      const cacheFile = join(dir, 'storage', 'sessionMetadataCache.json');
+      await mkdir(join(dir, 'storage'), { recursive: true });
+      await writeFile(cacheFile, '{not-json\n');
+
+      const cache = await readSessionMetadataCache(cacheFile);
+
+      assert.strictEqual(cache.size, 0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('uses persisted metadata for unchanged session files', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tauren-sessions-cache-'));
+
+    try {
+      const sessionPath = join(dir, 'cached.jsonl');
+      const cacheFile = join(dir, 'storage', 'sessionMetadataCache.json');
+      await writeFile(sessionPath, '{not-json\n');
+      const sessionStats = await stat(sessionPath);
+
+      await writeSessionMetadataCache(cacheFile, [{
+        mtimeMs: sessionStats.mtimeMs,
+        size: sessionStats.size,
+        session: {
+          path: sessionPath,
+          id: 'cached',
+          cwd: '/workspace',
+          name: 'Cached work',
+          created: '2026-01-01T00:00:00.000Z',
+          modified: '2026-01-01T00:00:01.000Z',
+          messageCount: 3,
+          firstMessage: 'Cached prompt'
+        }
+      }]);
+
+      const progress: number[] = [];
+      const sessions = await listPiSessions({
+        sessionDir: dir,
+        sessionMetadataCacheFile: cacheFile,
+        onProgress: (items) => progress.push(items.length)
+      });
+
+      assert.strictEqual(sessions.length, 1);
+      assert.strictEqual(sessions[0].name, 'Cached work');
+      assert.deepStrictEqual(progress, [1]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('invalidates persisted metadata when session file stats change', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tauren-sessions-cache-stale-'));
+
+    try {
+      const sessionPath = join(dir, 'stale.jsonl');
+      const cacheFile = join(dir, 'storage', 'sessionMetadataCache.json');
+      await writeFile(sessionPath, [
+        JSON.stringify({ type: 'session', version: 3, id: 'stale', timestamp: '2026-01-01T00:00:00.000Z', cwd: '/workspace' }),
+        JSON.stringify({ type: 'message', id: 'u1', parentId: null, timestamp: '2026-01-01T00:00:01.000Z', message: { role: 'user', content: 'Fresh prompt' } })
+      ].join('\n') + '\n');
+      const sessionStats = await stat(sessionPath);
+
+      await writeSessionMetadataCache(cacheFile, [{
+        mtimeMs: sessionStats.mtimeMs - 1,
+        size: sessionStats.size,
+        session: {
+          path: sessionPath,
+          id: 'stale',
+          cwd: '/workspace',
+          name: 'Stale cached work',
+          created: '2026-01-01T00:00:00.000Z',
+          modified: '2026-01-01T00:00:01.000Z',
+          messageCount: 99,
+          firstMessage: 'Stale prompt'
+        }
+      }]);
+
+      const sessions = await listPiSessions({ sessionDir: dir, sessionMetadataCacheFile: cacheFile });
+
+      assert.strictEqual(sessions.length, 1);
+      assert.strictEqual(sessions[0].name, undefined);
+      assert.strictEqual(sessions[0].messageCount, 1);
+      assert.strictEqual(sessions[0].firstMessage, 'Fresh prompt');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('publishes parsed session progress in batches', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tauren-sessions-progress-'));
+
+    try {
+      for (let index = 0; index < 50; index += 1) {
+        await writeFile(join(dir, `session-${index}.jsonl`), [
+          JSON.stringify({ type: 'session', version: 3, id: `session-${index}`, timestamp: '2026-01-01T00:00:00.000Z', cwd: '/workspace' }),
+          JSON.stringify({ type: 'message', id: `u${index}`, parentId: null, timestamp: '2026-01-01T00:00:01.000Z', message: { role: 'user', content: `Prompt ${index}` } })
+        ].join('\n') + '\n');
+      }
+
+      const progress: number[] = [];
+      const sessions = await listPiSessions({
+        sessionDir: dir,
+        onProgress: (items) => progress.push(items.length)
+      });
+
+      assert.strictEqual(sessions.length, 50);
+      assert.ok(progress.includes(50));
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

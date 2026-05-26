@@ -215,20 +215,22 @@ export class SessionViewController {
 
     try {
       const listSessions = this.options.listSessions ?? defaultListSessions;
-      const sessions = await listSessions(this.options.getCwd?.(), this.sessionFile);
+      const sessions = await listSessions(this.options.getCwd?.(), this.sessionFile, {
+        onProgress: (progressSessions) => {
+          if (refreshId !== this.sessionsRefreshSequence) {
+            return;
+          }
+
+          this.applySessionList(progressSessions);
+          this.options.postState();
+        }
+      });
 
       if (refreshId !== this.sessionsRefreshSequence) {
         return;
       }
 
-      this.sessions = this.mergeCurrentSessionFallback(sessions);
-      const currentSession = this.sessions.find((session) => this.sessionFile
-        ? normalizeSessionPath(session.path) === normalizeSessionPath(this.sessionFile)
-        : session.current);
-
-      if (currentSession) {
-        this.applyCurrentSessionName(currentSession.name ?? '');
-      }
+      this.applySessionList(sessions);
     } catch (error) {
       if (refreshId === this.sessionsRefreshSequence) {
         this.sessionsError = getErrorMessage(error);
@@ -625,6 +627,17 @@ export class SessionViewController {
     }
 
     await this.options.showSessionChanges(session.path, getSessionDisplayName(session, session.path));
+  }
+
+  private applySessionList(sessions: WebviewSessionItem[]): void {
+    this.sessions = this.mergeCurrentSessionFallback(sessions);
+    const currentSession = this.sessions.find((session) => this.sessionFile
+      ? normalizeSessionPath(session.path) === normalizeSessionPath(this.sessionFile)
+      : session.current);
+
+    if (currentSession) {
+      this.applyCurrentSessionName(currentSession.name ?? '');
+    }
   }
 
   private mergeCurrentSessionFallback(sessions: WebviewSessionItem[]): WebviewSessionItem[] {
