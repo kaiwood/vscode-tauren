@@ -134,10 +134,14 @@ export class SessionViewController {
   }
 
   public showSessions(): void {
+    const hasCachedSessions = this.sessions.length > 0;
     this.options.navigation.showLane('sessions', { post: false });
     this.sessionsError = '';
     this.options.postState();
-    void this.refreshSessions();
+
+    if (!hasCachedSessions) {
+      void this.refreshSessions();
+    }
   }
 
   public showTree(): void {

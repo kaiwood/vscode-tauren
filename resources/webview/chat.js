@@ -5672,11 +5672,13 @@ ${after}`;
     button.disabled = !options.canRunSessionItemCommand(options.session);
     button.innerHTML = '<svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M5 8C5 8.55229 4.55228 9 4 9C3.44772 9 3 8.55229 3 8C3 7.44772 3.44772 7 4 7C4.55228 7 5 7.44772 5 8ZM9 8C9 8.55229 8.55229 9 8 9C7.44772 9 7 8.55229 7 8C7 7.44772 7.44772 7 8 7C8.55229 7 9 7.44772 9 8ZM12 9C12.5523 9 13 8.55229 13 8C13 7.44772 12.5523 7 12 7C11.4477 7 11 7.44772 11 8C11 8.55229 11.4477 9 12 9Z"/></svg><span class="tauren-icon-action-tooltip">Session commands</span>';
     wrap.append(button);
+    if (options.openMenuIndex !== options.index) {
+      return wrap;
+    }
     const menu = document.createElement("span");
     menu.className = "sessions__menu";
     menu.setAttribute("role", "menu");
-    menu.hidden = options.openMenuIndex !== options.index;
-    if (!menu.hidden && options.menuPosition) {
+    if (options.menuPosition) {
       menu.classList.add("sessions__menu--context");
       menu.style.left = options.menuPosition.x + "px";
       menu.style.top = options.menuPosition.y + "px";
@@ -8238,6 +8240,8 @@ ${after}`;
   var toastHideTimeout;
   var pendingRenderFrame;
   var pendingReturnToChatAfterRender = false;
+  var pendingRefreshSessionsAfterRender = false;
+  var pendingSessionRefreshFrame;
   var hasReceivedHostState = false;
   var faceTransitionSuppressionFrame;
   var renderInstrumentationEnabled = document.body.dataset.taurenDevRenderInstrumentation === "true";
@@ -8451,7 +8455,10 @@ ${after}`;
     if (hasComposerPasteUpdate && state.composerPaste) {
       composerController.pasteToEditor(state.composerPaste.text);
     }
-    scheduleRender({ returnToChatMain: wasSessionLane && state.lane === "chat" && state.chatFace !== "settings" });
+    scheduleRender({
+      returnToChatMain: wasSessionLane && state.lane === "chat" && state.chatFace !== "settings",
+      refreshSessionsAfterRender: state.lane === "sessions" && previousLane !== "sessions" && state.sessions.length > 0 && !state.sessionsRefreshing
+    });
     if (previousChatFace === "settings" && state.chatFace === "main" && state.lane === "chat") {
       requestAnimationFrame(() => focusPromptInput());
     }
@@ -8540,17 +8547,34 @@ ${after}`;
   }
   function scheduleRender(options = {}) {
     pendingReturnToChatAfterRender ||= Boolean(options.returnToChatMain);
+    pendingRefreshSessionsAfterRender ||= Boolean(options.refreshSessionsAfterRender);
     if (pendingRenderFrame !== void 0) {
       return;
     }
     pendingRenderFrame = requestAnimationFrame(() => {
       pendingRenderFrame = void 0;
       const shouldHandleReturnToChat = pendingReturnToChatAfterRender;
+      const shouldRefreshSessions = pendingRefreshSessionsAfterRender;
       pendingReturnToChatAfterRender = false;
+      pendingRefreshSessionsAfterRender = false;
       renderWithInstrumentation();
+      if (shouldRefreshSessions) {
+        scheduleSessionsRefreshAfterNextPaint();
+      }
       if (shouldHandleReturnToChat && state.lane === "chat") {
         messagesController.restoreChatScrollAfterReturn();
         focusPromptInput();
+      }
+    });
+  }
+  function scheduleSessionsRefreshAfterNextPaint() {
+    if (pendingSessionRefreshFrame !== void 0) {
+      return;
+    }
+    pendingSessionRefreshFrame = requestAnimationFrame(() => {
+      pendingSessionRefreshFrame = void 0;
+      if (state.lane === "sessions" && !state.sessionsRefreshing) {
+        vscode.postMessage({ type: "refreshSessions" });
       }
     });
   }

@@ -92,6 +92,8 @@ let state: WebviewState = { ...initialWebviewState };
 let toastHideTimeout: ReturnType<typeof setTimeout> | undefined;
 let pendingRenderFrame: number | undefined;
 let pendingReturnToChatAfterRender = false;
+let pendingRefreshSessionsAfterRender = false;
+let pendingSessionRefreshFrame: number | undefined;
 let hasReceivedHostState = false;
 let faceTransitionSuppressionFrame: number | undefined;
 const renderInstrumentationEnabled = document.body.dataset.taurenDevRenderInstrumentation === 'true';
@@ -345,7 +347,13 @@ window.addEventListener('message', (event) => {
     composerController.pasteToEditor(state.composerPaste.text);
   }
 
-  scheduleRender({ returnToChatMain: wasSessionLane && state.lane === 'chat' && state.chatFace !== 'settings' });
+  scheduleRender({
+    returnToChatMain: wasSessionLane && state.lane === 'chat' && state.chatFace !== 'settings',
+    refreshSessionsAfterRender: state.lane === 'sessions'
+      && previousLane !== 'sessions'
+      && state.sessions.length > 0
+      && !state.sessionsRefreshing
+  });
 
   if (previousChatFace === 'settings' && state.chatFace === 'main' && state.lane === 'chat') {
     requestAnimationFrame(() => focusPromptInput());
@@ -453,8 +461,9 @@ function createToastIcon(kind: 'success' | 'warning' | 'error'): HTMLElement {
   return icon;
 }
 
-function scheduleRender(options: { returnToChatMain?: boolean } = {}): void {
+function scheduleRender(options: { returnToChatMain?: boolean; refreshSessionsAfterRender?: boolean } = {}): void {
   pendingReturnToChatAfterRender ||= Boolean(options.returnToChatMain);
+  pendingRefreshSessionsAfterRender ||= Boolean(options.refreshSessionsAfterRender);
 
   if (pendingRenderFrame !== undefined) {
     return;
@@ -463,13 +472,33 @@ function scheduleRender(options: { returnToChatMain?: boolean } = {}): void {
   pendingRenderFrame = requestAnimationFrame(() => {
     pendingRenderFrame = undefined;
     const shouldHandleReturnToChat = pendingReturnToChatAfterRender;
+    const shouldRefreshSessions = pendingRefreshSessionsAfterRender;
     pendingReturnToChatAfterRender = false;
+    pendingRefreshSessionsAfterRender = false;
 
     renderWithInstrumentation();
+
+    if (shouldRefreshSessions) {
+      scheduleSessionsRefreshAfterNextPaint();
+    }
 
     if (shouldHandleReturnToChat && state.lane === 'chat') {
       messagesController.restoreChatScrollAfterReturn();
       focusPromptInput();
+    }
+  });
+}
+
+function scheduleSessionsRefreshAfterNextPaint(): void {
+  if (pendingSessionRefreshFrame !== undefined) {
+    return;
+  }
+
+  pendingSessionRefreshFrame = requestAnimationFrame(() => {
+    pendingSessionRefreshFrame = undefined;
+
+    if (state.lane === 'sessions' && !state.sessionsRefreshing) {
+      vscode.postMessage({ type: 'refreshSessions' });
     }
   });
 }

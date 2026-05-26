@@ -362,6 +362,7 @@ suite('Chat webview helpers', () => {
     assert.doesNotThrow(() => new Function(bundle));
     assert.ok(bundle.includes('vscode.postMessage({ type: "ready" });'));
     assert.ok(bundle.includes('vscode.postMessage({ type: "refreshMetadata" });'));
+    assert.ok(bundle.includes('vscode.postMessage({ type: "refreshSessions" });'));
   });
 
   test('createWebviewHtml models sessions, chat, and tree as three lanes', () => {

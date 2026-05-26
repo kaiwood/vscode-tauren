@@ -1760,6 +1760,53 @@ suite('TaurenChatController', () => {
     harness.controller.dispose();
   });
 
+  test('reopening session list shows cached sessions before refreshing', async () => {
+    const initialSessions: WebviewSessionItem[] = [{
+      path: '/sessions/current.jsonl',
+      id: 'current',
+      cwd: '/workspace',
+      created: '2026-01-01T00:00:00.000Z',
+      modified: '2026-01-01T00:01:00.000Z',
+      messageCount: 1,
+      firstMessage: 'Current question',
+      depth: 0,
+      isLast: true,
+      ancestorContinues: [],
+      current: true
+    }];
+    const refreshedSessions: WebviewSessionItem[] = [{
+      ...initialSessions[0],
+      modified: '2026-01-01T00:02:00.000Z',
+      messageCount: 2,
+      firstMessage: 'Updated question'
+    }];
+    let listCalls = 0;
+    const harness = createControllerHarness([new FakePiClient()], {
+      listSessions: async () => {
+        listCalls += 1;
+        return listCalls === 1 ? initialSessions : refreshedSessions;
+      }
+    });
+
+    harness.controller.toggleSessionList();
+    await flushPromises();
+    assert.strictEqual(listCalls, 1);
+    assert.deepStrictEqual(lastState(harness).sessions, initialSessions);
+
+    harness.controller.toggleSessionList();
+    assert.strictEqual(lastState(harness).lane, undefined);
+
+    harness.controller.toggleSessionList();
+    assert.strictEqual(listCalls, 1);
+    assert.strictEqual(lastState(harness).lane, 'sessions');
+    assert.deepStrictEqual(lastState(harness).sessions, initialSessions);
+
+    await harness.controller.handleWebviewMessage({ type: 'refreshSessions' });
+    assert.strictEqual(listCalls, 2);
+    assert.deepStrictEqual(lastState(harness).sessions, refreshedSessions);
+    harness.controller.dispose();
+  });
+
   test('show chat returns from session lanes and settings', async () => {
     const harness = createControllerHarness([new FakePiClient()]);
 
