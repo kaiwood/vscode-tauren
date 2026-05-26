@@ -232,6 +232,32 @@ suite('Pi session list', () => {
     }
   });
 
+  test('publishes cheap loading rows before exact metadata is parsed', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tauren-sessions-cheap-progress-'));
+
+    try {
+      for (let index = 0; index < 2; index += 1) {
+        await writeFile(join(dir, `session-${index}.jsonl`), [
+          JSON.stringify({ type: 'session', version: 3, id: `session-${index}`, timestamp: '2026-01-01T00:00:00.000Z', cwd: '/workspace' }),
+          JSON.stringify({ type: 'message', id: `u${index}`, parentId: null, timestamp: '2026-01-01T00:00:01.000Z', message: { role: 'user', content: `Prompt ${index}` } })
+        ].join('\n') + '\n');
+      }
+
+      const progress: Array<Array<string | undefined>> = [];
+      const sessions = await listPiSessions({
+        sessionDir: dir,
+        onProgress: (items) => progress.push(items.map((item) => item.metadataState))
+      });
+
+      assert.deepStrictEqual(progress[0], ['loading', 'loading']);
+      assert.strictEqual(sessions.length, 2);
+      assert.ok(sessions.every((session) => session.metadataState === 'ready'));
+      assert.ok(sessions.every((session) => session.firstMessage.startsWith('Prompt ')));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('publishes parsed session progress in batches', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tauren-sessions-progress-'));
 

@@ -59,53 +59,78 @@ async function listSessionsFromDir(sessionDir: string, options: ListPiSessionsOp
   );
   const existingFiles = fileStats.filter((file): file is SessionFileStats => Boolean(file));
   const persistedCache = await readSessionMetadataCache(options.sessionMetadataCacheFile);
-  const cachedEntries: CachedSessionInfo[] = [];
+  const entriesByPath = new Map<string, CachedSessionInfo>();
+  const readyEntries: CachedSessionInfo[] = [];
+  const filesToLoadCheap: SessionFileStats[] = [];
   const filesToParse: SessionFileStats[] = [];
+  let cacheHits = 0;
 
   for (const file of existingFiles) {
     const cached = persistedCache.get(file.path);
 
     if (cached && cached.mtimeMs === file.stats.mtimeMs && cached.size === file.stats.size) {
-      cachedEntries.push({
+      const entry = {
         mtimeMs: cached.mtimeMs,
         size: cached.size,
-        session: { ...cached.session, path: file.path }
-      });
+        session: markSessionMetadataReady({ ...cached.session, path: file.path })
+      };
+      entriesByPath.set(file.path, entry);
+      readyEntries.push(entry);
+      cacheHits += 1;
     } else {
-      filesToParse.push(file);
+      filesToLoadCheap.push(file);
     }
   }
 
-  const parsedEntries: CachedSessionInfo[] = [];
   const publishProgress = (): void => {
     options.onProgress?.(decorateSessions(
-      [...cachedEntries, ...parsedEntries].map((entry) => entry.session),
+      Array.from(entriesByPath.values()).map((entry) => entry.session),
       options.currentSessionFile
     ));
   };
 
-  if (cachedEntries.length > 0) {
+  const cheapEntries = await mapWithConcurrency(
+    filesToLoadCheap,
+    maxConcurrentSessionFileReads,
+    buildCheapSessionInfo
+  );
+
+  for (let index = 0; index < cheapEntries.length; index += 1) {
+    const entry = cheapEntries[index];
+
+    if (!entry) {
+      continue;
+    }
+
+    entriesByPath.set(entry.session.path, entry);
+    filesToParse.push(filesToLoadCheap[index]);
+  }
+
+  if (entriesByPath.size > 0) {
     publishProgress();
   }
 
+  let parsedCount = 0;
   await parseSessionInfoFiles(filesToParse, (entry) => {
-    parsedEntries.push(entry);
+    entriesByPath.set(entry.session.path, entry);
+    readyEntries.push(entry);
+    parsedCount += 1;
 
-    if (parsedEntries.length % sessionListProgressBatchSize === 0) {
+    if (parsedCount % sessionListProgressBatchSize === 0) {
       publishProgress();
     }
   });
 
-  const entries = [...cachedEntries, ...parsedEntries];
+  const entries = Array.from(entriesByPath.values());
   options.onMetrics?.({
     sessionCount: entries.length,
     totalBytes: existingFiles.reduce((total, file) => total + file.stats.size, 0),
-    cacheHits: cachedEntries.length,
+    cacheHits,
     cacheMisses: filesToParse.length
   });
 
-  if (parsedEntries.length > 0 || persistedCache.size !== entries.length) {
-    await writeSessionMetadataCache(options.sessionMetadataCacheFile, entries);
+  if (parsedCount > 0 || persistedCache.size !== readyEntries.length) {
+    await writeSessionMetadataCache(options.sessionMetadataCacheFile, readyEntries);
   }
 
   return entries.map((entry) => entry.session);
@@ -244,7 +269,7 @@ async function buildSessionInfo(filePath: string, knownStats?: Stats): Promise<R
     const cached = getCachedSessionInfo(filePath, stats);
 
     if (cached) {
-      return cached;
+      return markSessionMetadataReady(cached);
     }
 
     const session = await readSessionSummary(filePath, stats);
@@ -253,8 +278,38 @@ async function buildSessionInfo(filePath: string, knownStats?: Stats): Promise<R
       return undefined;
     }
 
-    rememberSessionInfo(filePath, stats, session);
-    return session;
+    const readySession = markSessionMetadataReady(session);
+    rememberSessionInfo(filePath, stats, readySession);
+    return readySession;
+  } catch {
+    return undefined;
+  }
+}
+
+async function buildCheapSessionInfo(file: SessionFileStats): Promise<CachedSessionInfo | undefined> {
+  try {
+    const header = await readSessionJsonlHeader(file.path);
+
+    if (!header || typeof header.id !== 'string') {
+      return undefined;
+    }
+
+    const created = parseDate(header.timestamp, file.stats.mtime);
+    return {
+      mtimeMs: file.stats.mtimeMs,
+      size: file.stats.size,
+      session: {
+        path: file.path,
+        id: header.id,
+        cwd: typeof header.cwd === 'string' ? header.cwd : '',
+        parentSessionPath: typeof header.parentSession === 'string' ? header.parentSession : undefined,
+        created: created.toISOString(),
+        modified: file.stats.mtime.toISOString(),
+        messageCount: 0,
+        firstMessage: 'Loading metadata…',
+        metadataState: 'loading'
+      }
+    };
   } catch {
     return undefined;
   }
@@ -310,6 +365,19 @@ function getCachedSessionInfo(filePath: string, stats: Stats): RawSessionInfo | 
   sessionInfoCache.delete(filePath);
   sessionInfoCache.set(filePath, cached);
   return { ...cached.session };
+}
+
+function markSessionMetadataReady(session: RawSessionInfo): RawSessionInfo {
+  return { ...session, metadataState: 'ready' };
+}
+
+function parseDate(value: unknown, fallback: Date): Date {
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? fallback : new Date(time);
 }
 
 function rememberSessionInfo(filePath: string, stats: Stats, session: RawSessionInfo): void {

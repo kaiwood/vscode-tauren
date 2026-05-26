@@ -5006,8 +5006,14 @@ ${after}`;
   // src/webview/sessions/sessionFormat.ts
   function getSessionDisplayName(session) {
     const name = sanitizeSessionTitle(session.name);
+    if (name) {
+      return name;
+    }
+    if (session.metadataState === "loading") {
+      return "Loading metadata\u2026";
+    }
     const firstMessage = sanitizeSessionTitle(session.firstMessage);
-    return name || firstMessage || shortenPath(session.cwd) || "Untitled session";
+    return firstMessage || shortenPath(session.cwd) || "Untitled session";
   }
   function buildSessionTreePrefix(session) {
     const depth = Number(session.depth) || 0;
@@ -5020,9 +5026,12 @@ ${after}`;
     return parts.join("");
   }
   function formatSessionMeta(session) {
-    const count = typeof session.messageCount === "number" ? session.messageCount : 0;
     const age = formatRelativeTime(session.modified);
     const cwd = shortenPath(session.cwd);
+    if (session.metadataState === "loading") {
+      return ["Loading metadata\u2026", age, cwd].filter(Boolean).join(" \xB7 ");
+    }
+    const count = typeof session.messageCount === "number" ? session.messageCount : 0;
     const countLabel = count === 1 ? "1 message" : count + " messages";
     return [countLabel, age, cwd].filter(Boolean).join(" \xB7 ");
   }
@@ -5537,7 +5546,7 @@ ${after}`;
     const { session, index } = options;
     const item = document.createElement("div");
     item.id = "session-" + index;
-    item.className = "sessions__item" + (index === options.selectedIndex ? " sessions__item--active" : "") + (session.current ? " sessions__item--current" : "") + (session.liveStatus ? " sessions__item--" + session.liveStatus : "") + (session.unread ? " sessions__item--unread" : "");
+    item.className = "sessions__item" + (index === options.selectedIndex ? " sessions__item--active" : "") + (session.current ? " sessions__item--current" : "") + (session.metadataState === "loading" ? " sessions__item--loading" : "") + (session.liveStatus ? " sessions__item--" + session.liveStatus : "") + (session.unread ? " sessions__item--unread" : "");
     item.setAttribute("role", "option");
     item.setAttribute("aria-selected", index === options.selectedIndex ? "true" : "false");
     item.setAttribute("data-index", String(index));
@@ -6261,6 +6270,35 @@ ${after}`;
     return -1;
   }
 
+  // src/webview/sessions/sessionVirtualization.ts
+  function getVirtualSessionRange(options) {
+    const itemCount = Math.max(0, Math.floor(options.itemCount));
+    if (itemCount <= Math.max(0, options.threshold)) {
+      return {
+        enabled: false,
+        start: 0,
+        end: itemCount,
+        topPadding: 0,
+        bottomPadding: 0
+      };
+    }
+    const itemHeight = Math.max(1, options.itemHeight);
+    const overscan = Math.max(0, Math.floor(options.overscan));
+    const viewportHeight = Math.max(itemHeight, options.viewportHeight);
+    const relativeScrollTop = Math.max(0, options.scrollTop - Math.max(0, options.listTopOffset));
+    const visibleStart = Math.floor(relativeScrollTop / itemHeight);
+    const visibleEnd = Math.ceil((relativeScrollTop + viewportHeight) / itemHeight);
+    const start = Math.max(0, visibleStart - overscan);
+    const end = Math.min(itemCount, Math.max(start + 1, visibleEnd + overscan));
+    return {
+      enabled: true,
+      start,
+      end,
+      topPadding: start * itemHeight,
+      bottomPadding: Math.max(0, itemCount - end) * itemHeight
+    };
+  }
+
   // src/webview/sessions/topSessionControls.ts
   var TopSessionControls = class {
     constructor(options) {
@@ -6421,6 +6459,10 @@ ${after}`;
 
   // src/webview/sessions/sessionView.ts
   var sessionItemMenuCloseDelayMs = 250;
+  var sessionListVirtualizationThreshold = 500;
+  var sessionListVirtualOverscan = 8;
+  var defaultSessionListItemHeight = 54;
+  var defaultSessionListTopOffset = 72;
   var SessionViewController = class {
     constructor(options) {
       this.options = options;
@@ -6464,6 +6506,8 @@ ${after}`;
     pendingSessionListScrollRestore = false;
     pendingSessionScrollIndex;
     pendingSessionScrollFrame;
+    pendingSessionVirtualRenderFrame;
+    sessionListVirtualItemHeight = defaultSessionListItemHeight;
     topControls;
     treeController;
     attachEventListeners() {
@@ -6471,6 +6515,7 @@ ${after}`;
       this.options.sessionsElement.addEventListener("keydown", (event) => this.handleSessionListKeydown(event));
       this.options.sessionsElement.addEventListener("pointermove", (event) => this.handleSessionListPointerMove(event));
       this.options.sessionsElement.addEventListener("pointerleave", () => this.scheduleSessionItemMenuClose());
+      this.options.sessionsElement.addEventListener("scroll", () => this.handleSessionListScroll());
       this.options.sessionsElement.addEventListener("contextmenu", (event) => this.handleSessionListContextMenu(event));
       this.options.sessionsElement.addEventListener("click", (event) => this.handleSessionsClick(event));
       this.options.sessionTreeElement.addEventListener("keydown", (event) => this.handleSessionListKeydown(event));
@@ -6564,7 +6609,12 @@ ${after}`;
       this.options.sessionsElement.append(search);
       const header = document.createElement("div");
       header.className = "sessions__header";
+      const renderWindow = this.getSessionRenderWindow(visibleIndexes);
       if (this.openSessionListMenuIndex !== void 0 && !visibleIndexes.includes(this.openSessionListMenuIndex)) {
+        this.openSessionListMenuIndex = void 0;
+        this.openSessionListMenuPosition = void 0;
+        this.clearPendingSessionItemMenuClose();
+      } else if (this.openSessionListMenuIndex !== void 0 && renderWindow.virtualized && !renderWindow.indexes.includes(this.openSessionListMenuIndex)) {
         this.openSessionListMenuIndex = void 0;
         this.openSessionListMenuPosition = void 0;
         this.clearPendingSessionItemMenuClose();
@@ -6584,7 +6634,8 @@ ${after}`;
       } else if (visibleIndexes.length === 0) {
         this.options.sessionsElement.append(createSessionEmptyElement(this.getSessionListEmptyText()));
       } else {
-        for (const index of visibleIndexes) {
+        this.appendSessionVirtualSpacer(renderWindow.topPadding, "top");
+        for (const index of renderWindow.indexes) {
           this.options.sessionsElement.append(createSessionItemElement({
             session: state2.sessions[index],
             index,
@@ -6603,6 +6654,8 @@ ${after}`;
             onCommandHover: (button, hovered) => this.setSessionMenuItemHover(button, hovered)
           }));
         }
+        this.appendSessionVirtualSpacer(renderWindow.bottomPadding, "bottom");
+        this.updateSessionVirtualItemHeight();
       }
       if (this.sessionListNameEditPath) {
         const select = this.sessionListNameEditShouldSelect;
@@ -6618,6 +6671,51 @@ ${after}`;
       if (this.openSessionListMenuPosition) {
         requestAnimationFrame(() => this.clampOpenSessionItemContextMenu());
       }
+    }
+    getSessionRenderWindow(visibleIndexes) {
+      const range = getVirtualSessionRange({
+        itemCount: visibleIndexes.length,
+        scrollTop: this.options.sessionsElement.scrollTop,
+        viewportHeight: this.options.sessionsElement.clientHeight || 600,
+        listTopOffset: this.getSessionVirtualListTopOffset(),
+        itemHeight: this.sessionListVirtualItemHeight,
+        overscan: sessionListVirtualOverscan,
+        threshold: sessionListVirtualizationThreshold
+      });
+      return {
+        indexes: visibleIndexes.slice(range.start, range.end),
+        topPadding: range.topPadding,
+        bottomPadding: range.bottomPadding,
+        virtualized: range.enabled
+      };
+    }
+    appendSessionVirtualSpacer(height, position) {
+      if (height <= 0) {
+        return;
+      }
+      const spacer = document.createElement("div");
+      spacer.className = "sessions__virtual-spacer sessions__virtual-spacer--" + position;
+      spacer.setAttribute("aria-hidden", "true");
+      spacer.style.height = Math.round(height) + "px";
+      this.options.sessionsElement.append(spacer);
+    }
+    updateSessionVirtualItemHeight() {
+      const item = this.options.sessionsElement.querySelector(".sessions__item");
+      if (!item || item.offsetHeight <= 0) {
+        return;
+      }
+      this.sessionListVirtualItemHeight = item.offsetHeight;
+    }
+    getSessionVirtualListTopOffset() {
+      const topSpacer = this.options.sessionsElement.querySelector(".sessions__virtual-spacer--top");
+      if (topSpacer) {
+        return topSpacer.offsetTop;
+      }
+      const firstItem = this.options.sessionsElement.querySelector(".sessions__item");
+      if (firstItem) {
+        return firstItem.offsetTop;
+      }
+      return defaultSessionListTopOffset;
     }
     renderTree() {
       this.treeController.render();
@@ -6850,6 +6948,25 @@ ${after}`;
       this.sessionPointerHoverEnabled = true;
       this.options.sessionsElement.classList.add("sessions--pointer-hover");
     }
+    handleSessionListScroll() {
+      this.sessionListScrollTop = this.options.sessionsElement.scrollTop;
+      const state2 = this.options.getState();
+      if (state2.lane !== "sessions" || !Array.isArray(state2.sessions) || state2.sessions.length <= sessionListVirtualizationThreshold) {
+        return;
+      }
+      this.scheduleSessionVirtualRender();
+    }
+    scheduleSessionVirtualRender() {
+      if (this.pendingSessionVirtualRenderFrame !== void 0) {
+        return;
+      }
+      this.pendingSessionVirtualRenderFrame = requestAnimationFrame(() => {
+        this.pendingSessionVirtualRenderFrame = void 0;
+        if (this.options.getState().lane === "sessions") {
+          this.renderSessions();
+        }
+      });
+    }
     handleSessionListPointerMove(event) {
       this.enableSessionPointerHover();
       const state2 = this.options.getState();
@@ -6929,7 +7046,12 @@ ${after}`;
         if (scrollIndex === void 0) {
           return;
         }
-        document.getElementById("session-" + scrollIndex)?.scrollIntoView({ block: "nearest" });
+        const item = document.getElementById("session-" + scrollIndex);
+        if (item) {
+          item.scrollIntoView({ block: "nearest" });
+        } else {
+          this.scrollVirtualSessionIndexIntoView(scrollIndex);
+        }
       });
     }
     cancelPendingSessionSelectionScroll() {
@@ -6951,6 +7073,7 @@ ${after}`;
     revealSelectedSessionIfNeeded() {
       const item = document.getElementById("session-" + this.sessionListSelectedIndex);
       if (!item) {
+        this.scrollVirtualSessionIndexIntoView(this.sessionListSelectedIndex);
         return;
       }
       const containerRect = this.options.sessionsElement.getBoundingClientRect();
@@ -6958,6 +7081,26 @@ ${after}`;
       if (itemRect.top < containerRect.top || itemRect.bottom > containerRect.bottom) {
         item.scrollIntoView({ block: "nearest" });
       }
+    }
+    scrollVirtualSessionIndexIntoView(index) {
+      const state2 = this.options.getState();
+      if (state2.lane !== "sessions" || !Array.isArray(state2.sessions) || state2.sessions.length <= sessionListVirtualizationThreshold) {
+        return;
+      }
+      const visibleIndexes = this.getVisibleSessionIndexes();
+      const position = visibleIndexes.indexOf(index);
+      if (position < 0) {
+        return;
+      }
+      const itemTop = this.getSessionVirtualListTopOffset() + position * this.sessionListVirtualItemHeight;
+      const itemBottom = itemTop + this.sessionListVirtualItemHeight;
+      const container = this.options.sessionsElement;
+      if (itemTop < container.scrollTop) {
+        container.scrollTop = itemTop;
+      } else if (itemBottom > container.scrollTop + container.clientHeight) {
+        container.scrollTop = itemBottom - container.clientHeight;
+      }
+      this.scheduleSessionVirtualRender();
     }
     selectSessionIndex(index) {
       const state2 = this.options.getState();

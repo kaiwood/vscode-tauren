@@ -318,6 +318,16 @@ export const sessionListStyles = /* css */ `    .sessions__search {
       color: var(--vscode-focusBorder);
     }
 
+    .sessions__item--loading .sessions__title,
+    .sessions__item--loading .sessions__meta {
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .sessions__virtual-spacer {
+      width: 100%;
+      pointer-events: none;
+    }
+
     .sessions__meta {
       grid-column: 2 / 3;
       color: var(--vscode-descriptionForeground);

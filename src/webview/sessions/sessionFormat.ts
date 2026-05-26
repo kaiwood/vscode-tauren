@@ -2,8 +2,17 @@ import type { SessionItem } from '../types';
 
 export function getSessionDisplayName(session: SessionItem): string {
   const name = sanitizeSessionTitle(session.name);
+
+  if (name) {
+    return name;
+  }
+
+  if (session.metadataState === 'loading') {
+    return 'Loading metadata…';
+  }
+
   const firstMessage = sanitizeSessionTitle(session.firstMessage);
-  return name || firstMessage || shortenPath(session.cwd) || 'Untitled session';
+  return firstMessage || shortenPath(session.cwd) || 'Untitled session';
 }
 
 export function buildSessionTreePrefix(session: { depth?: number; ancestorContinues?: boolean[]; isLast?: boolean }): string {
@@ -20,9 +29,14 @@ export function buildSessionTreePrefix(session: { depth?: number; ancestorContin
 }
 
 export function formatSessionMeta(session: SessionItem): string {
-  const count = typeof session.messageCount === 'number' ? session.messageCount : 0;
   const age = formatRelativeTime(session.modified);
   const cwd = shortenPath(session.cwd);
+
+  if (session.metadataState === 'loading') {
+    return ['Loading metadata…', age, cwd].filter(Boolean).join(' · ');
+  }
+
+  const count = typeof session.messageCount === 'number' ? session.messageCount : 0;
   const countLabel = count === 1 ? '1 message' : count + ' messages';
   return [countLabel, age, cwd].filter(Boolean).join(' · ');
 }

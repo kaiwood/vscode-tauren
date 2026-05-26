@@ -8,6 +8,7 @@ export type PiSessionListItem = {
   modified: string;
   messageCount: number;
   firstMessage: string;
+  metadataState?: 'loading' | 'ready';
   depth: number;
   isLast: boolean;
   ancestorContinues: boolean[];
