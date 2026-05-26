@@ -9,7 +9,9 @@ export type { ListPiSessionsOptions, PiSessionCandidate, PiSessionListItem } fro
 
 const piSessionDirEnvName = 'PI_CODING_AGENT_SESSION_DIR';
 const maxConcurrentSessionFileReads = 8;
-const maxCachedSessionInfos = 500;
+const maxCachedSessionInfos = 5000;
+const maxSessionFirstMessageLength = 500;
+const truncationMarker = '…';
 
 const sessionInfoCache = new Map<string, { mtimeMs: number; size: number; session: RawSessionInfo }>();
 
@@ -231,7 +233,7 @@ async function buildSessionInfo(filePath: string): Promise<RawSessionInfo | unde
       }
 
       if (role === 'user' && !firstMessage) {
-        firstMessage = extractPiMessageText(entry.message.content, { separator: ' ' }).trim();
+        firstMessage = truncateSessionFirstMessage(extractPiMessageText(entry.message.content, { separator: ' ' }).trim());
       }
     }
 
@@ -258,6 +260,16 @@ async function buildSessionInfo(filePath: string): Promise<RawSessionInfo | unde
   } catch {
     return undefined;
   }
+}
+
+function truncateSessionFirstMessage(value: string): string {
+  const chars = Array.from(value);
+
+  if (chars.length <= maxSessionFirstMessageLength) {
+    return value;
+  }
+
+  return chars.slice(0, maxSessionFirstMessageLength - truncationMarker.length).join('').trimEnd() + truncationMarker;
 }
 
 function getCachedSessionInfo(filePath: string, stats: Stats): RawSessionInfo | undefined {

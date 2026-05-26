@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Increased session-list metadata cache capacity and bounded long first-message titles.
+
 ## 1.1.0 - 2026-05-26
 
 - Optimized caching and rendering strategy for the List->Chat transition

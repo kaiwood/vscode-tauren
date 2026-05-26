@@ -83,6 +83,26 @@ suite('Pi session list', () => {
     }
   });
 
+  test('truncates long first messages in session list metadata', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tauren-sessions-'));
+
+    try {
+      const sessionPath = join(dir, 'long-message.jsonl');
+      await writeFile(sessionPath, [
+        JSON.stringify({ type: 'session', version: 3, id: 'long-message', timestamp: '2026-01-01T00:00:00.000Z', cwd: '/workspace' }),
+        JSON.stringify({ type: 'message', id: 'u1', parentId: null, timestamp: '2026-01-01T00:00:01.000Z', message: { role: 'user', content: 'A'.repeat(600) } })
+      ].join('\n') + '\n');
+
+      const sessions = await listPiSessions({ sessionDir: dir });
+
+      assert.strictEqual(sessions.length, 1);
+      assert.strictEqual(sessions[0].firstMessage.length, 500);
+      assert.strictEqual(sessions[0].firstMessage, 'A'.repeat(499) + '…');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('lists sessions with names, message counts, current marker, and fork tree metadata', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tauren-sessions-'));
 
