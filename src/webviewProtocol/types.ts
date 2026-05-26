@@ -228,6 +228,11 @@ export type WebviewExtensionFooterEntry = {
   line: string;
 };
 
+export type WebviewStartupResourceSection = {
+  name: string;
+  items: string[];
+};
+
 export type WebviewMessagePatch = {
   upserts?: Array<{ index: number; message: ChatSnapshotMessage }>;
   deleteFrom?: number;
@@ -256,6 +261,7 @@ export type WebviewStateMessage = Omit<ChatState, 'messages'> & {
   extensionStatus: WebviewExtensionStatusEntry[];
   extensionFooter?: WebviewExtensionFooterEntry;
   extensionWidgets: WebviewExtensionWidgetEntry[];
+  startupResources?: WebviewStartupResourceSection[];
   allowRemoteImages?: boolean;
   welcomeDismissed?: boolean;
   promptContext?: WebviewPromptContextAttachment[];
@@ -310,6 +316,7 @@ export type CreateWebviewStateMessageOptions = {
   extensionStatus?: WebviewExtensionStatusEntry[];
   extensionFooter?: WebviewExtensionFooterEntry;
   extensionWidgets?: WebviewExtensionWidgetEntry[];
+  startupResources?: WebviewStartupResourceSection[];
   allowRemoteImages?: boolean;
   welcomeDismissed?: boolean;
   promptContext?: WebviewPromptContextAttachment[];

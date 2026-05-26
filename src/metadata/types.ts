@@ -1,5 +1,5 @@
 import type { SettingValue, PiSettingId } from '../settings/settingsRegistry';
-import type { WebviewModelOption, WebviewSlashCommand } from '../webviewProtocol/types';
+import type { WebviewModelOption, WebviewSlashCommand, WebviewStartupResourceSection } from '../webviewProtocol/types';
 
 export type TaurenChatModelMeta = {
   label: string;
@@ -36,6 +36,7 @@ export type SessionMetadataWebviewState = {
   metadataRefreshing: boolean;
   slashCommands: WebviewSlashCommand[];
   slashCommandsRefreshing: boolean;
+  startupResources: WebviewStartupResourceSection[];
   piSettings: PiRuntimeSettingsMeta;
 };
 

@@ -1,5 +1,5 @@
-import type { WebviewModelOption, WebviewSlashCommand } from '../webviewProtocol/types';
-import type { PiCommand, PiMessagesResult, PiModel, PiSessionState, PiSessionStats } from '../pi/types';
+import type { WebviewModelOption, WebviewSlashCommand, WebviewStartupResourceSection } from '../webviewProtocol/types';
+import type { PiCommand, PiMessagesResult, PiModel, PiSessionState, PiSessionStats, PiStartupResources } from '../pi/types';
 import type {
   TaurenChatContextUsage,
   TaurenChatModelMeta,
@@ -27,6 +27,7 @@ export type SessionMetadataClient = {
   getSessionStats(): Promise<PiSessionStats>;
   getAvailableModels(): Promise<{ models?: PiModel[] }>;
   getCommands(): Promise<{ commands?: PiCommand[] }>;
+  getStartupResources?(): Promise<PiStartupResources>;
 };
 
 export type SessionMetadataRefreshControllerOptions = {
@@ -171,7 +172,8 @@ export class SessionMetadataRefreshController {
         this.options.restoreInitialSessionHistory(client, sessionGeneration, () => this.isCurrentMetadataRefresh(sessionGeneration, refreshId)),
         this.refreshModelMeta(client, sessionGeneration, refreshId),
         this.refreshContextUsageForMetadata(client, sessionGeneration, refreshId),
-        this.refreshModelOptions(client, sessionGeneration, refreshId)
+        this.refreshModelOptions(client, sessionGeneration, refreshId),
+        this.refreshStartupResources(client, sessionGeneration, refreshId)
       ].map((refresh) => refresh.catch(handleRefreshError)));
     } finally {
       if (this.isCurrentMetadataRefresh(sessionGeneration, refreshId)) {
@@ -279,6 +281,26 @@ export class SessionMetadataRefreshController {
     }
   }
 
+  private async refreshStartupResources(
+    client: SessionMetadataClient,
+    sessionGeneration: number,
+    refreshId: number
+  ): Promise<void> {
+    if (!client.getStartupResources) {
+      return;
+    }
+
+    const startupResources = await client.getStartupResources();
+
+    if (!this.isCurrentMetadataRefresh(sessionGeneration, refreshId)) {
+      return;
+    }
+
+    if (this.options.state.applyStartupResources(startupResources)) {
+      this.options.postState();
+    }
+  }
+
   private async runSlashCommandsRefresh(
     options: { startClient?: boolean },
     sessionGeneration: number,
@@ -348,6 +370,7 @@ export class SessionMetadataState {
   private metadataRefreshing = false;
   private slashCommands: WebviewSlashCommand[] = [];
   private slashCommandsRefreshing = false;
+  private startupResources: WebviewStartupResourceSection[] = [];
   private piSettings: PiRuntimeSettingsMeta = {};
 
   public constructor(private readonly options: SessionMetadataStateOptions = {}) {
@@ -374,6 +397,7 @@ export class SessionMetadataState {
       metadataRefreshing: this.metadataRefreshing,
       slashCommands: this.slashCommands,
       slashCommandsRefreshing: this.slashCommandsRefreshing,
+      startupResources: cloneStartupResources(this.startupResources),
       piSettings: { ...this.piSettings }
     };
   }
@@ -406,6 +430,10 @@ export class SessionMetadataState {
     return this.applySlashCommands(formatSlashCommands(commands));
   }
 
+  public applyStartupResources(resources: PiStartupResources | undefined): boolean {
+    return this.setStartupResources(formatStartupResources(resources));
+  }
+
   public resetContextUsage(): void {
     const changed = Boolean(this.contextUsageLabel || this.contextUsageTitle || this.contextUsageLevel);
     this.contextUsageLabel = '';
@@ -415,6 +443,10 @@ export class SessionMetadataState {
     if (changed) {
       this.notifyChange();
     }
+  }
+
+  public resetStartupResources(): void {
+    this.setStartupResources([]);
   }
 
   public setMetadataRefreshing(value: boolean): void {
@@ -507,6 +539,15 @@ export class SessionMetadataState {
     }
 
     this.slashCommands = slashCommands;
+    return true;
+  }
+
+  private setStartupResources(startupResources: WebviewStartupResourceSection[]): boolean {
+    if (areStartupResourcesEqual(startupResources, this.startupResources)) {
+      return false;
+    }
+
+    this.startupResources = cloneStartupResources(startupResources);
     return true;
   }
 
@@ -793,6 +834,39 @@ function areModelOptionsEqual(left: WebviewModelOption[], right: WebviewModelOpt
         && model.id === other.id
         && model.name === other.name
         && model.reasoning === other.reasoning;
+    });
+}
+
+function formatStartupResources(resources: PiStartupResources | undefined): WebviewStartupResourceSection[] {
+  if (!Array.isArray(resources?.sections)) {
+    return [];
+  }
+
+  return resources.sections.flatMap((section) => {
+    const name = typeof section.name === 'string' ? section.name.trim() : '';
+    const items = Array.isArray(section.items)
+      ? section.items.map((item) => String(item).trim()).filter((item) => item.length > 0)
+      : [];
+
+    return name && items.length > 0 ? [{ name, items }] : [];
+  });
+}
+
+function cloneStartupResources(resources: WebviewStartupResourceSection[]): WebviewStartupResourceSection[] {
+  return resources.map((section) => ({
+    name: section.name,
+    items: section.items.slice()
+  }));
+}
+
+function areStartupResourcesEqual(left: WebviewStartupResourceSection[], right: WebviewStartupResourceSection[]): boolean {
+  return left.length === right.length
+    && left.every((section, index) => {
+      const other = right[index];
+      return other
+        && section.name === other.name
+        && section.items.length === other.items.length
+        && section.items.every((item, itemIndex) => item === other.items[itemIndex]);
     });
 }
 

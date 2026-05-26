@@ -77,6 +77,26 @@ suite('SessionMetadataState', () => {
     ]);
   });
 
+  test('applies startup resources for webview state only', () => {
+    const state = new SessionMetadataState();
+
+    assert.strictEqual(state.applyStartupResources({
+      sections: [
+        { name: 'Context', items: ['AGENTS.md'] },
+        { name: '', items: ['ignored'] },
+        { name: 'Skills', items: [] }
+      ]
+    }), true);
+
+    assert.deepStrictEqual(state.getWebviewState().startupResources, [
+      { name: 'Context', items: ['AGENTS.md'] }
+    ]);
+
+    assert.strictEqual(state.applyStartupResources({ sections: [{ name: 'Context', items: ['AGENTS.md'] }] }), false);
+    state.resetStartupResources();
+    assert.deepStrictEqual(state.getWebviewState().startupResources, []);
+  });
+
   test('formats known and unknown context usage with compact status tooltip', () => {
     assert.deepStrictEqual(formatContextUsage({
       tokens: { input: 83000, output: 2400, cacheRead: 468000, cacheWrite: 0, total: 553400 },
@@ -133,9 +153,11 @@ suite('SessionMetadataState', () => {
     assert.strictEqual(client.stateCalls, 1);
     assert.strictEqual(client.statsCalls, 1);
     assert.strictEqual(client.modelsCalls, 1);
+    assert.strictEqual(client.startupResourcesCalls, 1);
     assert.strictEqual(postCount > 0, true);
     assert.strictEqual(state.getWebviewState().model.id, 'live-model');
     assert.strictEqual(state.getWebviewState().contextUsage.label, '25%');
+    assert.deepStrictEqual(state.getWebviewState().startupResources, [{ name: 'Context', items: ['AGENTS.md'] }]);
   });
 });
 
@@ -143,6 +165,7 @@ class FakeMetadataClient {
   public stateCalls = 0;
   public statsCalls = 0;
   public modelsCalls = 0;
+  public startupResourcesCalls = 0;
 
   public async getMessages() {
     return { messages: [] };
@@ -168,5 +191,10 @@ class FakeMetadataClient {
 
   public async getCommands() {
     return { commands: [] };
+  }
+
+  public async getStartupResources() {
+    this.startupResourcesCalls += 1;
+    return { sections: [{ name: 'Context', items: ['AGENTS.md'] }] };
   }
 }

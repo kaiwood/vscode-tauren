@@ -11,6 +11,7 @@ suite('Webview state helpers', () => {
     assert.strictEqual(initialWebviewState.settingsSection, 'appearance');
     assert.strictEqual(initialWebviewState.customUiTheme, 'default');
     assert.deepStrictEqual(initialWebviewState.extensionStatus, []);
+    assert.deepStrictEqual(initialWebviewState.startupResources, []);
     assert.strictEqual(initialWebviewState.allowRemoteImages, false);
     assert.strictEqual(initialWebviewState.welcomeDismissed, false);
     assert.deepStrictEqual(initialWebviewState.auth, { providers: [] });
@@ -37,6 +38,7 @@ suite('Webview state helpers', () => {
       slashCommandsRefreshing: true,
       customUiTheme: 'modern',
       extensionStatus: [{ key: 'plan-mode', text: 'Planning', extra: 'ignored' }],
+      startupResources: [{ name: 'Context', items: ['AGENTS.md', '', 1] }, { name: '', items: ['ignored'] }],
       allowRemoteImages: false,
       welcomeDismissed: true,
       promptContext: [{ id: 'context-1', kind: 'file', label: 'file.ts', title: 'src/file.ts' }],
@@ -79,6 +81,7 @@ suite('Webview state helpers', () => {
     assert.strictEqual(parsed.settingsSection, 'runtime');
     assert.strictEqual(parsed.customUiTheme, 'modern');
     assert.deepStrictEqual(parsed.extensionStatus, [{ key: 'plan-mode', text: 'Planning' }]);
+    assert.deepStrictEqual(parsed.startupResources, [{ name: 'Context', items: ['AGENTS.md'] }]);
     assert.strictEqual(parsed.allowRemoteImages, false);
     assert.strictEqual(parsed.welcomeDismissed, true);
     assert.deepStrictEqual(parsed.auth.providers[0], {
@@ -165,6 +168,7 @@ suite('Webview state helpers', () => {
     assert.strictEqual(parsed.settingsSection, 'appearance');
     assert.strictEqual(parsed.customUiTheme, 'default');
     assert.deepStrictEqual(parsed.extensionStatus, []);
+    assert.deepStrictEqual(parsed.startupResources, []);
     assert.strictEqual(parsed.allowRemoteImages, false);
     assert.strictEqual(parsed.welcomeDismissed, false);
     assert.deepStrictEqual(parsed.sessions, []);

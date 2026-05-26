@@ -588,6 +588,7 @@ export class TaurenChatController {
       model: metadataState.model,
       slashCommands: metadataState.slashCommands,
       slashCommandsRefreshing: metadataState.slashCommandsRefreshing,
+      startupResources: metadataState.startupResources,
       outputColors: this.options.getOutputColors?.() ?? true,
       animationsEnabled: this.options.getAnimationsEnabled?.() ?? true,
       customUiTheme: this.options.getCustomUiTheme?.() ?? 'default',
@@ -1216,6 +1217,7 @@ export class TaurenChatController {
 
   private resetSessionMeta(): void {
     this.sessionMetadata.resetContextUsage();
+    this.sessionMetadata.resetStartupResources();
   }
 
   private disposeClient(): void {

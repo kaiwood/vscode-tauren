@@ -10,7 +10,7 @@ import {
   type ScrollFollowState,
   type ScrollMetrics
 } from './scrollFollow';
-import type { Activity, ChatImage, ChatMessage, WebviewState } from '../types';
+import type { Activity, ChatImage, ChatMessage, StartupResourceSection, WebviewState } from '../types';
 
 type PostMessage = (message: unknown) => void;
 
@@ -319,7 +319,7 @@ export class MessageListController {
     const state = this.options.getState();
 
     if (!state.sessionLoading) {
-      return state.welcomeDismissed ? createPlainEmptyStateElement() : createWelcomeStateElement();
+      return state.welcomeDismissed ? createPlainEmptyStateElement(state) : createWelcomeStateElement(state);
     }
 
     const empty = document.createElement('p');
@@ -545,14 +545,27 @@ function pruneDisconnectedMessageRenderState(): void {
   pruneDisconnectedLocalImageRequests();
 }
 
-function createPlainEmptyStateElement(): HTMLElement {
-  const empty = document.createElement('p');
-  empty.className = 'empty-state';
-  empty.textContent = 'Ask Tauren about this workspace.';
+function createPlainEmptyStateElement(state: WebviewState): HTMLElement {
+  const resources = createStartupResourcesElement(state.startupResources);
+
+  if (!resources) {
+    const empty = document.createElement('p');
+    empty.className = 'empty-state';
+    empty.textContent = 'Ask Tauren about this workspace.';
+    return empty;
+  }
+
+  const empty = document.createElement('div');
+  empty.className = 'empty-state empty-state--welcome empty-state--new-session';
+
+  const description = document.createElement('p');
+  description.textContent = 'Ask Tauren about this workspace.';
+
+  empty.append(description, resources);
   return empty;
 }
 
-function createWelcomeStateElement(): HTMLElement {
+function createWelcomeStateElement(state: WebviewState): HTMLElement {
   const empty = document.createElement('div');
   empty.className = 'empty-state empty-state--welcome';
 
@@ -565,6 +578,8 @@ function createWelcomeStateElement(): HTMLElement {
 
   const commandHint = document.createElement('p');
   commandHint.textContent = 'Type / for commands, or add a file/selection as context from the editor.';
+
+  const resources = createStartupResourcesElement(state.startupResources);
 
   const tryLabel = document.createElement('p');
   tryLabel.className = 'empty-state__try-label';
@@ -590,8 +605,45 @@ function createWelcomeStateElement(): HTMLElement {
   dismiss.textContent = "Don't show again";
   dismiss.setAttribute('data-dismiss-welcome', '');
 
-  empty.append(title, description, commandHint, tryLabel, promptList, dismiss);
+  empty.append(title, description, commandHint);
+
+  if (resources) {
+    empty.append(resources);
+  }
+
+  empty.append(tryLabel, promptList, dismiss);
   return empty;
+}
+
+function createStartupResourcesElement(resources: StartupResourceSection[]): HTMLElement | undefined {
+  if (resources.length === 0) {
+    return undefined;
+  }
+
+  const container = document.createElement('div');
+  container.className = 'empty-state__resources';
+
+  for (const section of resources) {
+    if (section.items.length === 0) {
+      continue;
+    }
+
+    const row = document.createElement('div');
+    row.className = 'empty-state__resource-row';
+
+    const heading = document.createElement('span');
+    heading.className = 'empty-state__resource-heading';
+    heading.textContent = `[${section.name}]`;
+
+    const items = document.createElement('span');
+    items.className = 'empty-state__resource-items';
+    items.textContent = section.items.join(', ');
+
+    row.append(heading, items);
+    container.append(row);
+  }
+
+  return container.childElementCount > 0 ? container : undefined;
 }
 
 function getActivitySignature(activity: Activity): string {

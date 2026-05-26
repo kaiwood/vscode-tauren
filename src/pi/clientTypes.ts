@@ -21,6 +21,7 @@ import type {
   PiPromptStreamingBehavior,
   PiSessionState,
   PiSessionStats,
+  PiStartupResources,
   PiSwitchSessionResult
 } from './types';
 
@@ -35,6 +36,7 @@ export type PiClient = {
   getSessionStats(): Promise<PiSessionStats>;
   getAvailableModels(): Promise<PiAvailableModels>;
   getCommands(): Promise<PiAvailableCommands>;
+  getStartupResources?(): Promise<PiStartupResources>;
   getAuthProviders?(): Promise<PiAuthProvidersResult>;
   loginWithApiKey?(providerId: string, apiKey: string): Promise<PiAuthActionResult>;
   loginWithOAuth?(providerId: string, callbacks: PiOAuthLoginCallbacks): Promise<PiAuthActionResult>;

@@ -193,6 +193,33 @@ export const viewLayoutStyles = /* css */ `    .tauren-chat-surface,
       font-weight: 600;
     }
 
+    .empty-state__resources {
+      margin: 12px 0 10px;
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .empty-state__resource-row {
+      overflow-wrap: anywhere;
+    }
+
+    .empty-state__resource-row + .empty-state__resource-row {
+      margin-top: 12px;
+    }
+
+    .empty-state__resource-heading {
+      display: block;
+      color: var(--vscode-editorWarning-foreground, #c7a85a);
+      font-weight: 600;
+    }
+
+    .empty-state__resource-items {
+      display: block;
+      margin-left: 2ch;
+      color: var(--vscode-descriptionForeground);
+    }
+
     .empty-state__prompts {
       margin: 0;
       padding-left: 18px;

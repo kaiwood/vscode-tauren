@@ -24,6 +24,7 @@ import type {
   PiClientOptions,
   PiSessionState,
   PiSessionStats,
+  PiStartupResources,
   PiSwitchSessionResult,
   PiEvent
 } from '../pi/types';
@@ -204,6 +205,59 @@ export class PiSdkClient implements PiClient {
     }
 
     return { commands };
+  }
+
+  public async getStartupResources(): Promise<PiStartupResources> {
+    const { session, cwd } = await this.ensureRuntime();
+    const sections: NonNullable<PiStartupResources['sections']> = [];
+    const resourceLoader = session.resourceLoader;
+    const contextFiles = resourceLoader.getAgentsFiles().agentsFiles;
+
+    if (contextFiles.length > 0) {
+      sections.push({
+        name: 'Context',
+        items: contextFiles.map((contextFile) => formatContextResourcePath(contextFile.path, cwd))
+      });
+    }
+
+    const skills = resourceLoader.getSkills().skills;
+    if (skills.length > 0) {
+      sections.push({
+        name: 'Skills',
+        items: sortStartupResourceLabels(skills.map((skill) => skill.name))
+      });
+    }
+
+    const templates = session.promptTemplates;
+    if (templates.length > 0) {
+      sections.push({
+        name: 'Prompts',
+        items: sortStartupResourceLabels(templates.map((template) => `/${template.name}`))
+      });
+    }
+
+    const extensions = resourceLoader.getExtensions().extensions.map((extension) => ({
+      path: extension.path,
+      sourceInfo: extension.sourceInfo
+    }));
+    if (extensions.length > 0) {
+      sections.push({
+        name: 'Extensions',
+        items: sortStartupResourceLabels(getCompactExtensionLabels(extensions))
+      });
+    }
+
+    const customThemes = resourceLoader.getThemes().themes.filter((theme) => theme.sourcePath);
+    if (customThemes.length > 0) {
+      sections.push({
+        name: 'Themes',
+        items: sortStartupResourceLabels(customThemes.map((theme) => (
+          theme.name ?? getCompactPathLabel(theme.sourcePath ?? '', theme.sourceInfo)
+        )))
+      });
+    }
+
+    return { sections };
   }
 
   public async getAuthProviders(): Promise<PiAuthProvidersResult> {
@@ -771,6 +825,176 @@ export class PiSdkClient implements PiClient {
       listener(message);
     }
   }
+}
+
+type StartupResourceSourceInfo = {
+  source?: string;
+  baseDir?: string;
+};
+
+type StartupResourcePathItem = {
+  path: string;
+  sourceInfo?: StartupResourceSourceInfo;
+};
+
+function sortStartupResourceLabels(labels: string[]): string[] {
+  return labels
+    .map((label) => label.trim())
+    .filter((label) => label.length > 0)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function formatDisplayPath(filePath: string): string {
+  const home = os.homedir();
+  return filePath.startsWith(home) ? `~${filePath.slice(home.length)}` : filePath;
+}
+
+function formatContextResourcePath(filePath: string, cwd: string): string {
+  const resolvedCwd = path.resolve(cwd);
+  const absolutePath = path.isAbsolute(filePath) ? path.resolve(filePath) : path.resolve(resolvedCwd, filePath);
+  const relativePath = path.relative(resolvedCwd, absolutePath);
+
+  if (relativePath && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)) {
+    return relativePath.replace(/\\/g, '/');
+  }
+
+  if (relativePath === '') {
+    return path.basename(absolutePath);
+  }
+
+  return formatDisplayPath(absolutePath);
+}
+
+function getShortPath(filePath: string, sourceInfo: StartupResourceSourceInfo | undefined): string {
+  const baseDir = sourceInfo?.baseDir;
+
+  if (baseDir && isPackageSource(sourceInfo)) {
+    const relativePath = path.relative(path.resolve(baseDir), path.resolve(filePath));
+
+    if (relativePath
+      && relativePath !== '.'
+      && !relativePath.startsWith('..')
+      && !relativePath.startsWith(`..${path.sep}`)
+      && !path.isAbsolute(relativePath)) {
+      return relativePath.replace(/\\/g, '/');
+    }
+  }
+
+  const source = sourceInfo?.source ?? '';
+  const npmMatch = filePath.match(/node_modules\/(@?[^/]+(?:\/[^/]+)?)\/(.*)/);
+  if (npmMatch && source.startsWith('npm:')) {
+    return npmMatch[2] ?? filePath;
+  }
+
+  const gitMatch = filePath.match(/git\/[^/]+\/[^/]+\/(.*)/);
+  if (gitMatch && source.startsWith('git:')) {
+    return gitMatch[1] ?? filePath;
+  }
+
+  return formatDisplayPath(filePath);
+}
+
+function getCompactPathLabel(resourcePath: string, sourceInfo?: StartupResourceSourceInfo): string {
+  const shortPath = getShortPath(resourcePath, sourceInfo);
+  const segments = shortPath
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter((segment) => segment.length > 0 && segment !== '~');
+
+  return segments.at(-1) ?? shortPath;
+}
+
+function getCompactPackageSourceLabel(sourceInfo: StartupResourceSourceInfo | undefined): string {
+  const source = sourceInfo?.source ?? '';
+
+  if (source.startsWith('npm:')) {
+    return source.slice('npm:'.length) || source;
+  }
+
+  if (source.startsWith('git:')) {
+    const gitSource = source.slice('git:'.length).replace(/\.git$/, '');
+    return gitSource.split('/').filter(Boolean).slice(-2).join('/') || gitSource || source;
+  }
+
+  return source;
+}
+
+function getCompactExtensionLabel(resourcePath: string, sourceInfo: StartupResourceSourceInfo | undefined): string {
+  if (!isPackageSource(sourceInfo)) {
+    return getCompactPathLabel(resourcePath, sourceInfo);
+  }
+
+  const sourceLabel = getCompactPackageSourceLabel(sourceInfo);
+  if (!sourceLabel) {
+    return getCompactPathLabel(resourcePath, sourceInfo);
+  }
+
+  const shortPath = getShortPath(resourcePath, sourceInfo).replace(/\\/g, '/');
+  const packagePath = shortPath.startsWith('extensions/') ? shortPath.slice('extensions/'.length) : shortPath;
+  const parsedPath = path.posix.parse(packagePath);
+
+  if (parsedPath.name === 'index') {
+    return !parsedPath.dir || parsedPath.dir === '.' ? sourceLabel : `${sourceLabel}:${parsedPath.dir}`;
+  }
+
+  return `${sourceLabel}:${packagePath}`;
+}
+
+function getCompactDisplayPathSegments(resourcePath: string): string[] {
+  return formatDisplayPath(resourcePath)
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter((segment) => segment.length > 0 && segment !== '~');
+}
+
+function getCompactNonPackageExtensionLabel(resourcePath: string, index: number, allPaths: Array<{ segments: string[] }>): string {
+  const segments = allPaths[index]?.segments;
+
+  if (!segments || segments.length === 0) {
+    return getCompactPathLabel(resourcePath);
+  }
+
+  for (let segmentCount = 1; segmentCount <= segments.length; segmentCount += 1) {
+    const candidate = segments.slice(-segmentCount).join('/');
+    const isUnique = allPaths.every((item, itemIndex) => itemIndex === index || item.segments.slice(-segmentCount).join('/') !== candidate);
+
+    if (isUnique) {
+      return candidate;
+    }
+  }
+
+  return segments.join('/');
+}
+
+function getCompactExtensionLabels(extensions: StartupResourcePathItem[]): string[] {
+  const nonPackageExtensions = extensions
+    .map((extension) => {
+      const segments = getCompactDisplayPathSegments(extension.path);
+      const lastSegment = segments.at(-1);
+
+      if (segments.length > 1 && (lastSegment === 'index.ts' || lastSegment === 'index.js')) {
+        segments.pop();
+      }
+
+      return { ...extension, segments };
+    })
+    .filter((extension) => !isPackageSource(extension.sourceInfo));
+
+  return extensions.map((extension) => {
+    if (isPackageSource(extension.sourceInfo)) {
+      return getCompactExtensionLabel(extension.path, extension.sourceInfo);
+    }
+
+    const nonPackageIndex = nonPackageExtensions.findIndex((item) => item.path === extension.path);
+    return nonPackageIndex === -1
+      ? getCompactPathLabel(extension.path, extension.sourceInfo)
+      : getCompactNonPackageExtensionLabel(extension.path, nonPackageIndex, nonPackageExtensions);
+  });
+}
+
+function isPackageSource(sourceInfo: StartupResourceSourceInfo | undefined): boolean {
+  const source = sourceInfo?.source ?? '';
+  return source.startsWith('npm:') || source.startsWith('git:');
 }
 
 function resolveExportHtmlOutputPath(outputPath: string | undefined, sessionFile: string | undefined, baseDir: string): string | undefined {

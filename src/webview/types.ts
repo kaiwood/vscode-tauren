@@ -11,6 +11,7 @@ import type {
   WebviewPromptContextAttachment,
   WebviewPromptImageAttachment,
   WebviewSessionItem,
+  WebviewStartupResourceSection,
   WebviewSessionItemCommand,
   WebviewSettingsSection,
   WebviewSettingsState,
@@ -80,6 +81,7 @@ export type WorkspaceDiffStats = WebviewWorkspaceDiffStats;
 export type ExtensionStatusEntry = WebviewExtensionStatusEntry;
 export type ExtensionFooterEntry = WebviewExtensionFooterEntry;
 export type ExtensionWidgetEntry = WebviewExtensionWidgetEntry;
+export type StartupResourceSection = WebviewStartupResourceSection;
 
 export type WebviewState = {
   messages: ChatMessage[];
@@ -103,6 +105,7 @@ export type WebviewState = {
   extensionStatus: ExtensionStatusEntry[];
   extensionFooter?: ExtensionFooterEntry;
   extensionWidgets: ExtensionWidgetEntry[];
+  startupResources: StartupResourceSection[];
   allowRemoteImages: boolean;
   welcomeDismissed: boolean;
   promptContext: PromptContextAttachment[];

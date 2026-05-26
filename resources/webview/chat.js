@@ -4351,7 +4351,7 @@ ${after}`;
     createEmptyStateElement() {
       const state2 = this.options.getState();
       if (!state2.sessionLoading) {
-        return state2.welcomeDismissed ? createPlainEmptyStateElement() : createWelcomeStateElement();
+        return state2.welcomeDismissed ? createPlainEmptyStateElement(state2) : createWelcomeStateElement(state2);
       }
       const empty = document.createElement("p");
       empty.className = "empty-state empty-state--loading";
@@ -4522,13 +4522,22 @@ ${after}`;
     pruneDisconnectedCodeHighlights();
     pruneDisconnectedLocalImageRequests();
   }
-  function createPlainEmptyStateElement() {
-    const empty = document.createElement("p");
-    empty.className = "empty-state";
-    empty.textContent = "Ask Tauren about this workspace.";
+  function createPlainEmptyStateElement(state2) {
+    const resources = createStartupResourcesElement(state2.startupResources);
+    if (!resources) {
+      const empty2 = document.createElement("p");
+      empty2.className = "empty-state";
+      empty2.textContent = "Ask Tauren about this workspace.";
+      return empty2;
+    }
+    const empty = document.createElement("div");
+    empty.className = "empty-state empty-state--welcome empty-state--new-session";
+    const description = document.createElement("p");
+    description.textContent = "Ask Tauren about this workspace.";
+    empty.append(description, resources);
     return empty;
   }
-  function createWelcomeStateElement() {
+  function createWelcomeStateElement(state2) {
     const empty = document.createElement("div");
     empty.className = "empty-state empty-state--welcome";
     const title = document.createElement("h2");
@@ -4538,6 +4547,7 @@ ${after}`;
     description.textContent = "Ask Tauren about this workspace, review code, plan changes, or make edits.";
     const commandHint = document.createElement("p");
     commandHint.textContent = "Type / for commands, or add a file/selection as context from the editor.";
+    const resources = createStartupResourcesElement(state2.startupResources);
     const tryLabel = document.createElement("p");
     tryLabel.className = "empty-state__try-label";
     tryLabel.textContent = "Try:";
@@ -4558,8 +4568,35 @@ ${after}`;
     dismiss.className = "empty-state__dismiss";
     dismiss.textContent = "Don't show again";
     dismiss.setAttribute("data-dismiss-welcome", "");
-    empty.append(title, description, commandHint, tryLabel, promptList, dismiss);
+    empty.append(title, description, commandHint);
+    if (resources) {
+      empty.append(resources);
+    }
+    empty.append(tryLabel, promptList, dismiss);
     return empty;
+  }
+  function createStartupResourcesElement(resources) {
+    if (resources.length === 0) {
+      return void 0;
+    }
+    const container = document.createElement("div");
+    container.className = "empty-state__resources";
+    for (const section of resources) {
+      if (section.items.length === 0) {
+        continue;
+      }
+      const row = document.createElement("div");
+      row.className = "empty-state__resource-row";
+      const heading = document.createElement("span");
+      heading.className = "empty-state__resource-heading";
+      heading.textContent = `[${section.name}]`;
+      const items = document.createElement("span");
+      items.className = "empty-state__resource-items";
+      items.textContent = section.items.join(", ");
+      row.append(heading, items);
+      container.append(row);
+    }
+    return container.childElementCount > 0 ? container : void 0;
   }
   function getActivitySignature(activity) {
     return [
@@ -7521,6 +7558,7 @@ ${after}`;
     extensionStatus: [],
     extensionFooter: void 0,
     extensionWidgets: [],
+    startupResources: [],
     allowRemoteImages: false,
     welcomeDismissed: false,
     promptContext: [],
@@ -7567,6 +7605,7 @@ ${after}`;
       extensionStatus: parseExtensionStatus(record.extensionStatus),
       extensionFooter: parseExtensionFooter(record.extensionFooter),
       extensionWidgets: parseExtensionWidgets(record.extensionWidgets),
+      startupResources: parseStartupResources(record.startupResources),
       allowRemoteImages: typeof record.allowRemoteImages === "boolean" ? record.allowRemoteImages : false,
       welcomeDismissed: Boolean(record.welcomeDismissed),
       promptContext: Array.isArray(record.promptContext) ? record.promptContext : [],
@@ -7643,6 +7682,18 @@ ${after}`;
   }
   function isExtensionWidgetEntry(value) {
     return isRecord5(value) && typeof value.key === "string" && (value.placement === "aboveEditor" || value.placement === "belowEditor") && Array.isArray(value.lines);
+  }
+  function parseStartupResources(value) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value.flatMap((section) => {
+      if (!isRecord5(section) || typeof section.name !== "string" || !Array.isArray(section.items)) {
+        return [];
+      }
+      const items = section.items.filter((item) => typeof item === "string").map((item) => item.trim()).filter((item) => item.length > 0);
+      return section.name.trim() && items.length > 0 ? [{ name: section.name.trim(), items }] : [];
+    });
   }
   function parseAuthState(value) {
     if (!isRecord5(value)) {

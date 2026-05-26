@@ -312,6 +312,7 @@ export function createWebviewStateMessage({
   extensionStatus = [],
   extensionFooter,
   extensionWidgets = [],
+  startupResources = [],
   allowRemoteImages = false,
   welcomeDismissed,
   promptContext = [],
@@ -356,6 +357,10 @@ export function createWebviewStateMessage({
     })),
     allowRemoteImages: Boolean(allowRemoteImages)
   };
+
+  if (startupResources.length > 0) {
+    message.startupResources = cloneWebviewStartupResources(startupResources);
+  }
 
   if (!includeMessages) {
     delete (message as Partial<WebviewStateMessage>).messages;
@@ -653,6 +658,13 @@ function createInitialEmptyStateHtml(welcomeDismissed: boolean): string {
         </ul>
         <button class="empty-state__dismiss" type="button" data-dismiss-welcome>Don't show again</button>
       </div>`;
+}
+
+function cloneWebviewStartupResources(resources: NonNullable<CreateWebviewStateMessageOptions['startupResources']>): NonNullable<CreateWebviewStateMessageOptions['startupResources']> {
+  return resources.map((section) => ({
+    name: section.name,
+    items: section.items.slice()
+  }));
 }
 
 function hasSettingsPayload(settings: NonNullable<CreateWebviewStateMessageOptions['settingsView']>['settings']): boolean {

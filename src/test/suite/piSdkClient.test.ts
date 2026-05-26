@@ -240,6 +240,15 @@ suite('PiSdkClient', () => {
         }
       ]
     });
+    assert.deepStrictEqual(await harness.client.getStartupResources(), {
+      sections: [
+        { name: 'Context', items: ['AGENTS.md'] },
+        { name: 'Skills', items: ['typescript'] },
+        { name: 'Prompts', items: ['/review'] },
+        { name: 'Extensions', items: ['extension.ts'] },
+        { name: 'Themes', items: ['custom-dark'] }
+      ]
+    });
 
     assert.deepStrictEqual(await harness.client.getMessages(), { messages: harness.session.messages });
     assert.deepStrictEqual(await harness.client.getLastAssistantText(), { text: 'last answer' });
@@ -465,12 +474,30 @@ class FakeSession {
     sourceInfo: { label: 'prompt.md' }
   }];
   public readonly resourceLoader = {
+    getAgentsFiles: () => ({
+      agentsFiles: [{ path: '/workspace/AGENTS.md', content: 'Context' }]
+    }),
     getSkills: () => ({
       skills: [{
         name: 'typescript',
         description: 'TypeScript help',
         sourceInfo: { label: 'SKILL.md' }
       }]
+    }),
+    getExtensions: () => ({
+      extensions: [{
+        path: '/workspace/extension.ts',
+        sourceInfo: { source: 'local', scope: 'project' }
+      }],
+      errors: []
+    }),
+    getThemes: () => ({
+      themes: [{
+        name: 'custom-dark',
+        sourcePath: '/workspace/theme.json',
+        sourceInfo: { source: 'local', scope: 'project' }
+      }],
+      diagnostics: []
     })
   };
   public readonly sessionManager = {

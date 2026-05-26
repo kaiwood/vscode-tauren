@@ -131,6 +131,15 @@ export type PiAvailableCommands = {
   commands?: PiCommand[];
 };
 
+export type PiStartupResourceSection = {
+  name: string;
+  items: string[];
+};
+
+export type PiStartupResources = {
+  sections?: PiStartupResourceSection[];
+};
+
 export type PiAuthType = 'oauth' | 'api_key';
 
 export type PiAuthSource = 'stored' | 'runtime' | 'environment' | 'fallback' | 'models_json_key' | 'models_json_command';

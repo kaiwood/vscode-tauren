@@ -25,6 +25,7 @@ export const initialWebviewState: WebviewState = {
   extensionStatus: [],
   extensionFooter: undefined,
   extensionWidgets: [],
+  startupResources: [],
   allowRemoteImages: false,
   welcomeDismissed: false,
   promptContext: [],
@@ -73,6 +74,7 @@ export function parseWebviewStateMessage(data: unknown, previousState?: WebviewS
     extensionStatus: parseExtensionStatus(record.extensionStatus),
     extensionFooter: parseExtensionFooter(record.extensionFooter),
     extensionWidgets: parseExtensionWidgets(record.extensionWidgets),
+    startupResources: parseStartupResources(record.startupResources),
     allowRemoteImages: typeof record.allowRemoteImages === 'boolean' ? record.allowRemoteImages : false,
     welcomeDismissed: Boolean(record.welcomeDismissed),
     promptContext: Array.isArray(record.promptContext) ? record.promptContext : [],
@@ -171,6 +173,27 @@ function isExtensionWidgetEntry(value: unknown): value is WebviewState['extensio
     && typeof value.key === 'string'
     && (value.placement === 'aboveEditor' || value.placement === 'belowEditor')
     && Array.isArray(value.lines);
+}
+
+function parseStartupResources(value: unknown): WebviewState['startupResources'] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((section) => {
+    if (!isRecord(section) || typeof section.name !== 'string' || !Array.isArray(section.items)) {
+      return [];
+    }
+
+    const items = section.items
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+
+    return section.name.trim() && items.length > 0
+      ? [{ name: section.name.trim(), items }]
+      : [];
+  });
 }
 
 function parseAuthState(value: unknown): WebviewState['auth'] {
