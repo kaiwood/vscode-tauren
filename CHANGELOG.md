@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+This release is dedicated to performance updates.
+
 - Added a smoother new-session startup: the empty transcript now appears immediately while the sidebar finishes loading its controls and cached details.
 - Throttled live bash output updates and suppressed background bash output bodies to reduce sidebar slowdown during noisy commands.
 - Added opt-in structured performance diagnostics for session loading, navigation, and webview rendering.
