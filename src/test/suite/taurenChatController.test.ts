@@ -1021,7 +1021,8 @@ suite('TaurenChatController', () => {
       customUiTheme: 'default',
       extensionStatus: [],
       extensionWidgets: [],
-      allowRemoteImages: false
+      allowRemoteImages: false,
+      perfEnabled: false
     });
     harness.controller.dispose();
   });
@@ -2023,6 +2024,7 @@ suite('TaurenChatController', () => {
       { role: 'system', text: 'Reloaded keybindings, extensions, skills, prompts, and themes.' }
     ]);
     assert.strictEqual(lastState(harness).modelId, 'claude-test');
+    assert.strictEqual(lastState(harness).startupResourcesReloadRevision, 1);
     assert.deepStrictEqual(lastState(harness).slashCommands, [
       { name: 'skill:new-skill', description: 'Newly added skill', source: 'skill', location: 'project', path: undefined }
     ]);
@@ -2306,6 +2308,77 @@ suite('TaurenChatController', () => {
     harness.controller.dispose();
   });
 
+  test('running bash tool updates are throttled for active sessions', async () => {
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: 'run tests' });
+    const stateCountAfterSubmit = harness.states.length;
+
+    client.emit({
+      type: 'tool_execution_update',
+      toolCallId: 'call-1',
+      toolName: 'bash',
+      args: { command: 'npm test' },
+      partialResult: { content: [{ type: 'text', text: 'first' }] }
+    });
+
+    assert.strictEqual(harness.states.length, stateCountAfterSubmit + 1);
+    assert.strictEqual(lastState(harness).messages[1].activities?.[0]?.body, 'first');
+
+    client.emit({
+      type: 'tool_execution_update',
+      toolCallId: 'call-1',
+      toolName: 'bash',
+      args: { command: 'npm test' },
+      partialResult: { content: [{ type: 'text', text: 'second' }] }
+    });
+
+    assert.strictEqual(harness.states.length, stateCountAfterSubmit + 1);
+
+    client.emit({
+      type: 'tool_execution_end',
+      toolCallId: 'call-1',
+      toolName: 'bash',
+      args: { command: 'npm test' },
+      result: { content: [{ type: 'text', text: 'done' }] }
+    });
+
+    assert.strictEqual(harness.states.length, stateCountAfterSubmit + 2);
+    assert.strictEqual(lastState(harness).messages[1].activities?.[0]?.body, 'done');
+    harness.controller.dispose();
+  });
+
+  test('running bash tool updates are status-only for inactive sessions', async () => {
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client], { isActiveSession: () => false });
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: 'run tests' });
+    const stateCountAfterSubmit = harness.states.length;
+
+    client.emit({
+      type: 'tool_execution_update',
+      toolCallId: 'call-1',
+      toolName: 'bash',
+      args: { command: 'npm test' },
+      partialResult: { content: [{ type: 'text', text: 'hidden while inactive' }] }
+    });
+
+    assert.strictEqual(harness.states.length, stateCountAfterSubmit);
+
+    client.emit({
+      type: 'tool_execution_end',
+      toolCallId: 'call-1',
+      toolName: 'bash',
+      args: { command: 'npm test' },
+      result: { content: [{ type: 'text', text: 'final output' }] }
+    });
+
+    assert.strictEqual(harness.states.length, stateCountAfterSubmit + 1);
+    assert.strictEqual(lastState(harness).messages[1].activities?.[0]?.body, 'final output');
+    harness.controller.dispose();
+  });
+
   test('streaming text deltas are coalesced into one scheduled state post', async () => {
     const client = new FakePiClient();
     const scheduler = new FakeStateScheduler();
@@ -2574,6 +2647,7 @@ type ControllerHarnessOptions = {
   getReadyScript?: () => string | undefined;
   getReadyScriptEnabled?: () => boolean;
   getRejectEditWriteOutsideWorkspace?: () => boolean;
+  isActiveSession?: () => boolean;
   runReadyScript?: TaurenChatControllerOptions['runReadyScript'];
 };
 
@@ -2618,6 +2692,7 @@ function createControllerHarness(
     getReadyScript: options.getReadyScript,
     getReadyScriptEnabled: options.getReadyScriptEnabled,
     getRejectEditWriteOutsideWorkspace: options.getRejectEditWriteOutsideWorkspace,
+    isActiveSession: options.isActiveSession,
     runReadyScript: options.runReadyScript
   };
 

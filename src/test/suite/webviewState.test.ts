@@ -1,5 +1,14 @@
 import * as assert from 'assert';
-import { initialWebviewState, parseWebviewStateMessage } from '../../webview/state';
+import {
+  applyProvisionalExtensionUiSnapshot,
+  applyStartupResourcesCache,
+  createOptimisticNewSessionState,
+  createProvisionalExtensionUiSnapshot,
+  createStartupResourcesCache,
+  hasPendingProvisionalExtensionUi,
+  initialWebviewState,
+  parseWebviewStateMessage
+} from '../../webview/state';
 
 suite('Webview state helpers', () => {
   test('initial state uses chat defaults', () => {
@@ -12,6 +21,7 @@ suite('Webview state helpers', () => {
     assert.strictEqual(initialWebviewState.customUiTheme, 'default');
     assert.deepStrictEqual(initialWebviewState.extensionStatus, []);
     assert.deepStrictEqual(initialWebviewState.startupResources, []);
+    assert.strictEqual(initialWebviewState.startupResourcesReloadRevision, 0);
     assert.strictEqual(initialWebviewState.allowRemoteImages, false);
     assert.strictEqual(initialWebviewState.welcomeDismissed, false);
     assert.deepStrictEqual(initialWebviewState.auth, { providers: [] });
@@ -39,6 +49,7 @@ suite('Webview state helpers', () => {
       customUiTheme: 'modern',
       extensionStatus: [{ key: 'plan-mode', text: 'Planning', extra: 'ignored' }],
       startupResources: [{ name: 'Context', items: ['AGENTS.md', '', 1] }, { name: '', items: ['ignored'] }],
+      startupResourcesReloadRevision: 2,
       allowRemoteImages: false,
       welcomeDismissed: true,
       promptContext: [{ id: 'context-1', kind: 'file', label: 'file.ts', title: 'src/file.ts' }],
@@ -82,6 +93,7 @@ suite('Webview state helpers', () => {
     assert.strictEqual(parsed.customUiTheme, 'modern');
     assert.deepStrictEqual(parsed.extensionStatus, [{ key: 'plan-mode', text: 'Planning' }]);
     assert.deepStrictEqual(parsed.startupResources, [{ name: 'Context', items: ['AGENTS.md'] }]);
+    assert.strictEqual(parsed.startupResourcesReloadRevision, 2);
     assert.strictEqual(parsed.allowRemoteImages, false);
     assert.strictEqual(parsed.welcomeDismissed, true);
     assert.deepStrictEqual(parsed.auth.providers[0], {
@@ -141,6 +153,109 @@ suite('Webview state helpers', () => {
     assert.deepStrictEqual(parsed.messages[0].images, previous.messages[0].images);
     assert.deepStrictEqual(parsed.messages[0].activities?.[0]?.images, previous.messages[0].activities?.[0]?.images);
     assert.strictEqual(parsed.messages[1].text, 'Next');
+  });
+
+  test('creates optimistic new session state while preserving provisional extension UI', () => {
+    const previous = parseWebviewStateMessage({
+      messages: [{ role: 'assistant', text: 'Working response' }],
+      busy: true,
+      modelLabel: 'gpt-test',
+      modelProvider: 'openai',
+      modelId: 'gpt-test',
+      contextUsageLabel: '50%',
+      contextUsageTitle: 'half full',
+      contextUsageLevel: 'medium',
+      workspaceDiffStats: { addedLines: 5, removedLines: 2 },
+      extensionFooter: { line: 'Footer line' },
+      extensionWidgets: [{ key: 'widget-1', placement: 'aboveEditor', lines: ['Widget line'] }],
+      promptContext: [{ id: 'context-1', kind: 'file', label: 'file.ts', title: 'src/file.ts' }],
+      lane: 'sessions',
+      currentSessionFile: '/session.jsonl',
+      currentSessionName: 'Old session',
+      sessionLoading: true
+    });
+
+    const optimistic = createOptimisticNewSessionState(previous);
+
+    assert.deepStrictEqual(optimistic.messages, []);
+    assert.strictEqual(optimistic.busy, false);
+    assert.strictEqual(optimistic.lane, 'chat');
+    assert.strictEqual(optimistic.chatFace, 'main');
+    assert.strictEqual(optimistic.currentSessionFile, '');
+    assert.strictEqual(optimistic.currentSessionName, '');
+    assert.deepStrictEqual(optimistic.workspaceDiffStats, { addedLines: 0, removedLines: 0 });
+    assert.strictEqual(optimistic.contextUsageLabel, '');
+    assert.strictEqual(optimistic.sessionLoading, false);
+    assert.strictEqual(optimistic.modelLabel, 'gpt-test');
+    assert.deepStrictEqual(optimistic.promptContext, previous.promptContext);
+    assert.deepStrictEqual(optimistic.extensionFooter, { line: 'Footer line' });
+    assert.deepStrictEqual(optimistic.extensionWidgets, [{ key: 'widget-1', placement: 'aboveEditor', lines: ['Widget line'] }]);
+  });
+
+  test('reserves an empty provisional footer even before live footer content exists', () => {
+    const snapshot = createProvisionalExtensionUiSnapshot(parseWebviewStateMessage({ messages: [], busy: false }));
+    const liveWithoutFooter = parseWebviewStateMessage({ messages: [], busy: false });
+
+    const preserved = applyProvisionalExtensionUiSnapshot(liveWithoutFooter, snapshot);
+
+    assert.strictEqual(hasPendingProvisionalExtensionUi(preserved.snapshot), true);
+    assert.deepStrictEqual(preserved.state.extensionFooter, { line: '' });
+    assert.deepStrictEqual(preserved.state.extensionStatus, []);
+  });
+
+  test('keeps provisional extension UI until live UI replaces it', () => {
+    const provisionalSource = parseWebviewStateMessage({
+      extensionFooter: { line: 'Old footer' },
+      extensionStatus: [{ key: 'status-1', text: 'Old status' }],
+      extensionWidgets: [{ key: 'widget-1', placement: 'belowEditor', lines: ['Old widget'] }]
+    });
+    const snapshot = createProvisionalExtensionUiSnapshot(provisionalSource);
+    const liveWithoutExtensionUi = parseWebviewStateMessage({ messages: [], busy: false });
+
+    const preserved = applyProvisionalExtensionUiSnapshot(liveWithoutExtensionUi, snapshot);
+
+    assert.strictEqual(hasPendingProvisionalExtensionUi(preserved.snapshot), true);
+    assert.deepStrictEqual(preserved.state.extensionFooter, { line: 'Old footer' });
+    assert.deepStrictEqual(preserved.state.extensionStatus, [{ key: 'status-1', text: 'Old status' }]);
+    assert.deepStrictEqual(preserved.state.extensionWidgets, [{ key: 'widget-1', placement: 'belowEditor', lines: ['Old widget'] }]);
+
+    const liveWithFooter = parseWebviewStateMessage({
+      extensionFooter: { line: 'New footer' },
+      extensionWidgets: [{ key: 'widget-2', placement: 'aboveEditor', lines: ['New widget'] }]
+    });
+    const replaced = applyProvisionalExtensionUiSnapshot(liveWithFooter, preserved.snapshot);
+
+    assert.strictEqual(replaced.snapshot, undefined);
+    assert.deepStrictEqual(replaced.state.extensionFooter, { line: 'New footer' });
+    assert.deepStrictEqual(replaced.state.extensionWidgets, [{ key: 'widget-2', placement: 'aboveEditor', lines: ['New widget'] }]);
+  });
+
+  test('uses cached startup resources until reload revision changes', () => {
+    let cache = createStartupResourcesCache();
+    const initial = parseWebviewStateMessage({
+      startupResources: [{ name: 'Context', items: ['AGENTS.md'] }]
+    });
+
+    let result = applyStartupResourcesCache(initial, cache);
+    cache = result.cache;
+
+    assert.strictEqual(cache.initialized, true);
+    assert.deepStrictEqual(result.state.startupResources, [{ name: 'Context', items: ['AGENTS.md'] }]);
+
+    result = applyStartupResourcesCache(parseWebviewStateMessage({
+      startupResources: [{ name: 'Context', items: ['NEW.md'] }]
+    }, result.state), cache);
+    cache = result.cache;
+
+    assert.deepStrictEqual(result.state.startupResources, [{ name: 'Context', items: ['AGENTS.md'] }]);
+
+    result = applyStartupResourcesCache(parseWebviewStateMessage({
+      startupResources: [{ name: 'Context', items: ['NEW.md'] }],
+      startupResourcesReloadRevision: 1
+    }, result.state), cache);
+
+    assert.deepStrictEqual(result.cache.resources, [{ name: 'Context', items: ['NEW.md'] }]);
+    assert.deepStrictEqual(result.state.startupResources, [{ name: 'Context', items: ['NEW.md'] }]);
   });
 
   test('falls back for malformed fields', () => {

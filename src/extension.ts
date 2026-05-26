@@ -8,7 +8,8 @@ export function activate(context: vscode.ExtensionContext): void {
     context.workspaceState,
     context.globalState,
     undefined,
-    context.extensionMode === vscode.ExtensionMode.Development
+    context.extensionMode === vscode.ExtensionMode.Development,
+    context.storageUri ?? context.globalStorageUri
   );
 
   context.subscriptions.push(
@@ -37,7 +38,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('tauren.toggleSteerFollowUp', () => provider.toggleSteerFollowUp()),
     vscode.commands.registerCommand('tauren.addContext', () => provider.addContext()),
     vscode.commands.registerCommand('tauren.sendSelectionToComposer', () => provider.sendSelectionToComposer()),
-    vscode.commands.registerCommand('tauren.traceOrigin', () => provider.traceOrigin())
+    vscode.commands.registerCommand('tauren.traceOrigin', () => provider.traceOrigin()),
+    vscode.commands.registerCommand('tauren.showDiagnostics', () => provider.showDiagnostics())
   );
 }
 

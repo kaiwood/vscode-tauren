@@ -76,9 +76,10 @@ export function formatToolExecutionActivity({
   const display = formatToolExecutionDisplay({ toolName, args });
   const resultValue = status === 'running' ? partialResult : result;
   const images = extractToolResultImages(resultValue);
+  const includeExpandedBody = !(status === 'running' && display.toolName === 'bash');
   const preview = status !== 'error' && display.toolName === 'edit'
-    ? formatEditDiffPreview(args) ?? formatToolResultPreview(resultValue, display.toolName)
-    : formatToolResultPreview(resultValue, display.toolName);
+    ? formatEditDiffPreview(args) ?? formatToolResultPreview(resultValue, display.toolName, { includeExpandedBody })
+    : formatToolResultPreview(resultValue, display.toolName, { includeExpandedBody });
 
   return {
     kind: 'tool_execution',
@@ -770,14 +771,18 @@ function formatKnownEventBody(event: PiEvent, omittedKeys: string[]): string | u
   return Object.keys(details).length > 0 ? formatJson(details) : undefined;
 }
 
-function formatToolResultPreview(value: unknown, toolName: string): ToolTextPreview | undefined {
+function formatToolResultPreview(
+  value: unknown,
+  toolName: string,
+  options: { includeExpandedBody?: boolean } = {}
+): ToolTextPreview | undefined {
   const result = formatToolResult(value);
 
   if (!result) {
     return undefined;
   }
 
-  return previewToolText(result, toolName === 'bash' ? 'tail' : 'head');
+  return previewToolText(result, toolName === 'bash' ? 'tail' : 'head', options);
 }
 
 function extractToolResultImages(value: unknown): ChatImage[] {
@@ -853,8 +858,13 @@ function formatJson(value: unknown): string {
   }
 }
 
-function previewToolText(value: string, mode: 'head' | 'tail'): ToolTextPreview {
-  const linePreview = previewToolTextByLines(value, mode);
+function previewToolText(
+  value: string,
+  mode: 'head' | 'tail',
+  options: { includeExpandedBody?: boolean } = {}
+): ToolTextPreview {
+  const includeExpandedBody = options.includeExpandedBody !== false;
+  const linePreview = previewToolTextByLines(value, mode, { includeExpandedBody });
 
   if (linePreview.body.length <= toolResultPreviewMaxCharacters) {
     return linePreview;
@@ -863,17 +873,21 @@ function previewToolText(value: string, mode: 'head' | 'tail'): ToolTextPreview 
   if (mode === 'tail') {
     return {
       body: `... (output truncated)\n${linePreview.body.slice(linePreview.body.length - toolResultPreviewMaxCharacters)}`,
-      expandedBody: value
+      ...(includeExpandedBody ? { expandedBody: value } : {})
     };
   }
 
   return {
     body: `${linePreview.body.slice(0, toolResultPreviewMaxCharacters)}\n... (output truncated)`,
-    expandedBody: value
+    ...(includeExpandedBody ? { expandedBody: value } : {})
   };
 }
 
-function previewToolTextByLines(value: string, mode: 'head' | 'tail'): ToolTextPreview {
+function previewToolTextByLines(
+  value: string,
+  mode: 'head' | 'tail',
+  options: { includeExpandedBody?: boolean } = {}
+): ToolTextPreview {
   const lines = value.split('\n');
 
   if (lines.length <= toolResultPreviewMaxLines) {
@@ -885,13 +899,13 @@ function previewToolTextByLines(value: string, mode: 'head' | 'tail'): ToolTextP
   if (mode === 'tail') {
     return {
       body: `... (${hiddenLineCount} earlier lines)\n${lines.slice(-toolResultPreviewMaxLines).join('\n')}`,
-      expandedBody: value
+      ...(options.includeExpandedBody !== false ? { expandedBody: value } : {})
     };
   }
 
   return {
     body: `${lines.slice(0, toolResultPreviewMaxLines).join('\n')}\n... (${hiddenLineCount} more lines)`,
-    expandedBody: value
+    ...(options.includeExpandedBody !== false ? { expandedBody: value } : {})
   };
 }
 

@@ -7,6 +7,7 @@ import {
   moveVisibleSessionSelection
 } from './sessionSearch';
 import { SessionTreeController } from './sessionTreeController';
+import { getVirtualSessionRange } from './sessionVirtualization';
 import {
   parseSessionItemCommand,
   sessionItemMenuCommands
@@ -18,6 +19,10 @@ import type { SessionItem, SessionItemCommand, WebviewState } from '../types';
 type PostMessage = (message: unknown) => void;
 
 const sessionItemMenuCloseDelayMs = 250;
+const sessionListVirtualizationThreshold = 500;
+const sessionListVirtualOverscan = 8;
+const defaultSessionListItemHeight = 54;
+const defaultSessionListTopOffset = 72;
 
 export type SessionViewControllerOptions = {
   getState: () => WebviewState;
@@ -54,6 +59,8 @@ export class SessionViewController {
   private pendingSessionListScrollRestore = false;
   private pendingSessionScrollIndex: number | undefined;
   private pendingSessionScrollFrame: number | undefined;
+  private pendingSessionVirtualRenderFrame: number | undefined;
+  private sessionListVirtualItemHeight = defaultSessionListItemHeight;
   private readonly topControls: TopSessionControls;
   private readonly treeController: SessionTreeController;
 
@@ -86,6 +93,7 @@ export class SessionViewController {
     this.options.sessionsElement.addEventListener('keydown', (event) => this.handleSessionListKeydown(event));
     this.options.sessionsElement.addEventListener('pointermove', (event) => this.handleSessionListPointerMove(event));
     this.options.sessionsElement.addEventListener('pointerleave', () => this.scheduleSessionItemMenuClose());
+    this.options.sessionsElement.addEventListener('scroll', () => this.handleSessionListScroll());
     this.options.sessionsElement.addEventListener('contextmenu', (event) => this.handleSessionListContextMenu(event));
     this.options.sessionsElement.addEventListener('click', (event) => this.handleSessionsClick(event));
     this.options.sessionTreeElement.addEventListener('keydown', (event) => this.handleSessionListKeydown(event));
@@ -202,7 +210,16 @@ export class SessionViewController {
 
     const header = document.createElement('div');
     header.className = 'sessions__header';
+    const renderWindow = this.getSessionRenderWindow(visibleIndexes);
     if (this.openSessionListMenuIndex !== undefined && !visibleIndexes.includes(this.openSessionListMenuIndex)) {
+      this.openSessionListMenuIndex = undefined;
+      this.openSessionListMenuPosition = undefined;
+      this.clearPendingSessionItemMenuClose();
+    } else if (
+      this.openSessionListMenuIndex !== undefined
+      && renderWindow.virtualized
+      && !renderWindow.indexes.includes(this.openSessionListMenuIndex)
+    ) {
       this.openSessionListMenuIndex = undefined;
       this.openSessionListMenuPosition = undefined;
       this.clearPendingSessionItemMenuClose();
@@ -230,7 +247,9 @@ export class SessionViewController {
     } else if (visibleIndexes.length === 0) {
       this.options.sessionsElement.append(createSessionEmptyElement(this.getSessionListEmptyText()));
     } else {
-      for (const index of visibleIndexes) {
+      this.appendSessionVirtualSpacer(renderWindow.topPadding, 'top');
+
+      for (const index of renderWindow.indexes) {
         this.options.sessionsElement.append(createSessionItemElement({
           session: state.sessions[index],
           index,
@@ -249,6 +268,9 @@ export class SessionViewController {
           onCommandHover: (button, hovered) => this.setSessionMenuItemHover(button, hovered)
         }));
       }
+
+      this.appendSessionVirtualSpacer(renderWindow.bottomPadding, 'bottom');
+      this.updateSessionVirtualItemHeight();
     }
 
     if (this.sessionListNameEditPath) {
@@ -267,6 +289,63 @@ export class SessionViewController {
     if (this.openSessionListMenuPosition) {
       requestAnimationFrame(() => this.clampOpenSessionItemContextMenu());
     }
+  }
+
+  private getSessionRenderWindow(visibleIndexes: number[]): { indexes: number[]; topPadding: number; bottomPadding: number; virtualized: boolean } {
+    const range = getVirtualSessionRange({
+      itemCount: visibleIndexes.length,
+      scrollTop: this.options.sessionsElement.scrollTop,
+      viewportHeight: this.options.sessionsElement.clientHeight || 600,
+      listTopOffset: this.getSessionVirtualListTopOffset(),
+      itemHeight: this.sessionListVirtualItemHeight,
+      overscan: sessionListVirtualOverscan,
+      threshold: sessionListVirtualizationThreshold
+    });
+
+    return {
+      indexes: visibleIndexes.slice(range.start, range.end),
+      topPadding: range.topPadding,
+      bottomPadding: range.bottomPadding,
+      virtualized: range.enabled
+    };
+  }
+
+  private appendSessionVirtualSpacer(height: number, position: 'top' | 'bottom'): void {
+    if (height <= 0) {
+      return;
+    }
+
+    const spacer = document.createElement('div');
+    spacer.className = 'sessions__virtual-spacer sessions__virtual-spacer--' + position;
+    spacer.setAttribute('aria-hidden', 'true');
+    spacer.style.height = Math.round(height) + 'px';
+    this.options.sessionsElement.append(spacer);
+  }
+
+  private updateSessionVirtualItemHeight(): void {
+    const item = this.options.sessionsElement.querySelector<HTMLElement>('.sessions__item');
+
+    if (!item || item.offsetHeight <= 0) {
+      return;
+    }
+
+    this.sessionListVirtualItemHeight = item.offsetHeight;
+  }
+
+  private getSessionVirtualListTopOffset(): number {
+    const topSpacer = this.options.sessionsElement.querySelector<HTMLElement>('.sessions__virtual-spacer--top');
+
+    if (topSpacer) {
+      return topSpacer.offsetTop;
+    }
+
+    const firstItem = this.options.sessionsElement.querySelector<HTMLElement>('.sessions__item');
+
+    if (firstItem) {
+      return firstItem.offsetTop;
+    }
+
+    return defaultSessionListTopOffset;
   }
 
   public renderTree(): void {
@@ -308,6 +387,10 @@ export class SessionViewController {
 
   public isSessionListNameEditing(): boolean {
     return Boolean(this.sessionListNameEditPath);
+  }
+
+  public getVisibleSessionCount(): number {
+    return this.getVisibleSessionIndexes().length;
   }
 
   public isSessionSearchFocused(): boolean {
@@ -570,6 +653,31 @@ export class SessionViewController {
     this.options.sessionsElement.classList.add('sessions--pointer-hover');
   }
 
+  private handleSessionListScroll(): void {
+    this.sessionListScrollTop = this.options.sessionsElement.scrollTop;
+    const state = this.options.getState();
+
+    if (state.lane !== 'sessions' || !Array.isArray(state.sessions) || state.sessions.length <= sessionListVirtualizationThreshold) {
+      return;
+    }
+
+    this.scheduleSessionVirtualRender();
+  }
+
+  private scheduleSessionVirtualRender(): void {
+    if (this.pendingSessionVirtualRenderFrame !== undefined) {
+      return;
+    }
+
+    this.pendingSessionVirtualRenderFrame = requestAnimationFrame(() => {
+      this.pendingSessionVirtualRenderFrame = undefined;
+
+      if (this.options.getState().lane === 'sessions') {
+        this.renderSessions();
+      }
+    });
+  }
+
   private handleSessionListPointerMove(event: PointerEvent): void {
     this.enableSessionPointerHover();
 
@@ -679,7 +787,13 @@ export class SessionViewController {
         return;
       }
 
-      document.getElementById('session-' + scrollIndex)?.scrollIntoView({ block: 'nearest' });
+      const item = document.getElementById('session-' + scrollIndex);
+
+      if (item) {
+        item.scrollIntoView({ block: 'nearest' });
+      } else {
+        this.scrollVirtualSessionIndexIntoView(scrollIndex);
+      }
     });
   }
 
@@ -708,6 +822,7 @@ export class SessionViewController {
     const item = document.getElementById('session-' + this.sessionListSelectedIndex);
 
     if (!item) {
+      this.scrollVirtualSessionIndexIntoView(this.sessionListSelectedIndex);
       return;
     }
 
@@ -717,6 +832,33 @@ export class SessionViewController {
     if (itemRect.top < containerRect.top || itemRect.bottom > containerRect.bottom) {
       item.scrollIntoView({ block: 'nearest' });
     }
+  }
+
+  private scrollVirtualSessionIndexIntoView(index: number): void {
+    const state = this.options.getState();
+
+    if (state.lane !== 'sessions' || !Array.isArray(state.sessions) || state.sessions.length <= sessionListVirtualizationThreshold) {
+      return;
+    }
+
+    const visibleIndexes = this.getVisibleSessionIndexes();
+    const position = visibleIndexes.indexOf(index);
+
+    if (position < 0) {
+      return;
+    }
+
+    const itemTop = this.getSessionVirtualListTopOffset() + position * this.sessionListVirtualItemHeight;
+    const itemBottom = itemTop + this.sessionListVirtualItemHeight;
+    const container = this.options.sessionsElement;
+
+    if (itemTop < container.scrollTop) {
+      container.scrollTop = itemTop;
+    } else if (itemBottom > container.scrollTop + container.clientHeight) {
+      container.scrollTop = itemBottom - container.clientHeight;
+    }
+
+    this.scheduleSessionVirtualRender();
   }
 
   private selectSessionIndex(index: number): void {

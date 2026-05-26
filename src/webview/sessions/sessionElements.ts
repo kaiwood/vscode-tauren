@@ -33,6 +33,7 @@ export function createSessionItemElement(options: CreateSessionItemElementOption
   item.className = 'sessions__item'
     + (index === options.selectedIndex ? ' sessions__item--active' : '')
     + (session.current ? ' sessions__item--current' : '')
+    + (session.metadataState === 'loading' ? ' sessions__item--loading' : '')
     + (session.liveStatus ? ' sessions__item--' + session.liveStatus : '')
     + (session.unread ? ' sessions__item--unread' : '');
   item.setAttribute('role', 'option');

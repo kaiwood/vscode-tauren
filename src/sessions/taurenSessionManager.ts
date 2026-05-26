@@ -450,6 +450,7 @@ export class TaurenSessionManager {
         extensionUi,
         getTaurenSettingValues: () => this.getTaurenSettingValues(),
         updateTaurenSetting: (settingId, value) => this.updateTaurenSetting(settingId, value),
+        isActiveSession: () => this.activeSessionId === id,
         initialSessionFile,
         initialSessionMeta: this.options.initialSessionMeta,
         renameOpenSession: (sessionPath, name) => this.renameOpenSessionFrom(id, sessionPath, name),

@@ -41,6 +41,19 @@ export type WebviewSessionItemCommand = 'rename' | 'showChanges' | 'fork' | 'clo
 
 export type WebviewAuthAction = 'login' | 'logout' | 'refresh' | 'cancel';
 
+export type WebviewPerfEventName = 'transcript.render' | 'sessionList.render' | 'tree.render';
+
+export type WebviewPerfEvent = {
+  name: WebviewPerfEventName;
+  durationMs: number;
+  lane: WebviewLane;
+  messageCount?: number;
+  sessionCount?: number;
+  visibleItemCount?: number;
+  currentSessionFile?: string;
+  sessionLoading?: boolean;
+};
+
 export type WebviewAuthType = 'oauth' | 'api_key';
 
 export type WebviewAuthProvider = {
@@ -75,6 +88,7 @@ export type WebviewAuthState = {
 export type WebviewMessage =
   | { type: 'ready' }
   | { type: 'focusChanged'; focused: boolean }
+  | { type: 'perfEvent'; event: WebviewPerfEvent }
   | { type: 'newSession' }
   | { type: 'showLane'; lane: WebviewLane }
   | { type: 'showChatFace'; chatFace: WebviewChatFace }
@@ -164,6 +178,7 @@ export type WebviewSessionItem = {
   modified: string;
   messageCount: number;
   firstMessage: string;
+  metadataState?: 'loading' | 'ready';
   depth: number;
   isLast: boolean;
   ancestorContinues: boolean[];
@@ -262,6 +277,7 @@ export type WebviewStateMessage = Omit<ChatState, 'messages'> & {
   extensionFooter?: WebviewExtensionFooterEntry;
   extensionWidgets: WebviewExtensionWidgetEntry[];
   startupResources?: WebviewStartupResourceSection[];
+  startupResourcesReloadRevision?: number;
   allowRemoteImages?: boolean;
   welcomeDismissed?: boolean;
   promptContext?: WebviewPromptContextAttachment[];
@@ -283,6 +299,7 @@ export type WebviewStateMessage = Omit<ChatState, 'messages'> & {
   treeRefreshing?: boolean;
   treeError?: string;
   sessionLoading?: boolean;
+  perfEnabled?: boolean;
   chatFace?: WebviewChatFace;
   settingsSection?: WebviewSettingsSection;
   settings?: WebviewSettingsState;
@@ -317,6 +334,7 @@ export type CreateWebviewStateMessageOptions = {
   extensionFooter?: WebviewExtensionFooterEntry;
   extensionWidgets?: WebviewExtensionWidgetEntry[];
   startupResources?: WebviewStartupResourceSection[];
+  startupResourcesReloadRevision?: number;
   allowRemoteImages?: boolean;
   welcomeDismissed?: boolean;
   promptContext?: WebviewPromptContextAttachment[];
@@ -340,6 +358,7 @@ export type CreateWebviewStateMessageOptions = {
   };
   settingsView?: WebviewSettingsViewState;
   auth?: WebviewAuthState;
+  perfEnabled?: boolean;
 };
 
 export type WebviewScriptUris = {

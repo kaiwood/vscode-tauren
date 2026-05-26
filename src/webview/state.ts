@@ -1,7 +1,15 @@
 import { normalizeDiffLineCount } from '../diff/lineCount';
 import { isSettingId, normalizeSettingValue } from '../settings/settingsRegistry';
 import { parseWebviewCustomUiTheme, parseWebviewLane, parseWebviewSettingsSection } from '../webviewProtocol/values';
-import type { Activity, ChatMessage, MessagePatch, WebviewState } from './types';
+import type { Activity, ChatMessage, ExtensionFooterEntry, ExtensionStatusEntry, ExtensionWidgetEntry, MessagePatch, StartupResourceSection, WebviewState } from './types';
+
+export type ProvisionalExtensionUiSnapshot = {
+  extensionFooter?: ExtensionFooterEntry;
+  extensionStatus: ExtensionStatusEntry[];
+  extensionWidgets: ExtensionWidgetEntry[];
+  footerPending: boolean;
+  widgetsPending: boolean;
+};
 
 export const initialWebviewState: WebviewState = {
   messages: [],
@@ -26,6 +34,7 @@ export const initialWebviewState: WebviewState = {
   extensionFooter: undefined,
   extensionWidgets: [],
   startupResources: [],
+  startupResourcesReloadRevision: 0,
   allowRemoteImages: false,
   welcomeDismissed: false,
   promptContext: [],
@@ -46,8 +55,136 @@ export const initialWebviewState: WebviewState = {
   treeItems: [],
   treeRefreshing: false,
   treeError: '',
-  sessionLoading: false
+  sessionLoading: false,
+  perfEnabled: false
 };
+
+export type StartupResourcesCache = {
+  initialized: boolean;
+  reloadRevision: number;
+  resources: StartupResourceSection[];
+};
+
+export function createStartupResourcesCache(): StartupResourcesCache {
+  return {
+    initialized: false,
+    reloadRevision: 0,
+    resources: []
+  };
+}
+
+export function applyStartupResourcesCache(
+  nextState: WebviewState,
+  cache: StartupResourcesCache
+): { state: WebviewState; cache: StartupResourcesCache } {
+  let nextCache = cache;
+
+  if (nextState.startupResourcesReloadRevision > cache.reloadRevision) {
+    nextCache = {
+      initialized: true,
+      reloadRevision: nextState.startupResourcesReloadRevision,
+      resources: cloneStartupResources(nextState.startupResources)
+    };
+  } else if (!cache.initialized && nextState.startupResources.length > 0) {
+    nextCache = {
+      initialized: true,
+      reloadRevision: nextState.startupResourcesReloadRevision,
+      resources: cloneStartupResources(nextState.startupResources)
+    };
+  }
+
+  if (!nextCache.initialized || areStartupResourcesEqual(nextState.startupResources, nextCache.resources)) {
+    return { state: nextState, cache: nextCache };
+  }
+
+  return {
+    state: {
+      ...nextState,
+      startupResources: cloneStartupResources(nextCache.resources)
+    },
+    cache: nextCache
+  };
+}
+
+export function createOptimisticNewSessionState(previousState: WebviewState): WebviewState {
+  return {
+    ...previousState,
+    messages: [],
+    busy: false,
+    contextUsageLabel: '',
+    contextUsageTitle: '',
+    contextUsageLevel: '',
+    workspaceDiffStats: { addedLines: 0, removedLines: 0 },
+    composerPaste: undefined,
+    lane: 'chat',
+    chatFace: 'main',
+    currentSessionFile: '',
+    currentSessionName: '',
+    treeRefreshing: false,
+    treeError: '',
+    sessionLoading: false
+  };
+}
+
+export function createProvisionalExtensionUiSnapshot(state: WebviewState): ProvisionalExtensionUiSnapshot {
+  return {
+    extensionFooter: state.extensionFooter ? { ...state.extensionFooter } : { line: '' },
+    extensionStatus: state.extensionStatus.map((entry) => ({ ...entry })),
+    extensionWidgets: state.extensionWidgets.map((widget) => ({
+      ...widget,
+      lines: [...widget.lines],
+      ...(widget.blocks ? { blocks: [...widget.blocks] } : {})
+    })),
+    footerPending: shouldReserveExtensionFooter(state),
+    widgetsPending: state.extensionWidgets.length > 0
+  };
+}
+
+export function applyProvisionalExtensionUiSnapshot(
+  nextState: WebviewState,
+  snapshot: ProvisionalExtensionUiSnapshot | undefined
+): { state: WebviewState; snapshot: ProvisionalExtensionUiSnapshot | undefined } {
+  if (!snapshot) {
+    return { state: nextState, snapshot: undefined };
+  }
+
+  const footerPending = snapshot.footerPending && !hasExtensionFooterUi(nextState);
+  const widgetsPending = snapshot.widgetsPending && nextState.extensionWidgets.length === 0;
+
+  if (!footerPending && !widgetsPending) {
+    return { state: nextState, snapshot: undefined };
+  }
+
+  return {
+    state: {
+      ...nextState,
+      ...(footerPending ? {
+        extensionFooter: snapshot.extensionFooter,
+        extensionStatus: snapshot.extensionStatus
+      } : {}),
+      ...(widgetsPending ? {
+        extensionWidgets: snapshot.extensionWidgets
+      } : {})
+    },
+    snapshot: {
+      ...snapshot,
+      footerPending,
+      widgetsPending
+    }
+  };
+}
+
+export function hasPendingProvisionalExtensionUi(snapshot: ProvisionalExtensionUiSnapshot | undefined): boolean {
+  return Boolean(snapshot?.footerPending || snapshot?.widgetsPending);
+}
+
+function hasExtensionFooterUi(state: Pick<WebviewState, 'extensionFooter' | 'extensionStatus'>): boolean {
+  return state.extensionFooter !== undefined || state.extensionStatus.length > 0;
+}
+
+function shouldReserveExtensionFooter(state: WebviewState): boolean {
+  return state.settings.values['tauren.extensions.statusBarEnabled'] !== false;
+}
 
 export function parseWebviewStateMessage(data: unknown, previousState?: WebviewState): WebviewState {
   const record = isRecord(data) ? data : {};
@@ -75,6 +212,7 @@ export function parseWebviewStateMessage(data: unknown, previousState?: WebviewS
     extensionFooter: parseExtensionFooter(record.extensionFooter),
     extensionWidgets: parseExtensionWidgets(record.extensionWidgets),
     startupResources: parseStartupResources(record.startupResources),
+    startupResourcesReloadRevision: parseNonNegativeInteger(record.startupResourcesReloadRevision, previousState?.startupResourcesReloadRevision ?? 0),
     allowRemoteImages: typeof record.allowRemoteImages === 'boolean' ? record.allowRemoteImages : false,
     welcomeDismissed: Boolean(record.welcomeDismissed),
     promptContext: Array.isArray(record.promptContext) ? record.promptContext : [],
@@ -96,7 +234,8 @@ export function parseWebviewStateMessage(data: unknown, previousState?: WebviewS
     treeItems: Array.isArray(record.treeItems) ? record.treeItems : [],
     treeRefreshing: Boolean(record.treeRefreshing),
     treeError: typeof record.treeError === 'string' ? record.treeError : '',
-    sessionLoading: Boolean(record.sessionLoading)
+    sessionLoading: Boolean(record.sessionLoading),
+    perfEnabled: Boolean(record.perfEnabled)
   };
 }
 
@@ -173,6 +312,28 @@ function isExtensionWidgetEntry(value: unknown): value is WebviewState['extensio
     && typeof value.key === 'string'
     && (value.placement === 'aboveEditor' || value.placement === 'belowEditor')
     && Array.isArray(value.lines);
+}
+
+function parseNonNegativeInteger(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : fallback;
+}
+
+function cloneStartupResources(resources: StartupResourceSection[]): StartupResourceSection[] {
+  return resources.map((section) => ({
+    name: section.name,
+    items: section.items.slice()
+  }));
+}
+
+function areStartupResourcesEqual(left: StartupResourceSection[], right: StartupResourceSection[]): boolean {
+  return left.length === right.length
+    && left.every((section, index) => {
+      const other = right[index];
+      return other
+        && section.name === other.name
+        && section.items.length === other.items.length
+        && section.items.every((item, itemIndex) => item === other.items[itemIndex]);
+    });
 }
 
 function parseStartupResources(value: unknown): WebviewState['startupResources'] {

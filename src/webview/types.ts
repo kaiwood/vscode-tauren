@@ -106,6 +106,7 @@ export type WebviewState = {
   extensionFooter?: ExtensionFooterEntry;
   extensionWidgets: ExtensionWidgetEntry[];
   startupResources: StartupResourceSection[];
+  startupResourcesReloadRevision: number;
   allowRemoteImages: boolean;
   welcomeDismissed: boolean;
   promptContext: PromptContextAttachment[];
@@ -131,6 +132,7 @@ export type WebviewState = {
   treeRefreshing: boolean;
   treeError: string;
   sessionLoading: boolean;
+  perfEnabled: boolean;
 };
 
 export type LocalImageResolveResult = {

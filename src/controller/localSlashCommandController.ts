@@ -31,6 +31,7 @@ export type LocalSlashCommandControllerOptions = {
   adoptReplacedSession: (options?: { fallbackSessionFile?: string; refreshSessions?: boolean }) => Promise<void>;
   setComposerText: (text: string) => void;
   restartClientForReload: (sessionFile: string | undefined) => void;
+  markStartupResourcesReloaded?: () => void;
   showLoginSettings: (mode: 'login' | 'logout') => void;
   startNewSession: () => void;
 };
@@ -370,6 +371,7 @@ export class LocalSlashCommandController {
       this.options.refreshSessionMeta({ startClient: true, force: true }),
       this.options.refreshSlashCommands({ startClient: true, force: true })
     ]);
+    this.options.markStartupResourcesReloaded?.();
 
     this.options.session.addSystemMessage(restartedClient
       ? restoredSession

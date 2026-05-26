@@ -74,6 +74,10 @@ export const composerStyles = /* css */ `    .tauren-view--has-extension-status 
       box-shadow: none;
     }
 
+    .extension-widget--placeholder > * {
+      visibility: hidden;
+    }
+
     .extension-widget__line {
       width: 100%;
       min-width: 0;

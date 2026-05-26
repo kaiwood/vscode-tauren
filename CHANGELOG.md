@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Added a smoother new-session startup: the empty transcript now appears immediately while the sidebar finishes loading its controls and cached details.
+- Throttled live bash output updates and suppressed background bash output bodies to reduce sidebar slowdown during noisy commands.
+- Added opt-in structured performance diagnostics for session loading, navigation, and webview rendering.
+- Increased session-list metadata cache capacity and bounded long first-message titles.
+- Added persisted, progressive session-list metadata loading for faster large session histories.
+- Added virtualized session-list rendering for large visible session lists.
+- Optimized session-list cache misses with fast summary parsing.
+
 ## 1.1.0 - 2026-05-26
 
 - Optimized caching and rendering strategy for the List->Chat transition

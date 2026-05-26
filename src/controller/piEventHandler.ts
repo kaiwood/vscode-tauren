@@ -1,4 +1,4 @@
-import type { ChatSession } from '../chat/chatSession';
+import type { ChatActivityInput, ChatSession } from '../chat/chatSession';
 import {
   formatExtensionError,
   mapMessageUpdate,
@@ -17,10 +17,13 @@ type LiveToolCall = {
   args?: unknown;
 };
 
+const bashUpdateThrottleMs = 500;
+
 export type PiEventHandlerOptions = {
   session: ChatSession;
   postState: () => void;
   scheduleState: () => void;
+  isActiveSession?: () => boolean;
   refreshSessionDiffStats: () => void;
   refreshContextUsage: () => void;
   addToolExecution: (event: PiEvent) => void;
@@ -40,12 +43,16 @@ export class PiEventHandler {
   private waitingForAgentRestartAfterCompaction = false;
   private waitingForAutoRetryStart = false;
   private readyScriptTimer: ReturnType<typeof setImmediate> | undefined;
+  private bashUpdatePostTimer: ReturnType<typeof setTimeout> | undefined;
+  private lastBashUpdatePostAt = 0;
   private readonly liveToolCallsById = new Map<string, LiveToolCall>();
 
   public constructor(private readonly options: PiEventHandlerOptions) {}
 
   public reset(): void {
     this.clearReadyScriptTimer();
+    this.clearBashUpdatePostTimer();
+    this.lastBashUpdatePostAt = 0;
     this.assistantStreamId = 0;
     this.agentActive = false;
     this.autoRetryActive = false;
@@ -57,6 +64,11 @@ export class PiEventHandler {
 
   public clearLiveToolCalls(): void {
     this.liveToolCallsById.clear();
+  }
+
+  public dispose(): void {
+    this.clearReadyScriptTimer();
+    this.clearBashUpdatePostTimer();
   }
 
   public handleEvent(event: PiEvent): void {
@@ -101,11 +113,14 @@ export class PiEventHandler {
         this.options.postState();
         break;
       case 'tool_execution_start':
-      case 'tool_execution_update':
         this.applyPiActivity(event);
         this.options.postState();
         break;
+      case 'tool_execution_update':
+        this.handleToolExecutionUpdate(event);
+        break;
       case 'tool_execution_end':
+        this.clearBashUpdatePostTimer();
         this.applyPiActivity(event);
         this.options.addToolExecution(this.enrichLiveToolExecutionEvent(event));
         this.options.postState();
@@ -223,6 +238,58 @@ export class PiEventHandler {
     }
   }
 
+  private handleToolExecutionUpdate(event: PiEvent): void {
+    const enrichedEvent = this.enrichLiveToolExecutionEvent(event);
+
+    if (!this.isBashToolExecutionEvent(enrichedEvent)) {
+      this.applyPiActivity(enrichedEvent);
+      this.options.postState();
+      return;
+    }
+
+    const active = this.options.isActiveSession?.() ?? true;
+    this.applyPiActivity(enrichedEvent, { omitBody: !active });
+
+    if (active) {
+      this.postThrottledBashUpdate();
+    }
+  }
+
+  private postThrottledBashUpdate(): void {
+    const now = Date.now();
+    const elapsed = now - this.lastBashUpdatePostAt;
+
+    if (elapsed >= bashUpdateThrottleMs) {
+      this.clearBashUpdatePostTimer();
+      this.lastBashUpdatePostAt = now;
+      this.options.postState();
+      return;
+    }
+
+    if (this.bashUpdatePostTimer) {
+      return;
+    }
+
+    this.bashUpdatePostTimer = setTimeout(() => {
+      this.bashUpdatePostTimer = undefined;
+      this.lastBashUpdatePostAt = Date.now();
+      this.options.postState();
+    }, bashUpdateThrottleMs - elapsed);
+
+    if (typeof this.bashUpdatePostTimer === 'object' && typeof this.bashUpdatePostTimer.unref === 'function') {
+      this.bashUpdatePostTimer.unref();
+    }
+  }
+
+  private clearBashUpdatePostTimer(): void {
+    if (!this.bashUpdatePostTimer) {
+      return;
+    }
+
+    clearTimeout(this.bashUpdatePostTimer);
+    this.bashUpdatePostTimer = undefined;
+  }
+
   private scheduleReadyScriptWhenPiIdle(): void {
     this.clearReadyScriptTimer();
 
@@ -266,7 +333,7 @@ export class PiEventHandler {
       || this.waitingForAutoRetryStart;
   }
 
-  private applyPiActivity(event: PiEvent): void {
+  private applyPiActivity(event: PiEvent, options: { omitBody?: boolean } = {}): void {
     if (!this.options.session.isBusy && event.type !== 'agent_start') {
       return;
     }
@@ -276,7 +343,9 @@ export class PiEventHandler {
     });
 
     if (action.type === 'activity_update' || action.type === 'activity_add' || action.type === 'activity_remove') {
-      this.applyActivityAction(action);
+      this.applyActivityAction(action.type === 'activity_update' && options.omitBody
+        ? { ...action, activity: omitActivityBody(action.activity) }
+        : action);
     }
   }
 
@@ -317,6 +386,10 @@ export class PiEventHandler {
     });
   }
 
+  private isBashToolExecutionEvent(event: PiEvent): boolean {
+    return event.type === 'tool_execution_update' && getRecordString(event, 'toolName') === 'bash';
+  }
+
   private enrichLiveToolExecutionEvent(event: PiEvent): PiEvent {
     if (
       event.type !== 'tool_execution_start'
@@ -347,4 +420,9 @@ export class PiEventHandler {
 
     return this.assistantStreamId;
   }
+}
+
+function omitActivityBody(activity: ChatActivityInput): ChatActivityInput {
+  const { body: _body, expandedBody: _expandedBody, code: _code, images: _images, ...statusOnly } = activity;
+  return statusOnly;
 }

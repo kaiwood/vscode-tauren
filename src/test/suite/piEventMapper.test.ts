@@ -431,6 +431,29 @@ suite('Pi event mapper', () => {
     );
   });
 
+  test('mapPiActivity omits expanded body for running bash output previews', () => {
+    assert.deepStrictEqual(
+      mapPiActivity({
+        type: 'tool_execution_update',
+        toolCallId: 'call-bash',
+        toolName: 'bash',
+        args: { command: 'npm run compile' },
+        partialResult: { content: [{ type: 'text', text: '1\n2\n3\n4\n5\n6\n7\n8\n9\n10' }] }
+      }, { fullCommunication: false }),
+      {
+        type: 'activity_update',
+        sourceId: 'tool:call-bash',
+        activity: {
+          kind: 'tool_execution',
+          title: '$ npm run compile',
+          status: 'running',
+          body: '... (2 earlier lines)\n3\n4\n5\n6\n7\n8\n9\n10',
+          code: true
+        }
+      }
+    );
+  });
+
   test('mapPiActivity formats common tools and previews long output', () => {
     assert.deepStrictEqual(
       mapPiActivity({

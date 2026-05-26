@@ -5006,8 +5006,14 @@ ${after}`;
   // src/webview/sessions/sessionFormat.ts
   function getSessionDisplayName(session) {
     const name = sanitizeSessionTitle(session.name);
+    if (name) {
+      return name;
+    }
+    if (session.metadataState === "loading") {
+      return "Loading metadata\u2026";
+    }
     const firstMessage = sanitizeSessionTitle(session.firstMessage);
-    return name || firstMessage || shortenPath(session.cwd) || "Untitled session";
+    return firstMessage || shortenPath(session.cwd) || "Untitled session";
   }
   function buildSessionTreePrefix(session) {
     const depth = Number(session.depth) || 0;
@@ -5020,9 +5026,12 @@ ${after}`;
     return parts.join("");
   }
   function formatSessionMeta(session) {
-    const count = typeof session.messageCount === "number" ? session.messageCount : 0;
     const age = formatRelativeTime(session.modified);
     const cwd = shortenPath(session.cwd);
+    if (session.metadataState === "loading") {
+      return ["Loading metadata\u2026", age, cwd].filter(Boolean).join(" \xB7 ");
+    }
+    const count = typeof session.messageCount === "number" ? session.messageCount : 0;
     const countLabel = count === 1 ? "1 message" : count + " messages";
     return [countLabel, age, cwd].filter(Boolean).join(" \xB7 ");
   }
@@ -5349,6 +5358,17 @@ ${after}`;
       danger: true
     },
     {
+      id: "tauren.debugPerformance",
+      owner: "tauren",
+      section: "advanced",
+      label: "Debug performance",
+      description: "Collect Tauren performance diagnostics in the output channel and diagnostics view.",
+      control: "toggle",
+      defaultValue: false,
+      liveBehavior: "immediate",
+      subtle: true
+    },
+    {
       id: "tauren.readyScript",
       owner: "tauren",
       section: "advanced",
@@ -5526,7 +5546,7 @@ ${after}`;
     const { session, index } = options;
     const item = document.createElement("div");
     item.id = "session-" + index;
-    item.className = "sessions__item" + (index === options.selectedIndex ? " sessions__item--active" : "") + (session.current ? " sessions__item--current" : "") + (session.liveStatus ? " sessions__item--" + session.liveStatus : "") + (session.unread ? " sessions__item--unread" : "");
+    item.className = "sessions__item" + (index === options.selectedIndex ? " sessions__item--active" : "") + (session.current ? " sessions__item--current" : "") + (session.metadataState === "loading" ? " sessions__item--loading" : "") + (session.liveStatus ? " sessions__item--" + session.liveStatus : "") + (session.unread ? " sessions__item--unread" : "");
     item.setAttribute("role", "option");
     item.setAttribute("aria-selected", index === options.selectedIndex ? "true" : "false");
     item.setAttribute("data-index", String(index));
@@ -6250,6 +6270,35 @@ ${after}`;
     return -1;
   }
 
+  // src/webview/sessions/sessionVirtualization.ts
+  function getVirtualSessionRange(options) {
+    const itemCount = Math.max(0, Math.floor(options.itemCount));
+    if (itemCount <= Math.max(0, options.threshold)) {
+      return {
+        enabled: false,
+        start: 0,
+        end: itemCount,
+        topPadding: 0,
+        bottomPadding: 0
+      };
+    }
+    const itemHeight = Math.max(1, options.itemHeight);
+    const overscan = Math.max(0, Math.floor(options.overscan));
+    const viewportHeight = Math.max(itemHeight, options.viewportHeight);
+    const relativeScrollTop = Math.max(0, options.scrollTop - Math.max(0, options.listTopOffset));
+    const visibleStart = Math.floor(relativeScrollTop / itemHeight);
+    const visibleEnd = Math.ceil((relativeScrollTop + viewportHeight) / itemHeight);
+    const start = Math.max(0, visibleStart - overscan);
+    const end = Math.min(itemCount, Math.max(start + 1, visibleEnd + overscan));
+    return {
+      enabled: true,
+      start,
+      end,
+      topPadding: start * itemHeight,
+      bottomPadding: Math.max(0, itemCount - end) * itemHeight
+    };
+  }
+
   // src/webview/sessions/topSessionControls.ts
   var TopSessionControls = class {
     constructor(options) {
@@ -6410,6 +6459,10 @@ ${after}`;
 
   // src/webview/sessions/sessionView.ts
   var sessionItemMenuCloseDelayMs = 250;
+  var sessionListVirtualizationThreshold = 500;
+  var sessionListVirtualOverscan = 8;
+  var defaultSessionListItemHeight = 54;
+  var defaultSessionListTopOffset = 72;
   var SessionViewController = class {
     constructor(options) {
       this.options = options;
@@ -6453,6 +6506,8 @@ ${after}`;
     pendingSessionListScrollRestore = false;
     pendingSessionScrollIndex;
     pendingSessionScrollFrame;
+    pendingSessionVirtualRenderFrame;
+    sessionListVirtualItemHeight = defaultSessionListItemHeight;
     topControls;
     treeController;
     attachEventListeners() {
@@ -6460,6 +6515,7 @@ ${after}`;
       this.options.sessionsElement.addEventListener("keydown", (event) => this.handleSessionListKeydown(event));
       this.options.sessionsElement.addEventListener("pointermove", (event) => this.handleSessionListPointerMove(event));
       this.options.sessionsElement.addEventListener("pointerleave", () => this.scheduleSessionItemMenuClose());
+      this.options.sessionsElement.addEventListener("scroll", () => this.handleSessionListScroll());
       this.options.sessionsElement.addEventListener("contextmenu", (event) => this.handleSessionListContextMenu(event));
       this.options.sessionsElement.addEventListener("click", (event) => this.handleSessionsClick(event));
       this.options.sessionTreeElement.addEventListener("keydown", (event) => this.handleSessionListKeydown(event));
@@ -6553,7 +6609,12 @@ ${after}`;
       this.options.sessionsElement.append(search);
       const header = document.createElement("div");
       header.className = "sessions__header";
+      const renderWindow = this.getSessionRenderWindow(visibleIndexes);
       if (this.openSessionListMenuIndex !== void 0 && !visibleIndexes.includes(this.openSessionListMenuIndex)) {
+        this.openSessionListMenuIndex = void 0;
+        this.openSessionListMenuPosition = void 0;
+        this.clearPendingSessionItemMenuClose();
+      } else if (this.openSessionListMenuIndex !== void 0 && renderWindow.virtualized && !renderWindow.indexes.includes(this.openSessionListMenuIndex)) {
         this.openSessionListMenuIndex = void 0;
         this.openSessionListMenuPosition = void 0;
         this.clearPendingSessionItemMenuClose();
@@ -6573,7 +6634,8 @@ ${after}`;
       } else if (visibleIndexes.length === 0) {
         this.options.sessionsElement.append(createSessionEmptyElement(this.getSessionListEmptyText()));
       } else {
-        for (const index of visibleIndexes) {
+        this.appendSessionVirtualSpacer(renderWindow.topPadding, "top");
+        for (const index of renderWindow.indexes) {
           this.options.sessionsElement.append(createSessionItemElement({
             session: state2.sessions[index],
             index,
@@ -6592,6 +6654,8 @@ ${after}`;
             onCommandHover: (button, hovered) => this.setSessionMenuItemHover(button, hovered)
           }));
         }
+        this.appendSessionVirtualSpacer(renderWindow.bottomPadding, "bottom");
+        this.updateSessionVirtualItemHeight();
       }
       if (this.sessionListNameEditPath) {
         const select = this.sessionListNameEditShouldSelect;
@@ -6607,6 +6671,51 @@ ${after}`;
       if (this.openSessionListMenuPosition) {
         requestAnimationFrame(() => this.clampOpenSessionItemContextMenu());
       }
+    }
+    getSessionRenderWindow(visibleIndexes) {
+      const range = getVirtualSessionRange({
+        itemCount: visibleIndexes.length,
+        scrollTop: this.options.sessionsElement.scrollTop,
+        viewportHeight: this.options.sessionsElement.clientHeight || 600,
+        listTopOffset: this.getSessionVirtualListTopOffset(),
+        itemHeight: this.sessionListVirtualItemHeight,
+        overscan: sessionListVirtualOverscan,
+        threshold: sessionListVirtualizationThreshold
+      });
+      return {
+        indexes: visibleIndexes.slice(range.start, range.end),
+        topPadding: range.topPadding,
+        bottomPadding: range.bottomPadding,
+        virtualized: range.enabled
+      };
+    }
+    appendSessionVirtualSpacer(height, position) {
+      if (height <= 0) {
+        return;
+      }
+      const spacer = document.createElement("div");
+      spacer.className = "sessions__virtual-spacer sessions__virtual-spacer--" + position;
+      spacer.setAttribute("aria-hidden", "true");
+      spacer.style.height = Math.round(height) + "px";
+      this.options.sessionsElement.append(spacer);
+    }
+    updateSessionVirtualItemHeight() {
+      const item = this.options.sessionsElement.querySelector(".sessions__item");
+      if (!item || item.offsetHeight <= 0) {
+        return;
+      }
+      this.sessionListVirtualItemHeight = item.offsetHeight;
+    }
+    getSessionVirtualListTopOffset() {
+      const topSpacer = this.options.sessionsElement.querySelector(".sessions__virtual-spacer--top");
+      if (topSpacer) {
+        return topSpacer.offsetTop;
+      }
+      const firstItem = this.options.sessionsElement.querySelector(".sessions__item");
+      if (firstItem) {
+        return firstItem.offsetTop;
+      }
+      return defaultSessionListTopOffset;
     }
     renderTree() {
       this.treeController.render();
@@ -6637,6 +6746,9 @@ ${after}`;
     }
     isSessionListNameEditing() {
       return Boolean(this.sessionListNameEditPath);
+    }
+    getVisibleSessionCount() {
+      return this.getVisibleSessionIndexes().length;
     }
     isSessionSearchFocused() {
       return document.activeElement instanceof HTMLInputElement && document.activeElement.classList.contains("sessions__search-input");
@@ -6836,6 +6948,25 @@ ${after}`;
       this.sessionPointerHoverEnabled = true;
       this.options.sessionsElement.classList.add("sessions--pointer-hover");
     }
+    handleSessionListScroll() {
+      this.sessionListScrollTop = this.options.sessionsElement.scrollTop;
+      const state2 = this.options.getState();
+      if (state2.lane !== "sessions" || !Array.isArray(state2.sessions) || state2.sessions.length <= sessionListVirtualizationThreshold) {
+        return;
+      }
+      this.scheduleSessionVirtualRender();
+    }
+    scheduleSessionVirtualRender() {
+      if (this.pendingSessionVirtualRenderFrame !== void 0) {
+        return;
+      }
+      this.pendingSessionVirtualRenderFrame = requestAnimationFrame(() => {
+        this.pendingSessionVirtualRenderFrame = void 0;
+        if (this.options.getState().lane === "sessions") {
+          this.renderSessions();
+        }
+      });
+    }
     handleSessionListPointerMove(event) {
       this.enableSessionPointerHover();
       const state2 = this.options.getState();
@@ -6915,7 +7046,12 @@ ${after}`;
         if (scrollIndex === void 0) {
           return;
         }
-        document.getElementById("session-" + scrollIndex)?.scrollIntoView({ block: "nearest" });
+        const item = document.getElementById("session-" + scrollIndex);
+        if (item) {
+          item.scrollIntoView({ block: "nearest" });
+        } else {
+          this.scrollVirtualSessionIndexIntoView(scrollIndex);
+        }
       });
     }
     cancelPendingSessionSelectionScroll() {
@@ -6937,6 +7073,7 @@ ${after}`;
     revealSelectedSessionIfNeeded() {
       const item = document.getElementById("session-" + this.sessionListSelectedIndex);
       if (!item) {
+        this.scrollVirtualSessionIndexIntoView(this.sessionListSelectedIndex);
         return;
       }
       const containerRect = this.options.sessionsElement.getBoundingClientRect();
@@ -6944,6 +7081,26 @@ ${after}`;
       if (itemRect.top < containerRect.top || itemRect.bottom > containerRect.bottom) {
         item.scrollIntoView({ block: "nearest" });
       }
+    }
+    scrollVirtualSessionIndexIntoView(index) {
+      const state2 = this.options.getState();
+      if (state2.lane !== "sessions" || !Array.isArray(state2.sessions) || state2.sessions.length <= sessionListVirtualizationThreshold) {
+        return;
+      }
+      const visibleIndexes = this.getVisibleSessionIndexes();
+      const position = visibleIndexes.indexOf(index);
+      if (position < 0) {
+        return;
+      }
+      const itemTop = this.getSessionVirtualListTopOffset() + position * this.sessionListVirtualItemHeight;
+      const itemBottom = itemTop + this.sessionListVirtualItemHeight;
+      const container = this.options.sessionsElement;
+      if (itemTop < container.scrollTop) {
+        container.scrollTop = itemTop;
+      } else if (itemBottom > container.scrollTop + container.clientHeight) {
+        container.scrollTop = itemBottom - container.clientHeight;
+      }
+      this.scheduleSessionVirtualRender();
     }
     selectSessionIndex(index) {
       const state2 = this.options.getState();
@@ -7885,6 +8042,7 @@ ${after}`;
     extensionFooter: void 0,
     extensionWidgets: [],
     startupResources: [],
+    startupResourcesReloadRevision: 0,
     allowRemoteImages: false,
     welcomeDismissed: false,
     promptContext: [],
@@ -7905,8 +8063,110 @@ ${after}`;
     treeItems: [],
     treeRefreshing: false,
     treeError: "",
-    sessionLoading: false
+    sessionLoading: false,
+    perfEnabled: false
   };
+  function createStartupResourcesCache() {
+    return {
+      initialized: false,
+      reloadRevision: 0,
+      resources: []
+    };
+  }
+  function applyStartupResourcesCache(nextState, cache) {
+    let nextCache = cache;
+    if (nextState.startupResourcesReloadRevision > cache.reloadRevision) {
+      nextCache = {
+        initialized: true,
+        reloadRevision: nextState.startupResourcesReloadRevision,
+        resources: cloneStartupResources(nextState.startupResources)
+      };
+    } else if (!cache.initialized && nextState.startupResources.length > 0) {
+      nextCache = {
+        initialized: true,
+        reloadRevision: nextState.startupResourcesReloadRevision,
+        resources: cloneStartupResources(nextState.startupResources)
+      };
+    }
+    if (!nextCache.initialized || areStartupResourcesEqual(nextState.startupResources, nextCache.resources)) {
+      return { state: nextState, cache: nextCache };
+    }
+    return {
+      state: {
+        ...nextState,
+        startupResources: cloneStartupResources(nextCache.resources)
+      },
+      cache: nextCache
+    };
+  }
+  function createOptimisticNewSessionState(previousState) {
+    return {
+      ...previousState,
+      messages: [],
+      busy: false,
+      contextUsageLabel: "",
+      contextUsageTitle: "",
+      contextUsageLevel: "",
+      workspaceDiffStats: { addedLines: 0, removedLines: 0 },
+      composerPaste: void 0,
+      lane: "chat",
+      chatFace: "main",
+      currentSessionFile: "",
+      currentSessionName: "",
+      treeRefreshing: false,
+      treeError: "",
+      sessionLoading: false
+    };
+  }
+  function createProvisionalExtensionUiSnapshot(state2) {
+    return {
+      extensionFooter: state2.extensionFooter ? { ...state2.extensionFooter } : { line: "" },
+      extensionStatus: state2.extensionStatus.map((entry) => ({ ...entry })),
+      extensionWidgets: state2.extensionWidgets.map((widget) => ({
+        ...widget,
+        lines: [...widget.lines],
+        ...widget.blocks ? { blocks: [...widget.blocks] } : {}
+      })),
+      footerPending: shouldReserveExtensionFooter(state2),
+      widgetsPending: state2.extensionWidgets.length > 0
+    };
+  }
+  function applyProvisionalExtensionUiSnapshot(nextState, snapshot) {
+    if (!snapshot) {
+      return { state: nextState, snapshot: void 0 };
+    }
+    const footerPending = snapshot.footerPending && !hasExtensionFooterUi(nextState);
+    const widgetsPending = snapshot.widgetsPending && nextState.extensionWidgets.length === 0;
+    if (!footerPending && !widgetsPending) {
+      return { state: nextState, snapshot: void 0 };
+    }
+    return {
+      state: {
+        ...nextState,
+        ...footerPending ? {
+          extensionFooter: snapshot.extensionFooter,
+          extensionStatus: snapshot.extensionStatus
+        } : {},
+        ...widgetsPending ? {
+          extensionWidgets: snapshot.extensionWidgets
+        } : {}
+      },
+      snapshot: {
+        ...snapshot,
+        footerPending,
+        widgetsPending
+      }
+    };
+  }
+  function hasPendingProvisionalExtensionUi(snapshot) {
+    return Boolean(snapshot?.footerPending || snapshot?.widgetsPending);
+  }
+  function hasExtensionFooterUi(state2) {
+    return state2.extensionFooter !== void 0 || state2.extensionStatus.length > 0;
+  }
+  function shouldReserveExtensionFooter(state2) {
+    return state2.settings.values["tauren.extensions.statusBarEnabled"] !== false;
+  }
   function parseWebviewStateMessage(data, previousState) {
     const record = isRecord5(data) ? data : {};
     return {
@@ -7932,6 +8192,7 @@ ${after}`;
       extensionFooter: parseExtensionFooter(record.extensionFooter),
       extensionWidgets: parseExtensionWidgets(record.extensionWidgets),
       startupResources: parseStartupResources(record.startupResources),
+      startupResourcesReloadRevision: parseNonNegativeInteger(record.startupResourcesReloadRevision, previousState?.startupResourcesReloadRevision ?? 0),
       allowRemoteImages: typeof record.allowRemoteImages === "boolean" ? record.allowRemoteImages : false,
       welcomeDismissed: Boolean(record.welcomeDismissed),
       promptContext: Array.isArray(record.promptContext) ? record.promptContext : [],
@@ -7953,7 +8214,8 @@ ${after}`;
       treeItems: Array.isArray(record.treeItems) ? record.treeItems : [],
       treeRefreshing: Boolean(record.treeRefreshing),
       treeError: typeof record.treeError === "string" ? record.treeError : "",
-      sessionLoading: Boolean(record.sessionLoading)
+      sessionLoading: Boolean(record.sessionLoading),
+      perfEnabled: Boolean(record.perfEnabled)
     };
   }
   function parsePromptImages(value) {
@@ -8008,6 +8270,21 @@ ${after}`;
   }
   function isExtensionWidgetEntry(value) {
     return isRecord5(value) && typeof value.key === "string" && (value.placement === "aboveEditor" || value.placement === "belowEditor") && Array.isArray(value.lines);
+  }
+  function parseNonNegativeInteger(value, fallback) {
+    return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : fallback;
+  }
+  function cloneStartupResources(resources) {
+    return resources.map((section) => ({
+      name: section.name,
+      items: section.items.slice()
+    }));
+  }
+  function areStartupResourcesEqual(left, right) {
+    return left.length === right.length && left.every((section, index) => {
+      const other = right[index];
+      return other && section.name === other.name && section.items.length === other.items.length && section.items.every((item, itemIndex) => item === other.items[itemIndex]);
+    });
   }
   function parseStartupResources(value) {
     if (!Array.isArray(value)) {
@@ -8250,6 +8527,8 @@ ${after}`;
   busySubmitElement.after(busySubmitHomeMarker);
   var widgetDimensionSignatures = /* @__PURE__ */ new Map();
   var footerDimensionSignature = "";
+  var provisionalExtensionUiSnapshot;
+  var startupResourcesCache = createStartupResourcesCache();
   var sessionsController;
   var settingsController;
   var transcriptSearchController;
@@ -8410,6 +8689,11 @@ ${after}`;
       );
       return;
     }
+    if (event.data?.type === "optimisticNewSession") {
+      applyOptimisticNewSessionTransition();
+      focusPromptInput();
+      return;
+    }
     if (event.data?.type !== "state") {
       return;
     }
@@ -8420,7 +8704,13 @@ ${after}`;
     const previousTreeCount = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
     const isInitialHostState = !hasReceivedHostState;
     hasReceivedHostState = true;
-    const nextState = parseWebviewStateMessage(event.data, state);
+    const parsedState = parseWebviewStateMessage(event.data, state);
+    const startupResourcesResult = applyStartupResourcesCache(parsedState, startupResourcesCache);
+    startupResourcesCache = startupResourcesResult.cache;
+    const provisionalResult = applyProvisionalExtensionUiSnapshot(startupResourcesResult.state, provisionalExtensionUiSnapshot);
+    const nextState = provisionalResult.state;
+    provisionalExtensionUiSnapshot = provisionalResult.snapshot;
+    clearProvisionalExtensionUiIfSettled();
     const hasComposerTextUpdate = nextState.composerTextRevision > 0;
     const hasComposerPasteUpdate = nextState.composerPaste !== void 0;
     state = nextState;
@@ -8612,6 +8902,27 @@ ${after}`;
       });
     }
   }
+  function measureRenderBoundary(name, renderBoundary) {
+    if (!state.perfEnabled) {
+      renderBoundary();
+      return;
+    }
+    const started = performance.now();
+    renderBoundary();
+    vscode.postMessage({
+      type: "perfEvent",
+      event: {
+        name,
+        durationMs: performance.now() - started,
+        lane: state.lane,
+        messageCount: state.messages.length,
+        sessionCount: state.sessions.length,
+        visibleItemCount: name === "sessionList.render" ? sessionsController.getVisibleSessionCount() : void 0,
+        currentSessionFile: state.currentSessionFile,
+        sessionLoading: state.sessionLoading
+      }
+    });
+  }
   function render() {
     const isSessionLane = state.lane === "sessions" || state.lane === "tree";
     const isSettingsFaceVisible = !isSessionLane && state.chatFace === "settings";
@@ -8652,7 +8963,7 @@ ${after}`;
     }
     if (isSessionLane) {
       busyStatusElement.hidden = true;
-      state.lane === "tree" ? sessionsController.renderTree() : sessionsController.renderSessions();
+      state.lane === "tree" ? measureRenderBoundary("tree.render", () => sessionsController.renderTree()) : measureRenderBoundary("sessionList.render", () => sessionsController.renderSessions());
       composerController.closeSlashMenu();
       composerController.closeModelMenu();
       sessionsController.closeSessionCommandMenu();
@@ -8663,7 +8974,7 @@ ${after}`;
       }
       return;
     }
-    messagesController.renderMessageList();
+    measureRenderBoundary("transcript.render", () => messagesController.renderMessageList());
     transcriptSearchController.syncForRender();
     messagesController.syncBusyStatus();
     composerController.syncModelLabel();
@@ -8686,14 +8997,15 @@ ${after}`;
         widgetDimensionSignatures.delete(key);
       }
     }
-    renderExtensionWidgetContainer(extensionWidgetsAboveElement, aboveWidgets, placeBusySubmitOnTopWidget ? busySubmitElement : void 0);
-    renderExtensionWidgetContainer(extensionWidgetsBelowElement, belowWidgets);
+    const renderPlaceholderWidgets = provisionalExtensionUiSnapshot?.widgetsPending === true;
+    renderExtensionWidgetContainer(extensionWidgetsAboveElement, aboveWidgets, placeBusySubmitOnTopWidget ? busySubmitElement : void 0, renderPlaceholderWidgets);
+    renderExtensionWidgetContainer(extensionWidgetsBelowElement, belowWidgets, void 0, renderPlaceholderWidgets);
     syncBusySubmitPlacement(placeBusySubmitOnTopWidget);
     extensionWidgetsAboveElement.classList.toggle("extension-widgets--with-busy", placeBusySubmitOnTopWidget);
     viewElement.classList.toggle("tauren-view--has-extension-widgets-above", aboveWidgets.length > 0);
     viewElement.classList.toggle("tauren-view--has-extension-widgets-below", belowWidgets.length > 0);
   }
-  function renderExtensionWidgetContainer(container, widgets, leadingElement) {
+  function renderExtensionWidgetContainer(container, widgets, leadingElement, placeholderWidgets = false) {
     const hasContent = widgets.length > 0 || Boolean(leadingElement);
     container.hidden = !hasContent;
     container.setAttribute("aria-hidden", hasContent ? "false" : "true");
@@ -8708,6 +9020,7 @@ ${after}`;
     for (const widget of widgets) {
       const element = document.createElement("article");
       element.className = "extension-widget";
+      element.classList.toggle("extension-widget--placeholder", placeholderWidgets);
       element.dataset.widgetKey = widget.key;
       element.setAttribute("aria-label", `Pi extension widget ${widget.key}`);
       const blocks = normalizeExtensionRenderBlocks(widget.blocks, widget.lines);
@@ -8747,7 +9060,9 @@ ${after}`;
       fragment.append(element);
     }
     container.replaceChildren(fragment);
-    scheduleExtensionWidgetDimensionsPost(container, widgets);
+    if (!placeholderWidgets) {
+      scheduleExtensionWidgetDimensionsPost(container, widgets);
+    }
   }
   function syncBusySubmitPlacement(aboveWidgets) {
     widgetBusySlotElement.hidden = true;
@@ -8827,15 +9142,17 @@ ${after}`;
   }
   function syncExtensionStatus(hiddenBySurface) {
     const statusEnabled = areExtensionStatusBarEnabled();
+    const placeholderFooter = provisionalExtensionUiSnapshot?.footerPending === true;
     const footerLine = statusEnabled ? state.extensionFooter?.line : void 0;
-    const text = statusEnabled ? footerLine !== void 0 ? footerLine : state.extensionStatus.map((entry) => entry.text.trim()).filter(Boolean).join("  \u2022  ") : "";
-    const hidden = hiddenBySurface || text.length === 0;
+    const text = statusEnabled && !placeholderFooter ? footerLine !== void 0 ? footerLine : state.extensionStatus.map((entry) => entry.text.trim()).filter(Boolean).join("  \u2022  ") : "";
+    const hasStatusSlot = statusEnabled && !hiddenBySurface;
+    const hasAccessibleText = text.length > 0 && !placeholderFooter;
     composerStatusTextElement.replaceChildren();
     renderAnsiTextInto(composerStatusTextElement, text, state.outputColors, { suppressBackgrounds: true });
-    composerStatusElement.hidden = hidden;
-    composerStatusElement.setAttribute("aria-hidden", hidden ? "true" : "false");
-    viewElement.classList.toggle("tauren-view--has-extension-status", !hidden);
-    if (!hidden && footerLine !== void 0) {
+    composerStatusElement.hidden = !hasStatusSlot;
+    composerStatusElement.setAttribute("aria-hidden", hasAccessibleText ? "false" : "true");
+    viewElement.classList.toggle("tauren-view--has-extension-status", hasStatusSlot);
+    if (hasStatusSlot && hasAccessibleText && footerLine !== void 0) {
       scheduleExtensionFooterDimensionsPost();
     } else {
       footerDimensionSignature = "";
@@ -8952,8 +9269,22 @@ ${after}`;
   }
   function startNewSession() {
     sessionsController.cancelSessionNameEdit();
+    applyOptimisticNewSessionTransition();
     vscode.postMessage({ type: "newSession" });
     focusPromptInput();
+  }
+  function applyOptimisticNewSessionTransition() {
+    const wasSessionLane = state.lane === "sessions" || state.lane === "tree";
+    provisionalExtensionUiSnapshot = createProvisionalExtensionUiSnapshot(state);
+    state = createOptimisticNewSessionState(state);
+    suppressFaceTransitionForNextRender();
+    scheduleRender({ returnToChatMain: wasSessionLane });
+  }
+  function clearProvisionalExtensionUiIfSettled() {
+    if (hasPendingProvisionalExtensionUi(provisionalExtensionUiSnapshot)) {
+      return;
+    }
+    provisionalExtensionUiSnapshot = void 0;
   }
   function handleCustomUiClose() {
     if (state.lane !== "chat") {

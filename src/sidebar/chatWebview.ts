@@ -15,6 +15,8 @@ import type {
   CreateWebviewStateMessageOptions,
   WebviewDroppedPromptImage,
   WebviewMessage,
+  WebviewPerfEvent,
+  WebviewPerfEventName,
   WebviewScriptUris,
   WebviewStateMessage
 } from '../webviewProtocol/types';
@@ -31,6 +33,10 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
       return typeof value.focused === 'boolean'
         ? { type: 'focusChanged', focused: value.focused }
         : { type: 'unknown' };
+    case 'perfEvent': {
+      const event = parseWebviewPerfEvent(value.event);
+      return event ? { type: 'perfEvent', event } : { type: 'unknown' };
+    }
     case 'newSession':
       return { type: 'newSession' };
     case 'showLane': {
@@ -313,6 +319,7 @@ export function createWebviewStateMessage({
   extensionFooter,
   extensionWidgets = [],
   startupResources = [],
+  startupResourcesReloadRevision = 0,
   allowRemoteImages = false,
   welcomeDismissed,
   promptContext = [],
@@ -322,6 +329,7 @@ export function createWebviewStateMessage({
   sessionView,
   settingsView,
   auth,
+  perfEnabled = false,
   includeMessages = true,
   messagePatch
 }: CreateWebviewStateMessageOptions): WebviewStateMessage {
@@ -355,11 +363,16 @@ export function createWebviewStateMessage({
       lines: entry.lines.slice(),
       ...(entry.blocks ? { blocks: cloneWebviewExtensionRenderBlocks(entry.blocks) } : {})
     })),
-    allowRemoteImages: Boolean(allowRemoteImages)
+    allowRemoteImages: Boolean(allowRemoteImages),
+    perfEnabled: Boolean(perfEnabled)
   };
 
   if (startupResources.length > 0) {
     message.startupResources = cloneWebviewStartupResources(startupResources);
+  }
+
+  if (startupResourcesReloadRevision > 0) {
+    message.startupResourcesReloadRevision = Math.max(0, Math.floor(startupResourcesReloadRevision));
   }
 
   if (!includeMessages) {
@@ -730,6 +743,45 @@ function parseStringArray(value: unknown): string[] | undefined {
   }
 
   return strings;
+}
+
+function parseWebviewPerfEvent(value: unknown): WebviewPerfEvent | undefined {
+  if (!isRecord(value) || !isNonNegativeFiniteNumber(value.durationMs)) {
+    return undefined;
+  }
+
+  const name = parseWebviewPerfEventName(value.name);
+
+  if (!name) {
+    return undefined;
+  }
+
+  const lane = parseWebviewLane(value.lane, 'chat');
+
+  if (lane !== value.lane) {
+    return undefined;
+  }
+
+  const event = {
+    name,
+    durationMs: value.durationMs,
+    lane
+  };
+
+  return {
+    ...event,
+    ...(isNonNegativeFiniteNumber(value.messageCount) ? { messageCount: value.messageCount } : {}),
+    ...(isNonNegativeFiniteNumber(value.sessionCount) ? { sessionCount: value.sessionCount } : {}),
+    ...(isNonNegativeFiniteNumber(value.visibleItemCount) ? { visibleItemCount: value.visibleItemCount } : {}),
+    ...(typeof value.currentSessionFile === 'string' ? { currentSessionFile: value.currentSessionFile } : {}),
+    ...(typeof value.sessionLoading === 'boolean' ? { sessionLoading: value.sessionLoading } : {})
+  };
+}
+
+function parseWebviewPerfEventName(value: unknown): WebviewPerfEventName | undefined {
+  return value === 'transcript.render' || value === 'sessionList.render' || value === 'tree.render'
+    ? value
+    : undefined;
 }
 
 function isNonNegativeFiniteNumber(value: unknown): value is number {

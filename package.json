@@ -154,6 +154,11 @@
         "command": "tauren.traceOrigin",
         "title": "Trace Origin",
         "category": "Tauren"
+      },
+      {
+        "command": "tauren.showDiagnostics",
+        "title": "Show Diagnostics",
+        "category": "Tauren"
       }
     ],
     "viewsContainers": {
@@ -303,6 +308,11 @@
           "type": "boolean",
           "default": true,
           "description": "Ask for confirmation before moving Tauren sessions to Trash."
+        },
+        "tauren.debugPerformance": {
+          "type": "boolean",
+          "default": false,
+          "description": "Collect Tauren performance diagnostics in the output channel and diagnostics view."
         },
         "tauren.customUiTheme": {
           "type": "string",

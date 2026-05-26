@@ -8,10 +8,18 @@ export type PiSessionListItem = {
   modified: string;
   messageCount: number;
   firstMessage: string;
+  metadataState?: 'loading' | 'ready';
   depth: number;
   isLast: boolean;
   ancestorContinues: boolean[];
   current: boolean;
+};
+
+export type SessionListLoadMetrics = {
+  sessionCount: number;
+  totalBytes: number;
+  cacheHits: number;
+  cacheMisses: number;
 };
 
 export type ListPiSessionsOptions = {
@@ -19,6 +27,9 @@ export type ListPiSessionsOptions = {
   sessionDir?: string;
   currentSessionFile?: string;
   env?: NodeJS.ProcessEnv;
+  sessionMetadataCacheFile?: string;
+  onProgress?: (sessions: PiSessionListItem[]) => void;
+  onMetrics?: (metrics: SessionListLoadMetrics) => void;
 };
 
 export type PiSessionCandidate = {

@@ -89,6 +89,7 @@ export class TaurenChatController {
   private readonly statePublisher: StatePublisher<WebviewStateMessage>;
   private readonly postedChatSyncByMessage = new WeakMap<WebviewStateMessage, PostedChatSync>();
   private lastPostedChatSync: PostedChatSync | undefined;
+  private startupResourcesReloadRevision = 0;
   private workspaceWaitingNoticeAdded = false;
   private workspaceWarningNoticeAdded = false;
   private authState: WebviewAuthState = { providers: [] };
@@ -147,6 +148,7 @@ export class TaurenChatController {
       session: this.session,
       postState: () => this.postState(),
       scheduleState: () => this.statePublisher.schedule(),
+      isActiveSession: () => this.options.isActiveSession?.() ?? true,
       refreshSessionDiffStats: () => void this.refreshSessionDiffStats(),
       refreshContextUsage: () => void this.refreshContextUsage({ silent: true }),
       addToolExecution: (event) => this.sessionDiffController.addToolExecution(event),
@@ -213,6 +215,9 @@ export class TaurenChatController {
         this.clientManager.setNextSessionFile(sessionFile);
         this.disposeClient();
       },
+      markStartupResourcesReloaded: () => {
+        this.startupResourcesReloadRevision += 1;
+      },
       showLoginSettings: (mode) => this.showLoginSettings(mode),
       startNewSession: () => this.startNewSession()
     });
@@ -229,6 +234,7 @@ export class TaurenChatController {
   }
 
   public dispose(): void {
+    this.piEventHandler.dispose();
     this.statePublisher.dispose();
     this.disposeClient();
   }
@@ -589,6 +595,7 @@ export class TaurenChatController {
       slashCommands: metadataState.slashCommands,
       slashCommandsRefreshing: metadataState.slashCommandsRefreshing,
       startupResources: metadataState.startupResources,
+      startupResourcesReloadRevision: this.startupResourcesReloadRevision,
       outputColors: this.options.getOutputColors?.() ?? true,
       animationsEnabled: this.options.getAnimationsEnabled?.() ?? true,
       customUiTheme: this.options.getCustomUiTheme?.() ?? 'default',
