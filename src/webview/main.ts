@@ -94,6 +94,7 @@ let pendingRenderFrame: number | undefined;
 let pendingReturnToChatAfterRender = false;
 let pendingRefreshSessionsAfterRender = false;
 let pendingSessionRefreshFrame: number | undefined;
+let sessionRefreshRequested = false;
 let hasReceivedHostState = false;
 let faceTransitionSuppressionFrame: number | undefined;
 const renderInstrumentationEnabled = document.body.dataset.taurenDevRenderInstrumentation === 'true';
@@ -301,6 +302,10 @@ window.addEventListener('message', (event) => {
   const hasComposerPasteUpdate = nextState.composerPaste !== undefined;
   state = nextState;
 
+  if (state.sessionsRefreshing) {
+    sessionRefreshRequested = false;
+  }
+
   if (isInitialHostState) {
     suppressFaceTransitionForNextRender();
   }
@@ -353,6 +358,7 @@ window.addEventListener('message', (event) => {
       && previousLane !== 'sessions'
       && state.sessions.length > 0
       && !state.sessionsRefreshing
+      && !sessionRefreshRequested
   });
 
   if (previousChatFace === 'settings' && state.chatFace === 'main' && state.lane === 'chat') {
@@ -497,7 +503,8 @@ function scheduleSessionsRefreshAfterNextPaint(): void {
   pendingSessionRefreshFrame = requestAnimationFrame(() => {
     pendingSessionRefreshFrame = undefined;
 
-    if (state.lane === 'sessions' && !state.sessionsRefreshing) {
+    if (state.lane === 'sessions' && !state.sessionsRefreshing && !sessionRefreshRequested) {
+      sessionRefreshRequested = true;
       vscode.postMessage({ type: 'refreshSessions' });
     }
   });
