@@ -30,7 +30,9 @@ export function createSdkExtensionUiContext(ui?: ExtensionUi): ExtensionUIContex
     setWidget(key, content, options) {
       resolvedUi.setWidget?.(key, content, options);
     },
-    setFooter() {},
+    setFooter(factory) {
+      resolvedUi.setFooter?.(factory);
+    },
     setHeader() {},
     setTitle() {},
     async custom<T>(factory: ExtensionCustomUiFactory<T>, opts?: ExtensionCustomUiOptions) {

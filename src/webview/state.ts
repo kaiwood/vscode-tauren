@@ -23,6 +23,7 @@ export const initialWebviewState: WebviewState = {
   animationsEnabled: true,
   customUiTheme: 'default',
   extensionStatus: [],
+  extensionFooter: undefined,
   extensionWidgets: [],
   allowRemoteImages: false,
   welcomeDismissed: false,
@@ -70,6 +71,7 @@ export function parseWebviewStateMessage(data: unknown, previousState?: WebviewS
     animationsEnabled: typeof record.animationsEnabled === 'boolean' ? record.animationsEnabled : true,
     customUiTheme: parseWebviewCustomUiTheme(record.customUiTheme),
     extensionStatus: parseExtensionStatus(record.extensionStatus),
+    extensionFooter: parseExtensionFooter(record.extensionFooter),
     extensionWidgets: parseExtensionWidgets(record.extensionWidgets),
     allowRemoteImages: typeof record.allowRemoteImages === 'boolean' ? record.allowRemoteImages : false,
     welcomeDismissed: Boolean(record.welcomeDismissed),
@@ -139,6 +141,10 @@ function parseExtensionStatus(value: unknown): WebviewState['extensionStatus'] {
     key: entry.key,
     text: entry.text
   }));
+}
+
+function parseExtensionFooter(value: unknown): WebviewState['extensionFooter'] {
+  return isRecord(value) && typeof value.line === 'string' ? { line: value.line } : undefined;
 }
 
 function isExtensionStatusEntry(value: unknown): value is WebviewState['extensionStatus'][number] {

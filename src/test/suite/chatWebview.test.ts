@@ -17,6 +17,14 @@ suite('Chat webview helpers', () => {
     assert.deepStrictEqual(parseWebviewMessage({ type: 'requestFileSuggestions', id: '1', prefix: 'src' }), { type: 'unknown' });
   });
 
+  test('parseWebviewMessage accepts extension footer dimensions', () => {
+    assert.deepStrictEqual(
+      parseWebviewMessage({ type: 'extensionFooterDimensions', columns: 100, rows: 1, cellWidthPx: 7.5, cellHeightPx: 18 }),
+      { type: 'extensionFooterDimensions', columns: 100, rows: 1, cellWidthPx: 7.5, cellHeightPx: 18 }
+    );
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'extensionFooterDimensions', columns: 0, rows: 1 }), { type: 'unknown' });
+  });
+
   test('createWebviewStateMessage adds message type, model metadata, and context usage', () => {
     const state: ChatState = {
       messages: [
@@ -116,6 +124,16 @@ suite('Chat webview helpers', () => {
         { key: 'plan-mode', text: 'Planning' },
         { key: 'review', text: 'Reviewing' }
       ]
+    );
+  });
+
+  test('createWebviewStateMessage includes custom extension footer when present', () => {
+    assert.deepStrictEqual(
+      createWebviewStateMessage({
+        state: { messages: [], busy: false },
+        extensionFooter: { line: 'Footer line' }
+      }).extensionFooter,
+      { line: 'Footer line' }
     );
   });
 

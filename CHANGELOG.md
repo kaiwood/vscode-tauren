@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added support for Pi extension `ctx.ui.setFooter(factory)`
 - Added `@` file suggestions to the composer.
 
 ## 1.0.1 - Maintenance release

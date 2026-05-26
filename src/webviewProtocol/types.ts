@@ -111,6 +111,7 @@ export type WebviewMessage =
   | { type: 'customUiCancel'; id: string }
   | { type: 'customUiDimensions'; id: string; columns: number; rows: number; cellWidthPx?: number; cellHeightPx?: number }
   | { type: 'extensionWidgetDimensions'; key: string; columns: number; rows: number; cellWidthPx?: number; cellHeightPx?: number }
+  | { type: 'extensionFooterDimensions'; columns: number; rows: number; cellWidthPx?: number; cellHeightPx?: number }
   | { type: 'extensionEditorSave'; id: string; text: string }
   | { type: 'extensionEditorCancel'; id: string }
   | { type: 'submit'; text: string; streamingBehavior?: WebviewStreamingBehavior }
@@ -223,6 +224,10 @@ export type WebviewExtensionWidgetEntry = {
   blocks?: WebviewExtensionRenderBlock[];
 };
 
+export type WebviewExtensionFooterEntry = {
+  line: string;
+};
+
 export type WebviewMessagePatch = {
   upserts?: Array<{ index: number; message: ChatSnapshotMessage }>;
   deleteFrom?: number;
@@ -249,6 +254,7 @@ export type WebviewStateMessage = Omit<ChatState, 'messages'> & {
   animationsEnabled: boolean;
   customUiTheme: WebviewCustomUiTheme;
   extensionStatus: WebviewExtensionStatusEntry[];
+  extensionFooter?: WebviewExtensionFooterEntry;
   extensionWidgets: WebviewExtensionWidgetEntry[];
   allowRemoteImages?: boolean;
   welcomeDismissed?: boolean;
@@ -302,6 +308,7 @@ export type CreateWebviewStateMessageOptions = {
   animationsEnabled?: boolean;
   customUiTheme?: WebviewCustomUiTheme;
   extensionStatus?: WebviewExtensionStatusEntry[];
+  extensionFooter?: WebviewExtensionFooterEntry;
   extensionWidgets?: WebviewExtensionWidgetEntry[];
   allowRemoteImages?: boolean;
   welcomeDismissed?: boolean;

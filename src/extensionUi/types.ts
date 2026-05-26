@@ -4,6 +4,7 @@ export type MaybePromise<T> = T | PromiseLike<T>;
 
 type SdkExtensionCustomUiFactory = Parameters<ExtensionUIContext['custom']>[0];
 type SdkExtensionCustomUiFactoryArgs = Parameters<SdkExtensionCustomUiFactory>;
+type SdkExtensionFooterFactory = NonNullable<Parameters<ExtensionUIContext['setFooter']>[0]>;
 
 export type ExtensionCustomUiFactory<T> = (
   tui: SdkExtensionCustomUiFactoryArgs[0],
@@ -17,6 +18,7 @@ export type ExtensionWidgetContent =
   | string[]
   | ((tui: SdkExtensionCustomUiFactoryArgs[0], theme: SdkExtensionCustomUiFactoryArgs[1]) => { render(width: number): string[]; invalidate(): void; dispose?(): void; focused?: boolean });
 export type ExtensionWidgetSetOptions = Pick<ExtensionWidgetOptions, 'placement'>;
+export type ExtensionFooterFactory = SdkExtensionFooterFactory;
 
 export type ExtensionEditorHostMessage =
   | { type: 'extensionEditorShow'; id: string; title: string; prefill: string }
@@ -31,6 +33,7 @@ export type ExtensionUi = {
   custom?<T>(factory: ExtensionCustomUiFactory<T>, options?: ExtensionCustomUiOptions): MaybePromise<T | undefined>;
   setStatus?(key: string, text: string | undefined): void;
   clearStatuses?(): void;
+  setFooter?(factory: ExtensionFooterFactory | undefined): void;
   setWidget?(key: string, content: ExtensionWidgetContent | undefined, options?: ExtensionWidgetSetOptions): void;
   clearWidgets?(): void;
   setEditorText?(text: string): void;

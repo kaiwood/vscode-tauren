@@ -97,6 +97,7 @@ const renderInstrumentationEnabled = document.body.dataset.taurenDevRenderInstru
 const busySubmitHomeMarker = document.createComment('busy-submit-home');
 busySubmitElement.after(busySubmitHomeMarker);
 const widgetDimensionSignatures = new Map<string, string>();
+let footerDimensionSignature = '';
 
 let sessionsController: SessionViewController;
 let settingsController: SettingsPaneController;
@@ -731,18 +732,53 @@ function isExtensionMonospaceFontEnabled(): boolean {
 
 function syncExtensionStatus(hiddenBySurface: boolean): void {
   const statusEnabled = areExtensionStatusBarEnabled();
+  const footerLine = statusEnabled ? state.extensionFooter?.line : undefined;
   const text = statusEnabled
-    ? state.extensionStatus
-      .map((entry) => entry.text.trim())
-      .filter(Boolean)
-      .join('  •  ')
+    ? footerLine !== undefined
+      ? footerLine
+      : state.extensionStatus
+        .map((entry) => entry.text.trim())
+        .filter(Boolean)
+        .join('  •  ')
     : '';
   const hidden = hiddenBySurface || text.length === 0;
 
-  composerStatusTextElement.textContent = text;
+  composerStatusTextElement.replaceChildren();
+  renderAnsiTextInto(composerStatusTextElement, text, state.outputColors, { suppressBackgrounds: true });
   composerStatusElement.hidden = hidden;
   composerStatusElement.setAttribute('aria-hidden', hidden ? 'true' : 'false');
   viewElement.classList.toggle('tauren-view--has-extension-status', !hidden);
+
+  if (!hidden && footerLine !== undefined) {
+    scheduleExtensionFooterDimensionsPost();
+  } else {
+    footerDimensionSignature = '';
+  }
+}
+
+function scheduleExtensionFooterDimensionsPost(): void {
+  requestAnimationFrame(() => {
+    if (composerStatusElement.hidden || state.extensionFooter === undefined) {
+      footerDimensionSignature = '';
+      return;
+    }
+
+    const dimensions = measureExtensionWidgetDimensions(composerStatusElement);
+    const signature = [dimensions.columns, dimensions.rows, dimensions.cellWidthPx, dimensions.cellHeightPx].join(':');
+
+    if (signature === footerDimensionSignature) {
+      return;
+    }
+
+    footerDimensionSignature = signature;
+    vscode.postMessage({
+      type: 'extensionFooterDimensions',
+      columns: dimensions.columns,
+      rows: dimensions.rows,
+      cellWidthPx: dimensions.cellWidthPx,
+      cellHeightPx: dimensions.cellHeightPx
+    });
+  });
 }
 
 function toggleHelpOverlay(): void {

@@ -351,6 +351,7 @@ suite('PiSdkClient', () => {
     const notifications: Array<{ message: string; notifyType: string }> = [];
     const statuses: Array<{ key: string; text: string | undefined }> = [];
     const widgets: Array<{ key: string; lines: string[] | undefined; placement?: 'aboveEditor' | 'belowEditor' }> = [];
+    const footers: Array<unknown> = [];
     const composerTexts: string[] = [];
     const composerPastes: string[] = [];
     const editorRequests: Array<{ title: string; prefill: string | undefined }> = [];
@@ -369,6 +370,7 @@ suite('PiSdkClient', () => {
         lines: Array.isArray(content) ? content : undefined,
         placement: options?.placement
       }),
+      setFooter: (factory) => footers.push(factory),
       setEditorText: (text) => composerTexts.push(text),
       pasteToEditor: (text) => composerPastes.push(text)
     });
@@ -381,7 +383,10 @@ suite('PiSdkClient', () => {
     ui.notify('Saved', 'info');
     ui.setStatus('plan-mode', 'Planning');
     ui.setStatus('plan-mode', undefined);
+    const footerFactory = () => ({ render: () => ['footer'], invalidate: () => undefined });
     ui.setWidget('todo', ['Line 1'], { placement: 'belowEditor' });
+    ui.setFooter(footerFactory as never);
+    ui.setFooter(undefined);
     ui.setEditorText('prefilled prompt');
     ui.pasteToEditor('pasted prompt');
 
@@ -394,6 +399,7 @@ suite('PiSdkClient', () => {
     assert.deepStrictEqual(widgets, [
       { key: 'todo', lines: ['Line 1'], placement: 'belowEditor' }
     ]);
+    assert.deepStrictEqual(footers, [footerFactory, undefined]);
     assert.deepStrictEqual(composerTexts, ['prefilled prompt']);
     assert.deepStrictEqual(composerPastes, ['pasted prompt']);
   });

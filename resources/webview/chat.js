@@ -7519,6 +7519,7 @@ ${after}`;
     animationsEnabled: true,
     customUiTheme: "default",
     extensionStatus: [],
+    extensionFooter: void 0,
     extensionWidgets: [],
     allowRemoteImages: false,
     welcomeDismissed: false,
@@ -7564,6 +7565,7 @@ ${after}`;
       animationsEnabled: typeof record.animationsEnabled === "boolean" ? record.animationsEnabled : true,
       customUiTheme: parseWebviewCustomUiTheme(record.customUiTheme),
       extensionStatus: parseExtensionStatus(record.extensionStatus),
+      extensionFooter: parseExtensionFooter(record.extensionFooter),
       extensionWidgets: parseExtensionWidgets(record.extensionWidgets),
       allowRemoteImages: typeof record.allowRemoteImages === "boolean" ? record.allowRemoteImages : false,
       welcomeDismissed: Boolean(record.welcomeDismissed),
@@ -7621,6 +7623,9 @@ ${after}`;
       key: entry.key,
       text: entry.text
     }));
+  }
+  function parseExtensionFooter(value) {
+    return isRecord5(value) && typeof value.line === "string" ? { line: value.line } : void 0;
   }
   function isExtensionStatusEntry(value) {
     return isRecord5(value) && typeof value.key === "string" && typeof value.text === "string";
@@ -7864,6 +7869,7 @@ ${after}`;
   var busySubmitHomeMarker = document.createComment("busy-submit-home");
   busySubmitElement.after(busySubmitHomeMarker);
   var widgetDimensionSignatures = /* @__PURE__ */ new Map();
+  var footerDimensionSignature = "";
   var sessionsController;
   var settingsController;
   var customUiController = new CustomUiController({
@@ -8381,12 +8387,40 @@ ${after}`;
   }
   function syncExtensionStatus(hiddenBySurface) {
     const statusEnabled = areExtensionStatusBarEnabled();
-    const text = statusEnabled ? state.extensionStatus.map((entry) => entry.text.trim()).filter(Boolean).join("  \u2022  ") : "";
+    const footerLine = statusEnabled ? state.extensionFooter?.line : void 0;
+    const text = statusEnabled ? footerLine !== void 0 ? footerLine : state.extensionStatus.map((entry) => entry.text.trim()).filter(Boolean).join("  \u2022  ") : "";
     const hidden = hiddenBySurface || text.length === 0;
-    composerStatusTextElement.textContent = text;
+    composerStatusTextElement.replaceChildren();
+    renderAnsiTextInto(composerStatusTextElement, text, state.outputColors, { suppressBackgrounds: true });
     composerStatusElement.hidden = hidden;
     composerStatusElement.setAttribute("aria-hidden", hidden ? "true" : "false");
     viewElement.classList.toggle("tauren-view--has-extension-status", !hidden);
+    if (!hidden && footerLine !== void 0) {
+      scheduleExtensionFooterDimensionsPost();
+    } else {
+      footerDimensionSignature = "";
+    }
+  }
+  function scheduleExtensionFooterDimensionsPost() {
+    requestAnimationFrame(() => {
+      if (composerStatusElement.hidden || state.extensionFooter === void 0) {
+        footerDimensionSignature = "";
+        return;
+      }
+      const dimensions = measureExtensionWidgetDimensions(composerStatusElement);
+      const signature = [dimensions.columns, dimensions.rows, dimensions.cellWidthPx, dimensions.cellHeightPx].join(":");
+      if (signature === footerDimensionSignature) {
+        return;
+      }
+      footerDimensionSignature = signature;
+      vscode.postMessage({
+        type: "extensionFooterDimensions",
+        columns: dimensions.columns,
+        rows: dimensions.rows,
+        cellWidthPx: dimensions.cellWidthPx,
+        cellHeightPx: dimensions.cellHeightPx
+      });
+    });
   }
   function toggleHelpOverlay() {
     if (hasHelpOverlayOpen()) {

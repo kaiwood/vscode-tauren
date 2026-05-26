@@ -2,6 +2,7 @@ import type {
   WebviewAuthState,
   WebviewChatFace,
   WebviewCustomUiTheme,
+  WebviewExtensionFooterEntry,
   WebviewExtensionStatusEntry,
   WebviewExtensionWidgetEntry,
   WebviewFileSuggestion,
@@ -77,6 +78,7 @@ export type MessagePatch = {
 
 export type WorkspaceDiffStats = WebviewWorkspaceDiffStats;
 export type ExtensionStatusEntry = WebviewExtensionStatusEntry;
+export type ExtensionFooterEntry = WebviewExtensionFooterEntry;
 export type ExtensionWidgetEntry = WebviewExtensionWidgetEntry;
 
 export type WebviewState = {
@@ -99,6 +101,7 @@ export type WebviewState = {
   animationsEnabled: boolean;
   customUiTheme: CustomUiTheme;
   extensionStatus: ExtensionStatusEntry[];
+  extensionFooter?: ExtensionFooterEntry;
   extensionWidgets: ExtensionWidgetEntry[];
   allowRemoteImages: boolean;
   welcomeDismissed: boolean;

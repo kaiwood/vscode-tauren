@@ -1,5 +1,6 @@
 import { TaurenChatController, type PiPromptImageAttachment } from '../taurenChatController';
 import { ExtensionCustomUiHost, type CustomUiHostMessage } from '../extensionUi/customUiHost';
+import { ExtensionFooterHost } from '../extensionUi/extensionFooterHost';
 import { ExtensionWidgetHost } from '../extensionUi/extensionWidgetHost';
 import type { ExtensionEditorHostMessage, ExtensionUi } from '../extensionUi/types';
 import type { TaurenChatControllerOptions } from '../controller/types';
@@ -66,6 +67,7 @@ type OpenSession = {
   title: string;
   customUiOpen: boolean;
   customUiHost: ExtensionCustomUiHost | undefined;
+  extensionFooterHost: ExtensionFooterHost;
   extensionWidgetHost: ExtensionWidgetHost;
   extensionStatuses: Map<string, string>;
   inactiveSince: number | undefined;
@@ -103,6 +105,7 @@ export class TaurenSessionManager {
     for (const session of this.sessions.splice(0)) {
       this.clearInactiveDisposal(session);
       session.customUiHost?.dispose();
+      session.extensionFooterHost.dispose();
       session.extensionWidgetHost.dispose();
       session.controller.dispose();
     }
@@ -160,6 +163,11 @@ export class TaurenSessionManager {
 
     if (message.type === 'extensionWidgetDimensions') {
       this.active().extensionWidgetHost.updateDimensions(message.key, message.columns, message.rows, message.cellWidthPx, message.cellHeightPx);
+      return;
+    }
+
+    if (message.type === 'extensionFooterDimensions') {
+      this.active().extensionFooterHost.updateDimensions(message.columns, message.rows, message.cellWidthPx, message.cellHeightPx);
       return;
     }
 
@@ -275,6 +283,7 @@ export class TaurenSessionManager {
       if (session.id !== this.activeSessionId) {
         this.clearInactiveDisposal(session);
         session.customUiHost?.dispose();
+        session.extensionFooterHost.dispose();
         session.extensionWidgetHost.dispose();
         session.controller.dispose();
       }
@@ -290,6 +299,7 @@ export class TaurenSessionManager {
     this.cancelPendingExtensionEditor();
     active.customUiHost?.cancelActive();
     active.customUiOpen = false;
+    active.extensionFooterHost.clearFooter();
     active.extensionWidgetHost.clearWidgets();
     active.extensionStatuses.clear();
     active.inactiveSince = undefined;
@@ -405,6 +415,7 @@ export class TaurenSessionManager {
   private clearAllExtensionStatuses(): void {
     for (const session of this.sessions) {
       session.extensionStatuses.clear();
+      session.extensionFooterHost.handleStatusesChanged();
     }
   }
 
@@ -428,8 +439,10 @@ export class TaurenSessionManager {
     const id = `open-${++this.sessionSequence}`;
     const initialSessionFile = options.initial ? this.options.initialSessionFile : options.sessionFile;
     const customUiHost = this.createCustomUiHost(id);
+    const extensionStatuses = new Map<string, string>();
+    const extensionFooterHost = this.createExtensionFooterHost(id, extensionStatuses);
     const extensionWidgetHost = this.createExtensionWidgetHost(id);
-    const extensionUi = this.createSessionExtensionUi(id, customUiHost, extensionWidgetHost);
+    const extensionUi = this.createSessionExtensionUi(id, customUiHost, extensionFooterHost, extensionWidgetHost);
     const session: OpenSession = {
       id,
       controller: new TaurenChatController({
@@ -452,8 +465,9 @@ export class TaurenSessionManager {
       title: options.initial ? 'Current session' : options.sessionFile ? 'Loading session' : 'New session',
       customUiOpen: false,
       customUiHost,
+      extensionFooterHost,
       extensionWidgetHost,
-      extensionStatuses: new Map(),
+      extensionStatuses,
       inactiveSince: undefined,
       inactiveDisposeTimer: undefined,
       outboundStateMessage: undefined,
@@ -547,7 +561,26 @@ export class TaurenSessionManager {
     });
   }
 
-  private createSessionExtensionUi(id: string, customUiHost: ExtensionCustomUiHost | undefined, extensionWidgetHost: ExtensionWidgetHost): ExtensionUi {
+  private createExtensionFooterHost(id: string, extensionStatuses: ReadonlyMap<string, string>): ExtensionFooterHost {
+    return new ExtensionFooterHost({
+      notify: (message, notifyType) => this.options.showNotification(message, notifyType),
+      getCwd: () => this.options.getCwd?.(),
+      getExtensionStatuses: () => extensionStatuses,
+      getAvailableProviderCount: () => countAvailableProviders(this.sessions.find((session) => session.id === id)?.state?.modelOptions),
+      onChange: () => {
+        if (id === this.activeSessionId) {
+          this.postState();
+        }
+      }
+    });
+  }
+
+  private createSessionExtensionUi(
+    id: string,
+    customUiHost: ExtensionCustomUiHost | undefined,
+    extensionFooterHost: ExtensionFooterHost,
+    extensionWidgetHost: ExtensionWidgetHost
+  ): ExtensionUi {
     const baseUi = this.options.extensionUi;
 
     return {
@@ -571,6 +604,7 @@ export class TaurenSessionManager {
           this.clearExtensionStatuses(id);
         }
       },
+      setFooter: (factory) => extensionFooterHost.setFooter(factory),
       setWidget: (key, content, options) => {
         if (content === undefined || this.isExtensionWidgetPlacementEnabled(options?.placement)) {
           extensionWidgetHost.setWidget(key, content, options);
@@ -689,6 +723,8 @@ export class TaurenSessionManager {
       session.extensionStatuses.set(normalizedKey, text);
     }
 
+    session.extensionFooterHost.handleStatusesChanged();
+
     if (id === this.activeSessionId) {
       this.postState();
     }
@@ -702,6 +738,7 @@ export class TaurenSessionManager {
     }
 
     session.extensionStatuses.clear();
+    session.extensionFooterHost.handleStatusesChanged();
 
     if (id === this.activeSessionId) {
       this.postState();
@@ -829,6 +866,7 @@ export class TaurenSessionManager {
       sessions: augmentSessions(sessions ?? [], this.sessions, this.activeSessionId),
       currentSessionName: state.currentSessionName || active.title,
       extensionStatus: this.extensionSettings.statusBarEnabled ? formatExtensionStatuses(active.extensionStatuses) : [],
+      extensionFooter: this.extensionSettings.statusBarEnabled ? active.extensionFooterHost.getEntry() : undefined,
       extensionWidgets: this.filterEnabledExtensionWidgets(active.extensionWidgetHost.getEntries()),
       outputColors: this.options.getOutputColors?.() ?? true,
       animationsEnabled: this.options.getAnimationsEnabled?.() ?? true,
@@ -960,6 +998,7 @@ export class TaurenSessionManager {
     this.clearInactiveDisposal(session);
     this.sessions.splice(index, 1);
     session.customUiHost?.dispose();
+    session.extensionFooterHost.dispose();
     session.extensionWidgetHost.dispose();
     session.controller.dispose();
     return true;
@@ -1090,6 +1129,10 @@ function createEmptyState(): WebviewStateMessage {
 
 function formatExtensionStatuses(statuses: ReadonlyMap<string, string>): WebviewStateMessage['extensionStatus'] {
   return Array.from(statuses, ([key, text]) => ({ key, text }));
+}
+
+function countAvailableProviders(modelOptions: WebviewStateMessage['modelOptions'] | undefined): number {
+  return new Set((modelOptions ?? []).map((model) => model.provider).filter(Boolean)).size;
 }
 
 function getStatus(message: WebviewStateMessage, previous: OpenSessionStatus): OpenSessionStatus {

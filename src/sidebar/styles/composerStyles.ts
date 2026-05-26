@@ -233,10 +233,12 @@ export const composerStyles = /* css */ `    .tauren-view--has-extension-status 
     }
 
     .composer-status__text {
+      flex: 1 1 auto;
       min-width: 0;
+      width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
-      white-space: nowrap;
+      white-space: pre;
     }
 
     .composer__slash-menu {

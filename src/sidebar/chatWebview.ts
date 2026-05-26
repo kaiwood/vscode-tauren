@@ -246,6 +246,22 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
         }
         : { type: 'unknown' };
     }
+    case 'extensionFooterDimensions': {
+      const columns = parsePositiveInteger(value.columns);
+      const rows = parsePositiveInteger(value.rows);
+      const cellWidthPx = parsePositiveNumber(value.cellWidthPx);
+      const cellHeightPx = parsePositiveNumber(value.cellHeightPx);
+
+      return columns !== undefined && rows !== undefined
+        ? {
+          type: 'extensionFooterDimensions',
+          columns,
+          rows,
+          ...(cellWidthPx !== undefined ? { cellWidthPx } : {}),
+          ...(cellHeightPx !== undefined ? { cellHeightPx } : {})
+        }
+        : { type: 'unknown' };
+    }
     case 'extensionEditorSave':
       return typeof value.id === 'string' && value.id && typeof value.text === 'string'
         ? { type: 'extensionEditorSave', id: value.id, text: value.text }
@@ -294,6 +310,7 @@ export function createWebviewStateMessage({
   animationsEnabled = true,
   customUiTheme = 'default',
   extensionStatus = [],
+  extensionFooter,
   extensionWidgets = [],
   allowRemoteImages = false,
   welcomeDismissed,
@@ -331,6 +348,7 @@ export function createWebviewStateMessage({
     animationsEnabled,
     customUiTheme,
     extensionStatus: extensionStatus.map((entry) => ({ ...entry })),
+    ...(extensionFooter ? { extensionFooter: { ...extensionFooter } } : {}),
     extensionWidgets: extensionWidgets.map((entry) => ({
       ...entry,
       lines: entry.lines.slice(),
