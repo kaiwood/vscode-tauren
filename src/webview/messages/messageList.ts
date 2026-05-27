@@ -235,8 +235,14 @@ export class MessageListController {
       if (activityId) {
         event.preventDefault();
         event.stopPropagation();
-        const expanded = toggleActivityBodyExpansion(activityId);
-        this.options.postMessage({ type: 'setToolsExpanded', expanded });
+        toggleActivityBodyExpansion(activityId);
+        const expandableToolActivityIds = getExpandableToolActivityIds(state.messages);
+
+        if (expandableToolActivityIds.includes(activityId)) {
+          const expanded = expandableToolActivityIds.some((toolActivityId) => getActivityBodyExpansion(toolActivityId));
+          this.options.postMessage({ type: 'setToolsExpanded', expanded });
+        }
+
         this.rerenderMessageAtIndex(parseDatasetInteger(toggleButton.dataset.messageIndex));
       }
 
