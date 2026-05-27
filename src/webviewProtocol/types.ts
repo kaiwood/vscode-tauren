@@ -255,10 +255,8 @@ export type WebviewMessagePatch = {
   deleteFrom?: number;
 };
 
-export type WebviewStateMessage = Omit<ChatState, 'messages'> & {
+export type WebviewStateMessageBase = Omit<ChatState, 'messages'> & {
   type: 'state';
-  messages: ChatState['messages'] | ChatSnapshotMessage[];
-  messagePatch?: WebviewMessagePatch;
   modelLabel: string;
   modelProvider: string;
   modelId: string;
@@ -307,6 +305,18 @@ export type WebviewStateMessage = Omit<ChatState, 'messages'> & {
   settings?: WebviewSettingsState;
   auth?: WebviewAuthState;
 };
+
+export type WebviewFullStateMessage = WebviewStateMessageBase & {
+  messages: ChatState['messages'] | ChatSnapshotMessage[];
+  messagePatch?: WebviewMessagePatch;
+};
+
+export type WebviewPatchedStateMessage = WebviewStateMessageBase & {
+  messages?: undefined;
+  messagePatch: WebviewMessagePatch;
+};
+
+export type WebviewStateMessage = WebviewFullStateMessage | WebviewPatchedStateMessage;
 
 export type CreateWebviewStateMessageOptions = {
   state: ChatState | ChatSnapshotState;

@@ -5,7 +5,7 @@ import { promises as fs } from 'node:fs';
 import * as vscode from 'vscode';
 import { TaurenChatViewProvider, type PiClient } from '../../taurenChatViewProvider';
 import { initialWebviewState, parseWebviewStateMessage } from '../../webview/state';
-import type { WebviewStateMessage } from '../../webviewProtocol/types';
+import type { WebviewFullStateMessage, WebviewStateMessage } from '../../webviewProtocol/types';
 import type {
   PiAgentMessage,
   PiModel,
@@ -760,7 +760,7 @@ function withoutPromptImageId(value: NonNullable<WebviewStateMessage['promptImag
   return rest;
 }
 
-function lastPostedState(view: FakeWebviewView): WebviewStateMessage {
+function lastPostedState(view: FakeWebviewView): WebviewFullStateMessage {
   let parsedState = { ...initialWebviewState };
   let lastState: WebviewStateMessage | undefined;
 
@@ -777,8 +777,8 @@ function lastPostedState(view: FakeWebviewView): WebviewStateMessage {
 
   return {
     ...lastState,
-    messages: stripWebviewMessageMetadata(parsedState.messages) as WebviewStateMessage['messages']
-  };
+    messages: stripWebviewMessageMetadata(parsedState.messages) as WebviewFullStateMessage['messages']
+  } as WebviewFullStateMessage;
 }
 
 function stripWebviewMessageMetadata(messages: typeof initialWebviewState.messages): typeof initialWebviewState.messages {

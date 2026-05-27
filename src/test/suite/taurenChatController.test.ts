@@ -8,7 +8,8 @@ import {
   type TaurenChatSessionMetaSnapshot
 } from '../../taurenChatController';
 import type { PiClient } from '../../pi/clientTypes';
-import type { WebviewSessionItem, WebviewStateMessage, WebviewTreeItem } from '../../webviewProtocol/types';
+import { resolveWebviewStateMessageMessages } from '../../webviewProtocol/messagePatch';
+import type { WebviewFullStateMessage, WebviewSessionItem, WebviewStateMessage, WebviewTreeItem } from '../../webviewProtocol/types';
 import type { StatePublisherScheduler } from '../../controller/statePublisher';
 import type {
   PiAgentMessage,
@@ -3026,9 +3027,16 @@ class FakePiClient implements PiClient {
   }
 }
 
-function lastState(harness: ControllerHarness): WebviewStateMessage {
+function lastState(harness: ControllerHarness): WebviewFullStateMessage {
   assert.ok(harness.states.length > 0, 'Expected at least one posted state');
-  return harness.states[harness.states.length - 1];
+  let state: WebviewFullStateMessage | undefined;
+
+  for (const message of harness.states) {
+    state = resolveWebviewStateMessageMessages(message, state);
+  }
+
+  assert.ok(state, 'Expected at least one resolved posted state');
+  return state;
 }
 
 function createDeferred<T>(): {

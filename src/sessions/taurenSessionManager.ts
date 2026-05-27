@@ -9,7 +9,8 @@ import type { ThinkingLevelStepDirection } from '../controller/thinkingLevelStep
 import type { TaurenChatSessionMetaSnapshot } from '../metadata/types';
 import type { PiPromptContextInput } from '../prompt/types';
 import type { SettingValue, TaurenSettingId } from '../settings/settingsRegistry';
-import type { WebviewMessage, WebviewMessagePatch, WebviewSessionItem, WebviewStateMessage } from '../webviewProtocol/types';
+import { resolveWebviewStateMessageMessages } from '../webviewProtocol/messagePatch';
+import type { WebviewMessage, WebviewSessionItem, WebviewStateMessage } from '../webviewProtocol/types';
 
 export type TaurenSessionManagerOptions = TaurenChatControllerOptions & {
   customUi?: {
@@ -874,7 +875,7 @@ export class TaurenSessionManager {
     const wasBusy = session.state?.busy ?? false;
     const previousSessionFile = getSessionFile(session.sessionFile);
     const nextSessionFile = getSessionFile(message.currentSessionFile);
-    const storedMessage = resolveStateMessageMessages(message, session.state);
+    const storedMessage = resolveWebviewStateMessageMessages(message, session.state);
     const messageCount = storedMessage.messages?.length ?? 0;
     const resetToEmptySession = Boolean(previousSessionFile) && !nextSessionFile && messageCount === 0;
     session.state = storedMessage;
@@ -1097,78 +1098,6 @@ export class TaurenSessionManager {
   private isInactiveSession(session: OpenSession): boolean {
     return session.id !== this.activeSessionId && session.status !== 'running' && !session.customUiOpen;
   }
-}
-
-function resolveStateMessageMessages(message: WebviewStateMessage, previous: WebviewStateMessage | undefined): WebviewStateMessage {
-  if (message.messages) {
-    return message;
-  }
-
-  const previousMessages = previous?.messages ?? [];
-  const messages = message.messagePatch
-    ? applyMessagePatch(previousMessages, message.messagePatch)
-    : previousMessages;
-
-  return {
-    ...message,
-    messages
-  };
-}
-
-function applyMessagePatch(
-  previousMessages: NonNullable<WebviewStateMessage['messages']>,
-  patch: WebviewMessagePatch
-): NonNullable<WebviewStateMessage['messages']> {
-  const messages = previousMessages.slice();
-
-  if (typeof patch.deleteFrom === 'number') {
-    messages.splice(patch.deleteFrom);
-  }
-
-  for (const upsert of patch.upserts ?? []) {
-    const previous = messages[upsert.index];
-    messages[upsert.index] = mergePatchedMessage(previous, upsert.message);
-  }
-
-  return messages;
-}
-
-function mergePatchedMessage(
-  previous: NonNullable<WebviewStateMessage['messages']>[number] | undefined,
-  incoming: NonNullable<WebviewStateMessage['messages']>[number]
-): NonNullable<WebviewStateMessage['messages']>[number] {
-  if (!previous) {
-    return incoming;
-  }
-
-  const previousId = 'id' in previous ? previous.id : undefined;
-  const incomingId = 'id' in incoming ? incoming.id : undefined;
-
-  if (!previousId || previousId !== incomingId) {
-    return incoming;
-  }
-
-  const merged = { ...incoming };
-
-  if (!('images' in incoming) && previous.images) {
-    merged.images = previous.images;
-  }
-
-  if (Array.isArray(incoming.activities) && Array.isArray(previous.activities)) {
-    merged.activities = incoming.activities.map((activity) => {
-      const previousActivity = activity.id
-        ? previous.activities?.find((item) => item.id === activity.id)
-        : undefined;
-
-      if (!previousActivity || 'images' in activity || !previousActivity.images) {
-        return activity;
-      }
-
-      return { ...activity, images: previousActivity.images };
-    });
-  }
-
-  return merged;
 }
 
 function createEmptyState(): WebviewStateMessage {

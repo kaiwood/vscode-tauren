@@ -1,7 +1,8 @@
 import { normalizeDiffLineCount } from '../diff/lineCount';
 import { isSettingId, normalizeSettingValue } from '../settings/settingsRegistry';
+import { parseWebviewMessagePatch, applyWebviewMessagePatch } from '../webviewProtocol/messagePatch';
 import { parseWebviewCustomUiTheme, parseWebviewLane, parseWebviewSettingsSection } from '../webviewProtocol/values';
-import type { Activity, ChatMessage, ExtensionFooterEntry, ExtensionStatusEntry, ExtensionWidgetEntry, MessagePatch, StartupResourceSection, WebviewState } from './types';
+import type { ChatMessage, ExtensionFooterEntry, ExtensionStatusEntry, ExtensionWidgetEntry, StartupResourceSection, WebviewState } from './types';
 
 export type ProvisionalExtensionUiSnapshot = {
   extensionFooter?: ExtensionFooterEntry;
@@ -454,95 +455,13 @@ function parseMessages(record: Record<string, unknown>, previousMessages: ChatMe
     return record.messages;
   }
 
-  const patch = parseMessagePatch(record.messagePatch);
+  const patch = parseWebviewMessagePatch(record.messagePatch);
 
   if (!patch) {
     return previousMessages;
   }
 
-  return applyMessagePatch(previousMessages, patch);
-}
-
-function parseMessagePatch(value: unknown): MessagePatch | undefined {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  const upserts = Array.isArray(value.upserts)
-    ? value.upserts.filter(isMessagePatchUpsert)
-    : undefined;
-  const deleteFrom = typeof value.deleteFrom === 'number' && Number.isInteger(value.deleteFrom) && value.deleteFrom >= 0
-    ? value.deleteFrom
-    : undefined;
-
-  if ((!upserts || upserts.length === 0) && deleteFrom === undefined) {
-    return undefined;
-  }
-
-  return {
-    ...(upserts && upserts.length > 0 ? { upserts } : {}),
-    ...(deleteFrom !== undefined ? { deleteFrom } : {})
-  };
-}
-
-function isMessagePatchUpsert(value: unknown): value is { index: number; message: ChatMessage } {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return typeof value.index === 'number'
-    && Number.isInteger(value.index)
-    && value.index >= 0
-    && isRecord(value.message)
-    && typeof value.message.role === 'string'
-    && typeof value.message.text === 'string';
-}
-
-function applyMessagePatch(previousMessages: ChatMessage[], patch: MessagePatch): ChatMessage[] {
-  const messages = previousMessages.slice();
-
-  if (typeof patch.deleteFrom === 'number') {
-    messages.splice(patch.deleteFrom);
-  }
-
-  for (const upsert of patch.upserts ?? []) {
-    messages[upsert.index] = mergePatchedMessage(messages[upsert.index], upsert.message);
-  }
-
-  return messages;
-}
-
-function mergePatchedMessage(previous: ChatMessage | undefined, incoming: ChatMessage): ChatMessage {
-  if (!previous || !incoming.id || previous.id !== incoming.id) {
-    return incoming;
-  }
-
-  const merged: ChatMessage = { ...incoming };
-
-  if (!('images' in incoming) && previous.images) {
-    merged.images = previous.images;
-  }
-
-  if (Array.isArray(incoming.activities) && Array.isArray(previous.activities)) {
-    merged.activities = mergePatchedActivities(previous.activities, incoming.activities);
-  }
-
-  return merged;
-}
-
-function mergePatchedActivities(previousActivities: Activity[], incomingActivities: Activity[]): Activity[] {
-  return incomingActivities.map((activity) => {
-    const activityId = typeof activity.id === 'string' ? activity.id : '';
-    const previous = activityId
-      ? previousActivities.find((item) => item.id === activityId)
-      : undefined;
-
-    if (!previous || 'images' in activity || !previous.images) {
-      return activity;
-    }
-
-    return { ...activity, images: previous.images };
-  });
+  return applyWebviewMessagePatch(previousMessages, patch);
 }
 
 function parseWorkspaceDiffStats(value: unknown): { addedLines: number; removedLines: number } {
