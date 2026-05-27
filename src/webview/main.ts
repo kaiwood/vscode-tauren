@@ -970,14 +970,20 @@ function handleToolDetailShortcut(event: KeyboardEvent): boolean {
   event.preventDefault();
   event.stopPropagation();
   const expanded = messagesController.toggleToolActivityDetail();
-  toolsExpanded = expanded === false ? !toolsExpanded : expanded;
+
+  if (expanded !== undefined) {
+    toolsExpanded = expanded;
+  }
+
   const data = terminalDataForKeyboardEvent(event);
 
   if (data) {
     vscode.postMessage({ type: 'extensionTerminalInput', data });
   }
 
-  vscode.postMessage({ type: 'setToolsExpanded', expanded: toolsExpanded });
+  if (expanded !== undefined) {
+    vscode.postMessage({ type: 'setToolsExpanded', expanded: toolsExpanded });
+  }
 
   return true;
 }

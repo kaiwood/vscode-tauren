@@ -4260,7 +4260,7 @@ ${after}`;
     toggleToolActivityDetail() {
       const activityIds = getExpandableToolActivityIds(this.options.getState().messages);
       if (activityIds.length === 0) {
-        return false;
+        return void 0;
       }
       const nextExpanded = activityIds.some((activityId) => !getActivityBodyExpansion(activityId));
       for (const activityId of activityIds) {
@@ -9318,12 +9318,16 @@ ${after}`;
     event.preventDefault();
     event.stopPropagation();
     const expanded = messagesController.toggleToolActivityDetail();
-    toolsExpanded = expanded === false ? !toolsExpanded : expanded;
+    if (expanded !== void 0) {
+      toolsExpanded = expanded;
+    }
     const data = terminalDataForKeyboardEvent(event);
     if (data) {
       vscode.postMessage({ type: "extensionTerminalInput", data });
     }
-    vscode.postMessage({ type: "setToolsExpanded", expanded: toolsExpanded });
+    if (expanded !== void 0) {
+      vscode.postMessage({ type: "setToolsExpanded", expanded: toolsExpanded });
+    }
     return true;
   }
   function handleTranscriptEdgeScrollShortcut(event) {

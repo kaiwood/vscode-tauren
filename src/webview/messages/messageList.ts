@@ -98,11 +98,11 @@ export class MessageListController {
     this.options.busyStatusElement.hidden = false;
   }
 
-  public toggleToolActivityDetail(): boolean {
+  public toggleToolActivityDetail(): boolean | undefined {
     const activityIds = getExpandableToolActivityIds(this.options.getState().messages);
 
     if (activityIds.length === 0) {
-      return false;
+      return undefined;
     }
 
     const nextExpanded = activityIds.some((activityId) => !getActivityBodyExpansion(activityId));
