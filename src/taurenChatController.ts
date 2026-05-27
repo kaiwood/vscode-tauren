@@ -1144,6 +1144,10 @@ export class TaurenChatController {
     this.postState();
   }
 
+  public hasSessionDiffStatsTarget(): boolean {
+    return this.sessionDiffController.hasSessionFile();
+  }
+
   public async refreshSessionDiffStats(): Promise<void> {
     return this.sessionDiffController.refresh();
   }

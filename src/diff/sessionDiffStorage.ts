@@ -44,6 +44,11 @@ export function writeSessionDiffSnapshot(
   }
 
   const snapshots = readStoredSessionDiffSnapshots(workspaceState);
+
+  if (areSessionDiffSnapshotsEqual(snapshots[sessionFile]?.snapshot, snapshot)) {
+    return;
+  }
+
   snapshots[sessionFile] = {
     snapshot,
     updatedAt: getNextSnapshotUpdatedAt(snapshots)
@@ -124,6 +129,18 @@ function getNextSnapshotUpdatedAt(snapshots: Record<string, StoredSessionDiffSna
 
 function normalizeTimestamp(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+function areSessionDiffSnapshotsEqual(left: SessionDiffSnapshot | undefined, right: SessionDiffSnapshot): boolean {
+  return normalizeSnapshotStats(left?.stats).addedLines === normalizeSnapshotStats(right.stats).addedLines
+    && normalizeSnapshotStats(left?.stats).removedLines === normalizeSnapshotStats(right.stats).removedLines;
+}
+
+function normalizeSnapshotStats(stats: SessionDiffSnapshot['stats'] | undefined): { addedLines: number; removedLines: number } {
+  return {
+    addedLines: normalizeDiffLineCount(stats?.addedLines),
+    removedLines: normalizeDiffLineCount(stats?.removedLines)
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

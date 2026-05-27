@@ -3,6 +3,56 @@ import { SessionDiffController } from '../../diff/sessionDiffController';
 import type { SessionDiffSnapshot, SessionDiffStats } from '../../diff/types';
 
 suite('SessionDiffController', () => {
+  test('does not save or post unchanged refreshed stats', async () => {
+    const sessionFile = '/tmp/tauren-session.jsonl';
+    const savedSnapshots: Array<{ sessionFile: string; snapshot: SessionDiffSnapshot }> = [];
+    let postStateCount = 0;
+
+    const controller = new SessionDiffController({
+      initialSessionFile: sessionFile,
+      getSessionGeneration: () => 0,
+      postState: () => {
+        postStateCount += 1;
+      },
+      loadSnapshot: () => ({ stats: { addedLines: 2, removedLines: 1 } }),
+      saveSnapshot: (savedSessionFile, snapshot) => {
+        savedSnapshots.push({ sessionFile: savedSessionFile, snapshot });
+      },
+      restoreStatsFromSessionFile: async () => ({ addedLines: 2, removedLines: 1 })
+    });
+
+    await controller.refresh();
+
+    assert.deepStrictEqual(controller.getStats(), { addedLines: 2, removedLines: 1 });
+    assert.deepStrictEqual(savedSnapshots, []);
+    assert.strictEqual(postStateCount, 0);
+  });
+
+  test('saves and posts changed refreshed stats', async () => {
+    const sessionFile = '/tmp/tauren-session.jsonl';
+    const savedSnapshots: Array<{ sessionFile: string; snapshot: SessionDiffSnapshot }> = [];
+    let postStateCount = 0;
+
+    const controller = new SessionDiffController({
+      initialSessionFile: sessionFile,
+      getSessionGeneration: () => 0,
+      postState: () => {
+        postStateCount += 1;
+      },
+      loadSnapshot: () => ({ stats: { addedLines: 2, removedLines: 1 } }),
+      saveSnapshot: (savedSessionFile, snapshot) => {
+        savedSnapshots.push({ sessionFile: savedSessionFile, snapshot });
+      },
+      restoreStatsFromSessionFile: async () => ({ addedLines: 3, removedLines: 1 })
+    });
+
+    await controller.refresh();
+
+    assert.deepStrictEqual(controller.getStats(), { addedLines: 3, removedLines: 1 });
+    assert.deepStrictEqual(savedSnapshots, [{ sessionFile, snapshot: { stats: { addedLines: 3, removedLines: 1 } } }]);
+    assert.strictEqual(postStateCount, 1);
+  });
+
   test('ignores stale in-flight refresh after switching session files', async () => {
     const oldSessionFile = '/tmp/tauren-old-session.jsonl';
     const newSessionFile = '/tmp/tauren-new-session.jsonl';

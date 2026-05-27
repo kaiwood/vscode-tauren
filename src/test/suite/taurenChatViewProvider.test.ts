@@ -19,6 +19,44 @@ type ProviderWithDeleteSession = {
 };
 
 suite('TaurenChatViewProvider', () => {
+  test('suppresses watcher diff refresh scheduling without a session file', () => {
+    const provider = new TaurenChatViewProvider(
+      vscode.Uri.file('/extension'),
+      () => new FakePiClient({ state: {} }),
+      new FakeMemento(),
+      undefined,
+      () => '/workspace'
+    );
+
+    (provider as unknown as { scheduleSessionDiffStatsRefresh(): void }).scheduleSessionDiffStatsRefresh();
+
+    assert.strictEqual((provider as unknown as { sessionDiffStatsRefreshTimer?: NodeJS.Timeout }).sessionDiffStatsRefreshTimer, undefined);
+    provider.dispose();
+  });
+
+  test('coalesces watcher diff refresh scheduling when a session file is active', () => {
+    const provider = new TaurenChatViewProvider(
+      vscode.Uri.file('/extension'),
+      () => new FakePiClient({ state: {} }),
+      new FakeMemento({ 'tauren.currentSessionFile': '/sessions/current.jsonl' }),
+      undefined,
+      () => '/workspace'
+    );
+    const providerWithRefresh = provider as unknown as {
+      scheduleSessionDiffStatsRefresh(): void;
+      sessionDiffStatsRefreshTimer?: NodeJS.Timeout;
+    };
+
+    providerWithRefresh.scheduleSessionDiffStatsRefresh();
+    const firstTimer = providerWithRefresh.sessionDiffStatsRefreshTimer;
+    providerWithRefresh.scheduleSessionDiffStatsRefresh();
+
+    assert.ok(firstTimer);
+    assert.ok(providerWithRefresh.sessionDiffStatsRefreshTimer);
+    assert.notStrictEqual(providerWithRefresh.sessionDiffStatsRefreshTimer, firstTimer);
+    provider.dispose();
+  });
+
   test('posts cached legacy model metadata and persists refreshed session metadata', async () => {
     const workspaceState = new FakeMemento({
       'tauren.cachedModelMeta': {

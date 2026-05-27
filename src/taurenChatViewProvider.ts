@@ -1286,6 +1286,11 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
   }
 
   private scheduleSessionDiffStatsRefresh(): void {
+    if (!this.controller.hasSessionDiffStatsTarget()) {
+      this.stopSessionDiffStatsRefreshTimer();
+      return;
+    }
+
     this.stopSessionDiffStatsRefreshTimer();
     this.sessionDiffStatsRefreshTimer = setTimeout(() => {
       this.sessionDiffStatsRefreshTimer = undefined;

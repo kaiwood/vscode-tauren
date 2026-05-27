@@ -40,6 +40,23 @@ suite('SessionDiffStorage', () => {
     });
   });
 
+  test('skips workspace state updates for unchanged snapshots', () => {
+    const workspaceState = new FakeMemento({
+      [sessionDiffSnapshotsStorageKey]: {
+        '/sessions/current.jsonl': { stats: { addedLines: 2, removedLines: 1 }, updatedAt: 10 }
+      }
+    });
+
+    writeSessionDiffSnapshot(workspaceState, '/sessions/current.jsonl', {
+      stats: { addedLines: 2.9, removedLines: 1 }
+    });
+
+    assert.strictEqual(workspaceState.updateCount, 0);
+    assert.deepStrictEqual(workspaceState.get<unknown>(sessionDiffSnapshotsStorageKey), {
+      '/sessions/current.jsonl': { stats: { addedLines: 2, removedLines: 1 }, updatedAt: 10 }
+    });
+  });
+
   test('drops malformed snapshots when writing', () => {
     const workspaceState = new FakeMemento({
       [sessionDiffSnapshotsStorageKey]: {
@@ -60,6 +77,7 @@ suite('SessionDiffStorage', () => {
 });
 
 class FakeMemento implements vscode.Memento {
+  public updateCount = 0;
   private readonly data = new Map<string, unknown>();
 
   public constructor(initial: Record<string, unknown> = {}) {
@@ -79,6 +97,8 @@ class FakeMemento implements vscode.Memento {
   }
 
   public update(key: string, value: unknown): Thenable<void> {
+    this.updateCount += 1;
+
     if (value === undefined) {
       this.data.delete(key);
     } else {

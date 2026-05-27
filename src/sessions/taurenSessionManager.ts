@@ -277,6 +277,10 @@ export class TaurenSessionManager {
     void this.active().controller.refreshContextUsage(options);
   }
 
+  public hasSessionDiffStatsTarget(): boolean {
+    return this.active().controller.hasSessionDiffStatsTarget();
+  }
+
   public refreshSessionDiffStats(): void {
     void this.active().controller.refreshSessionDiffStats();
   }

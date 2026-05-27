@@ -24,6 +24,10 @@ export class SessionDiffController {
     return { ...this.stats };
   }
 
+  public hasSessionFile(): boolean {
+    return Boolean(this.currentSessionFile);
+  }
+
   public async refresh(): Promise<void> {
     const identity = this.getRefreshIdentity();
 
@@ -89,13 +93,12 @@ export class SessionDiffController {
     const addedLines = normalizeDiffLineCount(stats.addedLines);
     const removedLines = normalizeDiffLineCount(stats.removedLines);
 
-    this.saveSnapshot();
-
     if (addedLines === this.stats.addedLines && removedLines === this.stats.removedLines) {
       return;
     }
 
     this.stats = { addedLines, removedLines };
+    this.saveSnapshot();
     this.options.postState();
   }
 
