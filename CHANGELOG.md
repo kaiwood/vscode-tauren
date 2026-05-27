@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.3.0 - 2026-05-27
+
 - Preserved user-prompt line breaks in transcript bubbles.
 - Fixed session-list rename prefill for unnamed sessions.
 - Fixed stale Auto retry activity from keeping the busy spinner on retry text.
