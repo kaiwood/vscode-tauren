@@ -407,7 +407,8 @@
   var ansiSpinnerFrameIndex = 0;
   var ansiSpinnerTimer;
   function renderAnsiSpinnersInto(element, animationsEnabled) {
-    if (!animationsEnabled) {
+    if (!animationsEnabled || areAnsiSpinnerAnimationsDisabled()) {
+      stopAnsiSpinnerTimer();
       return;
     }
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
@@ -457,12 +458,8 @@
     }
     ansiSpinnerTimer = window.setInterval(() => {
       const spinners = document.querySelectorAll(".tauren-ansi-spinner");
-      if (spinners.length === 0) {
-        window.clearInterval(ansiSpinnerTimer);
-        ansiSpinnerTimer = void 0;
-        return;
-      }
-      if (document.body.classList.contains("tauren-animations-disabled") || document.body.classList.contains("vscode-reduce-motion")) {
+      if (spinners.length === 0 || areAnsiSpinnerAnimationsDisabled()) {
+        stopAnsiSpinnerTimer();
         return;
       }
       ansiSpinnerFrameIndex = (ansiSpinnerFrameIndex + 1) % ansiSpinnerFrames.length;
@@ -471,6 +468,16 @@
         spinner.textContent = frame;
       }
     }, 80);
+  }
+  function stopAnsiSpinnerTimer() {
+    if (ansiSpinnerTimer === void 0) {
+      return;
+    }
+    window.clearInterval(ansiSpinnerTimer);
+    ansiSpinnerTimer = void 0;
+  }
+  function areAnsiSpinnerAnimationsDisabled() {
+    return document.body.classList.contains("tauren-animations-disabled") || document.body.classList.contains("vscode-reduce-motion");
   }
   function appendAnsiText(element, value, style, options) {
     if (!value) {
