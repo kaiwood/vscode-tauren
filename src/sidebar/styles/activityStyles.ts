@@ -141,6 +141,12 @@ export const activityStyles = /* css */ `    .activity-list {
       line-height: 16px;
     }
 
+    .tauren-ansi-spinner {
+      display: inline-block;
+      width: 1ch;
+      text-align: center;
+    }
+
     .activity__body--markdown {
       white-space: normal;
     }

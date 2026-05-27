@@ -1,4 +1,4 @@
-import { containsAnsiEscape, renderAnsiTextInto } from './ansi';
+import { containsAnsiEscape, renderAnsiSpinnersInto, renderAnsiTextInto } from './ansi';
 import { createIconActionButton } from './actionButtons';
 import { renderHighlightedCodeInto, renderMarkdownInto, type RenderMarkdownOptions } from './markdown';
 import type { Activity, ChatImage, ChatMessage } from '../types';
@@ -359,7 +359,8 @@ function createActivityElement(activity: Activity, messageIndex: number | undefi
       bodyToggle = renderCodeActivityBody(body, activity, bodyText, {
         bodyExpanded,
         messageIndex,
-        outputColors: options.outputColors !== false
+        outputColors: options.outputColors !== false,
+        animationsEnabled: options.animationsEnabled !== false
       });
     } else {
       renderMarkdownInto(body, bodyText, options);
@@ -452,7 +453,7 @@ function renderCodeActivityBody(
   element: HTMLElement,
   activity: Activity,
   bodyText: string,
-  options: { bodyExpanded: boolean; messageIndex: number | undefined; outputColors: boolean }
+  options: { bodyExpanded: boolean; messageIndex: number | undefined; outputColors: boolean; animationsEnabled: boolean }
 ): ActivityBodyToggle | undefined {
   const activityId = typeof activity.id === 'string' ? activity.id : '';
   const filePath = getReadActivityPath(activity, bodyText);
@@ -465,7 +466,7 @@ function renderCodeActivityBody(
   if (filePath && !containsAnsiEscape(renderedBodyText)) {
     renderHighlightedActivityCodeInto(element, renderedBodyText, filePath);
   } else {
-    renderAnsiActivityCodeInto(element, renderedBodyText, options.outputColors);
+    renderAnsiActivityCodeInto(element, renderedBodyText, options.outputColors, options.animationsEnabled);
   }
 
   if (hasExpandedToggle) {
@@ -510,9 +511,11 @@ function renderHighlightedActivityCodeInto(
 function renderAnsiActivityCodeInto(
   element: HTMLElement,
   bodyText: string,
-  outputColors: boolean
+  outputColors: boolean,
+  animationsEnabled: boolean
 ): void {
   renderAnsiTextInto(element, bodyText, outputColors);
+  renderAnsiSpinnersInto(element, animationsEnabled);
 }
 
 type TruncationMarker = {

@@ -2,7 +2,7 @@ import { configureCodeHighlighting, handleCodeHighlightMessage, watchCodeHighlig
 import { prepareCustomUiLines, terminalDataForKeyboardEvent } from './customUI/customUi';
 import { roundDevicePixelMetric } from './metrics';
 import { createExtensionImageElement, normalizeExtensionRenderBlocks } from './extensionRenderBlocks';
-import { getAnsiFullWidgetBackground, getAnsiLineBackground, isAnsiBlockImageLine, renderAnsiBlockImageLineInto, renderAnsiTextInto } from './messages/ansi';
+import { getAnsiFullWidgetBackground, getAnsiLineBackground, isAnsiBlockImageLine, renderAnsiBlockImageLineInto, renderAnsiSpinnersInto, renderAnsiTextInto } from './messages/ansi';
 import { configureMarkdownImageRendering, handleMarkdownImageMessage } from './messages/markdown';
 import { ComposerController } from './composer/composer';
 import { CustomUiController } from './customUI/customUi';
@@ -759,6 +759,7 @@ function renderExtensionWidgetContainer(
           }
         }
         renderAnsiTextInto(lineElement, line, state.outputColors, { suppressBackgrounds: !backgroundColorsEnabled });
+        renderAnsiSpinnersInto(lineElement, state.animationsEnabled);
         element.append(lineElement);
       }
     }
@@ -890,6 +891,7 @@ function syncExtensionStatus(hiddenBySurface: boolean): void {
 
   composerStatusTextElement.replaceChildren();
   renderAnsiTextInto(composerStatusTextElement, text, state.outputColors, { suppressBackgrounds: true });
+  renderAnsiSpinnersInto(composerStatusTextElement, state.animationsEnabled);
   composerStatusElement.hidden = !hasStatusSlot;
   composerStatusElement.setAttribute('aria-hidden', hasAccessibleText ? 'false' : 'true');
   viewElement.classList.toggle('tauren-view--has-extension-status', hasStatusSlot);

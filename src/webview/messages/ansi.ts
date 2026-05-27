@@ -147,6 +147,94 @@ export function renderAnsiTextInto(element: HTMLElement, value: string, outputCo
   appendAnsiText(element, value.slice(index), style, options);
 }
 
+const ansiSpinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+const ansiSpinnerPattern = new RegExp(`(^|\\n)([\\t ]*)([${ansiSpinnerFrames.join('')}])(?=$|[\\t ])`, 'g');
+let ansiSpinnerFrameIndex = 0;
+let ansiSpinnerTimer: number | undefined;
+
+export function renderAnsiSpinnersInto(element: HTMLElement, animationsEnabled: boolean): void {
+  if (!animationsEnabled) {
+    return;
+  }
+
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+  let node = walker.nextNode();
+
+  while (node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const textNode = node as Text;
+      if (ansiSpinnerPattern.test(textNode.data)) {
+        textNodes.push(textNode);
+      }
+    }
+    ansiSpinnerPattern.lastIndex = 0;
+    node = walker.nextNode();
+  }
+
+  for (const textNode of textNodes) {
+    replaceAnsiSpinnerTextNode(textNode);
+  }
+
+  if (textNodes.length > 0) {
+    startAnsiSpinnerTimer();
+  }
+}
+
+function replaceAnsiSpinnerTextNode(textNode: Text): void {
+  const value = textNode.data;
+  const fragment = document.createDocumentFragment();
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  ansiSpinnerPattern.lastIndex = 0;
+
+  while ((match = ansiSpinnerPattern.exec(value)) !== null) {
+    fragment.append(document.createTextNode(value.slice(lastIndex, match.index)));
+
+    if (match[1] || match[2]) {
+      fragment.append(document.createTextNode(`${match[1] ?? ''}${match[2] ?? ''}`));
+    }
+
+    const spinner = document.createElement('span');
+    spinner.className = 'tauren-ansi-spinner';
+    spinner.setAttribute('aria-hidden', 'true');
+    spinner.textContent = ansiSpinnerFrames[ansiSpinnerFrameIndex] ?? match[3];
+    fragment.append(spinner);
+    lastIndex = match.index + match[0].length;
+  }
+
+  fragment.append(document.createTextNode(value.slice(lastIndex)));
+  textNode.replaceWith(fragment);
+}
+
+function startAnsiSpinnerTimer(): void {
+  if (ansiSpinnerTimer !== undefined) {
+    return;
+  }
+
+  ansiSpinnerTimer = window.setInterval(() => {
+    const spinners = document.querySelectorAll<HTMLElement>('.tauren-ansi-spinner');
+
+    if (spinners.length === 0) {
+      window.clearInterval(ansiSpinnerTimer);
+      ansiSpinnerTimer = undefined;
+      return;
+    }
+
+    if (document.body.classList.contains('tauren-animations-disabled') || document.body.classList.contains('vscode-reduce-motion')) {
+      return;
+    }
+
+    ansiSpinnerFrameIndex = (ansiSpinnerFrameIndex + 1) % ansiSpinnerFrames.length;
+    const frame = ansiSpinnerFrames[ansiSpinnerFrameIndex];
+
+    for (const spinner of spinners) {
+      spinner.textContent = frame;
+    }
+  }, 80);
+}
+
 function appendAnsiText(element: HTMLElement, value: string, style: AnsiStyle, options: AnsiRenderOptions): void {
   if (!value) {
     return;
