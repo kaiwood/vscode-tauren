@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added a VS Code progress notification while Trace Origin is running.
 - Added support for extension tool-output boxes
 - terminal spinners now work properly
 

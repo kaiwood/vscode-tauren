@@ -695,42 +695,51 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
       return;
     }
 
-    const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    const match = await traceOrigin(createTraceOriginInputs(context, editor.document), {
-      cwd,
-      currentSessionFile: readCurrentSessionFile(this.workspaceState)
-    });
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'Tracing Tauren origin…',
+        cancellable: false
+      },
+      async () => {
+        const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const match = await traceOrigin(createTraceOriginInputs(context, editor.document), {
+          cwd,
+          currentSessionFile: readCurrentSessionFile(this.workspaceState)
+        });
 
-    if (!match) {
-      const traceLinkedCommit = await findCurrentPathGitCommit({
-        cwd,
-        currentRelativePath: context[0].path
-      });
+        if (!match) {
+          const traceLinkedCommit = await findCurrentPathGitCommit({
+            cwd,
+            currentRelativePath: context[0].path
+          });
 
-      if (!traceLinkedCommit) {
-        this.showNotification('No Tauren session origin found for the selected code or file.', 'info');
-        return;
+          if (!traceLinkedCommit) {
+            this.showNotification('No Tauren session origin found for the selected code or file.', 'info');
+            return;
+          }
+
+          this.controller.newSession();
+          this.controller.addPromptContext(createGitOriginPromptContext(context, traceLinkedCommit));
+          await this.focus();
+          this.showToast('No agent session found. Opened a new session with Git context.', 'warning');
+          return;
+        }
+
+        const traceLinkedCommit = await findTraceLinkedGitCommit({
+          cwd,
+          sessionCwd: match.sessionCwd,
+          historicalPath: match.filePath,
+          currentRelativePath: context[0]?.path ?? match.filePath,
+          after: match.timestamp
+        });
+
+        this.startSessionSwitchTiming(match.sessionPath);
+        await this.controller.handleWebviewMessage({ type: 'selectSession', sessionPath: match.sessionPath });
+        this.controller.addPromptContext(createOriginPromptContext(context, match, traceLinkedCommit));
+        await this.focus();
       }
-
-      this.controller.newSession();
-      this.controller.addPromptContext(createGitOriginPromptContext(context, traceLinkedCommit));
-      await this.focus();
-      this.showToast('No agent session found. Opened a new session with Git context.', 'warning');
-      return;
-    }
-
-    const traceLinkedCommit = await findTraceLinkedGitCommit({
-      cwd,
-      sessionCwd: match.sessionCwd,
-      historicalPath: match.filePath,
-      currentRelativePath: context[0]?.path ?? match.filePath,
-      after: match.timestamp
-    });
-
-    this.startSessionSwitchTiming(match.sessionPath);
-    await this.controller.handleWebviewMessage({ type: 'selectSession', sessionPath: match.sessionPath });
-    this.controller.addPromptContext(createOriginPromptContext(context, match, traceLinkedCommit));
-    await this.focus();
+    );
   }
 
   public async showDiagnostics(): Promise<void> {
