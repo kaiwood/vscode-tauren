@@ -36,6 +36,7 @@ import { SettingsViewController } from './settings/settingsViewController';
 import { NavigationController } from './navigation/navigationController';
 import { getPiStartupCwdState, type PiStartupCwdState } from './workspace/cwdSafety';
 import { getSettingDefinition, isPiSettingId, isTaurenSettingId, type SettingId, type SettingValue } from './settings/settingsRegistry';
+import { getSteppedThinkingLevel, type ThinkingLevelStepDirection } from './controller/thinkingLevelSteps';
 
 export type { TaurenChatControllerOptions } from './controller/types';
 export type { TaurenChatContextUsage, TaurenChatModelMeta, TaurenChatSessionMetaSnapshot } from './metadata/sessionMetadata';
@@ -437,6 +438,32 @@ export class TaurenChatController {
     }
 
     await this.slashCommandController.handle({ name, args });
+  }
+
+  public async stepThinkingLevel(direction: ThinkingLevelStepDirection): Promise<void> {
+    if (this.session.isBusy) {
+      return;
+    }
+
+    try {
+      const client = this.getClient();
+      const state = await client.getState();
+
+      if (this.session.isBusy || !state.model?.reasoning) {
+        return;
+      }
+
+      const nextLevel = getSteppedThinkingLevel(state.thinkingLevel ?? '', direction);
+
+      if (!nextLevel) {
+        return;
+      }
+
+      await this.slashCommandController.setThinkingLevel(nextLevel);
+    } catch (error) {
+      this.session.addErrorMessage(getErrorMessage(error));
+      this.postState();
+    }
   }
 
   public toggleSessionList(): void {

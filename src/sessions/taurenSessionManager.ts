@@ -5,6 +5,7 @@ import { ExtensionWidgetHost } from '../extensionUi/extensionWidgetHost';
 import type { TerminalInputHandler } from '@earendil-works/pi-coding-agent';
 import type { ExtensionEditorHostMessage, ExtensionUi } from '../extensionUi/types';
 import type { TaurenChatControllerOptions } from '../controller/types';
+import type { ThinkingLevelStepDirection } from '../controller/thinkingLevelSteps';
 import type { TaurenChatSessionMetaSnapshot } from '../metadata/types';
 import type { PiPromptContextInput } from '../prompt/types';
 import type { SettingValue, TaurenSettingId } from '../settings/settingsRegistry';
@@ -219,6 +220,10 @@ export class TaurenSessionManager {
     }
 
     await this.active().controller.runLocalSlashCommand(name);
+  }
+
+  public async stepThinkingLevel(direction: ThinkingLevelStepDirection): Promise<void> {
+    await this.active().controller.stepThinkingLevel(direction);
   }
 
   public toggleSessionList(): void {

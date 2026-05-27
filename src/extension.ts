@@ -32,6 +32,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('tauren.scrollTranscriptToTop', () => provider.scrollTranscriptToTop()),
     vscode.commands.registerCommand('tauren.scrollTranscriptToBottom', () => provider.scrollTranscriptToBottom()),
     vscode.commands.registerCommand('tauren.openModelPicker', () => provider.openModelPicker()),
+    vscode.commands.registerCommand('tauren.raiseThinkingLevel', () => provider.raiseThinkingLevel()),
+    vscode.commands.registerCommand('tauren.lowerThinkingLevel', () => provider.lowerThinkingLevel()),
     vscode.commands.registerCommand('tauren.toggleSettings', () => provider.toggleSettings()),
     vscode.commands.registerCommand('tauren.toggleHelp', () => provider.toggleHelp()),
     vscode.commands.registerCommand('tauren.stop', () => provider.stop()),
