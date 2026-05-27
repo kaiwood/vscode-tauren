@@ -743,13 +743,18 @@ function getExpandableToolActivityIds(messages: ChatMessage[]): string[] {
 
   for (const message of messages) {
     for (const activity of message.activities ?? []) {
-      if (typeof activity.id === 'string' && activity.id && typeof activity.expandedBody === 'string') {
+      if (typeof activity.id === 'string' && activity.id && isExpandableToolActivity(activity)) {
         ids.push(activity.id);
       }
     }
   }
 
   return ids;
+}
+
+function isExpandableToolActivity(activity: NonNullable<ChatMessage['activities']>[number]): boolean {
+  return typeof activity.expandedBody === 'string'
+    || (activity.kind === 'tool_execution' && activity.status === 'running' && typeof activity.body === 'string' && activity.body.length > 0);
 }
 
 function getMessageBodyVisibleText(article: HTMLElement): string {

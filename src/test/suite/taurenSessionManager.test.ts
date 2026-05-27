@@ -88,6 +88,54 @@ suite('TaurenSessionManager', () => {
     harness.manager.dispose();
   });
 
+  test('sends escape to extension terminal input handlers before aborting a busy session', async () => {
+    const client = new FakePiClient();
+    const harness = createManagerHarness([client]);
+    const terminalInputs: string[] = [];
+    const operations: string[] = [];
+    client.onAbort = () => operations.push('abort');
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'hello' });
+
+    const extensionUi = harness.clientOptions[0].extensionUi;
+    assert.ok(extensionUi);
+    extensionUi.onTerminalInput?.((input) => {
+      terminalInputs.push(input);
+      operations.push('escape');
+      return { consume: true };
+    });
+
+    await harness.manager.handleWebviewMessage({ type: 'abort' });
+
+    assert.deepStrictEqual(terminalInputs, ['\x1b']);
+    assert.deepStrictEqual(operations, ['escape', 'abort']);
+    assert.strictEqual(client.abortCalls, 1);
+    harness.manager.dispose();
+  });
+
+  test('does not send escape to extension terminal input handlers when aborting an idle session', async () => {
+    const client = new FakePiClient();
+    const harness = createManagerHarness([client]);
+    const terminalInputs: string[] = [];
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'hello' });
+    client.emit({ type: 'agent_end' });
+    await flushPromises();
+
+    const extensionUi = harness.clientOptions[0].extensionUi;
+    assert.ok(extensionUi);
+    extensionUi.onTerminalInput?.((input) => {
+      terminalInputs.push(input);
+      return { consume: true };
+    });
+
+    await harness.manager.handleWebviewMessage({ type: 'abort' });
+
+    assert.deepStrictEqual(terminalInputs, []);
+    assert.strictEqual(client.abortCalls, 0);
+    harness.manager.dispose();
+  });
+
   test('surfaces custom extension footer for the active session', async () => {
     const harness = createManagerHarness([new FakePiClient()]);
 
@@ -1017,6 +1065,8 @@ function lastState(harness: ManagerHarness): WebviewStateMessage {
 
 class FakePiClient implements PiClient {
   public disposed = false;
+  public abortCalls = 0;
+  public onAbort: (() => void) | undefined;
   public readonly prompts: string[] = [];
   public readonly forkedEntries: string[] = [];
   public readonly sessionNames: string[] = [];
@@ -1049,7 +1099,10 @@ class FakePiClient implements PiClient {
     this.prompts.push(message);
   }
 
-  public async abort(): Promise<void> {}
+  public async abort(): Promise<void> {
+    this.abortCalls += 1;
+    this.onAbort?.();
+  }
 
   public async reload(): Promise<void> {}
 

@@ -63,6 +63,23 @@ suite('PiSdkClient', () => {
     harness.client.dispose();
   });
 
+  test('abort signals active operations without waiting for idle', async () => {
+    const harness = createSdkHarness();
+    const abortDeferred = createDeferred<void>();
+    harness.session.abortImplementation = () => abortDeferred.promise;
+
+    await harness.client.getState();
+    await harness.client.abort();
+
+    assert.strictEqual(harness.session.abortCalls, 1);
+    assert.strictEqual(harness.session.abortCompactionCalls, 1);
+    assert.strictEqual(harness.session.abortBranchSummaryCalls, 1);
+    assert.strictEqual(harness.session.abortBashCalls, 1);
+
+    abortDeferred.resolve();
+    harness.client.dispose();
+  });
+
   test('clears failed runtime startup so a later call can retry', async () => {
     const harness = createSdkHarness({ loadSdkFailures: 1 });
 
@@ -464,6 +481,10 @@ class FakeSession {
   public pendingMessageCount = 0;
   public bindCount = 0;
   public reloadCount = 0;
+  public abortCalls = 0;
+  public abortCompactionCalls = 0;
+  public abortBranchSummaryCalls = 0;
+  public abortBashCalls = 0;
   public readonly labelChanges: Array<{ entryId: string; label: string | undefined }> = [];
   public readonly messages = [{ role: 'assistant', content: 'last answer' }];
   public readonly availableModels = [this.model];
@@ -472,6 +493,7 @@ class FakeSession {
   public promptImplementation: (message: string, options?: PromptOptions) => Promise<void> = async (_message, options) => {
     options?.preflightResult?.(true);
   };
+  public abortImplementation: () => Promise<void> = async () => undefined;
   public readonly modelRegistry = {
     getAvailable: () => this.availableModels,
     isUsingOAuth: () => false
@@ -567,7 +589,22 @@ class FakeSession {
     await this.promptImplementation(message, options);
   }
 
-  public async abort(): Promise<void> {}
+  public async abort(): Promise<void> {
+    this.abortCalls += 1;
+    await this.abortImplementation();
+  }
+
+  public abortCompaction(): void {
+    this.abortCompactionCalls += 1;
+  }
+
+  public abortBranchSummary(): void {
+    this.abortBranchSummaryCalls += 1;
+  }
+
+  public abortBash(): void {
+    this.abortBashCalls += 1;
+  }
 
   public async reload(): Promise<void> {
     this.reloadCount += 1;

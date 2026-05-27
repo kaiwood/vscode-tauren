@@ -129,7 +129,12 @@ export class PiSdkClient implements PiClient {
 
   public async abort(): Promise<void> {
     const { session } = await this.ensureRuntime();
-    await session.abort();
+    session.abortCompaction();
+    session.abortBranchSummary();
+    session.abortBash();
+    void session.abort().catch((error) => {
+      this.emitError(error instanceof Error ? error.message : String(error));
+    });
   }
 
   public async reload(): Promise<void> {
