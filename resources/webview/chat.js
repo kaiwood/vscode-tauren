@@ -8143,6 +8143,61 @@ ${after}`;
     return element;
   }
 
+  // src/webviewProtocol/messagePatch.ts
+  function parseWebviewMessagePatch(value) {
+    if (!isRecord5(value)) {
+      return void 0;
+    }
+    const upserts = Array.isArray(value.upserts) ? value.upserts.filter(isWebviewMessagePatchUpsert) : void 0;
+    const deleteFrom = typeof value.deleteFrom === "number" && Number.isInteger(value.deleteFrom) && value.deleteFrom >= 0 ? value.deleteFrom : void 0;
+    if ((!upserts || upserts.length === 0) && deleteFrom === void 0) {
+      return void 0;
+    }
+    return {
+      ...upserts && upserts.length > 0 ? { upserts } : {},
+      ...deleteFrom !== void 0 ? { deleteFrom } : {}
+    };
+  }
+  function applyWebviewMessagePatch(previousMessages, patch) {
+    const messages = previousMessages.slice();
+    if (typeof patch.deleteFrom === "number") {
+      messages.splice(patch.deleteFrom);
+    }
+    for (const upsert of patch.upserts ?? []) {
+      messages[upsert.index] = mergePatchedWebviewMessage(messages[upsert.index], upsert.message);
+    }
+    return messages;
+  }
+  function isWebviewMessagePatchUpsert(value) {
+    if (!isRecord5(value)) {
+      return false;
+    }
+    return typeof value.index === "number" && Number.isInteger(value.index) && value.index >= 0 && isRecord5(value.message) && typeof value.message.role === "string" && typeof value.message.text === "string";
+  }
+  function mergePatchedWebviewMessage(previous, incoming) {
+    if (!previous || !incoming.id || previous.id !== incoming.id) {
+      return incoming;
+    }
+    const merged = { ...incoming };
+    if (!("images" in incoming) && previous.images) {
+      merged.images = previous.images;
+    }
+    if (Array.isArray(incoming.activities) && Array.isArray(previous.activities)) {
+      merged.activities = incoming.activities.map((activity) => {
+        const activityId = typeof activity.id === "string" ? activity.id : "";
+        const previousActivity = activityId ? previous.activities?.find((item) => item.id === activityId) : void 0;
+        if (!previousActivity || "images" in activity || !previousActivity.images) {
+          return activity;
+        }
+        return { ...activity, images: previousActivity.images };
+      });
+    }
+    return merged;
+  }
+  function isRecord5(value) {
+    return typeof value === "object" && value !== null;
+  }
+
   // src/webview/state.ts
   var initialWebviewState = {
     messages: [],
@@ -8293,7 +8348,7 @@ ${after}`;
     return state2.settings.values["tauren.extensions.statusBarEnabled"] !== false;
   }
   function parseWebviewStateMessage(data, previousState) {
-    const record = isRecord5(data) ? data : {};
+    const record = isRecord6(data) ? data : {};
     return {
       messages: parseMessages(record, previousState?.messages ?? []),
       busy: Boolean(record.busy),
@@ -8356,10 +8411,10 @@ ${after}`;
     }));
   }
   function isPromptImageAttachment2(value) {
-    return isRecord5(value) && typeof value.id === "string" && typeof value.label === "string" && typeof value.title === "string" && typeof value.mimeType === "string" && typeof value.sizeBytes === "number";
+    return isRecord6(value) && typeof value.id === "string" && typeof value.label === "string" && typeof value.title === "string" && typeof value.mimeType === "string" && typeof value.sizeBytes === "number";
   }
   function parseComposerPaste(value) {
-    if (!isRecord5(value) || typeof value.text !== "string" || typeof value.revision !== "number") {
+    if (!isRecord6(value) || typeof value.text !== "string" || typeof value.revision !== "number") {
       return void 0;
     }
     return {
@@ -8377,10 +8432,10 @@ ${after}`;
     }));
   }
   function parseExtensionFooter(value) {
-    return isRecord5(value) && typeof value.line === "string" ? { line: value.line } : void 0;
+    return isRecord6(value) && typeof value.line === "string" ? { line: value.line } : void 0;
   }
   function isExtensionStatusEntry(value) {
-    return isRecord5(value) && typeof value.key === "string" && typeof value.text === "string";
+    return isRecord6(value) && typeof value.key === "string" && typeof value.text === "string";
   }
   function parseExtensionWidgets(value) {
     if (!Array.isArray(value)) {
@@ -8394,7 +8449,7 @@ ${after}`;
     }));
   }
   function isExtensionWidgetEntry(value) {
-    return isRecord5(value) && typeof value.key === "string" && (value.placement === "aboveEditor" || value.placement === "belowEditor") && Array.isArray(value.lines);
+    return isRecord6(value) && typeof value.key === "string" && (value.placement === "aboveEditor" || value.placement === "belowEditor") && Array.isArray(value.lines);
   }
   function parseNonNegativeInteger(value, fallback) {
     return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : fallback;
@@ -8416,7 +8471,7 @@ ${after}`;
       return [];
     }
     return value.flatMap((section) => {
-      if (!isRecord5(section) || typeof section.name !== "string" || !Array.isArray(section.items)) {
+      if (!isRecord6(section) || typeof section.name !== "string" || !Array.isArray(section.items)) {
         return [];
       }
       const items = section.items.filter((item) => typeof item === "string").map((item) => item.trim()).filter((item) => item.length > 0);
@@ -8424,7 +8479,7 @@ ${after}`;
     });
   }
   function parseAuthState(value) {
-    if (!isRecord5(value)) {
+    if (!isRecord6(value)) {
       return { providers: [] };
     }
     return {
@@ -8437,7 +8492,7 @@ ${after}`;
     };
   }
   function isAuthProvider(value) {
-    return isRecord5(value) && typeof value.id === "string" && typeof value.name === "string" && (value.authType === "oauth" || value.authType === "api_key") && typeof value.configured === "boolean" && typeof value.canLogout === "boolean";
+    return isRecord6(value) && typeof value.id === "string" && typeof value.name === "string" && (value.authType === "oauth" || value.authType === "api_key") && typeof value.configured === "boolean" && typeof value.canLogout === "boolean";
   }
   function sanitizeAuthProvider(provider) {
     return {
@@ -8453,14 +8508,14 @@ ${after}`;
     };
   }
   function isAuthProgress(value) {
-    return isRecord5(value) && typeof value.message === "string" && (!("providerId" in value) || typeof value.providerId === "string") && (!("url" in value) || typeof value.url === "string") && (!("userCode" in value) || typeof value.userCode === "string") && (!("verificationUri" in value) || typeof value.verificationUri === "string");
+    return isRecord6(value) && typeof value.message === "string" && (!("providerId" in value) || typeof value.providerId === "string") && (!("url" in value) || typeof value.url === "string") && (!("userCode" in value) || typeof value.userCode === "string") && (!("verificationUri" in value) || typeof value.verificationUri === "string");
   }
   function parseSettingsState(value) {
-    if (!isRecord5(value)) {
+    if (!isRecord6(value)) {
       return { values: {} };
     }
     const parsedValues = {};
-    const values = isRecord5(value.values) ? value.values : {};
+    const values = isRecord6(value.values) ? value.values : {};
     for (const [settingId, settingValue] of Object.entries(values)) {
       if (!isSettingId(settingId)) {
         continue;
@@ -8477,7 +8532,7 @@ ${after}`;
     };
   }
   function parseSettingsErrors(value) {
-    if (!isRecord5(value)) {
+    if (!isRecord6(value)) {
       return void 0;
     }
     const parsedErrors = {};
@@ -8495,67 +8550,14 @@ ${after}`;
     if (Array.isArray(record.messages)) {
       return record.messages;
     }
-    const patch = parseMessagePatch(record.messagePatch);
+    const patch = parseWebviewMessagePatch(record.messagePatch);
     if (!patch) {
       return previousMessages;
     }
-    return applyMessagePatch(previousMessages, patch);
-  }
-  function parseMessagePatch(value) {
-    if (!isRecord5(value)) {
-      return void 0;
-    }
-    const upserts = Array.isArray(value.upserts) ? value.upserts.filter(isMessagePatchUpsert) : void 0;
-    const deleteFrom = typeof value.deleteFrom === "number" && Number.isInteger(value.deleteFrom) && value.deleteFrom >= 0 ? value.deleteFrom : void 0;
-    if ((!upserts || upserts.length === 0) && deleteFrom === void 0) {
-      return void 0;
-    }
-    return {
-      ...upserts && upserts.length > 0 ? { upserts } : {},
-      ...deleteFrom !== void 0 ? { deleteFrom } : {}
-    };
-  }
-  function isMessagePatchUpsert(value) {
-    if (!isRecord5(value)) {
-      return false;
-    }
-    return typeof value.index === "number" && Number.isInteger(value.index) && value.index >= 0 && isRecord5(value.message) && typeof value.message.role === "string" && typeof value.message.text === "string";
-  }
-  function applyMessagePatch(previousMessages, patch) {
-    const messages = previousMessages.slice();
-    if (typeof patch.deleteFrom === "number") {
-      messages.splice(patch.deleteFrom);
-    }
-    for (const upsert of patch.upserts ?? []) {
-      messages[upsert.index] = mergePatchedMessage(messages[upsert.index], upsert.message);
-    }
-    return messages;
-  }
-  function mergePatchedMessage(previous, incoming) {
-    if (!previous || !incoming.id || previous.id !== incoming.id) {
-      return incoming;
-    }
-    const merged = { ...incoming };
-    if (!("images" in incoming) && previous.images) {
-      merged.images = previous.images;
-    }
-    if (Array.isArray(incoming.activities) && Array.isArray(previous.activities)) {
-      merged.activities = mergePatchedActivities(previous.activities, incoming.activities);
-    }
-    return merged;
-  }
-  function mergePatchedActivities(previousActivities, incomingActivities) {
-    return incomingActivities.map((activity) => {
-      const activityId = typeof activity.id === "string" ? activity.id : "";
-      const previous = activityId ? previousActivities.find((item) => item.id === activityId) : void 0;
-      if (!previous || "images" in activity || !previous.images) {
-        return activity;
-      }
-      return { ...activity, images: previous.images };
-    });
+    return applyWebviewMessagePatch(previousMessages, patch);
   }
   function parseWorkspaceDiffStats(value) {
-    if (!isRecord5(value)) {
+    if (!isRecord6(value)) {
       return { addedLines: 0, removedLines: 0 };
     }
     return {
@@ -8563,7 +8565,7 @@ ${after}`;
       removedLines: normalizeDiffLineCount(value.removedLines)
     };
   }
-  function isRecord5(value) {
+  function isRecord6(value) {
     return typeof value === "object" && value !== null;
   }
 

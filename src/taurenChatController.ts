@@ -1,12 +1,12 @@
-import { ChatSession, type ChatImage, type ChatSnapshotMessage, type ChatSnapshotState } from './chat/chatSession';
+import { ChatSession, type ChatImage, type ChatSnapshotState } from './chat/chatSession';
 import { createWebviewStateMessage } from './sidebar/chatWebview';
 import type {
   WebviewAuthProvider,
   WebviewAuthState,
   WebviewMessage,
-  WebviewMessagePatch,
   WebviewStateMessage
 } from './webviewProtocol/types';
+import { createWebviewMessageSyncPlan, type PostedWebviewChatSync, type WebviewMessageSyncPlan } from './webviewProtocol/messagePatch';
 import { StatePublisher } from './controller/statePublisher';
 import type { PiClient } from './pi/clientTypes';
 import type { TaurenChatControllerOptions } from './controller/types';
@@ -50,24 +50,6 @@ export type PiPromptImageAttachment = PiImageContent & {
   sizeBytes: number;
 };
 
-type PostedChatMessageSync = {
-  id: string;
-  revision: number;
-  imagesSignature: string;
-  activityImageSignatures: Map<string, string>;
-};
-
-type PostedChatSync = {
-  generation: number;
-  messages: PostedChatMessageSync[];
-};
-
-type ChatMessageSyncPlan = {
-  includeMessages: boolean;
-  messagePatch?: WebviewMessagePatch;
-  postedSync: PostedChatSync;
-};
-
 export class TaurenChatController {
   private readonly promptContext = new PromptContextStore();
   private promptImages: PiPromptImageAttachment[] = [];
@@ -88,8 +70,8 @@ export class TaurenChatController {
   private readonly readyScriptState = new ReadyScriptState();
   private readonly session = new ChatSession();
   private readonly statePublisher: StatePublisher<WebviewStateMessage>;
-  private readonly postedChatSyncByMessage = new WeakMap<WebviewStateMessage, PostedChatSync>();
-  private lastPostedChatSync: PostedChatSync | undefined;
+  private readonly postedChatSyncByMessage = new WeakMap<WebviewStateMessage, PostedWebviewChatSync>();
+  private lastPostedChatSync: PostedWebviewChatSync | undefined;
   private startupResourcesReloadRevision = 0;
   private workspaceWaitingNoticeAdded = false;
   private workspaceWarningNoticeAdded = false;
@@ -976,45 +958,12 @@ export class TaurenChatController {
     }
   }
 
-  private createChatMessageSyncPlan(chatState: ChatSnapshotState): ChatMessageSyncPlan {
-    const postedSync = createPostedChatSync(this.session.generation, chatState.messages);
-    const lastSync = this.lastPostedChatSync;
-
-    if (!lastSync || lastSync.generation !== postedSync.generation) {
-      return { includeMessages: true, postedSync };
-    }
-
-    const upserts: Array<{ index: number; message: ChatSnapshotMessage }> = [];
-    const limit = chatState.messages.length;
-
-    for (let index = 0; index < limit; index += 1) {
-      const message = chatState.messages[index];
-      const previous = lastSync.messages[index];
-
-      if (!previous || previous.id !== message.id || previous.revision !== message.revision) {
-        upserts.push({
-          index,
-          message: createPatchMessage(message, previous)
-        });
-      }
-    }
-
-    const deleteFrom = lastSync.messages.length > chatState.messages.length
-      ? chatState.messages.length
-      : undefined;
-
-    if (upserts.length === 0 && deleteFrom === undefined) {
-      return { includeMessages: false, postedSync };
-    }
-
-    return {
-      includeMessages: false,
-      messagePatch: {
-        ...(upserts.length > 0 ? { upserts } : {}),
-        ...(deleteFrom !== undefined ? { deleteFrom } : {})
-      },
-      postedSync
-    };
+  private createChatMessageSyncPlan(chatState: ChatSnapshotState): WebviewMessageSyncPlan {
+    return createWebviewMessageSyncPlan({
+      generation: this.session.generation,
+      messages: chatState.messages,
+      lastSync: this.lastPostedChatSync
+    });
   }
 
   private recordPostedChatSync(message: WebviewStateMessage): void {
@@ -1421,78 +1370,4 @@ function hasAuthStatePayload(state: WebviewAuthState): boolean {
     || Boolean(state.busyAction)
     || Boolean(state.progress)
     || Boolean(state.error);
-}
-
-function createPostedChatSync(generation: number, messages: ChatSnapshotMessage[]): PostedChatSync {
-  return {
-    generation,
-    messages: messages.map((message) => ({
-      id: message.id,
-      revision: message.revision,
-      imagesSignature: getImagesSignature(message.images),
-      activityImageSignatures: getActivityImageSignatures(message)
-    }))
-  };
-}
-
-function createPatchMessage(message: ChatSnapshotMessage, previous: PostedChatMessageSync | undefined): ChatSnapshotMessage {
-  if (!previous || previous.id !== message.id) {
-    return message;
-  }
-
-  const next: ChatSnapshotMessage = { ...message };
-
-  const imagesSignature = getImagesSignature(message.images);
-
-  if (imagesSignature === previous.imagesSignature) {
-    delete next.images;
-  } else if (!Array.isArray(message.images) && previous.imagesSignature) {
-    next.images = [];
-  }
-
-  if (Array.isArray(message.activities)) {
-    next.activities = message.activities.map((activity) => {
-      const activityId = typeof activity.id === 'string' ? activity.id : '';
-
-      const activityImagesSignature = getImagesSignature(activity.images);
-      const previousActivityImagesSignature = previous.activityImageSignatures.get(activityId);
-
-      if (!activityId || activityImagesSignature !== previousActivityImagesSignature) {
-        return !Array.isArray(activity.images) && previousActivityImagesSignature
-          ? { ...activity, images: [] }
-          : activity;
-      }
-
-      const nextActivity = { ...activity };
-      delete nextActivity.images;
-      return nextActivity;
-    });
-  }
-
-  return next;
-}
-
-function getActivityImageSignatures(message: ChatSnapshotMessage): Map<string, string> {
-  const signatures = new Map<string, string>();
-
-  for (const activity of message.activities ?? []) {
-    if (typeof activity.id === 'string') {
-      signatures.set(activity.id, getImagesSignature(activity.images));
-    }
-  }
-
-  return signatures;
-}
-
-function getImagesSignature(images: { data: string; mimeType: string; alt?: string; type: 'image' }[] | undefined): string {
-  if (!Array.isArray(images) || images.length === 0) {
-    return '';
-  }
-
-  return images.map((image) => {
-    const data = typeof image.data === 'string' ? image.data : '';
-    const prefix = data.slice(0, 32);
-    const suffix = data.length > 32 ? data.slice(-32) : '';
-    return [image.type, image.mimeType, image.alt ?? '', data.length, prefix, suffix].join('\u0000');
-  }).join('\u0001');
 }
