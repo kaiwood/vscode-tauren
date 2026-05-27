@@ -153,7 +153,8 @@ let ansiSpinnerFrameIndex = 0;
 let ansiSpinnerTimer: number | undefined;
 
 export function renderAnsiSpinnersInto(element: HTMLElement, animationsEnabled: boolean): void {
-  if (!animationsEnabled) {
+  if (!animationsEnabled || areAnsiSpinnerAnimationsDisabled()) {
+    stopAnsiSpinnerTimer();
     return;
   }
 
@@ -216,13 +217,8 @@ function startAnsiSpinnerTimer(): void {
   ansiSpinnerTimer = window.setInterval(() => {
     const spinners = document.querySelectorAll<HTMLElement>('.tauren-ansi-spinner');
 
-    if (spinners.length === 0) {
-      window.clearInterval(ansiSpinnerTimer);
-      ansiSpinnerTimer = undefined;
-      return;
-    }
-
-    if (document.body.classList.contains('tauren-animations-disabled') || document.body.classList.contains('vscode-reduce-motion')) {
+    if (spinners.length === 0 || areAnsiSpinnerAnimationsDisabled()) {
+      stopAnsiSpinnerTimer();
       return;
     }
 
@@ -233,6 +229,20 @@ function startAnsiSpinnerTimer(): void {
       spinner.textContent = frame;
     }
   }, 80);
+}
+
+function stopAnsiSpinnerTimer(): void {
+  if (ansiSpinnerTimer === undefined) {
+    return;
+  }
+
+  window.clearInterval(ansiSpinnerTimer);
+  ansiSpinnerTimer = undefined;
+}
+
+function areAnsiSpinnerAnimationsDisabled(): boolean {
+  return document.body.classList.contains('tauren-animations-disabled')
+    || document.body.classList.contains('vscode-reduce-motion');
 }
 
 function appendAnsiText(element: HTMLElement, value: string, style: AnsiStyle, options: AnsiRenderOptions): void {
