@@ -13,6 +13,14 @@ export function toggleActivityBodyExpansion(activityId: string): boolean {
   return next;
 }
 
+export function setActivityBodyExpansion(activityId: string, expanded: boolean): void {
+  activityBodyExpansion.set(activityId, expanded);
+}
+
+export function getActivityBodyExpansion(activityId: string): boolean {
+  return activityBodyExpansion.get(activityId) === true;
+}
+
 export function pruneActivityRenderState(activeActivityIds: Set<string>): void {
   const retainedActivityIds = getRecentActivityIds(activeActivityIds);
 
@@ -59,11 +67,6 @@ export function createMessageElement(
   const images = getRenderableImages(message.images);
   const hasBody = Boolean(message.text || message.error || images.length > 0 || activities.length === 0);
 
-  if (message.role !== 'assistant') {
-    article.append(body);
-    return article;
-  }
-
   if (activities.length > 0) {
     article.append(createActivityListElement(activities, messageIndex, options));
   }
@@ -104,7 +107,7 @@ export function updateMessageBodyElement(
 
   body.className = 'message__body';
 
-  if (message.role === 'assistant' && Array.isArray(message.activities) && message.activities.length > 0) {
+  if (Array.isArray(message.activities) && message.activities.length > 0) {
     body.classList.add('message__body--after-activities');
   }
 

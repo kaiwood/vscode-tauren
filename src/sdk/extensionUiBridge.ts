@@ -17,8 +17,8 @@ export function createSdkExtensionUiContext(ui?: ExtensionUi): ExtensionUIContex
     notify(message, type = 'info') {
       resolvedUi.notify(message, type);
     },
-    onTerminalInput() {
-      return () => {};
+    onTerminalInput(handler) {
+      return resolvedUi.onTerminalInput?.(handler) ?? (() => {});
     },
     setStatus(key, text) {
       resolvedUi.setStatus?.(key, text);
@@ -73,9 +73,11 @@ export function createSdkExtensionUiContext(ui?: ExtensionUi): ExtensionUIContex
       return { success: false, error: 'Theme switching is not supported in Tauren' };
     },
     getToolsExpanded() {
-      return false;
+      return resolvedUi.getToolsExpanded?.() ?? false;
     },
-    setToolsExpanded() {}
+    setToolsExpanded(expanded) {
+      resolvedUi.setToolsExpanded?.(expanded);
+    }
   };
 }
 

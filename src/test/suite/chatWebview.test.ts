@@ -307,6 +307,14 @@ suite('Chat webview helpers', () => {
       { type: 'extensionWidgetDimensions', key: 'status', columns: 40, rows: 3, cellWidthPx: 8, cellHeightPx: 18 }
     );
     assert.deepStrictEqual(
+      parseWebviewMessage({ type: 'extensionTerminalInput', data: '\u000f' }),
+      { type: 'extensionTerminalInput', data: '\u000f' }
+    );
+    assert.deepStrictEqual(
+      parseWebviewMessage({ type: 'setToolsExpanded', expanded: true }),
+      { type: 'setToolsExpanded', expanded: true }
+    );
+    assert.deepStrictEqual(
       parseWebviewMessage({ type: 'extensionEditorSave', id: 'extension-editor-1', text: '' }),
       { type: 'extensionEditorSave', id: 'extension-editor-1', text: '' }
     );

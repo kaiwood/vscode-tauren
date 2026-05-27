@@ -330,14 +330,22 @@ export class ChatSession {
     this.pushMessage({ role: 'system', text: limitErrorMessage(message), error: true });
   }
 
-  public addSystemMessage(message: string): void {
+  public addSystemMessage(message: string, activities?: ChatActivityInput[]): void {
     const trimmedMessage = message.trim();
+    const normalizedActivities = activities?.map((activity) => ({
+      id: this.nextActivityId(),
+      ...limitActivityDisplay(activity)
+    }));
 
-    if (!trimmedMessage) {
+    if (!trimmedMessage && (!normalizedActivities || normalizedActivities.length === 0)) {
       return;
     }
 
-    this.pushMessage({ role: 'system', text: trimmedMessage });
+    this.pushMessage({
+      role: 'system',
+      text: trimmedMessage,
+      ...(normalizedActivities && normalizedActivities.length > 0 ? { activities: normalizedActivities } : {})
+    });
   }
 
   private ensureActiveAssistantMessage(): number {

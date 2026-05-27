@@ -268,6 +268,14 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
         }
         : { type: 'unknown' };
     }
+    case 'extensionTerminalInput':
+      return typeof value.data === 'string'
+        ? { type: 'extensionTerminalInput', data: value.data }
+        : { type: 'unknown' };
+    case 'setToolsExpanded':
+      return typeof value.expanded === 'boolean'
+        ? { type: 'setToolsExpanded', expanded: value.expanded }
+        : { type: 'unknown' };
     case 'extensionEditorSave':
       return typeof value.id === 'string' && value.id && typeof value.text === 'string'
         ? { type: 'extensionEditorSave', id: value.id, text: value.text }

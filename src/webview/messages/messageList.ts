@@ -1,7 +1,7 @@
 import { pruneDisconnectedCodeHighlights, requestCodeHighlightsIn } from '../codeHighlighting';
 import { messagesBottomThreshold } from '../constants';
 import { pruneDisconnectedLocalImageRequests } from './markdown';
-import { createMessageElement, pruneActivityRenderState, toggleActivityBodyExpansion, updateMessageBodyElement } from './renderMessages';
+import { createMessageElement, getActivityBodyExpansion, pruneActivityRenderState, setActivityBodyExpansion, toggleActivityBodyExpansion, updateMessageBodyElement } from './renderMessages';
 import {
   createScrollFollowState,
   isScrollAtBottom,
@@ -96,6 +96,23 @@ export class MessageListController {
     }
 
     this.options.busyStatusElement.hidden = false;
+  }
+
+  public toggleToolActivityDetail(): boolean {
+    const activityIds = getExpandableToolActivityIds(this.options.getState().messages);
+
+    if (activityIds.length === 0) {
+      return false;
+    }
+
+    const nextExpanded = activityIds.some((activityId) => !getActivityBodyExpansion(activityId));
+
+    for (const activityId of activityIds) {
+      setActivityBodyExpansion(activityId, nextExpanded);
+    }
+
+    this.renderMessageList();
+    return nextExpanded;
   }
 
   public handleChatPageScroll(event: KeyboardEvent): boolean {
@@ -218,7 +235,8 @@ export class MessageListController {
       if (activityId) {
         event.preventDefault();
         event.stopPropagation();
-        toggleActivityBodyExpansion(activityId);
+        const expanded = toggleActivityBodyExpansion(activityId);
+        this.options.postMessage({ type: 'setToolsExpanded', expanded });
         this.rerenderMessageAtIndex(parseDatasetInteger(toggleButton.dataset.messageIndex));
       }
 
@@ -713,6 +731,20 @@ function getActiveActivityIds(messages: ChatMessage[]): Set<string> {
       if (typeof activity.id === 'string' && activity.id) {
         ids.delete(activity.id);
         ids.add(activity.id);
+      }
+    }
+  }
+
+  return ids;
+}
+
+function getExpandableToolActivityIds(messages: ChatMessage[]): string[] {
+  const ids: string[] = [];
+
+  for (const message of messages) {
+    for (const activity of message.activities ?? []) {
+      if (typeof activity.id === 'string' && activity.id && typeof activity.expandedBody === 'string') {
+        ids.push(activity.id);
       }
     }
   }

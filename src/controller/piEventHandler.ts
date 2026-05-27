@@ -108,6 +108,12 @@ export class PiEventHandler {
         this.options.postState();
         break;
       case 'message_end':
+        if (this.handleCustomMessageEnd(event)) {
+          this.options.refreshContextUsage();
+          this.options.postState();
+          break;
+        }
+
         this.applyPiActivity(event);
         this.options.refreshContextUsage();
         this.options.postState();
@@ -175,6 +181,45 @@ export class PiEventHandler {
         this.options.postState();
         break;
     }
+  }
+
+  private handleCustomMessageEnd(event: PiEvent): boolean {
+    const message = isRecord(event.message) ? event.message : undefined;
+
+    if (!message || message.role !== 'custom') {
+      return false;
+    }
+
+    const rendered = isRecord(message.taurenRenderedMessage) ? message.taurenRenderedMessage : undefined;
+
+    if (rendered) {
+      const body = getRecordString(rendered, 'body');
+
+      if (body) {
+        this.options.session.addSystemMessage('', [{
+          kind: 'message',
+          title: getRecordString(message, 'customType') ?? 'Extension message',
+          status: 'info',
+          body,
+          ...(getRecordString(rendered, 'expandedBody') ? { expandedBody: getRecordString(rendered, 'expandedBody') } : {}),
+          code: rendered.code === false ? false : true
+        }]);
+        return true;
+      }
+    }
+
+    const display = typeof message.display === 'string'
+      ? message.display
+      : typeof message.content === 'string'
+        ? message.content
+        : '';
+
+    if (display.trim()) {
+      this.options.session.addSystemMessage(display);
+      return true;
+    }
+
+    return false;
   }
 
   private handleMessageUpdate(event: PiEvent): void {

@@ -364,6 +364,8 @@ suite('PiSdkClient', () => {
     const composerTexts: string[] = [];
     const composerPastes: string[] = [];
     const editorRequests: Array<{ title: string; prefill: string | undefined }> = [];
+    const terminalInputs: string[] = [];
+    const toolExpansionStates: boolean[] = [];
     const ui = createSdkExtensionUiContext({
       notify: (message, notifyType) => notifications.push({ message, notifyType }),
       select: async (_title, options) => options[1],
@@ -380,6 +382,12 @@ suite('PiSdkClient', () => {
         placement: options?.placement
       }),
       setFooter: (factory) => footers.push(factory),
+      onTerminalInput: (handler) => {
+        terminalInputs.push(handler('\u000f')?.consume === true ? 'consumed' : 'ignored');
+        return () => terminalInputs.push('unsubscribed');
+      },
+      getToolsExpanded: () => toolExpansionStates.at(-1) ?? false,
+      setToolsExpanded: (expanded) => toolExpansionStates.push(expanded),
       setEditorText: (text) => composerTexts.push(text),
       pasteToEditor: (text) => composerPastes.push(text)
     });
@@ -396,6 +404,11 @@ suite('PiSdkClient', () => {
     ui.setWidget('todo', ['Line 1'], { placement: 'belowEditor' });
     ui.setFooter(footerFactory as never);
     ui.setFooter(undefined);
+    const unsubscribeTerminalInput = ui.onTerminalInput((data) => ({ consume: data === '\u000f' }));
+    unsubscribeTerminalInput();
+    assert.strictEqual(ui.getToolsExpanded(), false);
+    ui.setToolsExpanded(true);
+    assert.strictEqual(ui.getToolsExpanded(), true);
     ui.setEditorText('prefilled prompt');
     ui.pasteToEditor('pasted prompt');
 
@@ -409,6 +422,8 @@ suite('PiSdkClient', () => {
       { key: 'todo', lines: ['Line 1'], placement: 'belowEditor' }
     ]);
     assert.deepStrictEqual(footers, [footerFactory, undefined]);
+    assert.deepStrictEqual(terminalInputs, ['consumed', 'unsubscribed']);
+    assert.deepStrictEqual(toolExpansionStates, [true]);
     assert.deepStrictEqual(composerTexts, ['prefilled prompt']);
     assert.deepStrictEqual(composerPastes, ['pasted prompt']);
   });

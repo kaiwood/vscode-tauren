@@ -738,6 +738,34 @@ suite('Pi event mapper', () => {
     );
   });
 
+  test('mapPiActivity uses Tauren-rendered extension tool output', () => {
+    assert.deepStrictEqual(
+      mapPiActivity({
+        type: 'tool_execution_update',
+        toolCallId: 'tool-1',
+        toolName: 'subagent',
+        partialResult: { content: [{ type: 'text', text: 'fallback' }] },
+        taurenRenderedTool: {
+          body: '\u001b[32mSubagent running\u001b[0m',
+          expandedBody: '\u001b[32mSubagent running with live detail\u001b[0m',
+          code: true
+        }
+      }),
+      {
+        type: 'activity_update',
+        sourceId: 'tool:tool-1',
+        activity: {
+          kind: 'tool_execution',
+          title: 'subagent',
+          status: 'running',
+          body: '\u001b[32mSubagent running\u001b[0m',
+          expandedBody: '\u001b[32mSubagent running with live detail\u001b[0m',
+          code: true
+        }
+      }
+    );
+  });
+
   test('mapPiActivity ignores message updates', () => {
     assert.deepStrictEqual(mapPiActivity({ type: 'message_update' }), { type: 'ignore' });
   });

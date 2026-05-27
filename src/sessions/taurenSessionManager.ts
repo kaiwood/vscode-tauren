@@ -2,6 +2,7 @@ import { TaurenChatController, type PiPromptImageAttachment } from '../taurenCha
 import { ExtensionCustomUiHost, type CustomUiHostMessage } from '../extensionUi/customUiHost';
 import { ExtensionFooterHost } from '../extensionUi/extensionFooterHost';
 import { ExtensionWidgetHost } from '../extensionUi/extensionWidgetHost';
+import type { TerminalInputHandler } from '@earendil-works/pi-coding-agent';
 import type { ExtensionEditorHostMessage, ExtensionUi } from '../extensionUi/types';
 import type { TaurenChatControllerOptions } from '../controller/types';
 import type { TaurenChatSessionMetaSnapshot } from '../metadata/types';
@@ -70,6 +71,8 @@ type OpenSession = {
   extensionFooterHost: ExtensionFooterHost;
   extensionWidgetHost: ExtensionWidgetHost;
   extensionStatuses: Map<string, string>;
+  terminalInputHandlers: Set<TerminalInputHandler>;
+  toolsExpanded: boolean;
   inactiveSince: number | undefined;
   inactiveDisposeTimer: ReturnType<typeof setTimeout> | undefined;
   outboundStateMessage: WebviewStateMessage | undefined;
@@ -168,6 +171,16 @@ export class TaurenSessionManager {
 
     if (message.type === 'extensionFooterDimensions') {
       this.active().extensionFooterHost.updateDimensions(message.columns, message.rows, message.cellWidthPx, message.cellHeightPx);
+      return;
+    }
+
+    if (message.type === 'extensionTerminalInput') {
+      this.dispatchTerminalInput(this.active(), message.data);
+      return;
+    }
+
+    if (message.type === 'setToolsExpanded') {
+      this.setToolsExpandedForSession(this.active(), message.expanded);
       return;
     }
 
@@ -469,6 +482,8 @@ export class TaurenSessionManager {
       extensionFooterHost,
       extensionWidgetHost,
       extensionStatuses,
+      terminalInputHandlers: new Set(),
+      toolsExpanded: false,
       inactiveSince: undefined,
       inactiveDisposeTimer: undefined,
       outboundStateMessage: undefined,
@@ -614,10 +629,51 @@ export class TaurenSessionManager {
         }
       },
       clearWidgets: () => extensionWidgetHost.clearWidgets(),
+      onTerminalInput: (handler) => this.registerTerminalInputHandler(id, handler),
+      getToolsExpanded: () => this.findOpenSession(id)?.toolsExpanded ?? false,
+      setToolsExpanded: (expanded) => {
+        const session = this.findOpenSession(id);
+
+        if (session) {
+          this.setToolsExpandedForSession(session, expanded);
+        }
+      },
       editor: (title, prefill) => this.openExtensionEditorForSession(id, title, prefill),
       setEditorText: (text) => this.setEditorTextForSession(id, text),
       pasteToEditor: (text) => this.pasteToEditorForSession(id, text)
     };
+  }
+
+  private registerTerminalInputHandler(id: string, handler: TerminalInputHandler): () => void {
+    const session = this.findOpenSession(id);
+
+    if (!session) {
+      return () => undefined;
+    }
+
+    session.terminalInputHandlers.add(handler);
+
+    return () => {
+      session.terminalInputHandlers.delete(handler);
+    };
+  }
+
+  private dispatchTerminalInput(session: OpenSession, data: string): void {
+    for (const handler of Array.from(session.terminalInputHandlers)) {
+      try {
+        const result = handler(data);
+
+        if (result?.consume === true) {
+          return;
+        }
+      } catch (error) {
+        this.options.showNotification(`Pi extension input handler failed: ${error instanceof Error ? error.message : String(error)}`, 'error');
+      }
+    }
+  }
+
+  private setToolsExpandedForSession(session: OpenSession, expanded: boolean): void {
+    session.toolsExpanded = expanded;
   }
 
   private openExtensionEditorForSession(id: string, title: string, prefill: string | undefined): Promise<string | undefined> {
@@ -774,6 +830,10 @@ export class TaurenSessionManager {
 
   private active(): OpenSession {
     return this.sessions.find((session) => session.id === this.activeSessionId) ?? this.sessions[0];
+  }
+
+  private findOpenSession(id: string): OpenSession | undefined {
+    return this.sessions.find((session) => session.id === id);
   }
 
   private isActiveComposerVisible(): boolean {

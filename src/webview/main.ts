@@ -1,5 +1,5 @@
 import { configureCodeHighlighting, handleCodeHighlightMessage, watchCodeHighlightThemeChanges } from './codeHighlighting';
-import { prepareCustomUiLines } from './customUI/customUi';
+import { prepareCustomUiLines, terminalDataForKeyboardEvent } from './customUI/customUi';
 import { roundDevicePixelMetric } from './metrics';
 import { createExtensionImageElement, normalizeExtensionRenderBlocks } from './extensionRenderBlocks';
 import { getAnsiFullWidgetBackground, getAnsiLineBackground, isAnsiBlockImageLine, renderAnsiBlockImageLineInto, renderAnsiTextInto } from './messages/ansi';
@@ -99,6 +99,7 @@ messagesContentElement.replaceChildren(...Array.from(messagesElement.childNodes)
 messagesElement.append(messagesContentElement, busyStatusElement);
 
 let state: WebviewState = { ...initialWebviewState };
+let toolsExpanded = false;
 let toastHideTimeout: ReturnType<typeof setTimeout> | undefined;
 let pendingRenderFrame: number | undefined;
 let pendingReturnToChatAfterRender = false;
@@ -430,6 +431,10 @@ window.addEventListener('keydown', (event) => {
   }
 
   if (handleTranscriptEdgeScrollShortcut(event)) {
+    return;
+  }
+
+  if (handleToolDetailShortcut(event)) {
     return;
   }
 
@@ -949,6 +954,30 @@ function isChatTranscriptScrollable(): boolean {
     && !hasHelpOverlayOpen()
     && !customUiController.isActive()
     && !extensionEditorDialogController.isActive();
+}
+
+function handleToolDetailShortcut(event: KeyboardEvent): boolean {
+  if (state.lane !== 'chat' || state.chatFace === 'settings' || event.key.toLowerCase() !== 'o') {
+    return false;
+  }
+
+  if (!event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) {
+    return false;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  const expanded = messagesController.toggleToolActivityDetail();
+  toolsExpanded = expanded === false ? !toolsExpanded : expanded;
+  const data = terminalDataForKeyboardEvent(event);
+
+  if (data) {
+    vscode.postMessage({ type: 'extensionTerminalInput', data });
+  }
+
+  vscode.postMessage({ type: 'setToolsExpanded', expanded: toolsExpanded });
+
+  return true;
 }
 
 function handleTranscriptEdgeScrollShortcut(event: KeyboardEvent): boolean {

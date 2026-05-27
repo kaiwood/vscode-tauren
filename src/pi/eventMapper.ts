@@ -5,7 +5,7 @@ import type {
 } from '../chat/chatSession';
 import { parsePiImageContent } from './messageContent';
 import { formatCompactionTitle } from '../sessions/sessionFormatting';
-import type { PiEvent } from '../pi/types';
+import type { PiEvent, PiRenderedContent } from '../pi/types';
 
 const toolResultPreviewMaxLines = 8;
 const toolResultPreviewMaxCharacters = 2400;
@@ -63,6 +63,7 @@ export type ToolExecutionActivityOptions = {
   args?: unknown;
   partialResult?: unknown;
   result?: unknown;
+  rendered?: PiRenderedContent;
   status: 'running' | 'completed' | 'error';
 };
 
@@ -71,22 +72,25 @@ export function formatToolExecutionActivity({
   args,
   partialResult,
   result,
+  rendered,
   status
 }: ToolExecutionActivityOptions): ChatActivityInput {
   const display = formatToolExecutionDisplay({ toolName, args });
   const resultValue = status === 'running' ? partialResult : result;
   const images = extractToolResultImages(resultValue);
   const includeExpandedBody = !(status === 'running' && display.toolName === 'bash');
-  const preview = status !== 'error' && display.toolName === 'edit'
-    ? formatEditDiffPreview(args) ?? formatToolResultPreview(resultValue, display.toolName, { includeExpandedBody })
-    : formatToolResultPreview(resultValue, display.toolName, { includeExpandedBody });
+  const preview = rendered
+    ? { body: rendered.body, ...(rendered.expandedBody ? { expandedBody: rendered.expandedBody } : {}) }
+    : status !== 'error' && display.toolName === 'edit'
+      ? formatEditDiffPreview(args) ?? formatToolResultPreview(resultValue, display.toolName, { includeExpandedBody })
+      : formatToolResultPreview(resultValue, display.toolName, { includeExpandedBody });
 
   return {
     kind: 'tool_execution',
     title: display.title,
     status,
     ...(display.summary ? { summary: display.summary } : {}),
-    ...(preview ? { body: preview.body, ...(preview.expandedBody ? { expandedBody: preview.expandedBody } : {}), code: true } : {}),
+    ...(preview ? { body: preview.body, ...(preview.expandedBody ? { expandedBody: preview.expandedBody } : {}), code: rendered?.code ?? true } : {}),
     ...(images.length > 0 ? { images } : {})
   };
 }
@@ -421,6 +425,7 @@ function mapToolExecutionStart(event: PiEvent, _fullCommunication: boolean): Act
   return updateActivity(getToolExecutionSourceId(event), formatToolExecutionActivity({
     toolName: getToolName(event),
     args: event.args,
+    rendered: getRenderedTool(event),
     status: 'running'
   }));
 }
@@ -430,6 +435,7 @@ function mapToolExecutionUpdate(event: PiEvent, _fullCommunication: boolean): Ac
     toolName: getToolName(event),
     args: event.args,
     partialResult: event.partialResult,
+    rendered: getRenderedTool(event),
     status: 'running'
   }));
 }
@@ -441,6 +447,7 @@ function mapToolExecutionEnd(event: PiEvent, _fullCommunication: boolean): Activ
     toolName: getToolName(event),
     args: event.args,
     result: event.result,
+    rendered: getRenderedTool(event),
     status: isError ? 'error' : 'completed'
   }));
 }
@@ -532,6 +539,20 @@ function getToolExecutionSourceId(event: PiEvent): string {
 
 function getToolName(event: PiEvent): string {
   return getRecordString(event, 'toolName') ?? 'tool';
+}
+
+function getRenderedTool(event: PiEvent): PiRenderedContent | undefined {
+  const rendered = event.taurenRenderedTool;
+
+  if (!isRecord(rendered) || typeof rendered.body !== 'string') {
+    return undefined;
+  }
+
+  return {
+    body: rendered.body,
+    ...(typeof rendered.expandedBody === 'string' ? { expandedBody: rendered.expandedBody } : {}),
+    ...(typeof rendered.code === 'boolean' ? { code: rendered.code } : {})
+  };
 }
 
 function formatToolExecutionDisplay(input: { toolName?: string; args?: unknown }): { toolName: string; title: string; summary?: string } {

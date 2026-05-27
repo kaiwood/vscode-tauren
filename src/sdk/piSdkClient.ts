@@ -31,6 +31,7 @@ import type {
 import type { AgentSessionRuntime, SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent';
 import type { PiSettingId, SettingValue } from '../settings/settingsRegistry';
 import { createSdkExtensionUiContext } from './extensionUiBridge';
+import { PiSdkRenderer } from './piSdkRendering';
 import { mapSdkExtensionErrorToPiEvent, mapSdkSessionEventToPiEvent } from './piSdkEventMapper';
 import { flattenPiSessionTree, type FlattenableSessionTreeNode } from '../sessions/piSessionTree';
 import { loadPiSdk, type PiSdkLoader, type PiSdkModule } from './piSdkLoader';
@@ -57,6 +58,7 @@ export class PiSdkClient implements PiClient {
   private promptSawAgentStart = false;
   private readonly eventListeners = new Set<(event: PiEvent) => void>();
   private readonly errorListeners = new Set<(message: string) => void>();
+  private readonly renderer = new PiSdkRenderer(() => this.options.extensionUi?.getToolsExpanded?.() ?? false);
 
   public constructor(private readonly options: PiSdkClientOptions = {}) {}
 
@@ -503,8 +505,8 @@ export class PiSdkClient implements PiClient {
   }
 
   public async getMessages(): Promise<PiMessagesResult> {
-    const { session } = await this.ensureRuntime();
-    return { messages: session.messages as PiMessagesResult['messages'] };
+    const runtime = await this.ensureRuntime();
+    return { messages: this.renderCustomMessages(runtime, runtime.session.messages as PiMessagesResult['messages']) };
   }
 
   public async switchSession(sessionPath: string): Promise<PiSwitchSessionResult> {
@@ -788,7 +790,22 @@ export class PiSdkClient implements PiClient {
         this.promptSawAgentStart = true;
       }
 
-      this.emitEvent(mapSdkSessionEventToPiEvent(event));
+      this.emitEvent(this.renderer.enrichEvent(runtime, mapSdkSessionEventToPiEvent(event)));
+    });
+  }
+
+  private renderCustomMessages(runtime: AgentSessionRuntime, messages: PiMessagesResult['messages']): PiMessagesResult['messages'] {
+    if (!Array.isArray(messages)) {
+      return messages;
+    }
+
+    return messages.map((message) => {
+      if (!message || message.role !== 'custom') {
+        return message;
+      }
+
+      const rendered = this.renderer.renderCustomMessage(runtime, message as Record<string, unknown>);
+      return rendered ? { ...message, taurenRenderedMessage: rendered } : message;
     });
   }
 

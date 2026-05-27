@@ -1,4 +1,4 @@
-import type { ExtensionUIContext, ExtensionWidgetOptions } from '@earendil-works/pi-coding-agent';
+import type { ExtensionUIContext, ExtensionWidgetOptions, TerminalInputHandler } from '@earendil-works/pi-coding-agent';
 
 export type MaybePromise<T> = T | PromiseLike<T>;
 
@@ -36,6 +36,9 @@ export type ExtensionUi = {
   setFooter?(factory: ExtensionFooterFactory | undefined): void;
   setWidget?(key: string, content: ExtensionWidgetContent | undefined, options?: ExtensionWidgetSetOptions): void;
   clearWidgets?(): void;
+  onTerminalInput?(handler: TerminalInputHandler): () => void;
+  getToolsExpanded?(): boolean;
+  setToolsExpanded?(expanded: boolean): void;
   setEditorText?(text: string): void;
   pasteToEditor?(text: string): void;
 };

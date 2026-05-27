@@ -20,6 +20,7 @@ export function formatAgentMessages(messages: PiAgentMessage[] | undefined): Cha
   const toolCallsById = new Map<string, RestoredToolCall>();
   let lastAssistant: ChatMessage | undefined;
   let restoredActivitySequence = 0;
+  let restoredCustomActivitySequence = 0;
 
   for (const message of messages) {
     if (!isRecord(message)) {
@@ -107,6 +108,27 @@ export function formatAgentMessages(messages: PiAgentMessage[] | undefined): Cha
     }
 
     if (message.role === 'custom') {
+      const rendered = message.taurenRenderedMessage;
+
+      if (rendered) {
+        restoredCustomActivitySequence += 1;
+        transcript.push({
+          role: 'system',
+          text: '',
+          activities: [{
+            id: `restored-custom-${restoredCustomActivitySequence}`,
+            kind: 'message',
+            title: typeof message.customType === 'string' ? message.customType : 'Extension message',
+            status: 'info',
+            body: rendered.body,
+            ...(rendered.expandedBody ? { expandedBody: rendered.expandedBody } : {}),
+            code: rendered.code ?? true
+          }]
+        });
+        lastAssistant = undefined;
+        continue;
+      }
+
       const displayText = typeof message.display === 'string'
         ? message.display
         : extractPiMessageText(message.content);

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added Tauren rendering support for Pi extension tool/message renderers, including `Ctrl+O` live-detail expansion for subagent-style progress output.
+
 ## 1.2.0 - 2026-05-26
 
 This release is dedicated to performance updates.

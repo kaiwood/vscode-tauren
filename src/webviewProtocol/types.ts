@@ -126,6 +126,8 @@ export type WebviewMessage =
   | { type: 'customUiDimensions'; id: string; columns: number; rows: number; cellWidthPx?: number; cellHeightPx?: number }
   | { type: 'extensionWidgetDimensions'; key: string; columns: number; rows: number; cellWidthPx?: number; cellHeightPx?: number }
   | { type: 'extensionFooterDimensions'; columns: number; rows: number; cellWidthPx?: number; cellHeightPx?: number }
+  | { type: 'extensionTerminalInput'; data: string }
+  | { type: 'setToolsExpanded'; expanded: boolean }
   | { type: 'extensionEditorSave'; id: string; text: string }
   | { type: 'extensionEditorCancel'; id: string }
   | { type: 'submit'; text: string; streamingBehavior?: WebviewStreamingBehavior }

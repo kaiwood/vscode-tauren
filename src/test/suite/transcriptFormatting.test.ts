@@ -22,6 +22,33 @@ suite('Transcript formatting', () => {
     }]);
   });
 
+  test('restores Tauren-rendered custom extension messages as activities', () => {
+    assert.deepStrictEqual(formatAgentMessages([
+      {
+        role: 'custom',
+        customType: 'subagent-result',
+        content: 'fallback',
+        taurenRenderedMessage: {
+          body: '\u001b[34mSubagent summary\u001b[0m',
+          expandedBody: '\u001b[34mSubagent summary\nmore detail\u001b[0m',
+          code: true
+        }
+      }
+    ]), [{
+      role: 'system',
+      text: '',
+      activities: [{
+        id: 'restored-custom-1',
+        kind: 'message',
+        title: 'subagent-result',
+        status: 'info',
+        body: '\u001b[34mSubagent summary\u001b[0m',
+        expandedBody: '\u001b[34mSubagent summary\nmore detail\u001b[0m',
+        code: true
+      }]
+    }]);
+  });
+
   test('preserves supported image parts from restored messages', () => {
     assert.deepStrictEqual(formatAgentMessages([
       {

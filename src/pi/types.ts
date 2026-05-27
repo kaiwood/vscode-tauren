@@ -14,11 +14,18 @@ export type MessageUpdatePiEvent = PiEventBase & {
   type: 'message_update';
   assistantMessageEvent?: unknown;
 };
+export type PiRenderedContent = {
+  body: string;
+  expandedBody?: string;
+  code?: boolean;
+};
+
 export type ToolExecutionStartPiEvent = PiEventBase & {
   type: 'tool_execution_start';
   toolCallId?: string;
   toolName?: string;
   args?: unknown;
+  taurenRenderedTool?: PiRenderedContent;
 };
 export type ToolExecutionUpdatePiEvent = PiEventBase & {
   type: 'tool_execution_update';
@@ -26,6 +33,7 @@ export type ToolExecutionUpdatePiEvent = PiEventBase & {
   toolName?: string;
   args?: unknown;
   partialResult?: unknown;
+  taurenRenderedTool?: PiRenderedContent;
 };
 export type ToolExecutionEndPiEvent = PiEventBase & {
   type: 'tool_execution_end';
@@ -34,6 +42,7 @@ export type ToolExecutionEndPiEvent = PiEventBase & {
   args?: unknown;
   result?: unknown;
   isError?: boolean;
+  taurenRenderedTool?: PiRenderedContent;
 };
 export type QueueUpdatePiEvent = PiEventBase & { type: 'queue_update' };
 export type CompactionStartPiEvent = PiEventBase & { type: 'compaction_start' };
@@ -269,14 +278,17 @@ export type PiNavigateTreeResult = {
 
 export type PiAgentMessage = {
   role?: string;
+  customType?: string;
   content?: unknown;
   errorMessage?: string;
   summary?: string;
   tokensBefore?: number;
   display?: unknown;
+  details?: unknown;
   toolCallId?: string;
   toolName?: string;
   isError?: boolean;
+  taurenRenderedMessage?: PiRenderedContent;
 };
 
 export type PiMessagesResult = {

@@ -3650,6 +3650,12 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
     activityBodyExpansion.set(activityId, next);
     return next;
   }
+  function setActivityBodyExpansion(activityId, expanded) {
+    activityBodyExpansion.set(activityId, expanded);
+  }
+  function getActivityBodyExpansion(activityId) {
+    return activityBodyExpansion.get(activityId) === true;
+  }
   function pruneActivityRenderState(activeActivityIds) {
     const retainedActivityIds = getRecentActivityIds(activeActivityIds);
     pruneStringMap(activityExpansion, retainedActivityIds);
@@ -3678,10 +3684,6 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
     const activities = Array.isArray(message.activities) ? message.activities : [];
     const images = getRenderableImages(message.images);
     const hasBody = Boolean(message.text || message.error || images.length > 0 || activities.length === 0);
-    if (message.role !== "assistant") {
-      article.append(body);
-      return article;
-    }
     if (activities.length > 0) {
       article.append(createActivityListElement(activities, messageIndex, options));
     }
@@ -3708,7 +3710,7 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
       return false;
     }
     body.className = "message__body";
-    if (message.role === "assistant" && Array.isArray(message.activities) && message.activities.length > 0) {
+    if (Array.isArray(message.activities) && message.activities.length > 0) {
       body.classList.add("message__body--after-activities");
     }
     renderMessageBodyInto(body, message, options);
@@ -4183,6 +4185,18 @@ ${after}`;
       }
       this.options.busyStatusElement.hidden = false;
     }
+    toggleToolActivityDetail() {
+      const activityIds = getExpandableToolActivityIds(this.options.getState().messages);
+      if (activityIds.length === 0) {
+        return false;
+      }
+      const nextExpanded = activityIds.some((activityId) => !getActivityBodyExpansion(activityId));
+      for (const activityId of activityIds) {
+        setActivityBodyExpansion(activityId, nextExpanded);
+      }
+      this.renderMessageList();
+      return nextExpanded;
+    }
     handleChatPageScroll(event) {
       const state2 = this.options.getState();
       if (state2.lane !== "chat" || state2.chatFace === "settings" || event.key !== "PageUp" && event.key !== "PageDown") {
@@ -4279,7 +4293,8 @@ ${after}`;
         if (activityId) {
           event.preventDefault();
           event.stopPropagation();
-          toggleActivityBodyExpansion(activityId);
+          const expanded = toggleActivityBodyExpansion(activityId);
+          this.options.postMessage({ type: "setToolsExpanded", expanded });
           this.rerenderMessageAtIndex(parseDatasetInteger(toggleButton.dataset.messageIndex));
         }
         return;
@@ -4644,6 +4659,17 @@ ${after}`;
         if (typeof activity.id === "string" && activity.id) {
           ids.delete(activity.id);
           ids.add(activity.id);
+        }
+      }
+    }
+    return ids;
+  }
+  function getExpandableToolActivityIds(messages) {
+    const ids = [];
+    for (const message of messages) {
+      for (const activity of message.activities ?? []) {
+        if (typeof activity.id === "string" && activity.id && typeof activity.expandedBody === "string") {
+          ids.push(activity.id);
         }
       }
     }
@@ -8514,6 +8540,7 @@ ${after}`;
   messagesContentElement.replaceChildren(...Array.from(messagesElement.childNodes));
   messagesElement.append(messagesContentElement, busyStatusElement);
   var state = { ...initialWebviewState };
+  var toolsExpanded = false;
   var toastHideTimeout;
   var pendingRenderFrame;
   var pendingReturnToChatAfterRender = false;
@@ -8789,6 +8816,9 @@ ${after}`;
       return;
     }
     if (handleTranscriptEdgeScrollShortcut(event)) {
+      return;
+    }
+    if (handleToolDetailShortcut(event)) {
       return;
     }
     if (messagesController.handleChatPageScroll(event)) {
@@ -9199,6 +9229,24 @@ ${after}`;
   }
   function isChatTranscriptScrollable() {
     return state.lane === "chat" && state.chatFace !== "settings" && !hasHelpOverlayOpen() && !customUiController.isActive() && !extensionEditorDialogController.isActive();
+  }
+  function handleToolDetailShortcut(event) {
+    if (state.lane !== "chat" || state.chatFace === "settings" || event.key.toLowerCase() !== "o") {
+      return false;
+    }
+    if (!event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) {
+      return false;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const expanded = messagesController.toggleToolActivityDetail();
+    toolsExpanded = expanded === false ? !toolsExpanded : expanded;
+    const data = terminalDataForKeyboardEvent(event);
+    if (data) {
+      vscode.postMessage({ type: "extensionTerminalInput", data });
+    }
+    vscode.postMessage({ type: "setToolsExpanded", expanded: toolsExpanded });
+    return true;
   }
   function handleTranscriptEdgeScrollShortcut(event) {
     if (event.key !== "ArrowUp" && event.key !== "ArrowDown" || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) {
