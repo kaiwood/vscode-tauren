@@ -493,6 +493,7 @@ export class MessageListController {
 
     return [
       state.outputColors ? 'colors' : 'plain',
+      state.animationsEnabled ? 'animated' : 'static',
       state.allowRemoteImages ? 'remote' : 'local',
       ...message.activities.map(getActivitySignature)
     ].join('\u0001');

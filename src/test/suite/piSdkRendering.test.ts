@@ -9,7 +9,7 @@ suite('PiSdkRenderer', () => {
       toolDefinition: {
         renderResult: (_result, options) => ({
           invalidate: () => undefined,
-          render: () => [options.expanded ? '\u001b[43mexpanded detail\u001b[0m' : '\u001b[42mcollapsed detail\u001b[0m']
+          render: () => [options.expanded ? '\u001b[43m⠋ expanded detail\u001b[0m' : '\u001b[42m⠋ collapsed detail\u001b[0m']
         })
       }
     });
@@ -22,8 +22,8 @@ suite('PiSdkRenderer', () => {
     });
 
     assert.deepStrictEqual(event.taurenRenderedTool, {
-      body: 'collapsed detail\u001b[0m',
-      expandedBody: 'expanded detail\u001b[0m',
+      body: '⠋ collapsed detail\u001b[0m',
+      expandedBody: '⠋ expanded detail\u001b[0m',
       code: true
     });
   });

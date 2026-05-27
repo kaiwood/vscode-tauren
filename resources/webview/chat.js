@@ -402,6 +402,76 @@
     }
     appendAnsiText(element, value.slice(index), style, options);
   }
+  var ansiSpinnerFrames = ["\u280B", "\u2819", "\u2839", "\u2838", "\u283C", "\u2834", "\u2826", "\u2827", "\u2807", "\u280F"];
+  var ansiSpinnerPattern = new RegExp(`(^|\\n)([\\t ]*)([${ansiSpinnerFrames.join("")}])(?=$|[\\t ])`, "g");
+  var ansiSpinnerFrameIndex = 0;
+  var ansiSpinnerTimer;
+  function renderAnsiSpinnersInto(element, animationsEnabled) {
+    if (!animationsEnabled) {
+      return;
+    }
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    const textNodes = [];
+    let node = walker.nextNode();
+    while (node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const textNode = node;
+        if (ansiSpinnerPattern.test(textNode.data)) {
+          textNodes.push(textNode);
+        }
+      }
+      ansiSpinnerPattern.lastIndex = 0;
+      node = walker.nextNode();
+    }
+    for (const textNode of textNodes) {
+      replaceAnsiSpinnerTextNode(textNode);
+    }
+    if (textNodes.length > 0) {
+      startAnsiSpinnerTimer();
+    }
+  }
+  function replaceAnsiSpinnerTextNode(textNode) {
+    const value = textNode.data;
+    const fragment = document.createDocumentFragment();
+    let lastIndex = 0;
+    let match;
+    ansiSpinnerPattern.lastIndex = 0;
+    while ((match = ansiSpinnerPattern.exec(value)) !== null) {
+      fragment.append(document.createTextNode(value.slice(lastIndex, match.index)));
+      if (match[1] || match[2]) {
+        fragment.append(document.createTextNode(`${match[1] ?? ""}${match[2] ?? ""}`));
+      }
+      const spinner = document.createElement("span");
+      spinner.className = "tauren-ansi-spinner";
+      spinner.setAttribute("aria-hidden", "true");
+      spinner.textContent = ansiSpinnerFrames[ansiSpinnerFrameIndex] ?? match[3];
+      fragment.append(spinner);
+      lastIndex = match.index + match[0].length;
+    }
+    fragment.append(document.createTextNode(value.slice(lastIndex)));
+    textNode.replaceWith(fragment);
+  }
+  function startAnsiSpinnerTimer() {
+    if (ansiSpinnerTimer !== void 0) {
+      return;
+    }
+    ansiSpinnerTimer = window.setInterval(() => {
+      const spinners = document.querySelectorAll(".tauren-ansi-spinner");
+      if (spinners.length === 0) {
+        window.clearInterval(ansiSpinnerTimer);
+        ansiSpinnerTimer = void 0;
+        return;
+      }
+      if (document.body.classList.contains("tauren-animations-disabled") || document.body.classList.contains("vscode-reduce-motion")) {
+        return;
+      }
+      ansiSpinnerFrameIndex = (ansiSpinnerFrameIndex + 1) % ansiSpinnerFrames.length;
+      const frame = ansiSpinnerFrames[ansiSpinnerFrameIndex];
+      for (const spinner of spinners) {
+        spinner.textContent = frame;
+      }
+    }, 80);
+  }
   function appendAnsiText(element, value, style, options) {
     if (!value) {
       return;
@@ -3900,7 +3970,8 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
         bodyToggle = renderCodeActivityBody(body, activity, bodyText, {
           bodyExpanded,
           messageIndex,
-          outputColors: options.outputColors !== false
+          outputColors: options.outputColors !== false,
+          animationsEnabled: options.animationsEnabled !== false
         });
       } else {
         renderMarkdownInto(body, bodyText, options);
@@ -3963,7 +4034,7 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
     if (filePath && !containsAnsiEscape(renderedBodyText)) {
       renderHighlightedActivityCodeInto(element, renderedBodyText, filePath);
     } else {
-      renderAnsiActivityCodeInto(element, renderedBodyText, options.outputColors);
+      renderAnsiActivityCodeInto(element, renderedBodyText, options.outputColors, options.animationsEnabled);
     }
     if (hasExpandedToggle) {
       return {
@@ -3994,8 +4065,9 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
       element.textContent = bodyText;
     }
   }
-  function renderAnsiActivityCodeInto(element, bodyText, outputColors) {
+  function renderAnsiActivityCodeInto(element, bodyText, outputColors, animationsEnabled) {
     renderAnsiTextInto(element, bodyText, outputColors);
+    renderAnsiSpinnersInto(element, animationsEnabled);
   }
   function removeTruncationMarker(marker) {
     const before = marker.before.endsWith("\n") ? marker.before.slice(0, -1) : marker.before;
@@ -4489,6 +4561,7 @@ ${after}`;
       }
       return [
         state2.outputColors ? "colors" : "plain",
+        state2.animationsEnabled ? "animated" : "static",
         state2.allowRemoteImages ? "remote" : "local",
         ...message.activities.map(getActivitySignature)
       ].join("");
@@ -9087,6 +9160,7 @@ ${after}`;
             }
           }
           renderAnsiTextInto(lineElement, line, state.outputColors, { suppressBackgrounds: !backgroundColorsEnabled });
+          renderAnsiSpinnersInto(lineElement, state.animationsEnabled);
           element.append(lineElement);
         }
       }
@@ -9182,6 +9256,7 @@ ${after}`;
     const hasAccessibleText = text.length > 0 && !placeholderFooter;
     composerStatusTextElement.replaceChildren();
     renderAnsiTextInto(composerStatusTextElement, text, state.outputColors, { suppressBackgrounds: true });
+    renderAnsiSpinnersInto(composerStatusTextElement, state.animationsEnabled);
     composerStatusElement.hidden = !hasStatusSlot;
     composerStatusElement.setAttribute("aria-hidden", hasAccessibleText ? "false" : "true");
     viewElement.classList.toggle("tauren-view--has-extension-status", hasStatusSlot);
