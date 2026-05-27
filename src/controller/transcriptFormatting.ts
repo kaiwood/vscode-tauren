@@ -110,7 +110,7 @@ export function formatAgentMessages(messages: PiAgentMessage[] | undefined): Cha
     if (message.role === 'custom') {
       const rendered = message.taurenRenderedMessage;
 
-      if (rendered) {
+      if (isRenderedContent(rendered)) {
         restoredCustomActivitySequence += 1;
         transcript.push({
           role: 'system',
@@ -121,8 +121,8 @@ export function formatAgentMessages(messages: PiAgentMessage[] | undefined): Cha
             title: typeof message.customType === 'string' ? message.customType : 'Extension message',
             status: 'info',
             body: rendered.body,
-            ...(rendered.expandedBody ? { expandedBody: rendered.expandedBody } : {}),
-            code: rendered.code ?? true
+            ...(typeof rendered.expandedBody === 'string' ? { expandedBody: rendered.expandedBody } : {}),
+            code: typeof rendered.code === 'boolean' ? rendered.code : true
           }]
         });
         lastAssistant = undefined;
@@ -143,6 +143,10 @@ export function formatAgentMessages(messages: PiAgentMessage[] | undefined): Cha
   }
 
   return transcript;
+}
+
+function isRenderedContent(value: unknown): value is { body: string; expandedBody?: unknown; code?: unknown } {
+  return isRecord(value) && typeof value.body === 'string';
 }
 
 export function extractRestoredToolCalls(content: unknown): RestoredToolCall[] {

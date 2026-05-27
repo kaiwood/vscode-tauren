@@ -49,6 +49,20 @@ suite('Transcript formatting', () => {
     }]);
   });
 
+  test('ignores malformed Tauren-rendered custom extension messages', () => {
+    assert.deepStrictEqual(formatAgentMessages([
+      {
+        role: 'custom',
+        customType: 'subagent-result',
+        content: 'fallback',
+        taurenRenderedMessage: { code: true } as never
+      }
+    ]), [{
+      role: 'system',
+      text: 'fallback'
+    }]);
+  });
+
   test('preserves supported image parts from restored messages', () => {
     assert.deepStrictEqual(formatAgentMessages([
       {
