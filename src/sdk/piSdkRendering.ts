@@ -169,6 +169,16 @@ export class PiSdkRenderer {
       state.resultComponent = component;
       return renderComponentText(component);
     };
+
+    if (options.isPartial) {
+      if (!this.getToolsExpanded()) {
+        return undefined;
+      }
+
+      const body = render(true);
+      return body ? { body, code: true } : undefined;
+    }
+
     const collapsed = render(false);
     const expanded = render(true);
 

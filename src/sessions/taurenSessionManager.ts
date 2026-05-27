@@ -184,6 +184,17 @@ export class TaurenSessionManager {
       return;
     }
 
+    if (message.type === 'abort') {
+      const session = this.active();
+
+      if (this.isSessionBusy(session)) {
+        this.dispatchTerminalInput(session, '\x1b');
+      }
+
+      await session.controller.handleWebviewMessage(message);
+      return;
+    }
+
     if (message.type === 'extensionEditorSave') {
       this.resolvePendingExtensionEditor(message.id, message.text);
       return;
@@ -656,6 +667,10 @@ export class TaurenSessionManager {
     return () => {
       session.terminalInputHandlers.delete(handler);
     };
+  }
+
+  private isSessionBusy(session: OpenSession): boolean {
+    return session.state?.busy === true || session.status === 'running';
   }
 
   private dispatchTerminalInput(session: OpenSession, data: string): void {
