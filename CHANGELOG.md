@@ -4,6 +4,7 @@
 
 - Preserved user-prompt line breaks in transcript bubbles.
 - Fixed session-list rename prefill for unnamed sessions.
+- Fixed stale Auto retry activity from keeping the busy spinner on retry text.
 - Added commands to raise or lower the active session thinking level.
 - Added a VS Code progress notification while Trace Origin is running.
 - Restricted webview file-reference opens to workspace files by default, with a Safety setting to allow external local file links.

@@ -293,6 +293,42 @@ export class ChatSession {
     return id;
   }
 
+  public updateRunningActivities(
+    predicate: (activity: ChatActivity) => boolean,
+    activity: ChatActivityInput,
+    bodyMode: ChatActivityBodyMode = 'replace'
+  ): number {
+    let updatedCount = 0;
+
+    for (const message of this.transcript) {
+      const activities = message.activities;
+
+      if (!activities) {
+        continue;
+      }
+
+      let changed = false;
+
+      for (let index = 0; index < activities.length; index += 1) {
+        const existing = activities[index];
+
+        if (existing.status !== 'running' || !predicate(existing)) {
+          continue;
+        }
+
+        activities[index] = mergeActivity(existing, activity, bodyMode);
+        changed = true;
+        updatedCount += 1;
+      }
+
+      if (changed) {
+        this.touchMessage(message);
+      }
+    }
+
+    return updatedCount;
+  }
+
   public removeActivity(sourceId: string): void {
     const id = this.activeActivityIds.get(sourceId);
 

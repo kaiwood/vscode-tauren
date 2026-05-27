@@ -219,6 +219,63 @@ suite('TaurenChatController', () => {
     harness.controller.dispose();
   });
 
+  test('auto-retry attempts do not leave stale running retry activities', async () => {
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: 'retry twice' });
+    client.emit({ type: 'agent_start' });
+    client.emit({ type: 'agent_end', messages: [], willRetry: true });
+    client.emit({ type: 'auto_retry_start', attempt: 1 });
+    client.emit({ type: 'agent_start' });
+    client.emit({ type: 'agent_end', messages: [], willRetry: true });
+    client.emit({ type: 'auto_retry_start', attempt: 2 });
+    client.emit({ type: 'agent_start' });
+    client.emit({ type: 'auto_retry_end', success: true, attempt: 2 });
+    client.emit({ type: 'agent_end', messages: [] });
+    await flushPromises();
+
+    const retryActivities = lastState(harness).messages
+      .flatMap((message) => message.activities ?? [])
+      .filter((activity) => activity.kind === 'retry');
+
+    assert.deepStrictEqual(retryActivities.map((activity) => activity.status), ['completed', 'completed']);
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: 'next prompt' });
+
+    const runningRetryActivities = lastState(harness).messages
+      .flatMap((message) => message.activities ?? [])
+      .filter((activity) => activity.kind === 'retry' && activity.status === 'running');
+
+    assert.deepStrictEqual(runningRetryActivities, []);
+    harness.controller.dispose();
+  });
+
+  test('auto-retry final failure settles stale running retry activity', async () => {
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: 'retry and fail' });
+    client.emit({ type: 'agent_start' });
+    client.emit({ type: 'agent_end', messages: [], willRetry: true });
+    client.emit({ type: 'auto_retry_start', attempt: 1 });
+    client.emit({ type: 'agent_start' });
+    client.emit({ type: 'agent_end', messages: [], willRetry: false });
+    client.emit({ type: 'auto_retry_end', success: false, attempt: 1, finalError: 'still overloaded' });
+    await flushPromises();
+
+    const retryActivities = lastState(harness).messages
+      .flatMap((message) => message.activities ?? [])
+      .filter((activity) => activity.kind === 'retry');
+
+    assert.deepStrictEqual(
+      retryActivities.map((activity) => ({ status: activity.status, summary: activity.summary })),
+      [{ status: 'error', summary: 'still overloaded' }]
+    );
+    assert.strictEqual(lastState(harness).busy, false);
+    harness.controller.dispose();
+  });
+
   test('ready script waits for post-agent compaction to finish', async () => {
     const readyScripts: Array<{ scriptPath: string; cwd: string | undefined }> = [];
     const client = new FakePiClient();

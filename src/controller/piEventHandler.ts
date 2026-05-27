@@ -158,15 +158,29 @@ export class PiEventHandler {
         this.waitingForAutoRetryStart = false;
         this.autoRetryActive = true;
         this.options.session.setBusy(true);
+        this.settleRunningAutoRetryActivities({
+          kind: 'retry',
+          title: 'Auto retry',
+          status: 'completed'
+        });
         this.applyPiActivity(event);
         this.options.postState();
         break;
-      case 'auto_retry_end':
+      case 'auto_retry_end': {
+        const finalError = getRecordString(event, 'finalError');
+
         this.autoRetryActive = false;
         this.applyPiActivity(event);
+        this.settleRunningAutoRetryActivities({
+          kind: 'retry',
+          title: 'Auto retry',
+          status: event.success === false ? 'error' : 'completed',
+          ...(finalError ? { summary: finalError } : {})
+        });
         this.options.postState();
         this.scheduleReadyScriptWhenPiIdle();
         break;
+      }
       case 'extension_error':
         this.applyPiActivity(event);
         this.options.session.addErrorMessage(formatExtensionError(event));
@@ -406,6 +420,13 @@ export class PiEventHandler {
     }
 
     this.options.session.addActivity(action.activity);
+  }
+
+  private settleRunningAutoRetryActivities(activity: ChatActivityInput): void {
+    this.options.session.updateRunningActivities(
+      (existingActivity) => existingActivity.kind === 'retry' && existingActivity.title === 'Auto retry',
+      activity
+    );
   }
 
   private rememberLiveToolCall(event: PiEvent): void {
