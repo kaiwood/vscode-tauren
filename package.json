@@ -119,6 +119,16 @@
         "category": "Tauren"
       },
       {
+        "command": "tauren.raiseThinkingLevel",
+        "title": "Raise Thinking Level",
+        "category": "Tauren"
+      },
+      {
+        "command": "tauren.lowerThinkingLevel",
+        "title": "Lower Thinking Level",
+        "category": "Tauren"
+      },
+      {
         "command": "tauren.toggleSettings",
         "title": "Toggle Settings",
         "category": "Tauren",

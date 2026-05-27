@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added commands to raise or lower the active session thinking level.
 - Added a VS Code progress notification while Trace Origin is running.
 - Restricted webview file-reference opens to workspace files by default, with a Safety setting to allow external local file links.
 - Added support for extension tool-output boxes

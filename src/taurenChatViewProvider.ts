@@ -484,6 +484,14 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
     this.postModelPickerOpenSoon();
   }
 
+  public async raiseThinkingLevel(): Promise<void> {
+    await this.controller.stepThinkingLevel('raise');
+  }
+
+  public async lowerThinkingLevel(): Promise<void> {
+    await this.controller.stepThinkingLevel('lower');
+  }
+
   public async searchTranscript(): Promise<void> {
     this.controller.showChat();
     await this.revealView();
