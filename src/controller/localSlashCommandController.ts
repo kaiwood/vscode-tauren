@@ -5,6 +5,7 @@ import type { PiSessionState, PiSessionStats } from '../pi/types';
 import { SessionMetadataState } from '../metadata/sessionMetadata';
 import { isSupportedBuiltinSlashCommand } from '../commands/slashCommands';
 import { getErrorMessage, isUnsupportedReloadCommandError } from './errors';
+import { readCombinedChangelog } from './changelogReader';
 import { filterModelOptions, formatModelOptionLabel } from './modelFormatting';
 import type { SessionViewController } from '../sessions/sessionViewController';
 import {
@@ -74,6 +75,9 @@ export class LocalSlashCommandController {
           return;
         case 'session':
           await this.handleSessionSlashCommand();
+          return;
+        case 'changelog':
+          await this.handleChangelogSlashCommand();
           return;
         case 'tree':
           this.options.sessionView.showTree();
@@ -272,6 +276,11 @@ export class LocalSlashCommandController {
     ]);
 
     this.options.session.addSystemMessage(formatSessionInfo(state, stats));
+    this.options.postState();
+  }
+
+  private async handleChangelogSlashCommand(): Promise<void> {
+    this.options.session.addSystemMessage(await readCombinedChangelog());
     this.options.postState();
   }
 

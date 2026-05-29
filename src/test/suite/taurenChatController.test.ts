@@ -1488,6 +1488,23 @@ suite('TaurenChatController', () => {
     harness.controller.dispose();
   });
 
+  test('changelog slash command shows Pi and Tauren changelogs without prompting Pi', async () => {
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/changelog' });
+
+    assert.strictEqual(harness.createCalls, 0);
+    assert.deepStrictEqual(client.prompts, []);
+    assert.strictEqual(lastState(harness).messages.length, 1);
+    const message = lastState(harness).messages[0];
+    assert.strictEqual(message.role, 'system');
+    assert.match(message.text, /^# Pi Changelog\n\n## \[/);
+    assert.match(message.text, /\n\n---\n\n# Tauren Changelog\n\n## 1\./);
+    assert.doesNotMatch(message.text, /# Tauren Changelog[\s\S]*## Unreleased/);
+    harness.controller.dispose();
+  });
+
   test('settings slash command opens Tauren settings without prompting Pi', async () => {
     const client = new FakePiClient();
     const harness = createControllerHarness([client]);

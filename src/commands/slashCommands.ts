@@ -21,7 +21,7 @@ const localSlashCommandDefinitions: LocalSlashCommandDefinition[] = [
   { name: 'scoped-models', description: 'Terminal-only: scoped model cycling is not supported here yet', source: 'unsupported', supported: false },
   { name: 'import', description: 'Terminal-only: session import is not supported here yet', source: 'unsupported', supported: false },
   { name: 'share', description: 'Not supported here yet', source: 'unsupported', supported: false },
-  { name: 'changelog', description: 'Not supported here yet', source: 'unsupported', supported: false },
+  { name: 'changelog', description: 'Show Pi and Tauren changelogs', source: 'builtin', supported: true },
   { name: 'hotkeys', description: 'Terminal-only: use VS Code keybindings instead', source: 'unsupported', supported: false },
   { name: 'fork', description: 'Fork from a previous user message', source: 'builtin', supported: true },
   { name: 'clone', description: 'Duplicate the current session', source: 'builtin', supported: true },
