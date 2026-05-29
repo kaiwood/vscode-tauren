@@ -1,5 +1,6 @@
 import { getSettingsForSection, settingDefinitions, settingsSections, type SettingDefinition, type SettingOption, type SettingValue } from '../../settings/settingsRegistry';
 import { parseWebviewSettingsSection } from '../../webviewProtocol/values';
+import { getModelFullId, getScopedModelSelection, normalizeScopedModelSelection } from '../scopedModels';
 import type { SettingsSection, WebviewState } from '../types';
 
 type SettingsPaneControllerOptions = {
@@ -14,6 +15,7 @@ type SettingsPaneControllerOptions = {
 export class SettingsPaneController {
   private renderedSignature = '';
   private wasVisible = false;
+  private scopedModelsProviderFilter: string | undefined;
 
   public constructor(private readonly options: SettingsPaneControllerOptions) {}
 
@@ -26,6 +28,13 @@ export class SettingsPaneController {
 
       if (authButton) {
         this.handleAuthAction(authButton);
+        return;
+      }
+
+      const scopedModelsButton = target?.closest<HTMLButtonElement>('[data-scoped-model-action]') ?? null;
+
+      if (scopedModelsButton) {
+        this.handleScopedModelsAction(scopedModelsButton);
         return;
       }
 
@@ -171,6 +180,11 @@ export class SettingsPaneController {
       return;
     }
 
+    if (target instanceof HTMLInputElement && target.dataset.scopedModelId) {
+      this.handleScopedModelsToggle(target);
+      return;
+    }
+
     const settingId = target.dataset.settingId;
     const definition = settingDefinitions.find((item) => item.id === settingId) as SettingDefinition | undefined;
 
@@ -185,9 +199,85 @@ export class SettingsPaneController {
     this.options.postMessage({ type: 'updateSetting', settingId: definition.id, value });
   }
 
+  private handleScopedModelsToggle(input: HTMLInputElement): void {
+    const modelId = input.dataset.scopedModelId;
+    if (!modelId) {
+      return;
+    }
+
+    const state = this.options.getState();
+    const selection = getScopedModelSelection(state);
+    const nextIds = input.checked
+      ? [...selection.enabledIds, modelId]
+      : selection.enabledIds.filter((id) => id !== modelId);
+
+    this.postScopedModelsUpdate(normalizeScopedModelSelection(nextIds, state.modelOptions));
+  }
+
+  private handleScopedModelsAction(button: HTMLButtonElement): void {
+    const state = this.options.getState();
+    const selection = getScopedModelSelection(state);
+    const action = button.dataset.scopedModelAction;
+
+    if (action === 'showAll') {
+      this.scopedModelsProviderFilter = undefined;
+      this.rerenderSettingsSection();
+      return;
+    }
+
+    if (action === 'provider') {
+      const provider = button.dataset.scopedProvider;
+      if (!provider) {
+        return;
+      }
+
+      this.scopedModelsProviderFilter = provider;
+      this.rerenderSettingsSection();
+      return;
+    }
+
+    if (action === 'selectVisible' || action === 'unselectVisible') {
+      const visibleIds = getVisibleScopedModels(selection, this.scopedModelsProviderFilter).map(getModelFullId);
+      const selectedIds = selection.enabledIds;
+      const visibleSet = new Set(visibleIds);
+      const nextIds = action === 'selectVisible'
+        ? [...selectedIds, ...visibleIds.filter((id) => !selectedIds.includes(id))]
+        : selectedIds.filter((id) => !visibleSet.has(id));
+      this.postScopedModelsUpdate(normalizeScopedModelSelection(nextIds, state.modelOptions));
+      return;
+    }
+
+    if (action === 'moveUp' || action === 'moveDown') {
+      if (selection.allEnabled) {
+        return;
+      }
+
+      const modelId = button.dataset.scopedModelId;
+      const index = modelId ? selection.enabledIds.indexOf(modelId) : -1;
+      const delta = action === 'moveUp' ? -1 : 1;
+      const nextIndex = index + delta;
+      if (index < 0 || nextIndex < 0 || nextIndex >= selection.enabledIds.length) {
+        return;
+      }
+
+      const nextIds = selection.enabledIds.slice();
+      [nextIds[index], nextIds[nextIndex]] = [nextIds[nextIndex], nextIds[index]];
+      this.postScopedModelsUpdate(nextIds);
+    }
+  }
+
+  private postScopedModelsUpdate(enabledModelIds: string[]): void {
+    this.options.postMessage({ type: 'updateSetting', settingId: 'enabledModels', value: enabledModelIds });
+  }
+
+  private rerenderSettingsSection(): void {
+    this.renderedSignature = '';
+    this.renderSection(this.options.getState().settingsSection);
+  }
+
   private renderSection(sectionId: SettingsSection): void {
     const state = this.options.getState();
-    const signature = createSettingsSignature(sectionId, state);
+    const signature = createSettingsSignature(sectionId, state, this.scopedModelsProviderFilter);
 
     if (this.renderedSignature === signature) {
       this.syncNavState(sectionId);
@@ -510,6 +600,11 @@ export class SettingsPaneController {
       return wrapper;
     }
 
+    if (definition.control === 'scopedModels') {
+      wrapper.append(this.createScopedModelsControl(state));
+      return wrapper;
+    }
+
     const list = document.createElement('div');
     list.className = 'settings-surface__readonly-list';
     const values = Array.isArray(value) ? value : [];
@@ -526,6 +621,118 @@ export class SettingsPaneController {
 
     wrapper.append(list);
     return wrapper;
+  }
+
+  private createScopedModelsControl(state: WebviewState): HTMLElement {
+    const container = document.createElement('div');
+    container.className = 'settings-surface__scoped-models';
+
+    if (state.modelOptions.length === 0) {
+      container.append(createTextElement('p', 'settings-surface__card-helper', state.metadataRefreshing ? 'Loading models…' : 'No models available yet.'));
+      return container;
+    }
+
+    const selection = getScopedModelSelection(state);
+    const summary = selection.allEnabled
+      ? 'All models are enabled for cycling.'
+      : `${selection.enabledIds.length}/${state.modelOptions.length} models enabled for cycling.`;
+    container.append(createTextElement('p', 'settings-surface__card-helper', summary));
+
+    const visibleModels = getVisibleScopedModels(selection, this.scopedModelsProviderFilter);
+    const filterToolbar = document.createElement('div');
+    filterToolbar.className = 'settings-surface__scoped-toolbar';
+    filterToolbar.append(this.createScopedModelsButton('All models', 'showAll', state.busy, this.scopedModelsProviderFilter === undefined));
+
+    for (const provider of Array.from(new Set(state.modelOptions.map((model) => model.provider))).sort()) {
+      const button = this.createScopedModelsButton(provider, 'provider', state.busy, this.scopedModelsProviderFilter === provider);
+      button.dataset.scopedProvider = provider;
+      filterToolbar.append(button);
+    }
+
+    const separator = document.createElement('div');
+    separator.className = 'settings-surface__scoped-separator';
+    separator.setAttribute('role', 'separator');
+
+    const actionToolbar = document.createElement('div');
+    actionToolbar.className = 'settings-surface__scoped-toolbar settings-surface__scoped-toolbar--actions';
+    actionToolbar.append(this.createScopedModelsButton('Select', 'selectVisible', state.busy || visibleModels.length === 0));
+    actionToolbar.append(this.createScopedModelsButton('Unselect', 'unselectVisible', state.busy || visibleModels.length === 0));
+
+    container.append(filterToolbar, separator, actionToolbar);
+
+    const list = document.createElement('div');
+    list.className = 'settings-surface__scoped-list';
+
+    for (const group of groupScopedModelsByProvider(visibleModels)) {
+      const providerIds = group.models.map(getModelFullId);
+      const enabledCount = selection.allEnabled
+        ? providerIds.length
+        : providerIds.filter((id) => selection.enabledIds.includes(id)).length;
+      const groupElement = document.createElement('section');
+      groupElement.className = 'settings-surface__scoped-provider';
+      groupElement.setAttribute('aria-label', `${group.provider} scoped models`);
+
+      const header = document.createElement('div');
+      header.className = 'settings-surface__scoped-provider-header';
+      const title = document.createElement('div');
+      title.className = 'settings-surface__scoped-provider-title';
+      title.textContent = group.provider;
+      const count = document.createElement('span');
+      count.className = 'settings-surface__scoped-provider-count';
+      count.textContent = `${enabledCount}/${providerIds.length} selected`;
+      title.append(count);
+
+      header.append(title);
+      groupElement.append(header);
+
+      for (const model of group.models) {
+        const fullId = getModelFullId(model);
+        const enabled = selection.allEnabled || selection.enabledIds.includes(fullId);
+        const row = document.createElement('div');
+        row.className = 'settings-surface__scoped-row';
+        row.classList.toggle('settings-surface__scoped-row--disabled', !enabled);
+
+        const label = document.createElement('label');
+        label.className = 'settings-surface__scoped-check';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.dataset.scopedModelId = fullId;
+        checkbox.checked = enabled;
+        checkbox.disabled = state.busy;
+        label.append(checkbox, document.createTextNode(model.name || model.id));
+
+        const meta = document.createElement('span');
+        meta.className = 'settings-surface__scoped-meta';
+        meta.textContent = fullId;
+
+        const actions = document.createElement('div');
+        actions.className = 'settings-surface__scoped-actions';
+        const moveUp = this.createScopedModelsButton('Up', 'moveUp', state.busy || selection.allEnabled || !enabled);
+        moveUp.dataset.scopedModelId = fullId;
+        const moveDown = this.createScopedModelsButton('Down', 'moveDown', state.busy || selection.allEnabled || !enabled);
+        moveDown.dataset.scopedModelId = fullId;
+        actions.append(moveUp, moveDown);
+
+        row.append(label, meta, actions);
+        groupElement.append(row);
+      }
+
+      list.append(groupElement);
+    }
+
+    container.append(list);
+    return container;
+  }
+
+  private createScopedModelsButton(label: string, action: string, disabled: boolean, active = false): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.className = 'settings-surface__button settings-surface__button--compact';
+    button.classList.toggle('settings-surface__button--active', active);
+    button.type = 'button';
+    button.textContent = label;
+    button.dataset.scopedModelAction = action;
+    button.disabled = disabled;
+    return button;
   }
 
   private syncNavState(sectionId: SettingsSection): void {
@@ -594,13 +801,41 @@ function getHelperText(definition: SettingDefinition): string {
     : '';
 }
 
-function createSettingsSignature(sectionId: SettingsSection, state: WebviewState): string {
+function groupScopedModelsByProvider(models: WebviewState['modelOptions']): Array<{
+  provider: string;
+  models: WebviewState['modelOptions'];
+}> {
+  const groups: Array<{ provider: string; models: WebviewState['modelOptions'] }> = [];
+
+  for (const model of models) {
+    let group = groups.find((item) => item.provider === model.provider);
+    if (!group) {
+      group = { provider: model.provider, models: [] };
+      groups.push(group);
+    }
+    group.models.push(model);
+  }
+
+  return groups;
+}
+
+function getVisibleScopedModels(
+  selection: { orderedModels: WebviewState['modelOptions'] },
+  providerFilter: string | undefined
+): WebviewState['modelOptions'] {
+  return providerFilter
+    ? selection.orderedModels.filter((model) => model.provider === providerFilter)
+    : selection.orderedModels;
+}
+
+function createSettingsSignature(sectionId: SettingsSection, state: WebviewState, scopedModelsProviderFilter: string | undefined): string {
   const values = getSettingsForSection(sectionId).map((definition) => [definition.id, state.settings.values[definition.id]]);
-  const modelOptions = sectionId === 'runtime'
+  const modelOptions = sectionId === 'runtime' || sectionId === 'scopedModels'
     ? state.modelOptions.map((model) => `${model.provider}/${model.id}:${model.name}`).join('|')
     : '';
   const auth = sectionId === 'login' ? state.auth : undefined;
-  return JSON.stringify([sectionId, values, modelOptions, auth, state.busy, state.settings.errors]);
+  const providerFilter = sectionId === 'scopedModels' ? scopedModelsProviderFilter : undefined;
+  return JSON.stringify([sectionId, values, modelOptions, auth, state.busy, state.settings.errors, providerFilter]);
 }
 
 function createTextElement(tagName: string, className: string, text: string): HTMLElement {

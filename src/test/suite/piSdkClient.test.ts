@@ -378,10 +378,27 @@ suite('PiSdkClient', () => {
     assert.strictEqual(harness.settingsManager.transport, 'websocket');
     assert.strictEqual(harness.settingsManager.flushCount, 3);
 
-    await assert.rejects(
-      harness.client.updateRuntimeSetting('enabledModels', ['gpt-*']),
-      /deferred/
+    harness.session.availableModels.push({ provider: 'openai', id: 'gpt-small', name: 'GPT Small', reasoning: false });
+
+    assert.deepStrictEqual(
+      await harness.client.updateRuntimeSetting('enabledModels', ['openai/gpt-test']),
+      { applied: 'live', message: 'Scoped models updated.' }
     );
+    assert.deepStrictEqual(harness.session.scopedModels, [{ model: harness.session.model }]);
+    assert.deepStrictEqual(harness.settingsManager.enabledModels, ['openai/gpt-test']);
+
+    assert.deepStrictEqual(
+      await harness.client.updateRuntimeSetting('enabledModels', []),
+      { applied: 'live', message: 'Scoped models updated.' }
+    );
+    assert.deepStrictEqual(harness.session.scopedModels, []);
+    assert.deepStrictEqual(harness.settingsManager.enabledModels, []);
+
+    assert.deepStrictEqual(
+      await harness.client.updateRuntimeSetting('enabledModels', ['openai/gpt-test', 'openai/gpt-small']),
+      { applied: 'live', message: 'Scoped models updated.' }
+    );
+    assert.strictEqual(harness.settingsManager.enabledModels, undefined);
 
     harness.client.dispose();
   });
@@ -502,6 +519,7 @@ class FakeSession {
   public readonly messages = [{ role: 'assistant', content: 'last answer' }];
   public readonly availableModels = [this.model];
   public readonly promptCalls: Array<{ message: string; streamingBehavior?: string; source?: string; images?: unknown }> = [];
+  public scopedModels: Array<{ model: unknown }> = [];
   public readonly exportToHtmlCalls: Array<string | undefined> = [];
   public promptImplementation: (message: string, options?: PromptOptions) => Promise<void> = async (_message, options) => {
     options?.preflightResult?.(true);
@@ -625,6 +643,10 @@ class FakeSession {
 
   public async setModel(model: unknown): Promise<void> {
     this.selectedModel = model;
+  }
+
+  public setScopedModels(scopedModels: Array<{ model: unknown }>): void {
+    this.scopedModels = scopedModels;
   }
 
   public setThinkingLevel(level: string): void {
@@ -755,6 +777,10 @@ class FakeSettingsManager {
 
   public getEnabledModels(): string[] | undefined {
     return this.enabledModels;
+  }
+
+  public setEnabledModels(patterns: string[] | undefined): void {
+    this.enabledModels = patterns;
   }
 
   public getEnableSkillCommands(): boolean {

@@ -1517,6 +1517,19 @@ suite('TaurenChatController', () => {
     harness.controller.dispose();
   });
 
+  test('scoped-models slash command opens Settings Scoped Models without prompting Pi', async () => {
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/scoped-models' });
+
+    assert.strictEqual(harness.createCalls, 0);
+    assert.strictEqual(lastState(harness).chatFace, 'settings');
+    assert.strictEqual(lastState(harness).settingsSection, 'scopedModels');
+    assert.deepStrictEqual(client.prompts, []);
+    harness.controller.dispose();
+  });
+
   test('login slash command opens Settings Login without prompting Pi', async () => {
     const client = new FakePiClient();
     const harness = createControllerHarness([client]);

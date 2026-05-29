@@ -3,6 +3,7 @@ import type { ExtensionUi } from '../extensionUi/types';
 import type { PiClient } from '../pi/clientTypes';
 import type { PiSessionState, PiSessionStats } from '../pi/types';
 import { SessionMetadataState } from '../metadata/sessionMetadata';
+import type { WebviewSettingsSection } from '../webviewProtocol/types';
 import { isSupportedBuiltinSlashCommand } from '../commands/slashCommands';
 import { getErrorMessage, isMissingSessionCwdError, isSessionImportFileNotFoundError, isUnsupportedReloadCommandError } from './errors';
 import { readCombinedChangelog } from './changelogReader';
@@ -33,7 +34,7 @@ export type LocalSlashCommandControllerOptions = {
   setComposerText: (text: string) => void;
   restartClientForReload: (sessionFile: string | undefined) => void;
   markStartupResourcesReloaded?: () => void;
-  showSettings: () => void;
+  showSettings: (section?: WebviewSettingsSection) => void;
   showLoginSettings: (mode: 'login' | 'logout') => void;
   startNewSession: () => void;
 };
@@ -66,6 +67,9 @@ export class LocalSlashCommandController {
           return;
         case 'settings':
           this.options.showSettings();
+          return;
+        case 'scoped-models':
+          this.options.showSettings('scopedModels');
           return;
         case 'model':
           await this.handleModelSlashCommand(command.args);

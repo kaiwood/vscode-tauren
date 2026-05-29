@@ -1880,6 +1880,73 @@
     return dotIndex >= 0 ? normalized.slice(dotIndex).toLowerCase() : "";
   }
 
+  // src/webview/scopedModels.ts
+  function getScopedModelSelection(state2) {
+    const allIds = state2.modelOptions.map(getModelFullId);
+    const patterns = getScopedModelPatterns(state2);
+    const enabledIds = patterns === void 0 ? allIds : resolveScopedModelIds(patterns, state2.modelOptions);
+    const allEnabled = enabledIds.length === allIds.length;
+    const enabledSet = new Set(enabledIds);
+    const orderedIds = allEnabled ? allIds : [...enabledIds, ...allIds.filter((id) => !enabledSet.has(id))];
+    const modelsById = new Map(state2.modelOptions.map((model) => [getModelFullId(model), model]));
+    return {
+      allEnabled,
+      enabledIds,
+      orderedModels: orderedIds.flatMap((id) => {
+        const model = modelsById.get(id);
+        return model ? [model] : [];
+      })
+    };
+  }
+  function getScopedModelPickerOptions(state2) {
+    const patterns = getScopedModelPatterns(state2);
+    if (patterns === void 0) {
+      return state2.modelOptions;
+    }
+    const enabledIds = resolveScopedModelIds(patterns, state2.modelOptions);
+    const modelsById = new Map(state2.modelOptions.map((model) => [getModelFullId(model), model]));
+    return enabledIds.flatMap((id) => {
+      const model = modelsById.get(id);
+      return model ? [model] : [];
+    });
+  }
+  function normalizeScopedModelSelection(enabledIds, modelOptions) {
+    const allIds = modelOptions.map(getModelFullId);
+    return allIds.filter((id) => enabledIds.includes(id));
+  }
+  function getModelFullId(model) {
+    return `${model.provider}/${model.id}`;
+  }
+  function getScopedModelPatterns(state2) {
+    const value = state2.settings.values.enabledModels;
+    return Array.isArray(value) ? value : void 0;
+  }
+  function resolveScopedModelIds(patterns, modelOptions) {
+    const ids = [];
+    for (const pattern of patterns) {
+      const matcher = createModelPatternMatcher(pattern);
+      for (const model of modelOptions) {
+        const fullId = getModelFullId(model);
+        if (!ids.includes(fullId) && matcher(model, fullId)) {
+          ids.push(fullId);
+        }
+      }
+    }
+    return ids;
+  }
+  function createModelPatternMatcher(pattern) {
+    const normalized = pattern.trim().toLowerCase();
+    const hasGlob = /[*?[\]]/.test(normalized);
+    if (!hasGlob) {
+      return (model, fullId) => fullId.toLowerCase() === normalized || model.id.toLowerCase() === normalized;
+    }
+    const globRegex = new RegExp(`^${escapeRegex(normalized).replace(/\\\*/g, ".*").replace(/\\\?/g, ".")}$`, "i");
+    return (model, fullId) => globRegex.test(fullId) || globRegex.test(model.id);
+  }
+  function escapeRegex(value) {
+    return value.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&");
+  }
+
   // src/diff/lineCount.ts
   function normalizeDiffLineCount(value) {
     return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
@@ -2089,7 +2156,7 @@
     { name: "export", description: "Export session to HTML", source: "builtin", supported: true },
     { name: "new", description: "Start a new session", source: "builtin", supported: true },
     { name: "settings", description: "Open Tauren settings", source: "builtin", supported: true },
-    { name: "scoped-models", description: "Terminal-only: scoped model cycling is not supported here yet", source: "unsupported", supported: false },
+    { name: "scoped-models", description: "Configure scoped model cycling", source: "builtin", supported: true },
     { name: "import", description: "Import and resume a JSONL session", source: "builtin", supported: true },
     { name: "share", description: "Not supported here yet", source: "unsupported", supported: false },
     { name: "changelog", description: "Show Pi and Tauren changelogs", source: "builtin", supported: true },
@@ -2770,7 +2837,7 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
     getDisplayModelOptions() {
       const state2 = this.options.getState();
       if (state2.modelOptions.length > 0) {
-        return state2.modelOptions;
+        return getScopedModelPickerOptions(state2);
       }
       if (!state2.modelProvider || !state2.modelId) {
         return [];
@@ -5259,6 +5326,13 @@ ${after}`;
       description: "Pi engine defaults and runtime behavior. Pi remains the source of truth."
     },
     {
+      id: "scopedModels",
+      label: "Scoped Models",
+      eyebrow: "Pi engine",
+      title: "Scoped Models",
+      description: "Choose and order the models Tauren sends to Pi for model cycling."
+    },
+    {
       id: "workspaceSafety",
       label: "Safety",
       eyebrow: "Guardrails",
@@ -5565,15 +5639,13 @@ ${after}`;
     {
       id: "enabledModels",
       owner: "pi",
-      section: "advanced",
-      label: "Enabled models",
-      description: "Model patterns Pi uses for model cycling.",
-      control: "readonlyList",
+      section: "scopedModels",
+      label: "Model cycling scope",
+      description: "Enable, disable, and order models used for model cycling.",
+      control: "scopedModels",
       defaultValue: [],
-      helper: "Read-only in Tauren for now to avoid saving malformed model patterns.",
-      liveBehavior: "reload",
-      readOnly: true,
-      subtle: true
+      helper: "Saved immediately to Pi enabledModels. Unselected models are hidden from the model picker.",
+      liveBehavior: "immediate"
     },
     {
       id: "enableSkillCommands",
@@ -5605,7 +5677,7 @@ ${after}`;
     if (definition.control === "toggle") {
       return typeof value === "boolean" ? value : void 0;
     }
-    if (definition.control === "readonlyList") {
+    if (definition.control === "readonlyList" || definition.control === "scopedModels") {
       return Array.isArray(value) && value.every((entry) => typeof entry === "string") ? value.map((entry) => entry.trim()).filter(Boolean) : void 0;
     }
     if (typeof value !== "string") {
@@ -7682,6 +7754,7 @@ ${after}`;
     options;
     renderedSignature = "";
     wasVisible = false;
+    scopedModelsProviderFilter;
     attachEventListeners() {
       this.options.settingsBackButton.addEventListener("click", () => this.hideSettings({ focusPrompt: true }));
       this.options.settingsElement.addEventListener("click", (event) => {
@@ -7689,6 +7762,11 @@ ${after}`;
         const authButton = target?.closest("[data-auth-action]");
         if (authButton) {
           this.handleAuthAction(authButton);
+          return;
+        }
+        const scopedModelsButton = target?.closest("[data-scoped-model-action]") ?? null;
+        if (scopedModelsButton) {
+          this.handleScopedModelsAction(scopedModelsButton);
           return;
         }
         const button = target?.closest("[data-settings-section]") ?? null;
@@ -7803,6 +7881,10 @@ ${after}`;
       if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) {
         return;
       }
+      if (target instanceof HTMLInputElement && target.dataset.scopedModelId) {
+        this.handleScopedModelsToggle(target);
+        return;
+      }
       const settingId = target.dataset.settingId;
       const definition = settingDefinitions.find((item) => item.id === settingId);
       if (!definition || definition.readOnly) {
@@ -7811,9 +7893,68 @@ ${after}`;
       const value = target instanceof HTMLInputElement && target.type === "checkbox" ? target.checked : target.value;
       this.options.postMessage({ type: "updateSetting", settingId: definition.id, value });
     }
+    handleScopedModelsToggle(input) {
+      const modelId = input.dataset.scopedModelId;
+      if (!modelId) {
+        return;
+      }
+      const state2 = this.options.getState();
+      const selection = getScopedModelSelection(state2);
+      const nextIds = input.checked ? [...selection.enabledIds, modelId] : selection.enabledIds.filter((id) => id !== modelId);
+      this.postScopedModelsUpdate(normalizeScopedModelSelection(nextIds, state2.modelOptions));
+    }
+    handleScopedModelsAction(button) {
+      const state2 = this.options.getState();
+      const selection = getScopedModelSelection(state2);
+      const action = button.dataset.scopedModelAction;
+      if (action === "showAll") {
+        this.scopedModelsProviderFilter = void 0;
+        this.rerenderSettingsSection();
+        return;
+      }
+      if (action === "provider") {
+        const provider = button.dataset.scopedProvider;
+        if (!provider) {
+          return;
+        }
+        this.scopedModelsProviderFilter = provider;
+        this.rerenderSettingsSection();
+        return;
+      }
+      if (action === "selectVisible" || action === "unselectVisible") {
+        const visibleIds = getVisibleScopedModels(selection, this.scopedModelsProviderFilter).map(getModelFullId);
+        const selectedIds = selection.enabledIds;
+        const visibleSet = new Set(visibleIds);
+        const nextIds = action === "selectVisible" ? [...selectedIds, ...visibleIds.filter((id) => !selectedIds.includes(id))] : selectedIds.filter((id) => !visibleSet.has(id));
+        this.postScopedModelsUpdate(normalizeScopedModelSelection(nextIds, state2.modelOptions));
+        return;
+      }
+      if (action === "moveUp" || action === "moveDown") {
+        if (selection.allEnabled) {
+          return;
+        }
+        const modelId = button.dataset.scopedModelId;
+        const index = modelId ? selection.enabledIds.indexOf(modelId) : -1;
+        const delta = action === "moveUp" ? -1 : 1;
+        const nextIndex = index + delta;
+        if (index < 0 || nextIndex < 0 || nextIndex >= selection.enabledIds.length) {
+          return;
+        }
+        const nextIds = selection.enabledIds.slice();
+        [nextIds[index], nextIds[nextIndex]] = [nextIds[nextIndex], nextIds[index]];
+        this.postScopedModelsUpdate(nextIds);
+      }
+    }
+    postScopedModelsUpdate(enabledModelIds) {
+      this.options.postMessage({ type: "updateSetting", settingId: "enabledModels", value: enabledModelIds });
+    }
+    rerenderSettingsSection() {
+      this.renderedSignature = "";
+      this.renderSection(this.options.getState().settingsSection);
+    }
     renderSection(sectionId) {
       const state2 = this.options.getState();
-      const signature = createSettingsSignature(sectionId, state2);
+      const signature = createSettingsSignature(sectionId, state2, this.scopedModelsProviderFilter);
       if (this.renderedSignature === signature) {
         this.syncNavState(sectionId);
         return;
@@ -8075,6 +8216,10 @@ ${after}`;
         wrapper.append(input);
         return wrapper;
       }
+      if (definition.control === "scopedModels") {
+        wrapper.append(this.createScopedModelsControl(state2));
+        return wrapper;
+      }
       const list = document.createElement("div");
       list.className = "settings-surface__readonly-list";
       const values = Array.isArray(value) ? value : [];
@@ -8089,6 +8234,94 @@ ${after}`;
       }
       wrapper.append(list);
       return wrapper;
+    }
+    createScopedModelsControl(state2) {
+      const container = document.createElement("div");
+      container.className = "settings-surface__scoped-models";
+      if (state2.modelOptions.length === 0) {
+        container.append(createTextElement("p", "settings-surface__card-helper", state2.metadataRefreshing ? "Loading models\u2026" : "No models available yet."));
+        return container;
+      }
+      const selection = getScopedModelSelection(state2);
+      const summary = selection.allEnabled ? "All models are enabled for cycling." : `${selection.enabledIds.length}/${state2.modelOptions.length} models enabled for cycling.`;
+      container.append(createTextElement("p", "settings-surface__card-helper", summary));
+      const visibleModels = getVisibleScopedModels(selection, this.scopedModelsProviderFilter);
+      const filterToolbar = document.createElement("div");
+      filterToolbar.className = "settings-surface__scoped-toolbar";
+      filterToolbar.append(this.createScopedModelsButton("All models", "showAll", state2.busy, this.scopedModelsProviderFilter === void 0));
+      for (const provider of Array.from(new Set(state2.modelOptions.map((model) => model.provider))).sort()) {
+        const button = this.createScopedModelsButton(provider, "provider", state2.busy, this.scopedModelsProviderFilter === provider);
+        button.dataset.scopedProvider = provider;
+        filterToolbar.append(button);
+      }
+      const separator = document.createElement("div");
+      separator.className = "settings-surface__scoped-separator";
+      separator.setAttribute("role", "separator");
+      const actionToolbar = document.createElement("div");
+      actionToolbar.className = "settings-surface__scoped-toolbar settings-surface__scoped-toolbar--actions";
+      actionToolbar.append(this.createScopedModelsButton("Select", "selectVisible", state2.busy || visibleModels.length === 0));
+      actionToolbar.append(this.createScopedModelsButton("Unselect", "unselectVisible", state2.busy || visibleModels.length === 0));
+      container.append(filterToolbar, separator, actionToolbar);
+      const list = document.createElement("div");
+      list.className = "settings-surface__scoped-list";
+      for (const group of groupScopedModelsByProvider(visibleModels)) {
+        const providerIds = group.models.map(getModelFullId);
+        const enabledCount = selection.allEnabled ? providerIds.length : providerIds.filter((id) => selection.enabledIds.includes(id)).length;
+        const groupElement = document.createElement("section");
+        groupElement.className = "settings-surface__scoped-provider";
+        groupElement.setAttribute("aria-label", `${group.provider} scoped models`);
+        const header = document.createElement("div");
+        header.className = "settings-surface__scoped-provider-header";
+        const title = document.createElement("div");
+        title.className = "settings-surface__scoped-provider-title";
+        title.textContent = group.provider;
+        const count = document.createElement("span");
+        count.className = "settings-surface__scoped-provider-count";
+        count.textContent = `${enabledCount}/${providerIds.length} selected`;
+        title.append(count);
+        header.append(title);
+        groupElement.append(header);
+        for (const model of group.models) {
+          const fullId = getModelFullId(model);
+          const enabled = selection.allEnabled || selection.enabledIds.includes(fullId);
+          const row = document.createElement("div");
+          row.className = "settings-surface__scoped-row";
+          row.classList.toggle("settings-surface__scoped-row--disabled", !enabled);
+          const label = document.createElement("label");
+          label.className = "settings-surface__scoped-check";
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.dataset.scopedModelId = fullId;
+          checkbox.checked = enabled;
+          checkbox.disabled = state2.busy;
+          label.append(checkbox, document.createTextNode(model.name || model.id));
+          const meta = document.createElement("span");
+          meta.className = "settings-surface__scoped-meta";
+          meta.textContent = fullId;
+          const actions = document.createElement("div");
+          actions.className = "settings-surface__scoped-actions";
+          const moveUp = this.createScopedModelsButton("Up", "moveUp", state2.busy || selection.allEnabled || !enabled);
+          moveUp.dataset.scopedModelId = fullId;
+          const moveDown = this.createScopedModelsButton("Down", "moveDown", state2.busy || selection.allEnabled || !enabled);
+          moveDown.dataset.scopedModelId = fullId;
+          actions.append(moveUp, moveDown);
+          row.append(label, meta, actions);
+          groupElement.append(row);
+        }
+        list.append(groupElement);
+      }
+      container.append(list);
+      return container;
+    }
+    createScopedModelsButton(label, action, disabled, active = false) {
+      const button = document.createElement("button");
+      button.className = "settings-surface__button settings-surface__button--compact";
+      button.classList.toggle("settings-surface__button--active", active);
+      button.type = "button";
+      button.textContent = label;
+      button.dataset.scopedModelAction = action;
+      button.disabled = disabled;
+      return button;
     }
     syncNavState(sectionId) {
       for (const button of this.options.settingsBodyElement.querySelectorAll("[data-settings-section]")) {
@@ -8139,11 +8372,27 @@ ${after}`;
     }
     return definition.liveBehavior === "reload" ? "Saved for Pi; takes effect after reload or a new session." : "";
   }
-  function createSettingsSignature(sectionId, state2) {
+  function groupScopedModelsByProvider(models) {
+    const groups = [];
+    for (const model of models) {
+      let group = groups.find((item) => item.provider === model.provider);
+      if (!group) {
+        group = { provider: model.provider, models: [] };
+        groups.push(group);
+      }
+      group.models.push(model);
+    }
+    return groups;
+  }
+  function getVisibleScopedModels(selection, providerFilter) {
+    return providerFilter ? selection.orderedModels.filter((model) => model.provider === providerFilter) : selection.orderedModels;
+  }
+  function createSettingsSignature(sectionId, state2, scopedModelsProviderFilter) {
     const values = getSettingsForSection(sectionId).map((definition) => [definition.id, state2.settings.values[definition.id]]);
-    const modelOptions = sectionId === "runtime" ? state2.modelOptions.map((model) => `${model.provider}/${model.id}:${model.name}`).join("|") : "";
+    const modelOptions = sectionId === "runtime" || sectionId === "scopedModels" ? state2.modelOptions.map((model) => `${model.provider}/${model.id}:${model.name}`).join("|") : "";
     const auth = sectionId === "login" ? state2.auth : void 0;
-    return JSON.stringify([sectionId, values, modelOptions, auth, state2.busy, state2.settings.errors]);
+    const providerFilter = sectionId === "scopedModels" ? scopedModelsProviderFilter : void 0;
+    return JSON.stringify([sectionId, values, modelOptions, auth, state2.busy, state2.settings.errors, providerFilter]);
   }
   function createTextElement(tagName, className, text) {
     const element = document.createElement(tagName);

@@ -698,7 +698,7 @@ function getPiSettingsMeta(state: PiSessionState): PiRuntimeSettingsMeta {
       ? `${state.defaultProvider}/${state.defaultModel}`
       : state.defaultModel ?? '';
 
-  return {
+  const settings: PiRuntimeSettingsMeta = {
     defaultProvider: state.defaultProvider ?? state.model?.provider ?? '',
     defaultModel: currentModelValue,
     defaultThinkingLevel: state.defaultThinkingLevel ?? state.thinkingLevel ?? '',
@@ -709,9 +709,14 @@ function getPiSettingsMeta(state: PiSessionState): PiRuntimeSettingsMeta {
     transport: state.transport ?? 'sse',
     'images.blockImages': state.blockImages ?? false,
     'images.autoResize': state.imageAutoResize ?? true,
-    enabledModels: state.enabledModels ?? [],
     enableSkillCommands: state.enableSkillCommands ?? true
   };
+
+  if (state.enabledModels !== undefined) {
+    settings.enabledModels = state.enabledModels;
+  }
+
+  return settings;
 }
 
 function arePiSettingsEqual(left: PiRuntimeSettingsMeta, right: PiRuntimeSettingsMeta): boolean {

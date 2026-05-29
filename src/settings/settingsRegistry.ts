@@ -30,9 +30,9 @@ export type PiSettingId =
   | 'enabledModels'
   | 'enableSkillCommands';
 
-export type TaurenSettingsSection = 'appearance' | 'login' | 'extensions' | 'runtime' | 'workspaceSafety' | 'advanced';
+export type TaurenSettingsSection = 'appearance' | 'login' | 'extensions' | 'runtime' | 'scopedModels' | 'workspaceSafety' | 'advanced';
 export type SettingsOwner = 'tauren' | 'pi';
-export type SettingControl = 'toggle' | 'select' | 'text' | 'readonlyList';
+export type SettingControl = 'toggle' | 'select' | 'text' | 'readonlyList' | 'scopedModels';
 export type SettingValue = boolean | string | string[];
 export type SettingId = TaurenSettingId | PiSettingId;
 
@@ -113,6 +113,13 @@ export const settingsSections = [
     eyebrow: 'Pi engine',
     title: 'Runtime',
     description: 'Pi engine defaults and runtime behavior. Pi remains the source of truth.'
+  },
+  {
+    id: 'scopedModels',
+    label: 'Scoped Models',
+    eyebrow: 'Pi engine',
+    title: 'Scoped Models',
+    description: 'Choose and order the models Tauren sends to Pi for model cycling.'
   },
   {
     id: 'workspaceSafety',
@@ -422,15 +429,13 @@ export const settingDefinitions = [
   {
     id: 'enabledModels',
     owner: 'pi',
-    section: 'advanced',
-    label: 'Enabled models',
-    description: 'Model patterns Pi uses for model cycling.',
-    control: 'readonlyList',
+    section: 'scopedModels',
+    label: 'Model cycling scope',
+    description: 'Enable, disable, and order models used for model cycling.',
+    control: 'scopedModels',
     defaultValue: [],
-    helper: 'Read-only in Tauren for now to avoid saving malformed model patterns.',
-    liveBehavior: 'reload',
-    readOnly: true,
-    subtle: true
+    helper: 'Saved immediately to Pi enabledModels. Unselected models are hidden from the model picker.',
+    liveBehavior: 'immediate'
   },
   {
     id: 'enableSkillCommands',
@@ -479,7 +484,7 @@ export function normalizeSettingValue(id: SettingId, value: unknown): SettingVal
     return typeof value === 'boolean' ? value : undefined;
   }
 
-  if (definition.control === 'readonlyList') {
+  if (definition.control === 'readonlyList' || definition.control === 'scopedModels') {
     return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
       ? value.map((entry) => entry.trim()).filter(Boolean)
       : undefined;

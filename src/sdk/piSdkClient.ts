@@ -482,8 +482,22 @@ export class PiSdkClient implements PiClient {
         this.getSettingsManager().setEnableSkillCommands(this.requireBoolean(value, settingId));
         await this.flushSettings();
         return { applied: 'reload', message: 'Saved. Reload Pi or start a new session to apply.' };
-      case 'enabledModels':
-        throw new Error('Editing enabledModels from Tauren is deferred to avoid saving malformed model patterns. Edit Pi settings JSON directly for now.');
+      case 'enabledModels': {
+        const enabledModels = this.requireStringArray(value, settingId);
+        const availableModels = session.modelRegistry.getAvailable();
+        const scopedModels = enabledModels.flatMap((fullId) => {
+          const model = availableModels.find((candidate) => `${candidate.provider}/${candidate.id}` === fullId);
+          return model ? [{ model }] : [];
+        });
+        session.setScopedModels(scopedModels);
+        this.getSettingsManager().setEnabledModels(
+          enabledModels.length > 0 && scopedModels.length === availableModels.length
+            ? undefined
+            : scopedModels.map((scoped) => `${scoped.model.provider}/${scoped.model.id}`)
+        );
+        await this.flushSettings();
+        return { applied: 'live', message: 'Scoped models updated.' };
+      }
       default:
         throw new Error(`Unsupported Pi setting: ${settingId}`);
     }
@@ -746,6 +760,14 @@ export class PiSdkClient implements PiClient {
     }
 
     return value.trim();
+  }
+
+  private requireStringArray(value: SettingValue, settingId: PiSettingId): string[] {
+    if (!Array.isArray(value) || !value.every((entry) => typeof entry === 'string')) {
+      throw new Error(`Expected string array value for ${settingId}.`);
+    }
+
+    return value;
   }
 
   private async reloadRuntime(runtime: AgentSessionRuntime): Promise<void> {

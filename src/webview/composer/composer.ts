@@ -5,6 +5,7 @@ import {
   maxPromptImageBytes
 } from '../../prompt/imageAttachments';
 import { requestCodeHighlight } from '../codeHighlighting';
+import { getScopedModelPickerOptions } from '../scopedModels';
 import { createDiffCounter, formatDiffLineCount, normalizeDiffLineCount, updateDiffCounter } from './diffCounter';
 import { appendComposerText } from './appendText';
 import { ComposerPasteBuffer } from './paste';
@@ -878,7 +879,7 @@ export class ComposerController {
     const state = this.options.getState();
 
     if (state.modelOptions.length > 0) {
-      return state.modelOptions;
+      return getScopedModelPickerOptions(state);
     }
 
     if (!state.modelProvider || !state.modelId) {

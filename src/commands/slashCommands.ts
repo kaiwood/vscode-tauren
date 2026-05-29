@@ -18,7 +18,7 @@ const localSlashCommandDefinitions: LocalSlashCommandDefinition[] = [
   { name: 'export', description: 'Export session to HTML', source: 'builtin', supported: true },
   { name: 'new', description: 'Start a new session', source: 'builtin', supported: true },
   { name: 'settings', description: 'Open Tauren settings', source: 'builtin', supported: true },
-  { name: 'scoped-models', description: 'Terminal-only: scoped model cycling is not supported here yet', source: 'unsupported', supported: false },
+  { name: 'scoped-models', description: 'Configure scoped model cycling', source: 'builtin', supported: true },
   { name: 'import', description: 'Import and resume a JSONL session', source: 'builtin', supported: true },
   { name: 'share', description: 'Not supported here yet', source: 'unsupported', supported: false },
   { name: 'changelog', description: 'Show Pi and Tauren changelogs', source: 'builtin', supported: true },

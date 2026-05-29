@@ -18,6 +18,10 @@ suite('Settings registry', () => {
       ['defaultProvider', 'defaultModel', 'defaultThinkingLevel', 'compaction.enabled', 'retry.enabled', 'steeringMode', 'followUpMode']
     );
     assert.deepStrictEqual(
+      getSettingsForSection('scopedModels').map((setting) => setting.id),
+      ['enabledModels']
+    );
+    assert.deepStrictEqual(
       getSettingsForSection('workspaceSafety').map((setting) => setting.id),
       ['tauren.blockHttpsImages', 'tauren.confirmSessionDeletion', 'tauren.restrictFileReferencesToWorkspace', 'tauren.rejectEditWriteOutsideWorkspace']
     );

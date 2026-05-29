@@ -353,6 +353,11 @@ export const settingsSurfaceStyles = /* css */ `    .settings-surface {
       outline: none;
     }
 
+    .settings-surface__button--active {
+      background: var(--vscode-button-hoverBackground);
+      border-color: var(--vscode-focusBorder, var(--vscode-button-border, transparent));
+    }
+
     .settings-surface__button:disabled {
       cursor: not-allowed;
       opacity: 0.55;
@@ -367,6 +372,110 @@ export const settingsSurfaceStyles = /* css */ `    .settings-surface {
       border-radius: 6px;
       font-size: 13px;
       letter-spacing: 0.05em;
+    }
+
+    .settings-surface__scoped-models {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .settings-surface__scoped-toolbar,
+    .settings-surface__scoped-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .settings-surface__scoped-toolbar--actions {
+      padding-top: 1px;
+    }
+
+    .settings-surface__scoped-separator {
+      height: 1px;
+      background: color-mix(in srgb, var(--vscode-foreground) 14%, transparent);
+    }
+
+    .settings-surface__button--compact {
+      min-height: 23px;
+      padding: 2px 7px;
+      font-size: 11px;
+    }
+
+    .settings-surface__scoped-list {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .settings-surface__scoped-provider {
+      display: grid;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .settings-surface__scoped-provider-header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      justify-content: space-between;
+      min-width: 0;
+      padding: 2px 0;
+    }
+
+    .settings-surface__scoped-provider-title {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      align-items: baseline;
+      min-width: 0;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .settings-surface__scoped-provider-count {
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      font-weight: 400;
+    }
+
+    .settings-surface__scoped-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 4px 8px;
+      align-items: center;
+      min-width: 0;
+      padding: 6px;
+      background: color-mix(in srgb, var(--vscode-foreground) 5%, transparent);
+      border: 1px solid color-mix(in srgb, var(--vscode-foreground) 9%, transparent);
+      border-radius: 7px;
+    }
+
+    .settings-surface__scoped-row--disabled {
+      opacity: 0.62;
+    }
+
+    .settings-surface__scoped-check {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+      min-width: 0;
+      font-size: 12px;
+    }
+
+    .settings-surface__scoped-check input {
+      flex: 0 0 auto;
+    }
+
+    .settings-surface__scoped-meta {
+      grid-column: 1 / -1;
+      overflow: hidden;
+      color: var(--vscode-descriptionForeground);
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 11px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .settings-surface__readonly-list {

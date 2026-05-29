@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Updated the Marketplace display name for better discoverability
+- Added scoped model cycling configuration to Settings; `/scoped-models` now opens that Settings category.
 - Added `/settings` to open Tauren settings from the composer.
 - Added `/changelog` support that shows the Pi changelog and released Tauren changelog in the transcript.
 - Added `/import <path.jsonl>` support for importing and resuming Pi JSONL sessions.

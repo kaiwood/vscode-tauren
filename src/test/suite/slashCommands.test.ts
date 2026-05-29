@@ -15,6 +15,7 @@ suite('Slash commands', () => {
     assert.strictEqual(new Set(names).size, names.length);
     assert.ok(names.includes('model'));
     assert.ok(names.includes('settings'));
+    assert.ok(names.includes('scoped-models'));
     assert.ok(names.includes('tree'));
     assert.ok(names.includes('import'));
     assert.ok(names.includes('login'));
@@ -31,6 +32,7 @@ suite('Slash commands', () => {
     const menuNames = localSlashMenuCommands.map((command) => command.name);
     assert.ok(menuNames.includes('model'));
     assert.ok(menuNames.includes('settings'));
+    assert.ok(menuNames.includes('scoped-models'));
     assert.ok(menuNames.includes('tree'));
     assert.ok(menuNames.includes('import'));
     assert.ok(menuNames.includes('login'));
@@ -50,6 +52,7 @@ suite('Slash commands', () => {
     assert.strictEqual(isSupportedBuiltinSlashCommand('login'), true);
     assert.strictEqual(isSupportedBuiltinSlashCommand('logout'), true);
     assert.strictEqual(isSupportedBuiltinSlashCommand('settings'), true);
+    assert.strictEqual(isSupportedBuiltinSlashCommand('scoped-models'), true);
     assert.strictEqual(isSupportedBuiltinSlashCommand('unknown'), false);
     assert.strictEqual(isBuiltinSlashCommand('unknown'), false);
   });
