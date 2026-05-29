@@ -2088,7 +2088,7 @@
     { name: "copy", description: "Copy last response", source: "builtin", supported: true },
     { name: "export", description: "Export session to HTML", source: "builtin", supported: true },
     { name: "new", description: "Start a new session", source: "builtin", supported: true },
-    { name: "settings", description: "Terminal-only: use VS Code settings instead", source: "unsupported", supported: false },
+    { name: "settings", description: "Open Tauren settings", source: "builtin", supported: true },
     { name: "scoped-models", description: "Terminal-only: scoped model cycling is not supported here yet", source: "unsupported", supported: false },
     { name: "import", description: "Terminal-only: session import is not supported here yet", source: "unsupported", supported: false },
     { name: "share", description: "Not supported here yet", source: "unsupported", supported: false },

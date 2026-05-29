@@ -32,6 +32,7 @@ export type LocalSlashCommandControllerOptions = {
   setComposerText: (text: string) => void;
   restartClientForReload: (sessionFile: string | undefined) => void;
   markStartupResourcesReloaded?: () => void;
+  showSettings: () => void;
   showLoginSettings: (mode: 'login' | 'logout') => void;
   startNewSession: () => void;
 };
@@ -61,6 +62,9 @@ export class LocalSlashCommandController {
       switch (command.name) {
         case 'new':
           this.options.startNewSession();
+          return;
+        case 'settings':
+          this.options.showSettings();
           return;
         case 'model':
           await this.handleModelSlashCommand(command.args);

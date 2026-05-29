@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Updated the Marketplace display name for better discoverability
+- Added `/settings` to open Tauren settings from the composer.
 
 ## 1.3.0 - 2026-05-27
 

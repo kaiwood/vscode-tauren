@@ -1478,13 +1478,25 @@ suite('TaurenChatController', () => {
     const client = new FakePiClient();
     const harness = createControllerHarness([client]);
 
-    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/settings' });
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/share' });
 
     assert.strictEqual(harness.createCalls, 0);
     assert.deepStrictEqual(client.prompts, []);
     assert.deepStrictEqual(lastState(harness).messages, [
-      { role: 'system', text: '/settings is a Pi terminal command that is not supported in the VS Code sidebar yet.' }
+      { role: 'system', text: '/share is a Pi terminal command that is not supported in the VS Code sidebar yet.' }
     ]);
+    harness.controller.dispose();
+  });
+
+  test('settings slash command opens Tauren settings without prompting Pi', async () => {
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/settings' });
+
+    assert.strictEqual(harness.createCalls, 0);
+    assert.strictEqual(lastState(harness).chatFace, 'settings');
+    assert.deepStrictEqual(client.prompts, []);
     harness.controller.dispose();
   });
 

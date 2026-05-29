@@ -201,6 +201,7 @@ export class TaurenChatController {
       markStartupResourcesReloaded: () => {
         this.startupResourcesReloadRevision += 1;
       },
+      showSettings: () => this.showSettings(),
       showLoginSettings: (mode) => this.showLoginSettings(mode),
       startNewSession: () => this.startNewSession()
     });
@@ -639,9 +640,13 @@ export class TaurenChatController {
     };
   }
 
-  private showLoginSettings(_mode: 'login' | 'logout'): void {
+  private showSettings(): void {
     this.sessionView.showChat({ clearSessionsError: true, clearTreeError: true, post: false });
     this.settingsView.showSettings();
+  }
+
+  private showLoginSettings(_mode: 'login' | 'logout'): void {
+    this.showSettings();
     this.settingsView.setActiveSection('login');
     void this.refreshAuthProviders({ startClient: true, force: true });
   }
