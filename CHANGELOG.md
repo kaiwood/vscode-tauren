@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.4.0 - 2026-05-29
+
 - Updated the Marketplace display name for better discoverability
 - Update Pi SDK to 0.77.0
 - Added `/hotkeys` support that prints Tauren sidebar shortcuts in the transcript.
