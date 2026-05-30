@@ -20,6 +20,7 @@ export type PiSettingId =
   | 'defaultProvider'
   | 'defaultModel'
   | 'defaultThinkingLevel'
+  | 'hideThinkingBlock'
   | 'compaction.enabled'
   | 'retry.enabled'
   | 'steeringMode'
@@ -276,6 +277,16 @@ export const settingDefinitions = [
     control: 'select',
     options: thinkingLevelOptions,
     defaultValue: 'off',
+    liveBehavior: 'immediate'
+  },
+  {
+    id: 'hideThinkingBlock',
+    owner: 'pi',
+    section: 'runtime',
+    label: 'Hide thinking blocks',
+    description: 'Hide model thinking content in the Tauren transcript.',
+    control: 'toggle',
+    defaultValue: false,
     liveBehavior: 'immediate'
   },
   {

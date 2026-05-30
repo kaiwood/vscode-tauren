@@ -111,6 +111,25 @@ suite('ChatSession', () => {
     });
   });
 
+  test('snapshots can hide thinking messages without deleting them', () => {
+    const session = new ChatSession();
+
+    session.beginSubmit('hello');
+    session.startThinking('thinking:0');
+    session.appendThinkingDelta('thinking:0', 'private thought');
+    session.appendAssistantDelta('answer');
+
+    assert.deepStrictEqual(session.snapshot({ hideThinking: true }), {
+      messages: [
+        { role: 'user', text: 'hello' },
+        { role: 'assistant', text: 'answer' }
+      ],
+      busy: true
+    });
+    assert.strictEqual(session.webviewSnapshot({ hideThinking: true }).messages.length, 2);
+    assert.deepStrictEqual(session.snapshot().messages.map((message) => message.text), ['hello', 'private thought', 'answer']);
+  });
+
   test('completeActivePrompt clears busy state and removes empty assistant placeholders', () => {
     const session = new ChatSession();
 

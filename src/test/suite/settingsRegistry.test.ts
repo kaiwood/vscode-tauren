@@ -15,7 +15,7 @@ suite('Settings registry', () => {
     );
     assert.deepStrictEqual(
       getSettingsForSection('runtime').map((setting) => setting.id),
-      ['defaultProvider', 'defaultModel', 'defaultThinkingLevel', 'compaction.enabled', 'retry.enabled', 'steeringMode', 'followUpMode']
+      ['defaultProvider', 'defaultModel', 'defaultThinkingLevel', 'hideThinkingBlock', 'compaction.enabled', 'retry.enabled', 'steeringMode', 'followUpMode']
     );
     assert.deepStrictEqual(
       getSettingsForSection('scopedModels').map((setting) => setting.id),

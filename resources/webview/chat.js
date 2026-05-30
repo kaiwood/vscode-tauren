@@ -5502,6 +5502,16 @@ ${after}`;
       liveBehavior: "immediate"
     },
     {
+      id: "hideThinkingBlock",
+      owner: "pi",
+      section: "runtime",
+      label: "Hide thinking blocks",
+      description: "Hide model thinking content in the Tauren transcript.",
+      control: "toggle",
+      defaultValue: false,
+      liveBehavior: "immediate"
+    },
+    {
       id: "compaction.enabled",
       owner: "pi",
       section: "runtime",

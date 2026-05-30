@@ -702,6 +702,7 @@ function getPiSettingsMeta(state: PiSessionState): PiRuntimeSettingsMeta {
     defaultProvider: state.defaultProvider ?? state.model?.provider ?? '',
     defaultModel: currentModelValue,
     defaultThinkingLevel: state.defaultThinkingLevel ?? state.thinkingLevel ?? '',
+    hideThinkingBlock: state.hideThinkingBlock ?? false,
     'compaction.enabled': state.autoCompactionEnabled ?? true,
     'retry.enabled': state.autoRetryEnabled ?? true,
     steeringMode: state.steeringMode ?? 'one-at-a-time',

@@ -593,11 +593,15 @@ export class TaurenChatController {
 
   public getStateMessage(): WebviewStateMessage {
     const metadataState = this.sessionMetadata.getWebviewState();
-    const chatState = this.options.useMessagePatches ? this.session.webviewSnapshot() : this.session.snapshot();
+    const settingValues = this.getSettingsValues(metadataState.piSettings);
+    const hideThinking = settingValues.hideThinkingBlock === true;
+    const chatState = this.options.useMessagePatches
+      ? this.session.webviewSnapshot({ hideThinking })
+      : this.session.snapshot({ hideThinking });
     const chatSync = this.options.useMessagePatches
       ? this.createChatMessageSyncPlan(chatState as ChatSnapshotState)
       : undefined;
-    this.settingsView.setSettings({ values: this.getSettingsValues(metadataState.piSettings) });
+    this.settingsView.setSettings({ values: settingValues });
 
     const message = createWebviewStateMessage({
       state: chatState,

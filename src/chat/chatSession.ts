@@ -64,6 +64,10 @@ export type ChatSnapshotState = {
   busy: boolean;
 };
 
+export type ChatSnapshotOptions = {
+  hideThinking?: boolean;
+};
+
 type ChatMessageMeta = {
   id: string;
   revision: number;
@@ -97,18 +101,24 @@ export class ChatSession {
     return this.transcript.length === 0;
   }
 
-  public snapshot(): ChatState {
+  public snapshot(options: ChatSnapshotOptions = {}): ChatState {
     return {
-      messages: this.transcript.map(cloneMessage),
+      messages: this.getVisibleTranscript(options).map(cloneMessage),
       busy: this.busy
     };
   }
 
-  public webviewSnapshot(): ChatSnapshotState {
+  public webviewSnapshot(options: ChatSnapshotOptions = {}): ChatSnapshotState {
     return {
-      messages: this.transcript.map((message) => cloneSnapshotMessage(message, this.ensureMessageMeta(message))),
+      messages: this.getVisibleTranscript(options).map((message) => cloneSnapshotMessage(message, this.ensureMessageMeta(message))),
       busy: this.busy
     };
+  }
+
+  private getVisibleTranscript(options: ChatSnapshotOptions): ChatMessage[] {
+    return options.hideThinking
+      ? this.transcript.filter((message) => message.variant !== 'thinking')
+      : this.transcript;
   }
 
   public beginSubmit(text: string, images?: ChatImage[]): SubmittedPrompt | undefined {

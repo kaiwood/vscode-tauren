@@ -43,6 +43,7 @@ suite('PiSdkClient', () => {
     assert.strictEqual(state.sessionFile, '/sessions/current.jsonl');
     assert.strictEqual(state.isStreaming, false);
     assert.strictEqual(state.autoCompactionEnabled, true);
+    assert.strictEqual(state.hideThinkingBlock, false);
     assert.deepStrictEqual(await harness.client.getSessionStats(), {
       sessionFile: '/sessions/current.jsonl',
       sessionId: 'session-id',
@@ -366,6 +367,12 @@ suite('PiSdkClient', () => {
     assert.strictEqual(harness.session.autoCompactionEnabled, false);
 
     assert.deepStrictEqual(
+      await harness.client.updateRuntimeSetting('hideThinkingBlock', true),
+      { applied: 'live', message: 'Thinking block visibility updated.' }
+    );
+    assert.strictEqual(harness.settingsManager.hideThinkingBlock, true);
+
+    assert.deepStrictEqual(
       await harness.client.updateRuntimeSetting('steeringMode', 'one-at-a-time'),
       { applied: 'live', message: 'Steering delivery updated.' }
     );
@@ -376,7 +383,7 @@ suite('PiSdkClient', () => {
       { applied: 'reload', message: 'Saved. Reload Pi or start a new session to apply.' }
     );
     assert.strictEqual(harness.settingsManager.transport, 'websocket');
-    assert.strictEqual(harness.settingsManager.flushCount, 3);
+    assert.strictEqual(harness.settingsManager.flushCount, 4);
 
     harness.session.availableModels.push({ provider: 'openai', id: 'gpt-small', name: 'GPT Small', reasoning: false });
 
@@ -711,6 +718,7 @@ class FakeSettingsManager {
   public defaultProvider: string | undefined;
   public defaultModel: string | undefined;
   public defaultThinkingLevel: string | undefined;
+  public hideThinkingBlock = false;
   public transport = 'sse';
   public blockImages = false;
   public imageAutoResize = true;
@@ -749,6 +757,14 @@ class FakeSettingsManager {
 
   public setDefaultThinkingLevel(level: string): void {
     this.defaultThinkingLevel = level;
+  }
+
+  public getHideThinkingBlock(): boolean {
+    return this.hideThinkingBlock;
+  }
+
+  public setHideThinkingBlock(hidden: boolean): void {
+    this.hideThinkingBlock = hidden;
   }
 
   public getTransport(): string {
