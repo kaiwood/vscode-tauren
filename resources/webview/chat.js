@@ -6822,8 +6822,6 @@ ${after}`;
     syncForRender(isSessionLane) {
       const state2 = this.options.getState();
       if (state2.lane !== "sessions") {
-        this.sessionSearchQuery = "";
-        this.sessionNamedOnlyFilter = false;
         this.openSessionListMenuIndex = void 0;
         this.openSessionListMenuCommandIndex = 0;
         this.openSessionListMenuPosition = void 0;

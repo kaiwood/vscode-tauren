@@ -173,8 +173,6 @@ export class SessionViewController {
     const state = this.options.getState();
 
     if (state.lane !== 'sessions') {
-      this.sessionSearchQuery = '';
-      this.sessionNamedOnlyFilter = false;
       this.openSessionListMenuIndex = undefined;
       this.openSessionListMenuCommandIndex = 0;
       this.openSessionListMenuPosition = undefined;

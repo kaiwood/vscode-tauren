@@ -7,6 +7,7 @@
 - Added `/share` support for creating secret GitHub Gist session links from the sidebar.
 - Added a Pi-backed setting to hide thinking blocks in the Tauren transcript.
 - Added Pi-backed quiet startup support for blank empty transcripts in new sessions.
+- Preserved Session List search text and named-only filter when switching sessions.
 
 ## 1.4.0 - 2026-05-29
 
