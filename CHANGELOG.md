@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Update Pi SDK to 0.78.0
 - Fixed `/changelog` hiding Tauren's unreleased section but still showing Pi's `[Unreleased]` heading.
 - Added `/share` support for creating secret GitHub Gist session links from the sidebar.
 
