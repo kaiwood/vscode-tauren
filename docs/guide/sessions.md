@@ -24,6 +24,17 @@ or run **Tauren: Toggle Session List**.
 
 The session list lets you move between current and previous Pi sessions. Background sessions can continue running while you work elsewhere in Tauren.
 
+## Session list colors
+
+Session List Lane items use your current VS Code theme colors. Treat the colors as state hints, not fixed color values:
+
+- **Active item:** uses the VS Code list selection colors for the item you are focused on or about to open.
+- **Current session:** highlights the session title with the VS Code focus color.
+- **Loading metadata:** uses muted description text while Tauren is still reading session details.
+- **Running indicator:** shows a small queued/yellow-style dot for a session that is still running.
+- **Ready indicator:** shows a small passed/green-style dot for a background session that finished successfully.
+- **Error indicator:** shows a small failed/error-style dot for a background session that ended with an error.
+
 ## Name sessions
 
 Names make session history easier to scan. Use **Tauren: Rename Session** from the title toolbar or:
