@@ -1,5 +1,5 @@
 import { parseWebviewSessionItemCommand, webviewSessionItemCommands } from '../../webviewProtocol/values';
-import type { SessionItemCommand } from '../types';
+import type { SessionItem, SessionItemCommand } from '../types';
 
 export const sessionItemMenuCommands = webviewSessionItemCommands;
 
@@ -15,6 +15,10 @@ const sessionItemCommandIcons: Record<SessionItemCommand, string> = {
 
 export function parseSessionItemCommand(command: string | null): SessionItemCommand | undefined {
   return parseWebviewSessionItemCommand(command);
+}
+
+export function canOpenSessionItemMenu(session: Pick<SessionItem, 'path'>): boolean {
+  return session.path.length > 0;
 }
 
 export function getSessionItemCommandLabel(command: SessionItemCommand): string {

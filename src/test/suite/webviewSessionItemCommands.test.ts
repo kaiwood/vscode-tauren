@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import {
+  canOpenSessionItemMenu,
   getSessionItemCommandIcon,
   getSessionItemCommandLabel,
   parseSessionItemCommand,
@@ -21,5 +22,10 @@ suite('Webview session item commands', () => {
     assert.strictEqual(parseSessionItemCommand('showChanges'), 'showChanges');
     assert.strictEqual(parseSessionItemCommand('unknown'), undefined);
     assert.strictEqual(parseSessionItemCommand(null), undefined);
+  });
+
+  test('opens session item menus based on session identity, not busy command state', () => {
+    assert.strictEqual(canOpenSessionItemMenu({ path: '/sessions/running.jsonl' }), true);
+    assert.strictEqual(canOpenSessionItemMenu({ path: '' }), false);
   });
 });

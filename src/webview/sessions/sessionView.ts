@@ -9,6 +9,7 @@ import {
 import { SessionTreeController } from './sessionTreeController';
 import { getVirtualSessionRange } from './sessionVirtualization';
 import {
+  canOpenSessionItemMenu,
   parseSessionItemCommand,
   sessionItemMenuCommands
 } from './sessionItemCommands';
@@ -906,7 +907,7 @@ export class SessionViewController {
 
     const session = Array.isArray(state.sessions) ? state.sessions[index] : undefined;
 
-    if (!session || !this.canRunSessionItemCommand(session)) {
+    if (!session || !canOpenSessionItemMenu(session)) {
       return;
     }
 

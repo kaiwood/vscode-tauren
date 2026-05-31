@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed busy session-list items so their command menu still opens while blocked commands stay disabled.
+
 ## 1.5.0 - 2026-05-31
 
 - Update Pi SDK to 0.78.0
