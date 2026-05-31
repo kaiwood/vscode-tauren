@@ -16,6 +16,11 @@ export async function getAtFileSuggestions(options: { cwd: string | undefined; p
 
   const parsed = parsePathPrefix(options.prefix);
   const scoped = await resolveScopedFuzzyQuery(parsed.rawPrefix, cwd);
+
+  if (scoped?.outsideCwd) {
+    return [];
+  }
+
   const baseDir = scoped?.baseDir ?? cwd;
   const query = scoped?.query ?? parsed.rawPrefix;
   const entries = await walkDirectory(baseDir, maxWalkEntries);
@@ -83,7 +88,10 @@ function expandHomePath(value: string): string {
   return value;
 }
 
-async function resolveScopedFuzzyQuery(rawQuery: string, cwd: string): Promise<{ baseDir: string; query: string; displayBase: string } | undefined> {
+async function resolveScopedFuzzyQuery(
+  rawQuery: string,
+  cwd: string
+): Promise<{ baseDir: string; query: string; displayBase: string; outsideCwd?: false } | { outsideCwd: true } | undefined> {
   const normalizedQuery = toDisplayPath(rawQuery);
   const slashIndex = normalizedQuery.lastIndexOf('/');
 
@@ -93,14 +101,10 @@ async function resolveScopedFuzzyQuery(rawQuery: string, cwd: string): Promise<{
 
   const displayBase = normalizedQuery.slice(0, slashIndex + 1);
   const query = normalizedQuery.slice(slashIndex + 1);
-  let baseDir: string;
+  const baseDir = resolveScopedBaseDir(displayBase, cwd);
 
-  if (displayBase.startsWith('~/')) {
-    baseDir = expandHomePath(displayBase);
-  } else if (displayBase.startsWith('/')) {
-    baseDir = displayBase;
-  } else {
-    baseDir = path.join(cwd, displayBase);
+  if (!isPathInsidePath(baseDir, cwd)) {
+    return { outsideCwd: true };
   }
 
   try {
@@ -114,6 +118,23 @@ async function resolveScopedFuzzyQuery(rawQuery: string, cwd: string): Promise<{
   }
 
   return { baseDir, query, displayBase };
+}
+
+function resolveScopedBaseDir(displayBase: string, cwd: string): string {
+  if (displayBase.startsWith('~/')) {
+    return path.resolve(expandHomePath(displayBase));
+  }
+
+  if (path.isAbsolute(displayBase)) {
+    return path.resolve(displayBase);
+  }
+
+  return path.resolve(cwd, displayBase);
+}
+
+function isPathInsidePath(candidatePath: string, rootPath: string): boolean {
+  const relativePath = path.relative(path.resolve(rootPath), path.resolve(candidatePath));
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
 }
 
 function scopedPathForDisplay(displayBase: string, relativePath: string): string {
