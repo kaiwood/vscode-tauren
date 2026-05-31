@@ -2,6 +2,22 @@
 
 Run `/hotkeys` inside Tauren to print the live shortcut list. This page documents the default interaction model.
 
+## Custom VS Code keybindings
+
+Tauren scopes its default VS Code keybindings with the when-clause context key `tauren.sidebarFocus`.
+Use that context when adding your own Tauren sidebar shortcuts in `keybindings.json`:
+
+```json
+{
+  "key": "ctrl+shift+c",
+  "command": "tauren.copyLastResponse",
+  "when": "tauren.sidebarFocus"
+}
+```
+
+VS Code may not autocomplete `tauren.sidebarFocus` in the Keyboard Shortcuts UI or `keybindings.json`.
+This is expected: Tauren sets the key dynamically at runtime with VS Code's `setContext` API, and VS Code's when-clause suggestions only include statically known context keys. The key is still valid when typed manually.
+
 ## Chat Face
 
 | Key | Action |
