@@ -98,24 +98,38 @@ export class SessionTreeController {
       return;
     }
 
-    const previousIndex = this.selectedIndex;
-    const hadDialog = this.hasOpenDialog();
-    const nextIndex = this.wrapIndex(this.selectedIndex + delta, state.treeItems.length);
+    this.setSelectionIndex(this.wrapIndex(this.selectedIndex + delta, state.treeItems.length));
+  }
 
-    if (nextIndex === previousIndex && !hadDialog) {
-      return;
+  private moveToFirst(): boolean {
+    return this.setSelectionIndex(0);
+  }
+
+  private moveToLast(): boolean {
+    const state = this.options.getState();
+    const count = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
+
+    if (count === 0) {
+      return false;
     }
 
-    this.closeDialogs();
-    this.selectedIndex = nextIndex;
+    return this.setSelectionIndex(count - 1);
+  }
 
-    if (hadDialog) {
-      this.render();
-      return;
-    }
+  private moveToParent(): boolean {
+    const state = this.options.getState();
+    const items = Array.isArray(state.treeItems) ? state.treeItems : [];
+    const parentIndex = findParentTreeItemIndex(items, this.selectedIndex);
 
-    this.updateRenderedSelection(previousIndex);
-    this.scheduleSelectedIntoView(nextIndex);
+    return parentIndex === undefined ? false : this.setSelectionIndex(parentIndex);
+  }
+
+  private moveToDeepestLastChild(): boolean {
+    const state = this.options.getState();
+    const items = Array.isArray(state.treeItems) ? state.treeItems : [];
+    const childIndex = findDeepestLastChildTreeItemIndex(items, this.selectedIndex);
+
+    return childIndex === undefined ? false : this.setSelectionIndex(childIndex);
   }
 
   public selectCurrentIndex(): void {
@@ -200,6 +214,12 @@ export class SessionTreeController {
         event.preventDefault();
         event.stopPropagation();
         this.openLabelDialogForSelected();
+        return true;
+      }
+
+      const handled = this.handleNavigationKey(event);
+
+      if (handled) {
         return true;
       }
 
@@ -490,6 +510,54 @@ export class SessionTreeController {
     });
   }
 
+  private setSelectionIndex(index: number): boolean {
+    const state = this.options.getState();
+
+    if (!Array.isArray(state.treeItems) || state.treeItems.length === 0) {
+      return false;
+    }
+
+    const previousIndex = this.selectedIndex;
+    const hadDialog = this.hasOpenDialog();
+    const nextIndex = this.clampIndex(index);
+
+    if (nextIndex === previousIndex && !hadDialog) {
+      return false;
+    }
+
+    this.closeDialogs();
+    this.selectedIndex = nextIndex;
+
+    if (hadDialog) {
+      this.render();
+      return true;
+    }
+
+    this.updateRenderedSelection(previousIndex);
+    this.scheduleSelectedIntoView(nextIndex);
+    return true;
+  }
+
+  private handleNavigationKey(event: KeyboardEvent): boolean {
+    const handled = event.key === 'Home'
+      ? this.moveToFirst()
+      : event.key === 'End'
+      ? this.moveToLast()
+      : event.key === 'ArrowLeft'
+      ? this.moveToParent()
+      : event.key === 'ArrowRight'
+      ? this.moveToDeepestLastChild()
+      : false;
+
+    if (!handled) {
+      return false;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    return true;
+  }
+
   private updateRenderedSelection(previousIndex: number): void {
     this.updateRenderedTreeItemSelection(previousIndex, false);
     this.updateRenderedTreeItemSelection(this.selectedIndex, true);
@@ -591,6 +659,51 @@ export class SessionTreeController {
 
     return ((index % count) + count) % count;
   }
+}
+
+export function findParentTreeItemIndex(items: readonly { depth?: number }[], selectedIndex: number): number | undefined {
+  const selected = items[selectedIndex];
+
+  if (!selected) {
+    return undefined;
+  }
+
+  const selectedDepth = selected.depth ?? 0;
+
+  if (selectedDepth <= 0) {
+    return undefined;
+  }
+
+  for (let index = selectedIndex - 1; index >= 0; index -= 1) {
+    if ((items[index]?.depth ?? 0) < selectedDepth) {
+      return index;
+    }
+  }
+
+  return undefined;
+}
+
+export function findDeepestLastChildTreeItemIndex(items: readonly { depth?: number }[], selectedIndex: number): number | undefined {
+  const selected = items[selectedIndex];
+
+  if (!selected) {
+    return undefined;
+  }
+
+  const selectedDepth = selected.depth ?? 0;
+  let childIndex: number | undefined;
+
+  for (let index = selectedIndex + 1; index < items.length; index += 1) {
+    const depth = items[index]?.depth ?? 0;
+
+    if (depth <= selectedDepth) {
+      break;
+    }
+
+    childIndex = index;
+  }
+
+  return childIndex;
 }
 
 function findLastIndex<T>(items: T[], predicate: (item: T) => boolean): number {

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added Home/End navigation for Session List and Session Tree, plus parent/last-child arrow navigation in Session Tree.
 - Added a sidebar-scoped model picker keybinding: Ctrl+Alt+. / Alt+Cmd+.
 - Docs: Documented manual use of `tauren.sidebarFocus` for custom VS Code keybindings.
 - Added unbound line-scroll wrapper commands for Tauren panes.

@@ -43,10 +43,10 @@ This is expected: Tauren sets the key dynamically at runtime with VS Code's `set
 | Key | Action |
 | --- | --- |
 | `↑ / ↓` | Move through sessions. |
+| `Home / End` | Move to first or last visible session. |
 | `Enter` | Open selected session. |
 | `Esc` | Return to chat. |
 | `?` | Show help. |
-| `→` | Open selected session menu. |
 | `R` | Rename selected session. |
 | `F` | Fork selected session. |
 | `C` | Clone selected session. |
@@ -59,6 +59,8 @@ This is expected: Tauren sets the key dynamically at runtime with VS Code's `set
 | Key | Action |
 | --- | --- |
 | `↑ / ↓` | Move through tree items. |
+| `Home / End` | Move to first or last tree item. |
+| `← / →` | Move to parent or deepest visible last child. |
 | `Enter` | Open selected tree item. |
 | `Esc` | Return to chat or close the active tree dialog. |
 | `Shift+L` | Edit selected tree label. |

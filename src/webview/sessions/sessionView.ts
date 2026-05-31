@@ -602,6 +602,15 @@ export class SessionViewController {
       return true;
     }
 
+    if (state.lane === 'sessions' && (event.key === 'Home' || event.key === 'End')) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.disableSessionPointerHover();
+      this.closeSessionItemMenus();
+      this.moveSessionSelectionToEdge(event.key === 'End');
+      return true;
+    }
+
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       event.stopPropagation();
@@ -617,13 +626,6 @@ export class SessionViewController {
       this.disableSessionPointerHover();
       this.closeSessionItemMenus();
       state.lane === 'tree' ? this.treeController.moveSelection(-1) : this.moveSessionSelectionUpOrFocusSearch();
-      return true;
-    }
-
-    if (state.lane === 'sessions' && event.key === 'ArrowRight') {
-      event.preventDefault();
-      event.stopPropagation();
-      this.openSessionItemMenu(this.sessionListSelectedIndex, { focusMenu: true });
       return true;
     }
 
@@ -764,6 +766,25 @@ export class SessionViewController {
     }
 
     this.moveSessionSelection(-1);
+  }
+
+  private moveSessionSelectionToEdge(last: boolean): void {
+    const visibleIndexes = this.getVisibleSessionIndexes();
+    const nextIndex = last ? visibleIndexes[visibleIndexes.length - 1] : visibleIndexes[0];
+
+    if (nextIndex === undefined) {
+      return;
+    }
+
+    const previousIndex = this.sessionListSelectedIndex;
+
+    if (nextIndex === previousIndex) {
+      return;
+    }
+
+    this.sessionListSelectedIndex = nextIndex;
+    this.updateRenderedSessionSelection(previousIndex);
+    this.scheduleSessionSelectionIntoView(nextIndex);
   }
 
   private updateRenderedSessionSelection(previousIndex: number): void {

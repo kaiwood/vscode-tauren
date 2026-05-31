@@ -22,10 +22,10 @@ const baseSections: HotkeySection[] = [
     title: 'Session List',
     rows: [
       { key: '↑ / ↓', action: 'Move through sessions' },
+      { key: 'Home / End', action: 'Move to first or last visible session' },
       { key: 'Enter', action: 'Open selected session' },
       { key: 'Esc', action: 'Return to chat' },
       { key: '?', action: 'Show help' },
-      { key: '→', action: 'Open selected session menu' },
       { key: 'R', action: 'Rename selected session' },
       { key: 'F', action: 'Fork selected session' },
       { key: 'C', action: 'Clone selected session' },
@@ -44,6 +44,8 @@ const baseSections: HotkeySection[] = [
     title: 'Session Tree',
     rows: [
       { key: '↑ / ↓', action: 'Move through tree items' },
+      { key: 'Home / End', action: 'Move to first or last tree item' },
+      { key: '← / →', action: 'Move to parent or deepest visible last child' },
       { key: 'Enter', action: 'Open selected tree item' },
       { key: 'Esc', action: 'Return to chat, or close the active tree dialog' },
       { key: 'Shift+L', action: 'Edit selected tree label' },

@@ -6167,20 +6167,30 @@ ${after}`;
       if (!Array.isArray(state2.treeItems) || state2.treeItems.length === 0) {
         return;
       }
-      const previousIndex = this.selectedIndex;
-      const hadDialog = this.hasOpenDialog();
-      const nextIndex = this.wrapIndex(this.selectedIndex + delta, state2.treeItems.length);
-      if (nextIndex === previousIndex && !hadDialog) {
-        return;
+      this.setSelectionIndex(this.wrapIndex(this.selectedIndex + delta, state2.treeItems.length));
+    }
+    moveToFirst() {
+      return this.setSelectionIndex(0);
+    }
+    moveToLast() {
+      const state2 = this.options.getState();
+      const count = Array.isArray(state2.treeItems) ? state2.treeItems.length : 0;
+      if (count === 0) {
+        return false;
       }
-      this.closeDialogs();
-      this.selectedIndex = nextIndex;
-      if (hadDialog) {
-        this.render();
-        return;
-      }
-      this.updateRenderedSelection(previousIndex);
-      this.scheduleSelectedIntoView(nextIndex);
+      return this.setSelectionIndex(count - 1);
+    }
+    moveToParent() {
+      const state2 = this.options.getState();
+      const items = Array.isArray(state2.treeItems) ? state2.treeItems : [];
+      const parentIndex = findParentTreeItemIndex(items, this.selectedIndex);
+      return parentIndex === void 0 ? false : this.setSelectionIndex(parentIndex);
+    }
+    moveToDeepestLastChild() {
+      const state2 = this.options.getState();
+      const items = Array.isArray(state2.treeItems) ? state2.treeItems : [];
+      const childIndex = findDeepestLastChildTreeItemIndex(items, this.selectedIndex);
+      return childIndex === void 0 ? false : this.setSelectionIndex(childIndex);
     }
     selectCurrentIndex() {
       this.selectIndex(this.selectedIndex);
@@ -6248,6 +6258,10 @@ ${after}`;
           event.preventDefault();
           event.stopPropagation();
           this.openLabelDialogForSelected();
+          return true;
+        }
+        const handled = this.handleNavigationKey(event);
+        if (handled) {
           return true;
         }
         return false;
@@ -6491,6 +6505,36 @@ ${after}`;
         this.options.treeElement.querySelector(".sessions__tree-summary-choice--active")?.focus({ preventScroll: true });
       });
     }
+    setSelectionIndex(index) {
+      const state2 = this.options.getState();
+      if (!Array.isArray(state2.treeItems) || state2.treeItems.length === 0) {
+        return false;
+      }
+      const previousIndex = this.selectedIndex;
+      const hadDialog = this.hasOpenDialog();
+      const nextIndex = this.clampIndex(index);
+      if (nextIndex === previousIndex && !hadDialog) {
+        return false;
+      }
+      this.closeDialogs();
+      this.selectedIndex = nextIndex;
+      if (hadDialog) {
+        this.render();
+        return true;
+      }
+      this.updateRenderedSelection(previousIndex);
+      this.scheduleSelectedIntoView(nextIndex);
+      return true;
+    }
+    handleNavigationKey(event) {
+      const handled = event.key === "Home" ? this.moveToFirst() : event.key === "End" ? this.moveToLast() : event.key === "ArrowLeft" ? this.moveToParent() : event.key === "ArrowRight" ? this.moveToDeepestLastChild() : false;
+      if (!handled) {
+        return false;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
+    }
     updateRenderedSelection(previousIndex) {
       this.updateRenderedTreeItemSelection(previousIndex, false);
       this.updateRenderedTreeItemSelection(this.selectedIndex, true);
@@ -6568,6 +6612,38 @@ ${after}`;
       return (index % count + count) % count;
     }
   };
+  function findParentTreeItemIndex(items, selectedIndex) {
+    const selected = items[selectedIndex];
+    if (!selected) {
+      return void 0;
+    }
+    const selectedDepth = selected.depth ?? 0;
+    if (selectedDepth <= 0) {
+      return void 0;
+    }
+    for (let index = selectedIndex - 1; index >= 0; index -= 1) {
+      if ((items[index]?.depth ?? 0) < selectedDepth) {
+        return index;
+      }
+    }
+    return void 0;
+  }
+  function findDeepestLastChildTreeItemIndex(items, selectedIndex) {
+    const selected = items[selectedIndex];
+    if (!selected) {
+      return void 0;
+    }
+    const selectedDepth = selected.depth ?? 0;
+    let childIndex;
+    for (let index = selectedIndex + 1; index < items.length; index += 1) {
+      const depth = items[index]?.depth ?? 0;
+      if (depth <= selectedDepth) {
+        break;
+      }
+      childIndex = index;
+    }
+    return childIndex;
+  }
   function findLastIndex(items, predicate) {
     for (let index = items.length - 1; index >= 0; index -= 1) {
       if (predicate(items[index])) {
@@ -7216,6 +7292,14 @@ ${after}`;
         this.hideSessionList(event);
         return true;
       }
+      if (state2.lane === "sessions" && (event.key === "Home" || event.key === "End")) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.disableSessionPointerHover();
+        this.closeSessionItemMenus();
+        this.moveSessionSelectionToEdge(event.key === "End");
+        return true;
+      }
       if (event.key === "ArrowDown") {
         event.preventDefault();
         event.stopPropagation();
@@ -7230,12 +7314,6 @@ ${after}`;
         this.disableSessionPointerHover();
         this.closeSessionItemMenus();
         state2.lane === "tree" ? this.treeController.moveSelection(-1) : this.moveSessionSelectionUpOrFocusSearch();
-        return true;
-      }
-      if (state2.lane === "sessions" && event.key === "ArrowRight") {
-        event.preventDefault();
-        event.stopPropagation();
-        this.openSessionItemMenu(this.sessionListSelectedIndex, { focusMenu: true });
         return true;
       }
       if (state2.lane === "sessions" && this.handleSessionListCommandKey(event)) {
@@ -7341,6 +7419,20 @@ ${after}`;
         return;
       }
       this.moveSessionSelection(-1);
+    }
+    moveSessionSelectionToEdge(last) {
+      const visibleIndexes = this.getVisibleSessionIndexes();
+      const nextIndex = last ? visibleIndexes[visibleIndexes.length - 1] : visibleIndexes[0];
+      if (nextIndex === void 0) {
+        return;
+      }
+      const previousIndex = this.sessionListSelectedIndex;
+      if (nextIndex === previousIndex) {
+        return;
+      }
+      this.sessionListSelectedIndex = nextIndex;
+      this.updateRenderedSessionSelection(previousIndex);
+      this.scheduleSessionSelectionIntoView(nextIndex);
     }
     updateRenderedSessionSelection(previousIndex) {
       this.updateRenderedSessionItemSelection(previousIndex, false);

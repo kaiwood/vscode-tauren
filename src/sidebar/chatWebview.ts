@@ -547,6 +547,7 @@ ${chatWebviewStyles}
           <table class="tauren-help-overlay__table">
             <thead><tr><th scope="col">Key</th><th scope="col">Function</th></tr></thead>
             <tbody>
+              <tr><td><kbd>Home</kbd> / <kbd>End</kbd></td><td>Move to first or last visible session</td></tr>
               <tr><td><kbd>Enter</kbd></td><td>Open selected session</td></tr>
               <tr><td><kbd>?</kbd></td><td>Show this help</td></tr>
               <tr><td><kbd>R</kbd></td><td>Rename</td></tr>
