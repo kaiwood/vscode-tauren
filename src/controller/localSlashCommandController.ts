@@ -35,6 +35,7 @@ export type LocalSlashCommandControllerOptions = {
   adoptReplacedSession: (options?: { fallbackSessionFile?: string; refreshSessions?: boolean }) => Promise<void>;
   setComposerText: (text: string) => void;
   restartClientForReload: (sessionFile: string | undefined) => void;
+  reloadOpenSessions?: () => Promise<number>;
   markStartupResourcesReloaded?: () => void;
   getHotkeysMarkdown?: () => string;
   showSettings: (section?: WebviewSettingsSection) => void;
@@ -445,9 +446,13 @@ export class LocalSlashCommandController {
     return confirmed ? issue.fallbackCwd : undefined;
   }
 
-  private async handleReloadSlashCommand(): Promise<void> {
-    this.options.session.addSystemMessage('Reloading Pi engine resources...');
-    this.options.postState();
+  public async reloadPiResources(options: { announce?: boolean; reloadOpenSessions?: boolean } = {}): Promise<void> {
+    const announce = options.announce ?? true;
+
+    if (announce) {
+      this.options.session.addSystemMessage('Reloading Pi engine resources...');
+      this.options.postState();
+    }
 
     let restartedClient = false;
     let restoredSession = false;
@@ -470,14 +475,31 @@ export class LocalSlashCommandController {
       this.options.refreshSessionMeta({ startClient: true, force: true }),
       this.options.refreshSlashCommands({ startClient: true, force: true })
     ]);
+
+    const reloadedOpenSessions = options.reloadOpenSessions === false
+      ? 0
+      : (await this.options.reloadOpenSessions?.()) ?? 0;
+
     this.options.markStartupResourcesReloaded?.();
 
-    this.options.session.addSystemMessage(restartedClient
+    if (!announce) {
+      return;
+    }
+
+    const openSessionSuffix = reloadedOpenSessions > 0
+      ? ` Reloaded ${reloadedOpenSessions} other open session${reloadedOpenSessions === 1 ? '' : 's'}.`
+      : '';
+
+    this.options.session.addSystemMessage((restartedClient
       ? restoredSession
         ? 'Reloaded Tauren by restarting the Pi engine. Skills, prompts, extensions, and metadata were rediscovered. Current persisted session was reconnected.'
         : 'Reloaded Tauren by restarting the Pi engine. Skills, prompts, extensions, and metadata were rediscovered. No persisted session was available to reconnect.'
-      : 'Reloaded keybindings, extensions, skills, prompts, and themes.');
+      : 'Reloaded keybindings, extensions, skills, prompts, and themes.') + openSessionSuffix);
     this.options.postState();
+  }
+
+  private async handleReloadSlashCommand(): Promise<void> {
+    await this.reloadPiResources();
   }
 }
 

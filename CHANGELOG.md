@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed `/reload` so idle open sessions also refresh Pi extensions instead of keeping stale global extension code.
+
 ## 1.5.1 - 2026-05-31
 
 - Added a styled local VitePress documentation scaffold and first-pass Tauren documentation structure.

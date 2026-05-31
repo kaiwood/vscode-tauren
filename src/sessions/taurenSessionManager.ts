@@ -9,6 +9,7 @@ import type { ThinkingLevelStepDirection } from '../controller/thinkingLevelStep
 import type { TaurenChatSessionMetaSnapshot } from '../metadata/types';
 import type { PiPromptContextInput } from '../prompt/types';
 import type { SettingValue, TaurenSettingId } from '../settings/settingsRegistry';
+import { getErrorMessage } from '../controller/errors';
 import { resolveWebviewStateMessageMessages } from '../webviewProtocol/messagePatch';
 import type { WebviewMessage, WebviewSessionItem, WebviewStateMessage } from '../webviewProtocol/types';
 
@@ -494,6 +495,7 @@ export class TaurenSessionManager {
         initialSessionFile,
         initialSessionMeta: this.options.initialSessionMeta,
         renameOpenSession: (sessionPath, name) => this.renameOpenSessionFrom(id, sessionPath, name),
+        reloadOpenSessions: () => this.reloadOpenSessionsFrom(id),
         useMessagePatches: true,
         postState: (message) => this.handleSessionState(id, message),
         onSessionMetaChange: (metadata) => this.handleSessionMetaChange(id, metadata),
@@ -997,6 +999,25 @@ export class TaurenSessionManager {
     await session.controller.setCurrentSessionName(name);
     session.title = name.trim() || session.title;
     return true;
+  }
+
+  private async reloadOpenSessionsFrom(sourceSessionId: string): Promise<number> {
+    let reloaded = 0;
+
+    for (const session of [...this.sessions]) {
+      if (session.id === sourceSessionId || session.status === 'running') {
+        continue;
+      }
+
+      try {
+        await session.controller.reloadPiResources({ announce: false, reloadOpenSessions: false });
+        reloaded += 1;
+      } catch (error) {
+        this.options.showNotification(`Failed to reload ${session.title}: ${getErrorMessage(error)}`, 'error');
+      }
+    }
+
+    return reloaded;
   }
 
   private findOpenSessionBySessionFile(sessionFile: string): OpenSession | undefined {

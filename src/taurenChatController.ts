@@ -198,6 +198,7 @@ export class TaurenChatController {
         this.clientManager.setNextSessionFile(sessionFile);
         this.disposeClient();
       },
+      reloadOpenSessions: options.reloadOpenSessions,
       markStartupResourcesReloaded: () => {
         this.startupResourcesReloadRevision += 1;
       },
@@ -226,6 +227,10 @@ export class TaurenChatController {
 
   public async setCurrentSessionName(name: string): Promise<void> {
     await this.slashCommandController.setCurrentSessionName(name, { announce: false });
+  }
+
+  public async reloadPiResources(options: { announce?: boolean; reloadOpenSessions?: boolean } = {}): Promise<void> {
+    await this.slashCommandController.reloadPiResources(options);
   }
 
   public async handleWebviewMessage(message: WebviewMessage): Promise<void> {

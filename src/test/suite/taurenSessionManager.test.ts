@@ -967,6 +967,47 @@ suite('TaurenSessionManager', () => {
     harness.manager.dispose();
   });
 
+  test('reloads idle open background sessions when reloading Pi resources', async () => {
+    const backgroundClient = new FakePiClient({ state: { sessionFile: '/sessions/one.jsonl' } });
+    const activeClient = new FakePiClient({ state: { sessionFile: '/sessions/two.jsonl' } });
+    const harness = createManagerHarness([backgroundClient, activeClient], {
+      initialSessionFile: '/sessions/one.jsonl',
+      listSessions: async (_cwd, currentSessionFile) => createSessionItems(currentSessionFile)
+    });
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'background work' });
+    await harness.manager.handleWebviewMessage({ type: 'newSession' });
+    backgroundClient.emit({ type: 'agent_end' });
+    await flushPromises();
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: '/reload' });
+    await flushPromises();
+
+    assert.strictEqual(activeClient.reloadCalls, 1);
+    assert.strictEqual(backgroundClient.reloadCalls, 1);
+    harness.manager.dispose();
+  });
+
+  test('does not reload running open background sessions when reloading Pi resources', async () => {
+    const backgroundClient = new FakePiClient({ state: { sessionFile: '/sessions/one.jsonl' } });
+    const activeClient = new FakePiClient({ state: { sessionFile: '/sessions/two.jsonl' } });
+    const harness = createManagerHarness([backgroundClient, activeClient], {
+      initialSessionFile: '/sessions/one.jsonl',
+      listSessions: async (_cwd, currentSessionFile) => createSessionItems(currentSessionFile)
+    });
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'background work' });
+    await harness.manager.handleWebviewMessage({ type: 'newSession' });
+    await flushPromises();
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: '/reload' });
+    await flushPromises();
+
+    assert.strictEqual(activeClient.reloadCalls, 1);
+    assert.strictEqual(backgroundClient.reloadCalls, 0);
+    harness.manager.dispose();
+  });
+
   test('renames a running open background session without opening another client', async () => {
     const backgroundClient = new FakePiClient({
       state: {
@@ -1200,6 +1241,7 @@ function lastState(harness: ManagerHarness): WebviewStateMessage {
 class FakePiClient implements PiClient {
   public disposed = false;
   public abortCalls = 0;
+  public reloadCalls = 0;
   public onAbort: (() => void) | undefined;
   public readonly prompts: string[] = [];
   public readonly forkedEntries: string[] = [];
@@ -1238,7 +1280,9 @@ class FakePiClient implements PiClient {
     this.onAbort?.();
   }
 
-  public async reload(): Promise<void> {}
+  public async reload(): Promise<void> {
+    this.reloadCalls += 1;
+  }
 
   public async getState(): Promise<PiSessionState> {
     return this.options.state ?? {

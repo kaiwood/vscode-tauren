@@ -49,6 +49,7 @@ export type TaurenChatControllerOptions = {
   ) => Promise<WebviewSessionItem[]>;
   deleteSession?: (sessionPath: string, displayName: string) => Promise<boolean>;
   renameOpenSession?: (sessionPath: string, name: string) => Promise<boolean>;
+  reloadOpenSessions?: () => Promise<number>;
   showSessionChanges?: (sessionPath: string, displayName: string) => Promise<void>;
   loadSessionDiffSnapshot?: (sessionFile: string) => SessionDiffSnapshot | undefined;
   saveSessionDiffSnapshot?: (sessionFile: string, snapshot: SessionDiffSnapshot) => void;
