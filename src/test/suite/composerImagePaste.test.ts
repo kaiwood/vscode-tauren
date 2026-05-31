@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { getPastedPromptImageFiles } from '../../webview/composer/composer';
+import { getPastedPromptImageFiles } from '../../webview/composer/promptImages';
 
 suite('Composer image paste', () => {
   test('uses named clipboard files', () => {

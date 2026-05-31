@@ -1858,36 +1858,6 @@
     return extensionMatch?.[1] ?? "";
   }
 
-  // src/prompt/imageAttachments.ts
-  var maxPromptImageBytes = 10 * 1024 * 1024;
-  function getSupportedPromptImageMimeType(filePath) {
-    const extension = getLowercaseExtension(filePath);
-    if (extension === ".png") {
-      return "image/png";
-    }
-    if (extension === ".jpg" || extension === ".jpeg") {
-      return "image/jpeg";
-    }
-    if (extension === ".gif") {
-      return "image/gif";
-    }
-    if (extension === ".webp") {
-      return "image/webp";
-    }
-    return void 0;
-  }
-  function getUnsupportedPromptImageMessage(label) {
-    return `Unsupported attachment: ${label}. Tauren currently supports PNG, JPEG, GIF, and WebP images.`;
-  }
-  function getPromptImageTooLargeMessage(label) {
-    return `Image too large: ${label} exceeds 10MB.`;
-  }
-  function getLowercaseExtension(filePath) {
-    const normalized = filePath.split(/[\\/]/).pop() ?? filePath;
-    const dotIndex = normalized.lastIndexOf(".");
-    return dotIndex >= 0 ? normalized.slice(dotIndex).toLowerCase() : "";
-  }
-
   // src/webview/dom.ts
   function eventTargetElement(event) {
     return event.target instanceof Element ? event.target : null;
@@ -1959,72 +1929,45 @@
     return Array.from(document.querySelectorAll(selector));
   }
 
-  // src/webview/scopedModels.ts
-  function getScopedModelSelection(state2) {
-    const allIds = state2.modelOptions.map(getModelFullId);
-    const patterns = getScopedModelPatterns(state2);
-    const enabledIds = patterns === void 0 ? allIds : resolveScopedModelIds(patterns, state2.modelOptions);
-    const allEnabled = enabledIds.length === allIds.length;
-    const enabledSet = new Set(enabledIds);
-    const orderedIds = allEnabled ? allIds : [...enabledIds, ...allIds.filter((id) => !enabledSet.has(id))];
-    const modelsById = new Map(state2.modelOptions.map((model) => [getModelFullId(model), model]));
-    return {
-      allEnabled,
-      enabledIds,
-      orderedModels: orderedIds.flatMap((id) => {
-        const model = modelsById.get(id);
-        return model ? [model] : [];
-      })
-    };
-  }
-  function getScopedModelPickerOptions(state2) {
-    const patterns = getScopedModelPatterns(state2);
-    if (patterns === void 0) {
-      return state2.modelOptions;
-    }
-    const enabledIds = resolveScopedModelIds(patterns, state2.modelOptions);
-    const modelsById = new Map(state2.modelOptions.map((model) => [getModelFullId(model), model]));
-    return enabledIds.flatMap((id) => {
-      const model = modelsById.get(id);
-      return model ? [model] : [];
-    });
-  }
-  function normalizeScopedModelSelection(enabledIds, modelOptions) {
-    const allIds = modelOptions.map(getModelFullId);
-    return allIds.filter((id) => enabledIds.includes(id));
-  }
-  function getModelFullId(model) {
-    return `${model.provider}/${model.id}`;
-  }
-  function getScopedModelPatterns(state2) {
-    const value = state2.settings.values.enabledModels;
-    return Array.isArray(value) ? value : void 0;
-  }
-  function resolveScopedModelIds(patterns, modelOptions) {
-    const ids = [];
-    for (const pattern of patterns) {
-      const matcher = createModelPatternMatcher(pattern);
-      for (const model of modelOptions) {
-        const fullId = getModelFullId(model);
-        if (!ids.includes(fullId) && matcher(model, fullId)) {
-          ids.push(fullId);
-        }
-      }
-    }
-    return ids;
-  }
-  function createModelPatternMatcher(pattern) {
-    const normalized = pattern.trim().toLowerCase();
-    const hasGlob = /[*?[\]]/.test(normalized);
-    if (!hasGlob) {
-      return (model, fullId) => fullId.toLowerCase() === normalized || model.id.toLowerCase() === normalized;
-    }
-    const globRegex = new RegExp(`^${escapeRegex(normalized).replace(/\\\*/g, ".*").replace(/\\\?/g, ".")}$`, "i");
-    return (model, fullId) => globRegex.test(fullId) || globRegex.test(model.id);
-  }
-  function escapeRegex(value) {
-    return value.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&");
-  }
+  // src/commands/slashCommands.ts
+  var localSlashCommandDefinitions = [
+    { name: "model", description: "Select model", source: "builtin", supported: true },
+    { name: "name", description: "Set or clear session name", source: "builtin", supported: true },
+    { name: "session", description: "Show session info and stats", source: "builtin", supported: true },
+    { name: "compact", description: "Manually compact context", source: "builtin", supported: true },
+    { name: "copy", description: "Copy last response", source: "builtin", supported: true },
+    { name: "export", description: "Export session to HTML", source: "builtin", supported: true },
+    { name: "new", description: "Start a new session", source: "builtin", supported: true },
+    { name: "settings", description: "Open Tauren settings", source: "builtin", supported: true },
+    { name: "scoped-models", description: "Configure scoped model cycling", source: "builtin", supported: true },
+    { name: "import", description: "Import and resume a JSONL session", source: "builtin", supported: true },
+    { name: "share", description: "Share session as a secret GitHub gist", source: "builtin", supported: true },
+    { name: "changelog", description: "Show Pi and Tauren changelogs", source: "builtin", supported: true },
+    { name: "hotkeys", description: "Show Tauren keyboard shortcuts", source: "builtin", supported: true },
+    { name: "fork", description: "Fork from a previous user message", source: "builtin", supported: true },
+    { name: "clone", description: "Duplicate the current session", source: "builtin", supported: true },
+    { name: "tree", description: "Navigate session tree", source: "builtin", supported: true },
+    { name: "login", description: "Configure provider authentication", source: "builtin", supported: true },
+    { name: "logout", description: "Remove stored provider authentication", source: "builtin", supported: true },
+    { name: "resume", description: "Resume a different session", source: "builtin", supported: true },
+    { name: "reload", description: "Reload keybindings, extensions, skills, prompts, and themes", source: "builtin", supported: true },
+    { name: "quit", description: "Not supported here", source: "unsupported", supported: false }
+  ];
+  var builtinSlashCommandNames = new Set(localSlashCommandDefinitions.map((command) => command.name));
+  var supportedBuiltinSlashCommandNames = new Set(
+    localSlashCommandDefinitions.filter((command) => command.supported).map((command) => command.name)
+  );
+  var localSlashCommandNames = localSlashCommandDefinitions.map((command) => command.name);
+  var hiddenLocalSlashCommandNames = localSlashCommandDefinitions.filter((command) => command.hidden).map((command) => command.name);
+  var localSlashCommands = localSlashCommandDefinitions.map(({ supported: _supported, hidden: _hidden, ...command }) => command);
+  var localSlashMenuCommands = localSlashCommandDefinitions.filter((command) => command.supported && !command.hidden).map(({ supported: _supported, hidden: _hidden, ...command }) => command);
+
+  // src/webview/constants.ts
+  var hiddenLocalSlashCommandNames2 = hiddenLocalSlashCommandNames;
+  var localSlashCommands2 = localSlashMenuCommands.map((command) => ({ ...command }));
+  var messagesBottomThreshold = 4;
+  var maxTextareaHeight = 180;
+  var minTextareaHeight = 22;
 
   // src/diff/lineCount.ts
   function normalizeDiffLineCount(value) {
@@ -2225,45 +2168,949 @@
     return Math.min(Math.max(Number.isFinite(index) ? Math.trunc(index) : length, 0), length);
   }
 
-  // src/commands/slashCommands.ts
-  var localSlashCommandDefinitions = [
-    { name: "model", description: "Select model", source: "builtin", supported: true },
-    { name: "name", description: "Set or clear session name", source: "builtin", supported: true },
-    { name: "session", description: "Show session info and stats", source: "builtin", supported: true },
-    { name: "compact", description: "Manually compact context", source: "builtin", supported: true },
-    { name: "copy", description: "Copy last response", source: "builtin", supported: true },
-    { name: "export", description: "Export session to HTML", source: "builtin", supported: true },
-    { name: "new", description: "Start a new session", source: "builtin", supported: true },
-    { name: "settings", description: "Open Tauren settings", source: "builtin", supported: true },
-    { name: "scoped-models", description: "Configure scoped model cycling", source: "builtin", supported: true },
-    { name: "import", description: "Import and resume a JSONL session", source: "builtin", supported: true },
-    { name: "share", description: "Share session as a secret GitHub gist", source: "builtin", supported: true },
-    { name: "changelog", description: "Show Pi and Tauren changelogs", source: "builtin", supported: true },
-    { name: "hotkeys", description: "Show Tauren keyboard shortcuts", source: "builtin", supported: true },
-    { name: "fork", description: "Fork from a previous user message", source: "builtin", supported: true },
-    { name: "clone", description: "Duplicate the current session", source: "builtin", supported: true },
-    { name: "tree", description: "Navigate session tree", source: "builtin", supported: true },
-    { name: "login", description: "Configure provider authentication", source: "builtin", supported: true },
-    { name: "logout", description: "Remove stored provider authentication", source: "builtin", supported: true },
-    { name: "resume", description: "Resume a different session", source: "builtin", supported: true },
-    { name: "reload", description: "Reload keybindings, extensions, skills, prompts, and themes", source: "builtin", supported: true },
-    { name: "quit", description: "Not supported here", source: "unsupported", supported: false }
-  ];
-  var builtinSlashCommandNames = new Set(localSlashCommandDefinitions.map((command) => command.name));
-  var supportedBuiltinSlashCommandNames = new Set(
-    localSlashCommandDefinitions.filter((command) => command.supported).map((command) => command.name)
-  );
-  var localSlashCommandNames = localSlashCommandDefinitions.map((command) => command.name);
-  var hiddenLocalSlashCommandNames = localSlashCommandDefinitions.filter((command) => command.hidden).map((command) => command.name);
-  var localSlashCommands = localSlashCommandDefinitions.map(({ supported: _supported, hidden: _hidden, ...command }) => command);
-  var localSlashMenuCommands = localSlashCommandDefinitions.filter((command) => command.supported && !command.hidden).map(({ supported: _supported, hidden: _hidden, ...command }) => command);
+  // src/webview/composer/tooltip.ts
+  function createTooltipElement(text) {
+    const tooltip = document.createElement("span");
+    tooltip.className = "tauren-icon-action-tooltip";
+    tooltip.textContent = text;
+    return tooltip;
+  }
+  function setTooltipText(element, text) {
+    const tooltip = element.querySelector(".tauren-icon-action-tooltip");
+    if (tooltip) {
+      tooltip.textContent = text;
+    }
+  }
 
-  // src/webview/constants.ts
-  var hiddenLocalSlashCommandNames2 = hiddenLocalSlashCommandNames;
-  var localSlashCommands2 = localSlashMenuCommands.map((command) => ({ ...command }));
-  var messagesBottomThreshold = 4;
-  var maxTextareaHeight = 180;
-  var minTextareaHeight = 22;
+  // src/webview/scopedModels.ts
+  function getScopedModelSelection(state2) {
+    const allIds = state2.modelOptions.map(getModelFullId);
+    const patterns = getScopedModelPatterns(state2);
+    const enabledIds = patterns === void 0 ? allIds : resolveScopedModelIds(patterns, state2.modelOptions);
+    const allEnabled = enabledIds.length === allIds.length;
+    const enabledSet = new Set(enabledIds);
+    const orderedIds = allEnabled ? allIds : [...enabledIds, ...allIds.filter((id) => !enabledSet.has(id))];
+    const modelsById = new Map(state2.modelOptions.map((model) => [getModelFullId(model), model]));
+    return {
+      allEnabled,
+      enabledIds,
+      orderedModels: orderedIds.flatMap((id) => {
+        const model = modelsById.get(id);
+        return model ? [model] : [];
+      })
+    };
+  }
+  function getScopedModelPickerOptions(state2) {
+    const patterns = getScopedModelPatterns(state2);
+    if (patterns === void 0) {
+      return state2.modelOptions;
+    }
+    const enabledIds = resolveScopedModelIds(patterns, state2.modelOptions);
+    const modelsById = new Map(state2.modelOptions.map((model) => [getModelFullId(model), model]));
+    return enabledIds.flatMap((id) => {
+      const model = modelsById.get(id);
+      return model ? [model] : [];
+    });
+  }
+  function normalizeScopedModelSelection(enabledIds, modelOptions) {
+    const allIds = modelOptions.map(getModelFullId);
+    return allIds.filter((id) => enabledIds.includes(id));
+  }
+  function getModelFullId(model) {
+    return `${model.provider}/${model.id}`;
+  }
+  function getScopedModelPatterns(state2) {
+    const value = state2.settings.values.enabledModels;
+    return Array.isArray(value) ? value : void 0;
+  }
+  function resolveScopedModelIds(patterns, modelOptions) {
+    const ids = [];
+    for (const pattern of patterns) {
+      const matcher = createModelPatternMatcher(pattern);
+      for (const model of modelOptions) {
+        const fullId = getModelFullId(model);
+        if (!ids.includes(fullId) && matcher(model, fullId)) {
+          ids.push(fullId);
+        }
+      }
+    }
+    return ids;
+  }
+  function createModelPatternMatcher(pattern) {
+    const normalized = pattern.trim().toLowerCase();
+    const hasGlob = /[*?[\]]/.test(normalized);
+    if (!hasGlob) {
+      return (model, fullId) => fullId.toLowerCase() === normalized || model.id.toLowerCase() === normalized;
+    }
+    const globRegex = new RegExp(`^${escapeRegex(normalized).replace(/\\\*/g, ".*").replace(/\\\?/g, ".")}$`, "i");
+    return (model, fullId) => globRegex.test(fullId) || globRegex.test(model.id);
+  }
+  function escapeRegex(value) {
+    return value.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&");
+  }
+
+  // src/webview/composer/modelPickerController.ts
+  var ModelPickerController = class {
+    constructor(options) {
+      this.options = options;
+    }
+    options;
+    modelSelectOptionsSignature = "";
+    hasOpenMenu() {
+      return this.options.modelMenuElement?.hasAttribute("open") ?? false;
+    }
+    closeMenu() {
+      this.options.modelMenuElement?.removeAttribute("open");
+      this.options.modelElement.setAttribute("aria-expanded", "false");
+    }
+    openPicker() {
+      if (this.options.modelElement.disabled) {
+        return;
+      }
+      this.openMenu();
+      this.focusControl(1);
+    }
+    syncLabel(label, tooltipText, busy, metadataRefreshing) {
+      const modelLabel = document.createElement("span");
+      modelLabel.className = "composer__model-label";
+      modelLabel.textContent = label;
+      const tooltip = createTooltipElement(tooltipText);
+      this.options.modelElement.replaceChildren(modelLabel, tooltip);
+      this.options.modelElement.className = "composer__model";
+      this.options.modelElement.setAttribute("aria-label", tooltipText);
+      this.options.modelElement.disabled = busy;
+      this.options.modelElement.setAttribute("aria-busy", metadataRefreshing ? "true" : "false");
+      this.options.modelMenuElement?.setAttribute("aria-busy", metadataRefreshing ? "true" : "false");
+      this.syncModelSelect();
+      this.syncThinkingSelect();
+    }
+    toggleMenu() {
+      if (this.options.modelElement.disabled) {
+        return;
+      }
+      const open = !this.options.modelMenuElement?.hasAttribute("open");
+      if (open) {
+        this.openMenu();
+      } else {
+        this.closeMenu();
+      }
+    }
+    selectModel() {
+      const state2 = this.options.getState();
+      const [provider, modelId] = splitModelKey(this.options.modelSelectElement.value);
+      if (!provider || !modelId || state2.busy) {
+        return;
+      }
+      this.closeMenu();
+      this.options.postMessage({ type: "setModel", provider, modelId });
+    }
+    selectThinkingLevel() {
+      const state2 = this.options.getState();
+      const level = this.options.thinkingSelectElement.value;
+      if (!level || state2.busy || !state2.modelReasoning) {
+        return;
+      }
+      this.closeMenu();
+      this.options.postMessage({ type: "setThinkingLevel", level });
+    }
+    handleMenuKeydown(event) {
+      if (!this.hasOpenMenu()) {
+        return;
+      }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.focusControl(event.key === "ArrowUp" ? -1 : 1);
+        return;
+      }
+      if (event.key === "Home" || event.key === "End") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.focusControl(event.key === "End" ? -1 : 1, true);
+      }
+    }
+    openMenu() {
+      const state2 = this.options.getState();
+      if (state2.modelOptions.length === 0 && !state2.metadataRefreshing) {
+        this.options.refreshMetadata();
+      }
+      this.options.closeSuggestionMenu();
+      this.options.cancelSessionNameEdit();
+      this.options.modelMenuElement?.setAttribute("open", "");
+      this.options.modelElement.setAttribute("aria-expanded", "true");
+    }
+    focusControl(direction, edge = false) {
+      const controls = this.getEnabledControls();
+      if (controls.length === 0) {
+        this.options.modelElement.focus({ preventScroll: true });
+        return;
+      }
+      const activeIndex = controls.findIndex((control) => control === document.activeElement);
+      const nextIndex = edge || activeIndex === -1 ? direction === 1 ? 0 : controls.length - 1 : (activeIndex + direction + controls.length) % controls.length;
+      requestAnimationFrame(() => controls[nextIndex]?.focus({ preventScroll: true }));
+    }
+    getEnabledControls() {
+      return [this.options.thinkingSelectElement, this.options.modelSelectElement].filter((control) => !control.disabled);
+    }
+    syncModelSelect() {
+      const state2 = this.options.getState();
+      const selectedValue = modelKey(state2.modelProvider, state2.modelId);
+      const currentValue = this.options.modelSelectElement.value;
+      const modelOptions = this.getDisplayModelOptions();
+      const nextOptionsSignature = getModelOptionsSignature(modelOptions);
+      if (nextOptionsSignature !== this.modelSelectOptionsSignature) {
+        this.modelSelectOptionsSignature = nextOptionsSignature;
+        this.options.modelSelectElement.replaceChildren();
+        for (const model of modelOptions) {
+          if (!model || typeof model.provider !== "string" || typeof model.id !== "string") {
+            continue;
+          }
+          const option = document.createElement("option");
+          option.value = modelKey(model.provider, model.id);
+          option.textContent = model.name && model.name !== model.id ? model.name + " (" + model.provider + "/" + model.id + ")" : model.provider + "/" + model.id;
+          this.options.modelSelectElement.append(option);
+        }
+      }
+      this.options.modelSelectElement.value = selectedValue || currentValue;
+      this.options.modelSelectElement.disabled = state2.busy || modelOptions.length === 0;
+    }
+    getDisplayModelOptions() {
+      const state2 = this.options.getState();
+      if (state2.modelOptions.length > 0) {
+        return getScopedModelPickerOptions(state2);
+      }
+      if (!state2.modelProvider || !state2.modelId) {
+        return [];
+      }
+      return [{
+        provider: state2.modelProvider,
+        id: state2.modelId,
+        name: state2.modelLabel || state2.modelId,
+        reasoning: state2.modelReasoning
+      }];
+    }
+    syncThinkingSelect() {
+      const state2 = this.options.getState();
+      this.options.thinkingSelectElement.value = state2.thinkingLevel || "medium";
+      this.options.thinkingSelectElement.disabled = state2.busy || !state2.modelReasoning;
+      this.options.thinkingSelectElement.title = state2.modelReasoning ? "Thinking mode" : "The selected model does not advertise thinking support.";
+    }
+  };
+  function getModelOptionsSignature(modelOptions) {
+    return modelOptions.map((model) => [model.provider, model.id, model.name, model.reasoning ? "1" : "0"].join("\0")).join("");
+  }
+  function modelKey(provider, id) {
+    return provider + "/" + id;
+  }
+  function splitModelKey(value) {
+    const slashIndex = value.indexOf("/");
+    if (slashIndex <= 0) {
+      return ["", ""];
+    }
+    return [value.slice(0, slashIndex), value.slice(slashIndex + 1)];
+  }
+
+  // src/prompt/imageAttachments.ts
+  var maxPromptImageBytes = 10 * 1024 * 1024;
+  function getSupportedPromptImageMimeType(filePath) {
+    const extension = getLowercaseExtension(filePath);
+    if (extension === ".png") {
+      return "image/png";
+    }
+    if (extension === ".jpg" || extension === ".jpeg") {
+      return "image/jpeg";
+    }
+    if (extension === ".gif") {
+      return "image/gif";
+    }
+    if (extension === ".webp") {
+      return "image/webp";
+    }
+    return void 0;
+  }
+  function getUnsupportedPromptImageMessage(label) {
+    return `Unsupported attachment: ${label}. Tauren currently supports PNG, JPEG, GIF, and WebP images.`;
+  }
+  function getPromptImageTooLargeMessage(label) {
+    return `Image too large: ${label} exceeds 10MB.`;
+  }
+  function getLowercaseExtension(filePath) {
+    const normalized = filePath.split(/[\\/]/).pop() ?? filePath;
+    const dotIndex = normalized.lastIndexOf(".");
+    return dotIndex >= 0 ? normalized.slice(dotIndex).toLowerCase() : "";
+  }
+
+  // src/webview/composer/promptImages.ts
+  async function createDroppedPromptImagesMessage(dataTransfer) {
+    const files = Array.from(dataTransfer.files ?? []);
+    const uris = files.length > 0 ? [] : getDroppedUriTexts(dataTransfer);
+    if (files.length === 0 && uris.length === 0) {
+      return void 0;
+    }
+    const rejections = getPromptImageFileRejections(files);
+    if (rejections.length > 0) {
+      return { type: "dropPromptImages", files: [], uris: [], rejections };
+    }
+    return createPromptImagesMessageFromFiles(files, uris);
+  }
+  async function createPromptImagesMessageFromFiles(files, uris = []) {
+    const droppedFiles = [];
+    for (const file of files) {
+      try {
+        droppedFiles.push({
+          label: getPromptImageFileLabel(file),
+          title: getPromptImageFileLabel(file),
+          mimeType: getSupportedPromptImageMimeType(getPromptImageFileLabel(file)) ?? file.type,
+          sizeBytes: file.size,
+          data: await readFileAsBase64(file)
+        });
+      } catch {
+        return {
+          type: "dropPromptImages",
+          files: [],
+          uris: [],
+          rejections: [`Cannot read attachment: ${getPromptImageFileLabel(file)}.`]
+        };
+      }
+    }
+    return { type: "dropPromptImages", files: droppedFiles, uris };
+  }
+  function getPromptImageFileRejections(files) {
+    const rejections = [];
+    for (const file of files) {
+      const label = getPromptImageFileLabel(file);
+      if (!getSupportedPromptImageMimeType(label)) {
+        rejections.push(getUnsupportedPromptImageMessage(label));
+        continue;
+      }
+      if (file.size > maxPromptImageBytes) {
+        rejections.push(getPromptImageTooLargeMessage(label));
+      }
+    }
+    return rejections;
+  }
+  function getPastedPromptImageFiles(dataTransfer) {
+    const files = Array.from(dataTransfer.files ?? []).filter(hasClipboardFileName);
+    if (files.length > 0) {
+      return files;
+    }
+    return Array.from(dataTransfer.items ?? []).filter((item) => item.kind === "file").map((item) => item.getAsFile()).filter((file) => Boolean(file && hasClipboardFileName(file)));
+  }
+  function classifyComposerDragState(dataTransfer) {
+    if (!dataTransfer) {
+      return "neutral";
+    }
+    const files = Array.from(dataTransfer.files ?? []);
+    if (files.length > 0) {
+      return getPromptImageFileRejections(files).length > 0 ? "invalid" : "valid";
+    }
+    const itemStates = Array.from(dataTransfer.items ?? []).filter((item) => item.kind === "file").map(classifyDataTransferFileItem);
+    if (itemStates.includes("invalid")) {
+      return "invalid";
+    }
+    if (itemStates.length > 0 && itemStates.every((state2) => state2 === "valid")) {
+      return "valid";
+    }
+    return "neutral";
+  }
+  function getPromptImageFileLabel(file) {
+    return file.name || "dropped file";
+  }
+  function hasClipboardFileName(file) {
+    return typeof file.name === "string" && file.name.length > 0;
+  }
+  function readFileAsBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        resolve(typeof reader.result === "string" ? stripDataUrlPrefix(reader.result) : "");
+      });
+      reader.addEventListener("error", () => reject(reader.error));
+      reader.readAsDataURL(file);
+    });
+  }
+  function stripDataUrlPrefix(value) {
+    const commaIndex = value.indexOf(",");
+    return commaIndex >= 0 ? value.slice(commaIndex + 1) : value;
+  }
+  function classifyDataTransferFileItem(item) {
+    const file = item.getAsFile();
+    if (file?.name) {
+      return getPromptImageFileRejections([file]).length > 0 ? "invalid" : "valid";
+    }
+    if (item.type) {
+      return isSupportedPromptImageMimeType(item.type) ? "valid" : "invalid";
+    }
+    return "neutral";
+  }
+  function isSupportedPromptImageMimeType(value) {
+    return value === "image/png" || value === "image/jpeg" || value === "image/gif" || value === "image/webp";
+  }
+  function getDroppedUriTexts(dataTransfer) {
+    const uriList = parseDroppedUriText(dataTransfer.getData("text/uri-list"));
+    if (uriList.length > 0) {
+      return uriList;
+    }
+    return parseDroppedUriText(dataTransfer.getData("text/plain"));
+  }
+  function parseDroppedUriText(value) {
+    return value.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0 && !line.startsWith("#")).filter(isDroppedUriText);
+  }
+  function isDroppedUriText(value) {
+    return /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value) || value.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(value) || value.startsWith("\\\\");
+  }
+
+  // src/webview/composer/fileSuggestions.ts
+  var fileSuggestionDelimiters = /* @__PURE__ */ new Set([" ", "	", "\n", "\r", '"', "'", "="]);
+  function extractAtFilePrefix(textBeforeCursor) {
+    const quotedPrefix = extractQuotedAtFilePrefix(textBeforeCursor);
+    if (quotedPrefix) {
+      return quotedPrefix;
+    }
+    const lastDelimiterIndex = findLastFileSuggestionDelimiter(textBeforeCursor);
+    const tokenStart = lastDelimiterIndex === -1 ? 0 : lastDelimiterIndex + 1;
+    if (textBeforeCursor[tokenStart] === "@") {
+      return { prefix: textBeforeCursor.slice(tokenStart), start: tokenStart };
+    }
+    return void 0;
+  }
+  function getFileSuggestionPrefixInfo(textarea2) {
+    const cursor = textarea2.selectionStart;
+    if (cursor !== textarea2.selectionEnd) {
+      return void 0;
+    }
+    return extractAtFilePrefix(textarea2.value.slice(0, cursor));
+  }
+  function acceptFileSuggestion(textarea2, file) {
+    const prefixInfo = getFileSuggestionPrefixInfo(textarea2);
+    if (!prefixInfo) {
+      return false;
+    }
+    const cursor = textarea2.selectionStart;
+    const beforePrefix = textarea2.value.slice(0, prefixInfo.start);
+    const afterCursor = textarea2.value.slice(cursor);
+    const hasLeadingQuoteAfterCursor = afterCursor.startsWith('"');
+    const hasTrailingQuoteInItem = file.value.endsWith('"');
+    const adjustedAfterCursor = hasTrailingQuoteInItem && hasLeadingQuoteAfterCursor ? afterCursor.slice(1) : afterCursor;
+    const suffix = file.directory ? "" : " ";
+    const nextValue = beforePrefix + file.value + suffix + adjustedAfterCursor;
+    const cursorOffset = file.directory && hasTrailingQuoteInItem ? file.value.length - 1 : file.value.length;
+    const nextCursor = beforePrefix.length + cursorOffset + suffix.length;
+    textarea2.value = nextValue;
+    textarea2.setSelectionRange(nextCursor, nextCursor);
+    return true;
+  }
+  function isFileSuggestionsResult(message) {
+    if (!isRecord2(message) || message.type !== "fileSuggestionsResult") {
+      return false;
+    }
+    return typeof message.id === "string" && typeof message.prefix === "string" && Array.isArray(message.items) && message.items.every(isFileSuggestion);
+  }
+  function extractQuotedAtFilePrefix(textBeforeCursor) {
+    let inQuotes = false;
+    let quoteStart = -1;
+    for (let index = 0; index < textBeforeCursor.length; index += 1) {
+      if (textBeforeCursor[index] === '"') {
+        inQuotes = !inQuotes;
+        if (inQuotes) {
+          quoteStart = index;
+        }
+      }
+    }
+    if (!inQuotes || quoteStart <= 0 || textBeforeCursor[quoteStart - 1] !== "@") {
+      return void 0;
+    }
+    const atStart = quoteStart - 1;
+    if (atStart > 0 && !fileSuggestionDelimiters.has(textBeforeCursor[atStart - 1] ?? "")) {
+      return void 0;
+    }
+    return { prefix: textBeforeCursor.slice(atStart), start: atStart };
+  }
+  function findLastFileSuggestionDelimiter(text) {
+    for (let index = text.length - 1; index >= 0; index -= 1) {
+      if (fileSuggestionDelimiters.has(text[index] ?? "")) {
+        return index;
+      }
+    }
+    return -1;
+  }
+  function isFileSuggestion(value) {
+    return isRecord2(value) && typeof value.value === "string" && typeof value.label === "string" && ("description" in value ? typeof value.description === "string" : true) && typeof value.directory === "boolean";
+  }
+  function isRecord2(value) {
+    return typeof value === "object" && value !== null;
+  }
+
+  // src/webview/composer/suggestionMenuController.ts
+  var SuggestionMenuController = class {
+    constructor(options) {
+      this.options = options;
+    }
+    options;
+    open = false;
+    activeIndex = 0;
+    pointerHoverEnabled = false;
+    slashItems = [];
+    slashQuery = "";
+    dismissedSlashQuery;
+    slashCommandsRefreshRequested = false;
+    kind;
+    fileItems = [];
+    filePrefix = "";
+    fileRequestId = 0;
+    fileLoading = false;
+    isOpen() {
+      return this.open;
+    }
+    dismiss() {
+      this.dismissedSlashQuery = this.kind === "slash" ? this.getSlashCommandQuery() : void 0;
+      this.close();
+    }
+    close() {
+      this.open = false;
+      this.slashCommandsRefreshRequested = false;
+      this.slashItems = [];
+      this.activeIndex = 0;
+      this.slashQuery = "";
+      this.kind = void 0;
+      this.fileItems = [];
+      this.filePrefix = "";
+      this.fileLoading = false;
+      this.disablePointerHover();
+      this.options.slashMenuElement?.removeAttribute("open");
+      this.options.slashMenuElement?.setAttribute("aria-label", "Slash commands");
+      this.options.textarea.setAttribute("aria-expanded", "false");
+      this.options.textarea.removeAttribute("aria-activedescendant");
+    }
+    handleHostMessage(message) {
+      if (!isFileSuggestionsResult(message)) {
+        return false;
+      }
+      if (message.id !== String(this.fileRequestId) || message.prefix !== this.filePrefix) {
+        return true;
+      }
+      const activePrefix = getFileSuggestionPrefixInfo(this.options.textarea)?.prefix;
+      if (activePrefix !== message.prefix) {
+        return true;
+      }
+      this.fileLoading = false;
+      this.fileItems = message.items;
+      this.activeIndex = Math.min(this.activeIndex, Math.max(0, this.fileItems.length - 1));
+      this.renderFileMenu(message.prefix);
+      this.openMenu();
+      return true;
+    }
+    sync() {
+      const filePrefix = getFileSuggestionPrefixInfo(this.options.textarea)?.prefix;
+      if (filePrefix) {
+        this.syncFileMenu(filePrefix);
+        return;
+      }
+      const state2 = this.options.getState();
+      if (!this.shouldShowSlashMenu()) {
+        this.close();
+        return;
+      }
+      this.options.closeModelMenu();
+      this.options.cancelSessionNameEdit();
+      if (state2.slashCommands.length === 0 && !state2.slashCommandsRefreshing && !this.slashCommandsRefreshRequested) {
+        this.slashCommandsRefreshRequested = true;
+        this.options.postMessage({ type: "refreshSlashCommands" });
+      }
+      const query = this.getSlashCommandQuery();
+      if (query === this.dismissedSlashQuery) {
+        this.close();
+        return;
+      }
+      if (this.kind !== "slash" || query !== this.slashQuery) {
+        this.kind = "slash";
+        this.fileItems = [];
+        this.fileLoading = false;
+        this.slashQuery = query;
+        this.activeIndex = 0;
+        this.disablePointerHover();
+        if (this.options.slashMenuElement) {
+          this.options.slashMenuElement.scrollTop = 0;
+        }
+      }
+      this.slashItems = this.getFilteredSlashCommands(query);
+      this.activeIndex = Math.min(this.activeIndex, Math.max(0, this.slashItems.length - 1));
+      this.renderSlashMenu(query);
+      this.openMenu();
+    }
+    clearDismissedSlashQuery() {
+      this.dismissedSlashQuery = void 0;
+    }
+    handleKeydown(event) {
+      if (!this.open) {
+        if (event.key === "Escape") {
+          this.dismiss();
+        }
+        return false;
+      }
+      this.disablePointerHover();
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        this.moveSelection(1);
+        return true;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        this.moveSelection(-1);
+        return true;
+      }
+      if (event.key === "Tab") {
+        event.preventDefault();
+        this.acceptActiveSuggestion();
+        return true;
+      }
+      if (event.key === "Enter" && !event.shiftKey && this.getActiveSuggestionCount() > 0) {
+        event.preventDefault();
+        this.acceptActiveSuggestion();
+        return true;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.dismiss();
+        return true;
+      }
+      return false;
+    }
+    handlePointerMove(event) {
+      if (!this.open) {
+        return;
+      }
+      this.enablePointerHover();
+      const item = eventTargetElement(event)?.closest(".composer__slash-item");
+      if (!(item instanceof HTMLElement) || !this.options.slashMenuElement?.contains(item)) {
+        return;
+      }
+      const index = Number(item.getAttribute("data-index"));
+      if (!Number.isInteger(index) || index < 0 || index >= this.getActiveSuggestionCount()) {
+        return;
+      }
+      const previousIndex = this.activeIndex;
+      if (index === previousIndex) {
+        return;
+      }
+      this.activeIndex = index;
+      this.updateRenderedSelection(previousIndex);
+    }
+    handleClick(event) {
+      const item = eventTargetElement(event)?.closest(".composer__slash-item");
+      if (!item) {
+        return;
+      }
+      const index = Number(item.getAttribute("data-index"));
+      if (this.kind === "file") {
+        const file = this.fileItems[index];
+        if (file) {
+          this.acceptFile(file);
+        }
+        return;
+      }
+      const command = this.slashItems[index];
+      if (command) {
+        this.acceptSlashCommand(command);
+      }
+    }
+    syncFileMenu(prefix) {
+      if (document.activeElement !== this.options.textarea) {
+        this.close();
+        return;
+      }
+      this.options.closeModelMenu();
+      this.options.cancelSessionNameEdit();
+      if (this.kind !== "file" || prefix !== this.filePrefix) {
+        this.kind = "file";
+        this.slashItems = [];
+        this.fileItems = [];
+        this.filePrefix = prefix;
+        this.fileLoading = true;
+        this.activeIndex = 0;
+        this.disablePointerHover();
+        this.options.slashMenuElement?.scrollTo({ top: 0 });
+        this.fileRequestId += 1;
+        this.options.postMessage({
+          type: "requestFileSuggestions",
+          id: String(this.fileRequestId),
+          prefix
+        });
+      }
+      this.renderFileMenu(prefix);
+      this.openMenu();
+    }
+    shouldShowSlashMenu() {
+      const state2 = this.options.getState();
+      if (state2.busy || document.activeElement !== this.options.textarea) {
+        return false;
+      }
+      const cursor = this.options.textarea.selectionStart;
+      if (cursor !== this.options.textarea.selectionEnd) {
+        return false;
+      }
+      const beforeCursor = this.options.textarea.value.slice(0, cursor);
+      return beforeCursor.startsWith("/") && !Array.from(beforeCursor).some((character) => character.trim().length === 0);
+    }
+    getSlashCommandQuery() {
+      return this.options.textarea.value.slice(1, this.options.textarea.selectionStart).toLowerCase();
+    }
+    getFilteredSlashCommands(query) {
+      const commands = this.getAllSlashCommands();
+      const scored = [];
+      for (const command of commands) {
+        if (!command || typeof command.name !== "string") {
+          continue;
+        }
+        const name = command.name.toLowerCase();
+        const description = typeof command.description === "string" ? command.description.toLowerCase() : "";
+        const namePrefix = name.startsWith(query);
+        const nameMatch = name.includes(query);
+        const descriptionMatch = description.includes(query);
+        if (!nameMatch && !descriptionMatch) {
+          continue;
+        }
+        scored.push({
+          command,
+          score: namePrefix ? 0 : nameMatch ? 1 : 2
+        });
+      }
+      return scored.sort((left, right) => left.score - right.score || getSlashCommandSourceRank(left.command.source) - getSlashCommandSourceRank(right.command.source) || left.command.name.localeCompare(right.command.name)).slice(0, 8).map((item) => item.command);
+    }
+    getAllSlashCommands() {
+      const state2 = this.options.getState();
+      const commands = [...localSlashCommands2];
+      const names = /* @__PURE__ */ new Set([
+        ...commands.map((command) => command.name),
+        ...hiddenLocalSlashCommandNames2
+      ]);
+      if (Array.isArray(state2.slashCommands)) {
+        for (const command of state2.slashCommands) {
+          if (!command || typeof command.name !== "string" || names.has(command.name)) {
+            continue;
+          }
+          names.add(command.name);
+          commands.push(command);
+        }
+      }
+      return commands;
+    }
+    renderSlashMenu(query) {
+      const slashMenuElement2 = this.options.slashMenuElement;
+      if (!slashMenuElement2) {
+        return;
+      }
+      const state2 = this.options.getState();
+      slashMenuElement2.replaceChildren();
+      if (state2.slashCommandsRefreshing && this.slashItems.length === 0) {
+        slashMenuElement2.append(createSlashMenuEmptyElement("Loading commands..."));
+        return;
+      }
+      if (this.slashItems.length === 0) {
+        slashMenuElement2.append(createSlashMenuEmptyElement(query ? "No matching slash commands" : "No slash commands available"));
+        return;
+      }
+      for (let index = 0; index < this.slashItems.length; index += 1) {
+        slashMenuElement2.append(this.createSlashMenuItemElement(this.slashItems[index], index));
+      }
+      this.syncActiveDescendant();
+    }
+    renderFileMenu(prefix) {
+      const slashMenuElement2 = this.options.slashMenuElement;
+      if (!slashMenuElement2) {
+        return;
+      }
+      slashMenuElement2.replaceChildren();
+      if (this.fileLoading && this.fileItems.length === 0) {
+        slashMenuElement2.append(createSlashMenuEmptyElement("Finding files..."));
+        return;
+      }
+      if (this.fileItems.length === 0) {
+        slashMenuElement2.append(createSlashMenuEmptyElement(prefix.length > 1 ? "No matching files" : "No files available"));
+        return;
+      }
+      for (let index = 0; index < this.fileItems.length; index += 1) {
+        slashMenuElement2.append(this.createFileSuggestionItemElement(this.fileItems[index], index));
+      }
+      this.syncActiveDescendant();
+    }
+    createSuggestionBaseElement(index) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.id = "slash-command-" + index;
+      item.className = "composer__slash-item" + (index === this.activeIndex ? " composer__slash-item--active" : "");
+      item.setAttribute("role", "option");
+      item.setAttribute("aria-selected", index === this.activeIndex ? "true" : "false");
+      item.setAttribute("data-index", String(index));
+      return item;
+    }
+    createFileSuggestionItemElement(file, index) {
+      const item = this.createSuggestionBaseElement(index);
+      const label = document.createElement("span");
+      label.className = "composer__slash-label";
+      label.textContent = file.label;
+      item.append(label);
+      const source = document.createElement("span");
+      source.className = "composer__slash-source";
+      source.textContent = file.directory ? "dir" : "file";
+      item.append(source);
+      if (file.description) {
+        const description = document.createElement("span");
+        description.className = "composer__slash-description";
+        description.textContent = file.description;
+        item.append(description);
+      }
+      return item;
+    }
+    createSlashMenuItemElement(command, index) {
+      const item = this.createSuggestionBaseElement(index);
+      const label = document.createElement("span");
+      label.className = "composer__slash-label";
+      label.textContent = "/" + command.name;
+      item.append(label);
+      const meta = formatSlashCommandMeta(command);
+      if (meta) {
+        const source = document.createElement("span");
+        source.className = "composer__slash-source";
+        source.textContent = meta;
+        item.append(source);
+      }
+      if (command.description) {
+        const description = document.createElement("span");
+        description.className = "composer__slash-description";
+        description.textContent = command.description;
+        item.append(description);
+      }
+      return item;
+    }
+    openMenu() {
+      if (!this.options.slashMenuElement) {
+        return;
+      }
+      this.open = true;
+      this.options.slashMenuElement.setAttribute("open", "");
+      this.options.slashMenuElement.setAttribute("aria-label", this.kind === "file" ? "File suggestions" : "Slash commands");
+      this.options.textarea.setAttribute("aria-expanded", "true");
+      this.syncActiveDescendant();
+    }
+    moveSelection(delta) {
+      const itemCount = this.getActiveSuggestionCount();
+      if (itemCount === 0) {
+        return;
+      }
+      this.activeIndex = (this.activeIndex + delta + itemCount) % itemCount;
+      if (this.kind === "file") {
+        this.renderFileMenu(this.filePrefix);
+      } else {
+        this.renderSlashMenu(this.getSlashCommandQuery());
+      }
+    }
+    enablePointerHover() {
+      if (this.pointerHoverEnabled) {
+        return;
+      }
+      this.pointerHoverEnabled = true;
+      this.options.slashMenuElement?.classList.add("composer__slash-menu--pointer-hover");
+    }
+    disablePointerHover() {
+      if (!this.pointerHoverEnabled) {
+        return;
+      }
+      this.pointerHoverEnabled = false;
+      this.options.slashMenuElement?.classList.remove("composer__slash-menu--pointer-hover");
+    }
+    updateRenderedSelection(previousIndex) {
+      this.updateRenderedItemSelection(previousIndex, false);
+      this.updateRenderedItemSelection(this.activeIndex, true);
+      this.syncActiveDescendant({ reveal: false });
+    }
+    updateRenderedItemSelection(index, selected) {
+      const item = document.getElementById("slash-command-" + index);
+      if (!item) {
+        return;
+      }
+      item.classList.toggle("composer__slash-item--active", selected);
+      item.setAttribute("aria-selected", selected ? "true" : "false");
+    }
+    syncActiveDescendant(options = {}) {
+      if (!this.open || this.getActiveSuggestionCount() === 0) {
+        this.options.textarea.removeAttribute("aria-activedescendant");
+        return;
+      }
+      this.options.textarea.setAttribute("aria-activedescendant", "slash-command-" + this.activeIndex);
+      if (options.reveal !== false) {
+        this.options.slashMenuElement?.querySelector(".composer__slash-item--active")?.scrollIntoView({ block: "nearest" });
+      }
+    }
+    acceptActiveSuggestion() {
+      if (this.kind === "file") {
+        const file = this.fileItems[this.activeIndex];
+        if (file) {
+          this.acceptFile(file);
+        }
+        return;
+      }
+      const command = this.slashItems[this.activeIndex];
+      if (command) {
+        this.acceptSlashCommand(command);
+      }
+    }
+    getActiveSuggestionCount() {
+      return this.kind === "file" ? this.fileItems.length : this.slashItems.length;
+    }
+    acceptSlashCommand(command) {
+      const cursor = this.options.textarea.selectionStart;
+      const after = this.options.textarea.value.slice(cursor).trimStart();
+      const value = "/" + command.name + " " + after;
+      const nextCursor = command.name.length + 2;
+      this.options.textarea.value = value;
+      this.options.textarea.setSelectionRange(nextCursor, nextCursor);
+      this.close();
+      this.options.syncComposer({ preserveBottom: true });
+      this.options.focusPromptInput();
+    }
+    acceptFile(file) {
+      if (!acceptFileSuggestion(this.options.textarea, file)) {
+        return;
+      }
+      this.close();
+      this.options.syncComposer({ preserveBottom: true });
+      this.options.focusPromptInput();
+    }
+  };
+  function getSlashCommandSourceRank(source) {
+    if (source === "builtin") {
+      return 0;
+    }
+    if (source === "extension") {
+      return 1;
+    }
+    if (source === "prompt") {
+      return 2;
+    }
+    if (source === "skill") {
+      return 3;
+    }
+    if (source === "unsupported") {
+      return 4;
+    }
+    return 5;
+  }
+  function createSlashMenuEmptyElement(text) {
+    const empty = document.createElement("div");
+    empty.className = "composer__slash-empty";
+    empty.textContent = text;
+    return empty;
+  }
+  function formatSlashCommandMeta(command) {
+    const source = typeof command.source === "string" ? command.source : "";
+    const location = typeof command.location === "string" ? command.location : "";
+    if (source && location) {
+      return source + " \xB7 " + location;
+    }
+    return source || location;
+  }
 
   // src/webview/composer/composer.ts
   var ComposerController = class {
@@ -2271,29 +3118,39 @@
       this.options = options;
       this.addedDiffCounter = createDiffCounter(options.diffAddedElement, "+");
       this.removedDiffCounter = createDiffCounter(options.diffRemovedElement, "-");
+      this.modelPicker = new ModelPickerController({
+        getState: options.getState,
+        postMessage: options.postMessage,
+        refreshMetadata: options.refreshMetadata,
+        modelElement: options.modelElement,
+        modelMenuElement: options.modelMenuElement,
+        modelSelectElement: options.modelSelectElement,
+        thinkingSelectElement: options.thinkingSelectElement,
+        closeSuggestionMenu: () => this.suggestionMenu.close(),
+        cancelSessionNameEdit: options.cancelSessionNameEdit
+      });
+      this.suggestionMenu = new SuggestionMenuController({
+        getState: options.getState,
+        postMessage: options.postMessage,
+        textarea: options.textarea,
+        slashMenuElement: options.slashMenuElement,
+        closeModelMenu: () => this.modelPicker.closeMenu(),
+        cancelSessionNameEdit: options.cancelSessionNameEdit,
+        syncComposer: (syncOptions) => this.syncComposer(syncOptions),
+        focusPromptInput: options.focusPromptInput
+      });
     }
     options;
     appliedComposerTextRevision = 0;
-    slashMenuOpen = false;
-    slashMenuActiveIndex = 0;
-    slashMenuPointerHoverEnabled = false;
-    slashMenuItems = [];
-    slashMenuQuery = "";
-    slashMenuDismissedQuery;
-    slashCommandsRefreshRequested = false;
-    suggestionKind;
-    fileSuggestionItems = [];
-    fileSuggestionPrefix = "";
-    fileSuggestionRequestId = 0;
-    fileSuggestionLoading = false;
     streamingBehavior = "steer";
     busySubmitHideTimeout;
     composerDragDepth = 0;
-    modelSelectOptionsSignature = "";
     textareaLayoutSignature = "";
     pasteBuffer = new ComposerPasteBuffer();
     addedDiffCounter;
     removedDiffCounter;
+    modelPicker;
+    suggestionMenu;
     attachEventListeners() {
       this.options.form.addEventListener("submit", (event) => this.handleSubmit(event));
       this.options.form.addEventListener("dragenter", (event) => this.handleComposerDragEnter(event));
@@ -2313,13 +3170,13 @@
       for (const button of this.options.streamingBehaviorButtonElements) {
         button.addEventListener("click", () => this.selectStreamingBehavior(button));
       }
-      this.options.modelElement.addEventListener("click", () => this.toggleModelMenu());
-      this.options.modelMenuElement?.addEventListener("keydown", (event) => this.handleModelMenuKeydown(event), true);
-      this.options.modelSelectElement.addEventListener("change", () => this.selectModel());
-      this.options.thinkingSelectElement.addEventListener("change", () => this.selectThinkingLevel());
+      this.options.modelElement.addEventListener("click", () => this.modelPicker.toggleMenu());
+      this.options.modelMenuElement?.addEventListener("keydown", (event) => this.modelPicker.handleMenuKeydown(event), true);
+      this.options.modelSelectElement.addEventListener("change", () => this.modelPicker.selectModel());
+      this.options.thinkingSelectElement.addEventListener("change", () => this.modelPicker.selectThinkingLevel());
       window.addEventListener("resize", () => this.syncPromptContextBadgeOverflow());
       this.options.textarea.addEventListener("keydown", (event) => {
-        if (this.handleSlashMenuKeydown(event)) {
+        if (this.suggestionMenu.handleKeydown(event)) {
           return;
         }
         if (event.key === "Enter" && !event.shiftKey) {
@@ -2328,7 +3185,7 @@
         }
       });
       this.options.textarea.addEventListener("input", () => {
-        this.slashMenuDismissedQuery = void 0;
+        this.suggestionMenu.clearDismissedSlashQuery();
         this.syncComposer({ preserveBottom: true });
         this.syncSlashMenu();
       });
@@ -2342,25 +3199,8 @@
       this.options.slashMenuElement?.addEventListener("mousedown", (event) => {
         event.preventDefault();
       });
-      this.options.slashMenuElement?.addEventListener("pointermove", (event) => this.handleSlashMenuPointerMove(event));
-      this.options.slashMenuElement?.addEventListener("click", (event) => {
-        const item = eventTargetElement(event)?.closest(".composer__slash-item");
-        if (!item) {
-          return;
-        }
-        const index = Number(item.getAttribute("data-index"));
-        if (this.suggestionKind === "file") {
-          const file = this.fileSuggestionItems[index];
-          if (file) {
-            this.acceptFileSuggestion(file);
-          }
-          return;
-        }
-        const command = this.slashMenuItems[index];
-        if (command) {
-          this.acceptSlashCommand(command);
-        }
-      });
+      this.options.slashMenuElement?.addEventListener("pointermove", (event) => this.suggestionMenu.handlePointerMove(event));
+      this.options.slashMenuElement?.addEventListener("click", (event) => this.suggestionMenu.handleClick(event));
       this.options.contextBadgesElement?.addEventListener("mousedown", (event) => {
         if (eventTargetElement(event)?.closest(".composer__context-remove")) {
           event.preventDefault();
@@ -2389,66 +3229,32 @@
           this.closeModelMenu();
         }
       }
-      if (this.slashMenuOpen) {
+      if (this.suggestionMenu.isOpen()) {
         if (!this.options.slashMenuElement?.contains(target) && target !== this.options.textarea) {
           this.closeSlashMenu();
         }
       }
     }
     hasSlashMenuOpen() {
-      return this.slashMenuOpen;
+      return this.suggestionMenu.isOpen();
     }
     hasModelMenuOpen() {
-      return this.options.modelMenuElement?.hasAttribute("open") ?? false;
+      return this.modelPicker.hasOpenMenu();
     }
     dismissSlashMenu() {
-      this.slashMenuDismissedQuery = this.suggestionKind === "slash" ? this.getSlashCommandQuery() : void 0;
-      this.closeSlashMenu();
+      this.suggestionMenu.dismiss();
     }
     closeSlashMenu() {
-      this.slashMenuOpen = false;
-      this.slashCommandsRefreshRequested = false;
-      this.slashMenuItems = [];
-      this.slashMenuActiveIndex = 0;
-      this.slashMenuQuery = "";
-      this.suggestionKind = void 0;
-      this.fileSuggestionItems = [];
-      this.fileSuggestionPrefix = "";
-      this.fileSuggestionLoading = false;
-      this.disableSlashMenuPointerHover();
-      this.options.slashMenuElement?.removeAttribute("open");
-      this.options.slashMenuElement?.setAttribute("aria-label", "Slash commands");
-      this.options.textarea.setAttribute("aria-expanded", "false");
-      this.options.textarea.removeAttribute("aria-activedescendant");
+      this.suggestionMenu.close();
     }
     handleHostMessage(message) {
-      if (!isFileSuggestionsResult(message)) {
-        return false;
-      }
-      if (message.id !== String(this.fileSuggestionRequestId) || message.prefix !== this.fileSuggestionPrefix) {
-        return true;
-      }
-      const activePrefix = this.getFileSuggestionPrefixInfo()?.prefix;
-      if (activePrefix !== message.prefix) {
-        return true;
-      }
-      this.fileSuggestionLoading = false;
-      this.fileSuggestionItems = message.items;
-      this.slashMenuActiveIndex = Math.min(this.slashMenuActiveIndex, Math.max(0, this.fileSuggestionItems.length - 1));
-      this.renderFileSuggestionMenu(message.prefix);
-      this.openSlashMenu();
-      return true;
+      return this.suggestionMenu.handleHostMessage(message);
     }
     closeModelMenu() {
-      this.options.modelMenuElement?.removeAttribute("open");
-      this.options.modelElement.setAttribute("aria-expanded", "false");
+      this.modelPicker.closeMenu();
     }
     openModelPicker() {
-      if (this.options.modelElement.disabled) {
-        return;
-      }
-      this.openModelMenu();
-      this.focusModelPickerControl(1);
+      this.modelPicker.openPicker();
     }
     syncPromptContextBadges() {
       if (!this.options.contextBadgesElement) {
@@ -2559,18 +3365,7 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
       this.options.contextElement.hidden = state2.contextUsageLabel.length === 0;
       const label = state2.modelLabel || "Select model";
       const modelTooltip = state2.metadataRefreshing ? label + " (refreshing...)" : state2.modelOptions.length === 0 && !state2.busy ? "Load model settings" : label;
-      const modelLabel = document.createElement("span");
-      modelLabel.className = "composer__model-label";
-      modelLabel.textContent = label;
-      const tooltip = createTooltipElement(modelTooltip);
-      this.options.modelElement.replaceChildren(modelLabel, tooltip);
-      this.options.modelElement.className = "composer__model";
-      this.options.modelElement.setAttribute("aria-label", modelTooltip);
-      this.options.modelElement.disabled = state2.busy;
-      this.options.modelElement.setAttribute("aria-busy", state2.metadataRefreshing ? "true" : "false");
-      this.options.modelMenuElement?.setAttribute("aria-busy", state2.metadataRefreshing ? "true" : "false");
-      this.syncModelSelect();
-      this.syncThinkingSelect();
+      this.modelPicker.syncLabel(label, modelTooltip, state2.busy, state2.metadataRefreshing);
     }
     applyComposerTextFromState() {
       const state2 = this.options.getState();
@@ -2613,7 +3408,7 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
       textarea2.value = result.text;
       textarea2.selectionStart = result.cursor;
       textarea2.selectionEnd = result.cursor;
-      this.slashMenuDismissedQuery = void 0;
+      this.suggestionMenu.clearDismissedSlashQuery();
       this.closeSlashMenu();
       this.syncComposer({ preserveBottom: true });
       this.options.focusPromptInput();
@@ -2628,42 +3423,7 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
       }
     }
     syncSlashMenu() {
-      const filePrefix = this.getFileSuggestionPrefixInfo()?.prefix;
-      if (filePrefix) {
-        this.syncFileSuggestionMenu(filePrefix);
-        return;
-      }
-      const state2 = this.options.getState();
-      if (!this.shouldShowSlashMenu()) {
-        this.closeSlashMenu();
-        return;
-      }
-      this.closeModelMenu();
-      this.options.cancelSessionNameEdit();
-      if (state2.slashCommands.length === 0 && !state2.slashCommandsRefreshing && !this.slashCommandsRefreshRequested) {
-        this.slashCommandsRefreshRequested = true;
-        this.options.postMessage({ type: "refreshSlashCommands" });
-      }
-      const query = this.getSlashCommandQuery();
-      if (query === this.slashMenuDismissedQuery) {
-        this.closeSlashMenu();
-        return;
-      }
-      if (this.suggestionKind !== "slash" || query !== this.slashMenuQuery) {
-        this.suggestionKind = "slash";
-        this.fileSuggestionItems = [];
-        this.fileSuggestionLoading = false;
-        this.slashMenuQuery = query;
-        this.slashMenuActiveIndex = 0;
-        this.disableSlashMenuPointerHover();
-        if (this.options.slashMenuElement) {
-          this.options.slashMenuElement.scrollTop = 0;
-        }
-      }
-      this.slashMenuItems = this.getFilteredSlashCommands(query);
-      this.slashMenuActiveIndex = Math.min(this.slashMenuActiveIndex, Math.max(0, this.slashMenuItems.length - 1));
-      this.renderSlashMenu(query);
-      this.openSlashMenu();
+      this.suggestionMenu.sync();
     }
     toggleStreamingBehavior() {
       if (!this.options.getState().busy) {
@@ -2680,7 +3440,7 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
       if (this.options.textarea.value.length > 0) {
         this.options.textarea.value = "";
         this.pasteBuffer.clear();
-        this.slashMenuDismissedQuery = void 0;
+        this.suggestionMenu.clearDismissedSlashQuery();
         this.closeSlashMenu();
         this.syncComposer({ preserveBottom: true });
         return true;
@@ -2891,458 +3651,6 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
         }
       }, 160);
     }
-    syncModelSelect() {
-      const state2 = this.options.getState();
-      const selectedValue = modelKey(state2.modelProvider, state2.modelId);
-      const currentValue = this.options.modelSelectElement.value;
-      const modelOptions = this.getDisplayModelOptions();
-      const nextOptionsSignature = getModelOptionsSignature(modelOptions);
-      if (nextOptionsSignature !== this.modelSelectOptionsSignature) {
-        this.modelSelectOptionsSignature = nextOptionsSignature;
-        this.options.modelSelectElement.replaceChildren();
-        for (const model of modelOptions) {
-          if (!model || typeof model.provider !== "string" || typeof model.id !== "string") {
-            continue;
-          }
-          const option = document.createElement("option");
-          option.value = modelKey(model.provider, model.id);
-          option.textContent = model.name && model.name !== model.id ? model.name + " (" + model.provider + "/" + model.id + ")" : model.provider + "/" + model.id;
-          this.options.modelSelectElement.append(option);
-        }
-      }
-      this.options.modelSelectElement.value = selectedValue || currentValue;
-      this.options.modelSelectElement.disabled = state2.busy || modelOptions.length === 0;
-    }
-    getDisplayModelOptions() {
-      const state2 = this.options.getState();
-      if (state2.modelOptions.length > 0) {
-        return getScopedModelPickerOptions(state2);
-      }
-      if (!state2.modelProvider || !state2.modelId) {
-        return [];
-      }
-      return [{
-        provider: state2.modelProvider,
-        id: state2.modelId,
-        name: state2.modelLabel || state2.modelId,
-        reasoning: state2.modelReasoning
-      }];
-    }
-    syncThinkingSelect() {
-      const state2 = this.options.getState();
-      this.options.thinkingSelectElement.value = state2.thinkingLevel || "medium";
-      this.options.thinkingSelectElement.disabled = state2.busy || !state2.modelReasoning;
-      this.options.thinkingSelectElement.title = state2.modelReasoning ? "Thinking mode" : "The selected model does not advertise thinking support.";
-    }
-    toggleModelMenu() {
-      if (this.options.modelElement.disabled) {
-        return;
-      }
-      const open = !this.options.modelMenuElement?.hasAttribute("open");
-      if (open) {
-        this.openModelMenu();
-      } else {
-        this.closeModelMenu();
-      }
-    }
-    openModelMenu() {
-      const state2 = this.options.getState();
-      if (state2.modelOptions.length === 0 && !state2.metadataRefreshing) {
-        this.options.refreshMetadata();
-      }
-      this.closeSlashMenu();
-      this.options.cancelSessionNameEdit();
-      this.options.modelMenuElement?.setAttribute("open", "");
-      this.options.modelElement.setAttribute("aria-expanded", "true");
-    }
-    selectModel() {
-      const state2 = this.options.getState();
-      const [provider, modelId] = splitModelKey(this.options.modelSelectElement.value);
-      if (!provider || !modelId || state2.busy) {
-        return;
-      }
-      this.closeModelMenu();
-      this.options.postMessage({ type: "setModel", provider, modelId });
-    }
-    selectThinkingLevel() {
-      const state2 = this.options.getState();
-      const level = this.options.thinkingSelectElement.value;
-      if (!level || state2.busy || !state2.modelReasoning) {
-        return;
-      }
-      this.closeModelMenu();
-      this.options.postMessage({ type: "setThinkingLevel", level });
-    }
-    handleModelMenuKeydown(event) {
-      if (!this.hasModelMenuOpen()) {
-        return;
-      }
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
-        event.stopPropagation();
-        this.focusModelPickerControl(event.key === "ArrowUp" ? -1 : 1);
-        return;
-      }
-      if (event.key === "Home" || event.key === "End") {
-        event.preventDefault();
-        event.stopPropagation();
-        this.focusModelPickerControl(event.key === "End" ? -1 : 1, true);
-      }
-    }
-    focusModelPickerControl(direction, edge = false) {
-      const controls = this.getEnabledModelPickerControls();
-      if (controls.length === 0) {
-        this.options.modelElement.focus({ preventScroll: true });
-        return;
-      }
-      const activeIndex = controls.findIndex((control) => control === document.activeElement);
-      const nextIndex = edge || activeIndex === -1 ? direction === 1 ? 0 : controls.length - 1 : (activeIndex + direction + controls.length) % controls.length;
-      requestAnimationFrame(() => controls[nextIndex]?.focus({ preventScroll: true }));
-    }
-    getEnabledModelPickerControls() {
-      return [this.options.thinkingSelectElement, this.options.modelSelectElement].filter((control) => !control.disabled);
-    }
-    handleSlashMenuKeydown(event) {
-      if (!this.slashMenuOpen) {
-        if (event.key === "Escape") {
-          this.dismissSlashMenu();
-        }
-        return false;
-      }
-      this.disableSlashMenuPointerHover();
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        this.moveSlashMenuSelection(1);
-        return true;
-      }
-      if (event.key === "ArrowUp") {
-        event.preventDefault();
-        this.moveSlashMenuSelection(-1);
-        return true;
-      }
-      if (event.key === "Tab") {
-        event.preventDefault();
-        this.acceptActiveSuggestion();
-        return true;
-      }
-      if (event.key === "Enter" && !event.shiftKey && this.getActiveSuggestionCount() > 0) {
-        event.preventDefault();
-        this.acceptActiveSuggestion();
-        return true;
-      }
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        this.dismissSlashMenu();
-        return true;
-      }
-      return false;
-    }
-    shouldShowSlashMenu() {
-      const state2 = this.options.getState();
-      if (state2.busy || document.activeElement !== this.options.textarea) {
-        return false;
-      }
-      const cursor = this.options.textarea.selectionStart;
-      if (cursor !== this.options.textarea.selectionEnd) {
-        return false;
-      }
-      const beforeCursor = this.options.textarea.value.slice(0, cursor);
-      return beforeCursor.startsWith("/") && !Array.from(beforeCursor).some((character) => character.trim().length === 0);
-    }
-    getSlashCommandQuery() {
-      return this.options.textarea.value.slice(1, this.options.textarea.selectionStart).toLowerCase();
-    }
-    syncFileSuggestionMenu(prefix) {
-      if (document.activeElement !== this.options.textarea) {
-        this.closeSlashMenu();
-        return;
-      }
-      this.closeModelMenu();
-      this.options.cancelSessionNameEdit();
-      if (this.suggestionKind !== "file" || prefix !== this.fileSuggestionPrefix) {
-        this.suggestionKind = "file";
-        this.slashMenuItems = [];
-        this.fileSuggestionItems = [];
-        this.fileSuggestionPrefix = prefix;
-        this.fileSuggestionLoading = true;
-        this.slashMenuActiveIndex = 0;
-        this.disableSlashMenuPointerHover();
-        this.options.slashMenuElement?.scrollTo({ top: 0 });
-        this.fileSuggestionRequestId += 1;
-        this.options.postMessage({
-          type: "requestFileSuggestions",
-          id: String(this.fileSuggestionRequestId),
-          prefix
-        });
-      }
-      this.renderFileSuggestionMenu(prefix);
-      this.openSlashMenu();
-    }
-    getFileSuggestionPrefixInfo() {
-      const textarea2 = this.options.textarea;
-      const cursor = textarea2.selectionStart;
-      if (cursor !== textarea2.selectionEnd) {
-        return void 0;
-      }
-      return extractAtFilePrefix(textarea2.value.slice(0, cursor));
-    }
-    getFilteredSlashCommands(query) {
-      const commands = this.getAllSlashCommands();
-      const scored = [];
-      for (const command of commands) {
-        if (!command || typeof command.name !== "string") {
-          continue;
-        }
-        const name = command.name.toLowerCase();
-        const description = typeof command.description === "string" ? command.description.toLowerCase() : "";
-        const namePrefix = name.startsWith(query);
-        const nameMatch = name.includes(query);
-        const descriptionMatch = description.includes(query);
-        if (!nameMatch && !descriptionMatch) {
-          continue;
-        }
-        scored.push({
-          command,
-          score: namePrefix ? 0 : nameMatch ? 1 : 2
-        });
-      }
-      return scored.sort((left, right) => left.score - right.score || getSlashCommandSourceRank(left.command.source) - getSlashCommandSourceRank(right.command.source) || left.command.name.localeCompare(right.command.name)).slice(0, 8).map((item) => item.command);
-    }
-    getAllSlashCommands() {
-      const state2 = this.options.getState();
-      const commands = [...localSlashCommands2];
-      const names = /* @__PURE__ */ new Set([
-        ...commands.map((command) => command.name),
-        ...hiddenLocalSlashCommandNames2
-      ]);
-      if (Array.isArray(state2.slashCommands)) {
-        for (const command of state2.slashCommands) {
-          if (!command || typeof command.name !== "string" || names.has(command.name)) {
-            continue;
-          }
-          names.add(command.name);
-          commands.push(command);
-        }
-      }
-      return commands;
-    }
-    renderSlashMenu(query) {
-      const slashMenuElement2 = this.options.slashMenuElement;
-      if (!slashMenuElement2) {
-        return;
-      }
-      const state2 = this.options.getState();
-      slashMenuElement2.replaceChildren();
-      if (state2.slashCommandsRefreshing && this.slashMenuItems.length === 0) {
-        slashMenuElement2.append(createSlashMenuEmptyElement("Loading commands..."));
-        return;
-      }
-      if (this.slashMenuItems.length === 0) {
-        slashMenuElement2.append(createSlashMenuEmptyElement(query ? "No matching slash commands" : "No slash commands available"));
-        return;
-      }
-      for (let index = 0; index < this.slashMenuItems.length; index += 1) {
-        slashMenuElement2.append(this.createSlashMenuItemElement(this.slashMenuItems[index], index));
-      }
-      this.syncSlashMenuActiveDescendant();
-    }
-    renderFileSuggestionMenu(prefix) {
-      const slashMenuElement2 = this.options.slashMenuElement;
-      if (!slashMenuElement2) {
-        return;
-      }
-      slashMenuElement2.replaceChildren();
-      if (this.fileSuggestionLoading && this.fileSuggestionItems.length === 0) {
-        slashMenuElement2.append(createSlashMenuEmptyElement("Finding files..."));
-        return;
-      }
-      if (this.fileSuggestionItems.length === 0) {
-        slashMenuElement2.append(createSlashMenuEmptyElement(prefix.length > 1 ? "No matching files" : "No files available"));
-        return;
-      }
-      for (let index = 0; index < this.fileSuggestionItems.length; index += 1) {
-        slashMenuElement2.append(this.createFileSuggestionItemElement(this.fileSuggestionItems[index], index));
-      }
-      this.syncSlashMenuActiveDescendant();
-    }
-    createSuggestionBaseElement(index) {
-      const item = document.createElement("button");
-      item.type = "button";
-      item.id = "slash-command-" + index;
-      item.className = "composer__slash-item" + (index === this.slashMenuActiveIndex ? " composer__slash-item--active" : "");
-      item.setAttribute("role", "option");
-      item.setAttribute("aria-selected", index === this.slashMenuActiveIndex ? "true" : "false");
-      item.setAttribute("data-index", String(index));
-      return item;
-    }
-    createFileSuggestionItemElement(file, index) {
-      const item = this.createSuggestionBaseElement(index);
-      const label = document.createElement("span");
-      label.className = "composer__slash-label";
-      label.textContent = file.label;
-      item.append(label);
-      const source = document.createElement("span");
-      source.className = "composer__slash-source";
-      source.textContent = file.directory ? "dir" : "file";
-      item.append(source);
-      if (file.description) {
-        const description = document.createElement("span");
-        description.className = "composer__slash-description";
-        description.textContent = file.description;
-        item.append(description);
-      }
-      return item;
-    }
-    createSlashMenuItemElement(command, index) {
-      const item = this.createSuggestionBaseElement(index);
-      const label = document.createElement("span");
-      label.className = "composer__slash-label";
-      label.textContent = "/" + command.name;
-      item.append(label);
-      const meta = formatSlashCommandMeta(command);
-      if (meta) {
-        const source = document.createElement("span");
-        source.className = "composer__slash-source";
-        source.textContent = meta;
-        item.append(source);
-      }
-      if (command.description) {
-        const description = document.createElement("span");
-        description.className = "composer__slash-description";
-        description.textContent = command.description;
-        item.append(description);
-      }
-      return item;
-    }
-    openSlashMenu() {
-      if (!this.options.slashMenuElement) {
-        return;
-      }
-      this.slashMenuOpen = true;
-      this.options.slashMenuElement.setAttribute("open", "");
-      this.options.slashMenuElement.setAttribute("aria-label", this.suggestionKind === "file" ? "File suggestions" : "Slash commands");
-      this.options.textarea.setAttribute("aria-expanded", "true");
-      this.syncSlashMenuActiveDescendant();
-    }
-    moveSlashMenuSelection(delta) {
-      const itemCount = this.getActiveSuggestionCount();
-      if (itemCount === 0) {
-        return;
-      }
-      this.slashMenuActiveIndex = (this.slashMenuActiveIndex + delta + itemCount) % itemCount;
-      if (this.suggestionKind === "file") {
-        this.renderFileSuggestionMenu(this.fileSuggestionPrefix);
-      } else {
-        this.renderSlashMenu(this.getSlashCommandQuery());
-      }
-    }
-    enableSlashMenuPointerHover() {
-      if (this.slashMenuPointerHoverEnabled) {
-        return;
-      }
-      this.slashMenuPointerHoverEnabled = true;
-      this.options.slashMenuElement?.classList.add("composer__slash-menu--pointer-hover");
-    }
-    disableSlashMenuPointerHover() {
-      if (!this.slashMenuPointerHoverEnabled) {
-        return;
-      }
-      this.slashMenuPointerHoverEnabled = false;
-      this.options.slashMenuElement?.classList.remove("composer__slash-menu--pointer-hover");
-    }
-    handleSlashMenuPointerMove(event) {
-      if (!this.slashMenuOpen) {
-        return;
-      }
-      this.enableSlashMenuPointerHover();
-      const item = eventTargetElement(event)?.closest(".composer__slash-item");
-      if (!(item instanceof HTMLElement) || !this.options.slashMenuElement?.contains(item)) {
-        return;
-      }
-      const index = Number(item.getAttribute("data-index"));
-      if (!Number.isInteger(index) || index < 0 || index >= this.getActiveSuggestionCount()) {
-        return;
-      }
-      const previousIndex = this.slashMenuActiveIndex;
-      if (index === previousIndex) {
-        return;
-      }
-      this.slashMenuActiveIndex = index;
-      this.updateRenderedSlashMenuSelection(previousIndex);
-    }
-    updateRenderedSlashMenuSelection(previousIndex) {
-      this.updateRenderedSlashMenuItemSelection(previousIndex, false);
-      this.updateRenderedSlashMenuItemSelection(this.slashMenuActiveIndex, true);
-      this.syncSlashMenuActiveDescendant({ reveal: false });
-    }
-    updateRenderedSlashMenuItemSelection(index, selected) {
-      const item = document.getElementById("slash-command-" + index);
-      if (!item) {
-        return;
-      }
-      item.classList.toggle("composer__slash-item--active", selected);
-      item.setAttribute("aria-selected", selected ? "true" : "false");
-    }
-    syncSlashMenuActiveDescendant(options = {}) {
-      if (!this.slashMenuOpen || this.getActiveSuggestionCount() === 0) {
-        this.options.textarea.removeAttribute("aria-activedescendant");
-        return;
-      }
-      this.options.textarea.setAttribute("aria-activedescendant", "slash-command-" + this.slashMenuActiveIndex);
-      if (options.reveal !== false) {
-        this.options.slashMenuElement?.querySelector(".composer__slash-item--active")?.scrollIntoView({ block: "nearest" });
-      }
-    }
-    acceptActiveSuggestion() {
-      if (this.suggestionKind === "file") {
-        const file = this.fileSuggestionItems[this.slashMenuActiveIndex];
-        if (file) {
-          this.acceptFileSuggestion(file);
-        }
-        return;
-      }
-      const command = this.slashMenuItems[this.slashMenuActiveIndex];
-      if (command) {
-        this.acceptSlashCommand(command);
-      }
-    }
-    getActiveSuggestionCount() {
-      return this.suggestionKind === "file" ? this.fileSuggestionItems.length : this.slashMenuItems.length;
-    }
-    acceptSlashCommand(command) {
-      const cursor = this.options.textarea.selectionStart;
-      const after = this.options.textarea.value.slice(cursor).trimStart();
-      const value = "/" + command.name + " " + after;
-      const nextCursor = command.name.length + 2;
-      this.options.textarea.value = value;
-      this.options.textarea.setSelectionRange(nextCursor, nextCursor);
-      this.closeSlashMenu();
-      this.syncComposer({ preserveBottom: true });
-      this.options.focusPromptInput();
-    }
-    acceptFileSuggestion(file) {
-      const prefixInfo = this.getFileSuggestionPrefixInfo();
-      if (!prefixInfo) {
-        return;
-      }
-      const textarea2 = this.options.textarea;
-      const cursor = textarea2.selectionStart;
-      const beforePrefix = textarea2.value.slice(0, prefixInfo.start);
-      const afterCursor = textarea2.value.slice(cursor);
-      const hasLeadingQuoteAfterCursor = afterCursor.startsWith('"');
-      const hasTrailingQuoteInItem = file.value.endsWith('"');
-      const adjustedAfterCursor = hasTrailingQuoteInItem && hasLeadingQuoteAfterCursor ? afterCursor.slice(1) : afterCursor;
-      const suffix = file.directory ? "" : " ";
-      const nextValue = beforePrefix + file.value + suffix + adjustedAfterCursor;
-      const cursorOffset = file.directory && hasTrailingQuoteInItem ? file.value.length - 1 : file.value.length;
-      const nextCursor = beforePrefix.length + cursorOffset + suffix.length;
-      textarea2.value = nextValue;
-      textarea2.setSelectionRange(nextCursor, nextCursor);
-      this.closeSlashMenu();
-      this.syncComposer({ preserveBottom: true });
-      this.options.focusPromptInput();
-    }
     syncTextareaHeightIfNeeded(force) {
       const nextSignature = this.getTextareaLayoutSignature();
       if (!force && nextSignature === this.textareaLayoutSignature) {
@@ -3389,18 +3697,6 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
       return Math.max(0, composerHeight - textareaHeight);
     }
   };
-  function createTooltipElement(text) {
-    const tooltip = document.createElement("span");
-    tooltip.className = "tauren-icon-action-tooltip";
-    tooltip.textContent = text;
-    return tooltip;
-  }
-  function setTooltipText(element, text) {
-    const tooltip = element.querySelector(".tauren-icon-action-tooltip");
-    if (tooltip) {
-      tooltip.textContent = text;
-    }
-  }
   function isPromptContextAttachment(value) {
     if (!value || typeof value !== "object") {
       return false;
@@ -3415,124 +3711,6 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
     const attachment = value;
     return typeof attachment.id === "string" && typeof attachment.label === "string" && typeof attachment.title === "string" && typeof attachment.mimeType === "string" && typeof attachment.sizeBytes === "number";
   }
-  async function createDroppedPromptImagesMessage(dataTransfer) {
-    const files = Array.from(dataTransfer.files ?? []);
-    const uris = files.length > 0 ? [] : getDroppedUriTexts(dataTransfer);
-    if (files.length === 0 && uris.length === 0) {
-      return void 0;
-    }
-    const rejections = getPromptImageFileRejections(files);
-    if (rejections.length > 0) {
-      return { type: "dropPromptImages", files: [], uris: [], rejections };
-    }
-    return createPromptImagesMessageFromFiles(files, uris);
-  }
-  async function createPromptImagesMessageFromFiles(files, uris = []) {
-    const droppedFiles = [];
-    for (const file of files) {
-      try {
-        droppedFiles.push({
-          label: getPromptImageFileLabel(file),
-          title: getPromptImageFileLabel(file),
-          mimeType: getSupportedPromptImageMimeType(getPromptImageFileLabel(file)) ?? file.type,
-          sizeBytes: file.size,
-          data: await readFileAsBase64(file)
-        });
-      } catch {
-        return {
-          type: "dropPromptImages",
-          files: [],
-          uris: [],
-          rejections: [`Cannot read attachment: ${getPromptImageFileLabel(file)}.`]
-        };
-      }
-    }
-    return { type: "dropPromptImages", files: droppedFiles, uris };
-  }
-  function getPromptImageFileRejections(files) {
-    const rejections = [];
-    for (const file of files) {
-      const label = getPromptImageFileLabel(file);
-      if (!getSupportedPromptImageMimeType(label)) {
-        rejections.push(getUnsupportedPromptImageMessage(label));
-        continue;
-      }
-      if (file.size > maxPromptImageBytes) {
-        rejections.push(getPromptImageTooLargeMessage(label));
-      }
-    }
-    return rejections;
-  }
-  function getPromptImageFileLabel(file) {
-    return file.name || "dropped file";
-  }
-  function getPastedPromptImageFiles(dataTransfer) {
-    const files = Array.from(dataTransfer.files ?? []).filter(hasClipboardFileName);
-    if (files.length > 0) {
-      return files;
-    }
-    return Array.from(dataTransfer.items ?? []).filter((item) => item.kind === "file").map((item) => item.getAsFile()).filter((file) => Boolean(file && hasClipboardFileName(file)));
-  }
-  function hasClipboardFileName(file) {
-    return typeof file.name === "string" && file.name.length > 0;
-  }
-  function readFileAsBase64(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.addEventListener("load", () => {
-        resolve(typeof reader.result === "string" ? stripDataUrlPrefix(reader.result) : "");
-      });
-      reader.addEventListener("error", () => reject(reader.error));
-      reader.readAsDataURL(file);
-    });
-  }
-  function stripDataUrlPrefix(value) {
-    const commaIndex = value.indexOf(",");
-    return commaIndex >= 0 ? value.slice(commaIndex + 1) : value;
-  }
-  function classifyComposerDragState(dataTransfer) {
-    if (!dataTransfer) {
-      return "neutral";
-    }
-    const files = Array.from(dataTransfer.files ?? []);
-    if (files.length > 0) {
-      return getPromptImageFileRejections(files).length > 0 ? "invalid" : "valid";
-    }
-    const itemStates = Array.from(dataTransfer.items ?? []).filter((item) => item.kind === "file").map(classifyDataTransferFileItem);
-    if (itemStates.includes("invalid")) {
-      return "invalid";
-    }
-    if (itemStates.length > 0 && itemStates.every((state2) => state2 === "valid")) {
-      return "valid";
-    }
-    return "neutral";
-  }
-  function classifyDataTransferFileItem(item) {
-    const file = item.getAsFile();
-    if (file?.name) {
-      return getPromptImageFileRejections([file]).length > 0 ? "invalid" : "valid";
-    }
-    if (item.type) {
-      return isSupportedPromptImageMimeType(item.type) ? "valid" : "invalid";
-    }
-    return "neutral";
-  }
-  function isSupportedPromptImageMimeType(value) {
-    return value === "image/png" || value === "image/jpeg" || value === "image/gif" || value === "image/webp";
-  }
-  function getDroppedUriTexts(dataTransfer) {
-    const uriList = parseDroppedUriText(dataTransfer.getData("text/uri-list"));
-    if (uriList.length > 0) {
-      return uriList;
-    }
-    return parseDroppedUriText(dataTransfer.getData("text/plain"));
-  }
-  function parseDroppedUriText(value) {
-    return value.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0 && !line.startsWith("#")).filter(isDroppedUriText);
-  }
-  function isDroppedUriText(value) {
-    return /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value) || value.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(value) || value.startsWith("\\\\");
-  }
   function formatBytes(value) {
     if (!Number.isFinite(value) || value < 0) {
       return "0 B";
@@ -3545,9 +3723,6 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
       return `${Math.round(kib)} KB`;
     }
     return `${(kib / 1024).toFixed(1)} MB`;
-  }
-  function getModelOptionsSignature(modelOptions) {
-    return modelOptions.map((model) => [model.provider, model.id, model.name, model.reasoning ? "1" : "0"].join("\0")).join("");
   }
   function getContextBadgesPastSecondRow(badges) {
     const rowTops = [];
@@ -3606,98 +3781,6 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
       tooltipCode.textContent = tooltipText;
     }
     badge.title = tooltipText;
-  }
-  function modelKey(provider, id) {
-    return provider + "/" + id;
-  }
-  function splitModelKey(value) {
-    const slashIndex = value.indexOf("/");
-    if (slashIndex <= 0) {
-      return ["", ""];
-    }
-    return [value.slice(0, slashIndex), value.slice(slashIndex + 1)];
-  }
-  function getSlashCommandSourceRank(source) {
-    if (source === "builtin") {
-      return 0;
-    }
-    if (source === "extension") {
-      return 1;
-    }
-    if (source === "prompt") {
-      return 2;
-    }
-    if (source === "skill") {
-      return 3;
-    }
-    if (source === "unsupported") {
-      return 4;
-    }
-    return 5;
-  }
-  var fileSuggestionDelimiters = /* @__PURE__ */ new Set([" ", "	", "\n", "\r", '"', "'", "="]);
-  function extractAtFilePrefix(textBeforeCursor) {
-    const quotedPrefix = extractQuotedAtFilePrefix(textBeforeCursor);
-    if (quotedPrefix) {
-      return quotedPrefix;
-    }
-    const lastDelimiterIndex = findLastFileSuggestionDelimiter(textBeforeCursor);
-    const tokenStart = lastDelimiterIndex === -1 ? 0 : lastDelimiterIndex + 1;
-    if (textBeforeCursor[tokenStart] === "@") {
-      return { prefix: textBeforeCursor.slice(tokenStart), start: tokenStart };
-    }
-    return void 0;
-  }
-  function extractQuotedAtFilePrefix(textBeforeCursor) {
-    let inQuotes = false;
-    let quoteStart = -1;
-    for (let index = 0; index < textBeforeCursor.length; index += 1) {
-      if (textBeforeCursor[index] === '"') {
-        inQuotes = !inQuotes;
-        if (inQuotes) {
-          quoteStart = index;
-        }
-      }
-    }
-    if (!inQuotes || quoteStart <= 0 || textBeforeCursor[quoteStart - 1] !== "@") {
-      return void 0;
-    }
-    const atStart = quoteStart - 1;
-    if (atStart > 0 && !fileSuggestionDelimiters.has(textBeforeCursor[atStart - 1] ?? "")) {
-      return void 0;
-    }
-    return { prefix: textBeforeCursor.slice(atStart), start: atStart };
-  }
-  function findLastFileSuggestionDelimiter(text) {
-    for (let index = text.length - 1; index >= 0; index -= 1) {
-      if (fileSuggestionDelimiters.has(text[index] ?? "")) {
-        return index;
-      }
-    }
-    return -1;
-  }
-  function isFileSuggestionsResult(message) {
-    if (!isRecord(message) || message.type !== "fileSuggestionsResult") {
-      return false;
-    }
-    return typeof message.id === "string" && typeof message.prefix === "string" && Array.isArray(message.items) && message.items.every(isFileSuggestion);
-  }
-  function isFileSuggestion(value) {
-    return isRecord(value) && typeof value.value === "string" && typeof value.label === "string" && ("description" in value ? typeof value.description === "string" : true) && typeof value.directory === "boolean";
-  }
-  function createSlashMenuEmptyElement(text) {
-    const empty = document.createElement("div");
-    empty.className = "composer__slash-empty";
-    empty.textContent = text;
-    return empty;
-  }
-  function formatSlashCommandMeta(command) {
-    const source = typeof command.source === "string" ? command.source : "";
-    const location = typeof command.location === "string" ? command.location : "";
-    if (source && location) {
-      return source + " \xB7 " + location;
-    }
-    return source || location;
   }
   function getReservedMessagesHeight() {
     return Math.min(72, Math.max(40, Math.floor(window.innerHeight * 0.18)));

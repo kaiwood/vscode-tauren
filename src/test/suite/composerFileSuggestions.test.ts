@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { extractAtFilePrefix } from '../../webview/composer/composer';
+import { extractAtFilePrefix } from '../../webview/composer/fileSuggestions';
 
 suite('Composer @ file suggestions', () => {
   test('extracts @ prefix at token boundaries', () => {
