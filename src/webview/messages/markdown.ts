@@ -1,6 +1,7 @@
 import { requestCodeHighlight, requestCodeHighlightsIn } from '../codeHighlighting';
 import { createIconActionButton } from './actionButtons';
 import type { LocalImageResolveResult, MarkdownRenderer } from '../types';
+import { isRecord } from '../../shared/typeGuards';
 
 export type RenderMarkdownOptions = {
   animateFromText?: string;
@@ -222,10 +223,6 @@ function isLocalImageResolveResult(message: unknown): message is LocalImageResol
   return typeof message.id === 'string'
     && (!('uri' in message) || typeof message.uri === 'string')
     && (!('error' in message) || typeof message.error === 'string');
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function linkifyFileReferences(root: HTMLElement): void {

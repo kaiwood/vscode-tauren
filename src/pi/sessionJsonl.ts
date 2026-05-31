@@ -1,4 +1,5 @@
 import { closeSync, createReadStream, openSync, readSync } from 'fs';
+import { isRecord } from '../shared/typeGuards';
 
 export function* iterSessionJsonlRecords(content: string): Generator<unknown> {
   let lineStart = 0;
@@ -101,8 +102,4 @@ function parseSessionJsonlLine(line: string): unknown | undefined {
     // Skip malformed session lines. Pi session readers are intentionally tolerant.
     return undefined;
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }

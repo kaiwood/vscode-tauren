@@ -5,6 +5,7 @@ import {
   maxPromptImageBytes
 } from '../../prompt/imageAttachments';
 import { requestCodeHighlight } from '../codeHighlighting';
+import { eventTargetElement, parseCssPixelValue } from '../dom';
 import { getScopedModelPickerOptions } from '../scopedModels';
 import { createDiffCounter, formatDiffLineCount, normalizeDiffLineCount, updateDiffCounter } from './diffCounter';
 import { appendComposerText } from './appendText';
@@ -25,6 +26,7 @@ import type {
   WebviewState,
   WebviewStreamingBehavior
 } from '../types';
+import { isRecord } from '../../shared/typeGuards';
 
 type PostMessage = (message: unknown) => void;
 type ComposerDragState = 'none' | 'neutral' | 'valid' | 'invalid';
@@ -1918,10 +1920,6 @@ function isFileSuggestion(value: unknown): value is FileSuggestion {
     && typeof value.directory === 'boolean';
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
 function createSlashMenuEmptyElement(text: string): HTMLElement {
   const empty = document.createElement('div');
   empty.className = 'composer__slash-empty';
@@ -1942,12 +1940,4 @@ function formatSlashCommandMeta(command: SlashCommand): string {
 
 function getReservedMessagesHeight(): number {
   return Math.min(72, Math.max(40, Math.floor(window.innerHeight * 0.18)));
-}
-
-function parseCssPixelValue(value: string): number {
-  return Number.parseFloat(value) || 0;
-}
-
-function eventTargetElement(event: Event): Element | null {
-  return event.target instanceof Element ? event.target : null;
 }

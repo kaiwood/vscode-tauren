@@ -1,3 +1,5 @@
+import { isRecord } from '../shared/typeGuards';
+
 type PostMessage = (message: unknown) => void;
 
 type HighlightInfo = {
@@ -305,8 +307,4 @@ function normalizeLanguage(language: string | undefined): string | undefined {
   };
 
   return aliases[normalized] || normalized;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }

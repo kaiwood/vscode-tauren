@@ -1,5 +1,7 @@
 import type { SessionItemCommand } from '../types';
 
+export { eventTargetElement } from '../dom';
+
 export function createSessionEmptyElement(text: string): HTMLElement {
   const empty = document.createElement('div');
   empty.className = 'sessions__empty';
@@ -22,8 +24,4 @@ export function getSessionListCommandForKey(key: string): SessionItemCommand | u
     default:
       return undefined;
   }
-}
-
-export function eventTargetElement(event: Event): Element | null {
-  return event.target instanceof Element ? event.target : null;
 }

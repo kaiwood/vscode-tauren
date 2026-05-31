@@ -1,4 +1,5 @@
 import { normalizeDiffLineCount } from '../diff/lineCount';
+import { isHttpUrl } from '../shared/url';
 import { isSettingId, normalizeSettingValue } from '../settings/settingsRegistry';
 import { cloneWebviewExtensionRenderBlocks } from '../webviewProtocol/renderBlocks';
 import {
@@ -20,6 +21,7 @@ import type {
   WebviewScriptUris,
   WebviewStateMessage
 } from '../webviewProtocol/types';
+import { isRecord } from '../shared/typeGuards';
 
 export function parseWebviewMessage(value: unknown): WebviewMessage {
   if (!isRecord(value) || typeof value.type !== 'string') {
@@ -823,17 +825,4 @@ function parsePositiveInteger(value: unknown): number | undefined {
 
 function parsePositiveNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
-}
-
-function isHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }

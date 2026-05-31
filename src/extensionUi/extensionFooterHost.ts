@@ -8,6 +8,7 @@ import {
 } from './customUiHost';
 import { defaultCellDimensions } from './renderContent';
 import type { ExtensionFooterFactory } from './types';
+import { clampInteger, clampPositiveNumber } from './dimensions';
 
 export type ExtensionFooterEntry = {
   line: string;
@@ -319,16 +320,4 @@ function safeDispose(component: CustomUiComponent | undefined): void {
   } catch {
     // Ignore disposal failures from extension-owned components.
   }
-}
-
-function clampPositiveNumber(value: number | undefined, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-function clampInteger(value: number, min: number, max: number, fallback: number): number {
-  if (!Number.isFinite(value)) {
-    return fallback;
-  }
-
-  return Math.min(Math.max(Math.floor(value), min), max);
 }

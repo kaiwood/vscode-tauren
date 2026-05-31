@@ -4,6 +4,7 @@ import type {
   TaurenChatSessionMetaSnapshot,
   SessionMetadataCacheStorage
 } from './types';
+import { isRecord } from '../shared/typeGuards';
 
 const cachedSessionMetaStorageKey = 'tauren.cachedSessionMeta';
 const legacyCachedModelMetaStorageKey = 'tauren.cachedModelMeta';
@@ -131,10 +132,6 @@ function hasCachedSessionMeta(snapshot: TaurenChatSessionMetaSnapshot): boolean 
     || (snapshot.modelOptions && snapshot.modelOptions.length > 0)
     || snapshot.contextUsage
   );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function getRecordString(record: Record<string, unknown>, key: string): string | undefined {

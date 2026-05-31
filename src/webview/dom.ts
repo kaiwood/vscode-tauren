@@ -50,6 +50,14 @@ export type WebviewDom = {
   submitButton: HTMLButtonElement;
 };
 
+export function eventTargetElement(event: Event): Element | null {
+  return event.target instanceof Element ? event.target : null;
+}
+
+export function parseCssPixelValue(value: string): number {
+  return Number.parseFloat(value) || 0;
+}
+
 export function getWebviewDom(): WebviewDom {
   return {
     viewElement: queryRequired<HTMLElement>('.tauren-view'),

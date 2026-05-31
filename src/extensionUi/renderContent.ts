@@ -1,4 +1,6 @@
 import type { WebviewExtensionRenderBlock } from '../webviewProtocol/types';
+import { isRecord } from '../shared/typeGuards';
+import { clampPositiveNumber } from './dimensions';
 
 export type ExtensionRenderContent = {
   lines: string[];
@@ -240,17 +242,7 @@ function clampPositiveInteger(value: unknown, fallback: number): number {
     : fallback;
 }
 
-function clampPositiveNumber(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0
-    ? value
-    : fallback;
-}
-
 function integerField(value: Record<string, unknown>, key: string, fallback: number): number {
   const field = value[key];
   return typeof field === 'number' && Number.isFinite(field) && field > 0 ? Math.floor(field) : fallback;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }

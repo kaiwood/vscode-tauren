@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, unlink, writeFile } from 'fs/promises';
 import { dirname } from 'path';
 import type { RawSessionInfo } from './types';
+import { isRecord } from '../shared/typeGuards';
 
 export type CachedSessionInfo = {
   mtimeMs: number;
@@ -129,8 +130,4 @@ function getString(value: unknown): string | undefined {
 
 function getOptionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value ? value : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }

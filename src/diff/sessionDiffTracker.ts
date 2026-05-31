@@ -10,6 +10,7 @@ import type {
   SessionFileDiffsResult,
   ToolExecutionInput
 } from './types';
+import { isRecord } from '../shared/typeGuards';
 
 export class SessionDiffTracker {
   private stats: SessionDiffStats = emptySessionDiffStats();
@@ -604,10 +605,6 @@ function normalizeStats(value: unknown): SessionDiffStats {
     addedLines: normalizeDiffLineCount(value.addedLines),
     removedLines: normalizeDiffLineCount(value.removedLines)
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function getRecordString(record: Record<string, unknown>, key: string): string | undefined {

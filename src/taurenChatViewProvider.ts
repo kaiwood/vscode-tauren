@@ -65,6 +65,7 @@ import {
   updateTaurenSetting,
   welcomeDismissedStorageKey
 } from './settings/taurenSettings';
+import { isRecord } from './shared/typeGuards';
 
 export const taurenChatViewType = 'tauren.chatView';
 export type { PiClient } from './pi/clientTypes';
@@ -1437,10 +1438,6 @@ function parseScrollCommand(options: unknown): WebviewScrollCommand {
   const amount = record.amount === 'page' || record.amount === 'line' || record.amount === 'edge' ? record.amount : 'page';
 
   return { direction, amount };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function getEditorLineTextForComposer(editor: vscode.TextEditor): string {

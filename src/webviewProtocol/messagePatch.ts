@@ -1,5 +1,6 @@
 import type { ChatSnapshotMessage } from '../chat/chatSession';
 import type { WebviewMessagePatch, WebviewStateMessage } from './types';
+import { isRecord } from '../shared/typeGuards';
 
 export type PostedWebviewMessageSync = {
   id: string;
@@ -264,8 +265,4 @@ function getImagesSignature(images: PatchImage[] | undefined): string {
     const suffix = data.length > 32 ? data.slice(-32) : '';
     return [image.type ?? '', image.mimeType ?? '', image.alt ?? '', data.length, prefix, suffix].join('\u0000');
   }).join('\u0001');
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }

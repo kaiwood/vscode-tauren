@@ -9,6 +9,7 @@ import {
   type CustomUiTerminal
 } from './customUiHost';
 import { defaultCellDimensions, renderComponentContent, renderTextContent, type ExtensionCellDimensions } from './renderContent';
+import { clampInteger, clampPositiveNumber } from './dimensions';
 
 type ExtensionTerminalDimensions = CustomUiTerminal & ExtensionCellDimensions;
 
@@ -266,18 +267,6 @@ export class ExtensionWidgetHost {
 
 function normalizePlacement(value: ExtensionWidgetPlacement | undefined): ExtensionWidgetPlacement {
   return value === 'belowEditor' ? 'belowEditor' : 'aboveEditor';
-}
-
-function clampPositiveNumber(value: number | undefined, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-function clampInteger(value: number, min: number, max: number, fallback: number): number {
-  if (!Number.isFinite(value)) {
-    return fallback;
-  }
-
-  return Math.min(Math.max(Math.floor(value), min), max);
 }
 
 function safeDispose(component: CustomUiComponent | undefined): void {

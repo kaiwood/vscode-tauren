@@ -1,5 +1,6 @@
 import { extractPiMessageText } from '../pi/messageContent';
 import type { PiSessionTreeItem, RawEntry } from './types';
+import { isRecord } from '../shared/typeGuards';
 export type { PiSessionTreeItem } from './types';
 
 export type FlattenableSessionTreeNode = {
@@ -386,8 +387,4 @@ function summarizeText(value: unknown): string {
 function truncate(value: string): string {
   const normalized = value.replace(/\s+/g, ' ').trim();
   return normalized.length > 120 ? `${normalized.slice(0, 117)}...` : normalized;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }

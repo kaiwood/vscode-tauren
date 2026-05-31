@@ -3,6 +3,7 @@ import { isSettingId, normalizeSettingValue } from '../settings/settingsRegistry
 import { parseWebviewMessagePatch, applyWebviewMessagePatch } from '../webviewProtocol/messagePatch';
 import { parseWebviewCustomUiTheme, parseWebviewLane, parseWebviewSettingsSection } from '../webviewProtocol/values';
 import type { ChatMessage, ExtensionFooterEntry, ExtensionStatusEntry, ExtensionWidgetEntry, StartupResourceSection, WebviewState } from './types';
+import { isRecord } from '../shared/typeGuards';
 
 export type ProvisionalExtensionUiSnapshot = {
   extensionFooter?: ExtensionFooterEntry;
@@ -517,8 +518,4 @@ function parseWorkspaceDiffStats(value: unknown): { addedLines: number; removedL
     addedLines: normalizeDiffLineCount(value.addedLines),
     removedLines: normalizeDiffLineCount(value.removedLines)
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }

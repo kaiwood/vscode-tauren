@@ -1,4 +1,5 @@
 import type { WebviewExtensionRenderBlock } from '../webviewProtocol/types';
+import { isRecord } from '../shared/typeGuards';
 
 export function normalizeExtensionRenderBlocks(blocks: unknown, fallbackLines: string[]): WebviewExtensionRenderBlock[] {
   if (Array.isArray(blocks)) {
@@ -84,8 +85,4 @@ function isSupportedImageMimeType(value: string): boolean {
 
 function clampPositiveInteger(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }

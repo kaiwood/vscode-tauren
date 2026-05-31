@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { normalizeDiffLineCount } from './lineCount';
 import type { SessionDiffSnapshot } from './types';
+import { isRecord } from '../shared/typeGuards';
 
 const sessionDiffSnapshotsStorageKey = 'tauren.sessionDiffSnapshots';
 const maxSessionDiffSnapshots = 50;
@@ -141,8 +142,4 @@ function normalizeSnapshotStats(stats: SessionDiffSnapshot['stats'] | undefined)
     addedLines: normalizeDiffLineCount(stats?.addedLines),
     removedLines: normalizeDiffLineCount(stats?.removedLines)
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }

@@ -12,6 +12,11 @@
     };
   }
 
+  // src/shared/typeGuards.ts
+  function isRecord(value) {
+    return typeof value === "object" && value !== null;
+  }
+
   // src/webview/codeHighlighting.ts
   var maxHighlightCodeLength = 2e5;
   var maxCachedHighlightCodeLength = 5e4;
@@ -245,9 +250,6 @@
     };
     return aliases[normalized] || normalized;
   }
-  function isRecord(value) {
-    return typeof value === "object" && value !== null;
-  }
 
   // src/webview/extensionRenderBlocks.ts
   function normalizeExtensionRenderBlocks(blocks, fallbackLines) {
@@ -282,7 +284,7 @@
     return wrapper;
   }
   function normalizeExtensionRenderBlock(value) {
-    if (!isRecord2(value)) {
+    if (!isRecord(value)) {
       return void 0;
     }
     if (value.type === "text" && Array.isArray(value.lines)) {
@@ -313,9 +315,6 @@
   }
   function clampPositiveInteger(value, fallback) {
     return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
-  }
-  function isRecord2(value) {
-    return typeof value === "object" && value !== null;
   }
 
   // src/webview/messages/ansi.ts
@@ -1652,13 +1651,10 @@
     return !/^[A-Za-z][A-Za-z0-9+.-]*:/.test(src) && /\.(?:png|jpe?g|gif|webp)(?:[?#].*)?$/i.test(src);
   }
   function isLocalImageResolveResult(message) {
-    if (!isRecord3(message) || message.type !== "resolveLocalImageResult") {
+    if (!isRecord(message) || message.type !== "resolveLocalImageResult") {
       return false;
     }
     return typeof message.id === "string" && (!("uri" in message) || typeof message.uri === "string") && (!("error" in message) || typeof message.error === "string");
-  }
-  function isRecord3(value) {
-    return typeof value === "object" && value !== null;
   }
   function linkifyFileReferences(root) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
@@ -1890,6 +1886,77 @@
     const normalized = filePath.split(/[\\/]/).pop() ?? filePath;
     const dotIndex = normalized.lastIndexOf(".");
     return dotIndex >= 0 ? normalized.slice(dotIndex).toLowerCase() : "";
+  }
+
+  // src/webview/dom.ts
+  function eventTargetElement(event) {
+    return event.target instanceof Element ? event.target : null;
+  }
+  function parseCssPixelValue(value) {
+    return Number.parseFloat(value) || 0;
+  }
+  function getWebviewDom() {
+    return {
+      viewElement: queryRequired(".tauren-view"),
+      toolbarTitleElement: queryRequired(".tauren-toolbar__title"),
+      toolbarTitleTextElement: queryRequired(".tauren-toolbar__title-text"),
+      toolbarTimestampElement: queryRequired(".tauren-toolbar__timestamp"),
+      sessionNameInputElement: queryRequired(".tauren-toolbar__title-input"),
+      sessionToggleButton: queryRequired(".tauren-toolbar__sessions"),
+      treeToggleButton: queryRequired(".tauren-toolbar__tree"),
+      helpOverlayElement: queryRequired(".tauren-help-overlay"),
+      helpCloseButton: queryRequired(".tauren-help-overlay__close"),
+      settingsElement: queryRequired(".settings-surface"),
+      settingsBodyElement: queryRequired(".settings-surface__body"),
+      settingsBackButton: queryRequired(".settings-surface__back"),
+      toastElement: queryRequired(".tauren-toast"),
+      messagesElement: queryRequired(".messages"),
+      sessionsElement: queryRequired(".sessions"),
+      sessionTreeElement: queryRequired(".session-tree"),
+      customUiElement: queryRequired(".custom-ui"),
+      customUiOutputElement: queryRequired(".custom-ui__output"),
+      customUiCloseButton: queryRequired(".custom-ui__close"),
+      extensionEditorElement: queryRequired(".extension-editor"),
+      extensionEditorTitleElement: queryRequired(".extension-editor__title"),
+      extensionEditorInputElement: queryRequired(".extension-editor__input"),
+      extensionEditorSaveButton: queryRequired(".extension-editor__save"),
+      extensionEditorCancelButton: queryRequired(".extension-editor__cancel"),
+      extensionEditorCloseButton: queryRequired(".extension-editor__close"),
+      widgetBusySlotElement: queryRequired(".composer__widget-busy-slot"),
+      extensionWidgetsAboveElement: queryRequired(".extension-widgets--above"),
+      extensionWidgetsBelowElement: queryRequired(".extension-widgets--below"),
+      form: queryRequired(".composer"),
+      textarea: queryRequired(".composer__input"),
+      composerStatusElement: queryRequired(".composer-status"),
+      composerStatusTextElement: queryRequired(".composer-status__text"),
+      slashMenuElement: queryRequired(".composer__slash-menu"),
+      contextBadgesElement: queryRequired(".composer__context-badges"),
+      busySubmitElement: queryRequired(".composer__busy-submit"),
+      diffSummaryElement: queryRequired(".composer__diff-summary"),
+      diffAddedElement: queryRequired(".composer__diff-added"),
+      diffRemovedElement: queryRequired(".composer__diff-removed"),
+      streamingBehaviorButtonElements: queryAll(".composer__mode-button"),
+      attachButton: queryRequired(".composer__attach"),
+      newSessionButton: queryRequired(".composer__add"),
+      contextElement: queryRequired(".composer__context"),
+      contextValueElement: queryRequired(".composer__context-value"),
+      contextTooltipElement: queryRequired(".composer__context-tooltip"),
+      modelElement: queryRequired(".composer__model"),
+      modelMenuElement: queryRequired(".composer__model-menu"),
+      modelSelectElement: queryRequired(".composer__model-select"),
+      thinkingSelectElement: queryRequired(".composer__thinking-select"),
+      submitButton: queryRequired(".composer__submit")
+    };
+  }
+  function queryRequired(selector) {
+    const element = document.querySelector(selector);
+    if (!element) {
+      throw new Error(`Missing required webview element: ${selector}`);
+    }
+    return element;
+  }
+  function queryAll(selector) {
+    return Array.from(document.querySelectorAll(selector));
   }
 
   // src/webview/scopedModels.ts
@@ -3610,16 +3677,13 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
     return -1;
   }
   function isFileSuggestionsResult(message) {
-    if (!isRecord4(message) || message.type !== "fileSuggestionsResult") {
+    if (!isRecord(message) || message.type !== "fileSuggestionsResult") {
       return false;
     }
     return typeof message.id === "string" && typeof message.prefix === "string" && Array.isArray(message.items) && message.items.every(isFileSuggestion);
   }
   function isFileSuggestion(value) {
-    return isRecord4(value) && typeof value.value === "string" && typeof value.label === "string" && ("description" in value ? typeof value.description === "string" : true) && typeof value.directory === "boolean";
-  }
-  function isRecord4(value) {
-    return typeof value === "object" && value !== null;
+    return isRecord(value) && typeof value.value === "string" && typeof value.label === "string" && ("description" in value ? typeof value.description === "string" : true) && typeof value.directory === "boolean";
   }
   function createSlashMenuEmptyElement(text) {
     const empty = document.createElement("div");
@@ -3637,12 +3701,6 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
   }
   function getReservedMessagesHeight() {
     return Math.min(72, Math.max(40, Math.floor(window.innerHeight * 0.18)));
-  }
-  function parseCssPixelValue(value) {
-    return Number.parseFloat(value) || 0;
-  }
-  function eventTargetElement(event) {
-    return event.target instanceof Element ? event.target : null;
   }
 
   // src/webview/extensionEditorDialog.ts
@@ -3732,69 +3790,14 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
     return value.type === "extensionEditorHide" && typeof value.id === "string" && value.id.length > 0;
   }
 
-  // src/webview/dom.ts
-  function getWebviewDom() {
-    return {
-      viewElement: queryRequired(".tauren-view"),
-      toolbarTitleElement: queryRequired(".tauren-toolbar__title"),
-      toolbarTitleTextElement: queryRequired(".tauren-toolbar__title-text"),
-      toolbarTimestampElement: queryRequired(".tauren-toolbar__timestamp"),
-      sessionNameInputElement: queryRequired(".tauren-toolbar__title-input"),
-      sessionToggleButton: queryRequired(".tauren-toolbar__sessions"),
-      treeToggleButton: queryRequired(".tauren-toolbar__tree"),
-      helpOverlayElement: queryRequired(".tauren-help-overlay"),
-      helpCloseButton: queryRequired(".tauren-help-overlay__close"),
-      settingsElement: queryRequired(".settings-surface"),
-      settingsBodyElement: queryRequired(".settings-surface__body"),
-      settingsBackButton: queryRequired(".settings-surface__back"),
-      toastElement: queryRequired(".tauren-toast"),
-      messagesElement: queryRequired(".messages"),
-      sessionsElement: queryRequired(".sessions"),
-      sessionTreeElement: queryRequired(".session-tree"),
-      customUiElement: queryRequired(".custom-ui"),
-      customUiOutputElement: queryRequired(".custom-ui__output"),
-      customUiCloseButton: queryRequired(".custom-ui__close"),
-      extensionEditorElement: queryRequired(".extension-editor"),
-      extensionEditorTitleElement: queryRequired(".extension-editor__title"),
-      extensionEditorInputElement: queryRequired(".extension-editor__input"),
-      extensionEditorSaveButton: queryRequired(".extension-editor__save"),
-      extensionEditorCancelButton: queryRequired(".extension-editor__cancel"),
-      extensionEditorCloseButton: queryRequired(".extension-editor__close"),
-      widgetBusySlotElement: queryRequired(".composer__widget-busy-slot"),
-      extensionWidgetsAboveElement: queryRequired(".extension-widgets--above"),
-      extensionWidgetsBelowElement: queryRequired(".extension-widgets--below"),
-      form: queryRequired(".composer"),
-      textarea: queryRequired(".composer__input"),
-      composerStatusElement: queryRequired(".composer-status"),
-      composerStatusTextElement: queryRequired(".composer-status__text"),
-      slashMenuElement: queryRequired(".composer__slash-menu"),
-      contextBadgesElement: queryRequired(".composer__context-badges"),
-      busySubmitElement: queryRequired(".composer__busy-submit"),
-      diffSummaryElement: queryRequired(".composer__diff-summary"),
-      diffAddedElement: queryRequired(".composer__diff-added"),
-      diffRemovedElement: queryRequired(".composer__diff-removed"),
-      streamingBehaviorButtonElements: queryAll(".composer__mode-button"),
-      attachButton: queryRequired(".composer__attach"),
-      newSessionButton: queryRequired(".composer__add"),
-      contextElement: queryRequired(".composer__context"),
-      contextValueElement: queryRequired(".composer__context-value"),
-      contextTooltipElement: queryRequired(".composer__context-tooltip"),
-      modelElement: queryRequired(".composer__model"),
-      modelMenuElement: queryRequired(".composer__model-menu"),
-      modelSelectElement: queryRequired(".composer__model-select"),
-      thinkingSelectElement: queryRequired(".composer__thinking-select"),
-      submitButton: queryRequired(".composer__submit")
-    };
-  }
-  function queryRequired(selector) {
-    const element = document.querySelector(selector);
-    if (!element) {
-      throw new Error(`Missing required webview element: ${selector}`);
+  // src/shared/url.ts
+  function isHttpUrl(value) {
+    try {
+      const url = new URL(value);
+      return url.protocol === "http:" || url.protocol === "https:";
+    } catch {
+      return false;
     }
-    return element;
-  }
-  function queryAll(selector) {
-    return Array.from(document.querySelectorAll(selector));
   }
 
   // src/webview/messages/renderPolicy.ts
@@ -4433,7 +4436,7 @@ ${after}`;
     }
     handleMessageClick(event) {
       const state2 = this.options.getState();
-      const target = eventTargetElement2(event);
+      const target = eventTargetElement(event);
       const toggleButton = target?.closest("[data-activity-body-toggle]");
       if (toggleButton instanceof HTMLElement) {
         const activityId = toggleButton.dataset.activityBodyToggle;
@@ -4859,17 +4862,6 @@ ${after}`;
     }
     const numberValue = Number(value);
     return Number.isInteger(numberValue) ? numberValue : void 0;
-  }
-  function isHttpUrl(value) {
-    try {
-      const url = new URL(value);
-      return url.protocol === "http:" || url.protocol === "https:";
-    } catch {
-      return false;
-    }
-  }
-  function eventTargetElement2(event) {
-    return event.target instanceof Element ? event.target : null;
   }
 
   // src/webview/messages/transcriptSearch.ts
@@ -6090,9 +6082,6 @@ ${after}`;
         return void 0;
     }
   }
-  function eventTargetElement3(event) {
-    return event.target instanceof Element ? event.target : null;
-  }
 
   // src/webview/sessions/sessionTreeController.ts
   var SessionTreeController = class {
@@ -6231,7 +6220,7 @@ ${after}`;
       return false;
     }
     handleKeydown(event) {
-      const target = eventTargetElement3(event);
+      const target = eventTargetElement(event);
       const labelInput = target?.closest(".sessions__tree-label-input");
       if (this.pendingLabelEntryId) {
         if (labelInput instanceof HTMLInputElement) {
@@ -6930,7 +6919,7 @@ ${after}`;
         this.hideSessionList(event);
         return true;
       }
-      const target = eventTargetElement3(event);
+      const target = eventTargetElement(event);
       const sessionSearchInput = target?.closest(".sessions__search-input");
       if (sessionSearchInput instanceof HTMLInputElement && state2.lane === "sessions") {
         return this.handleSessionSearchKeydown(event, sessionSearchInput);
@@ -7184,7 +7173,7 @@ ${after}`;
     }
     handleSessionsClick(event) {
       const state2 = this.options.getState();
-      const target = eventTargetElement3(event);
+      const target = eventTargetElement(event);
       if (state2.lane === "tree" && this.treeController.handleClick(target, event)) {
         return;
       }
@@ -7220,7 +7209,7 @@ ${after}`;
       if (state2.lane !== "sessions") {
         return;
       }
-      const target = eventTargetElement3(event);
+      const target = eventTargetElement(event);
       if (target?.closest(".sessions__name-input")) {
         return;
       }
@@ -7272,7 +7261,7 @@ ${after}`;
     }
     handleSessionListKeydown(event) {
       const state2 = this.options.getState();
-      const target = eventTargetElement3(event);
+      const target = eventTargetElement(event);
       if (target?.closest(".sessions__search-input, .sessions__name-input")) {
         return false;
       }
@@ -7375,7 +7364,7 @@ ${after}`;
       if (state2.lane !== "sessions") {
         return;
       }
-      const item = eventTargetElement3(event)?.closest(".sessions__item");
+      const item = eventTargetElement(event)?.closest(".sessions__item");
       if (!(item instanceof HTMLElement) || !this.options.sessionsElement.contains(item)) {
         this.scheduleSessionItemMenuClose();
         return;
@@ -7619,7 +7608,7 @@ ${after}`;
       if (event.key === "Enter") {
         event.preventDefault();
         event.stopPropagation();
-        const focusedCommand = eventTargetElement3(event)?.closest(".sessions__menu-item")?.getAttribute("data-session-command");
+        const focusedCommand = eventTargetElement(event)?.closest(".sessions__menu-item")?.getAttribute("data-session-command");
         this.runOpenSessionItemMenuCommand(focusedCommand ?? sessionItemMenuCommands[this.openSessionListMenuCommandIndex]);
         return true;
       }
@@ -8670,7 +8659,7 @@ ${after}`;
 
   // src/webviewProtocol/messagePatch.ts
   function parseWebviewMessagePatch(value) {
-    if (!isRecord5(value)) {
+    if (!isRecord(value)) {
       return void 0;
     }
     const upserts = Array.isArray(value.upserts) ? value.upserts.filter(isWebviewMessagePatchUpsert) : void 0;
@@ -8694,10 +8683,10 @@ ${after}`;
     return messages;
   }
   function isWebviewMessagePatchUpsert(value) {
-    if (!isRecord5(value)) {
+    if (!isRecord(value)) {
       return false;
     }
-    return typeof value.index === "number" && Number.isInteger(value.index) && value.index >= 0 && isRecord5(value.message) && typeof value.message.role === "string" && typeof value.message.text === "string";
+    return typeof value.index === "number" && Number.isInteger(value.index) && value.index >= 0 && isRecord(value.message) && typeof value.message.role === "string" && typeof value.message.text === "string";
   }
   function mergePatchedWebviewMessage(previous, incoming) {
     if (!previous || !incoming.id || previous.id !== incoming.id) {
@@ -8718,9 +8707,6 @@ ${after}`;
       });
     }
     return merged;
-  }
-  function isRecord5(value) {
-    return typeof value === "object" && value !== null;
   }
 
   // src/webview/state.ts
@@ -8874,7 +8860,7 @@ ${after}`;
     return state2.settings.values["tauren.extensions.statusBarEnabled"] !== false;
   }
   function parseWebviewStateMessage(data, previousState) {
-    const record = isRecord6(data) ? data : {};
+    const record = isRecord(data) ? data : {};
     return {
       messages: parseMessages(record, previousState?.messages ?? []),
       busy: Boolean(record.busy),
@@ -8937,7 +8923,7 @@ ${after}`;
     };
   }
   function parseSessionSearchState(value, fallback) {
-    if (!isRecord6(value)) {
+    if (!isRecord(value)) {
       return fallback ?? createEmptySessionSearchState();
     }
     const status = value.status === "indexing" || value.status === "ready" || value.status === "error" ? value.status : "idle";
@@ -8969,10 +8955,10 @@ ${after}`;
     }));
   }
   function isPromptImageAttachment2(value) {
-    return isRecord6(value) && typeof value.id === "string" && typeof value.label === "string" && typeof value.title === "string" && typeof value.mimeType === "string" && typeof value.sizeBytes === "number";
+    return isRecord(value) && typeof value.id === "string" && typeof value.label === "string" && typeof value.title === "string" && typeof value.mimeType === "string" && typeof value.sizeBytes === "number";
   }
   function parseComposerPaste(value) {
-    if (!isRecord6(value) || typeof value.text !== "string" || typeof value.revision !== "number") {
+    if (!isRecord(value) || typeof value.text !== "string" || typeof value.revision !== "number") {
       return void 0;
     }
     return {
@@ -8990,10 +8976,10 @@ ${after}`;
     }));
   }
   function parseExtensionFooter(value) {
-    return isRecord6(value) && typeof value.line === "string" ? { line: value.line } : void 0;
+    return isRecord(value) && typeof value.line === "string" ? { line: value.line } : void 0;
   }
   function isExtensionStatusEntry(value) {
-    return isRecord6(value) && typeof value.key === "string" && typeof value.text === "string";
+    return isRecord(value) && typeof value.key === "string" && typeof value.text === "string";
   }
   function parseExtensionWidgets(value) {
     if (!Array.isArray(value)) {
@@ -9007,7 +8993,7 @@ ${after}`;
     }));
   }
   function isExtensionWidgetEntry(value) {
-    return isRecord6(value) && typeof value.key === "string" && (value.placement === "aboveEditor" || value.placement === "belowEditor") && Array.isArray(value.lines);
+    return isRecord(value) && typeof value.key === "string" && (value.placement === "aboveEditor" || value.placement === "belowEditor") && Array.isArray(value.lines);
   }
   function parseNonNegativeInteger(value, fallback) {
     return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : fallback;
@@ -9029,7 +9015,7 @@ ${after}`;
       return [];
     }
     return value.flatMap((section) => {
-      if (!isRecord6(section) || typeof section.name !== "string" || !Array.isArray(section.items)) {
+      if (!isRecord(section) || typeof section.name !== "string" || !Array.isArray(section.items)) {
         return [];
       }
       const items = section.items.filter((item) => typeof item === "string").map((item) => item.trim()).filter((item) => item.length > 0);
@@ -9037,7 +9023,7 @@ ${after}`;
     });
   }
   function parseAuthState(value) {
-    if (!isRecord6(value)) {
+    if (!isRecord(value)) {
       return { providers: [] };
     }
     return {
@@ -9050,7 +9036,7 @@ ${after}`;
     };
   }
   function isAuthProvider(value) {
-    return isRecord6(value) && typeof value.id === "string" && typeof value.name === "string" && (value.authType === "oauth" || value.authType === "api_key") && typeof value.configured === "boolean" && typeof value.canLogout === "boolean";
+    return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && (value.authType === "oauth" || value.authType === "api_key") && typeof value.configured === "boolean" && typeof value.canLogout === "boolean";
   }
   function sanitizeAuthProvider(provider) {
     return {
@@ -9066,14 +9052,14 @@ ${after}`;
     };
   }
   function isAuthProgress(value) {
-    return isRecord6(value) && typeof value.message === "string" && (!("providerId" in value) || typeof value.providerId === "string") && (!("url" in value) || typeof value.url === "string") && (!("userCode" in value) || typeof value.userCode === "string") && (!("verificationUri" in value) || typeof value.verificationUri === "string");
+    return isRecord(value) && typeof value.message === "string" && (!("providerId" in value) || typeof value.providerId === "string") && (!("url" in value) || typeof value.url === "string") && (!("userCode" in value) || typeof value.userCode === "string") && (!("verificationUri" in value) || typeof value.verificationUri === "string");
   }
   function parseSettingsState(value) {
-    if (!isRecord6(value)) {
+    if (!isRecord(value)) {
       return { values: {} };
     }
     const parsedValues = {};
-    const values = isRecord6(value.values) ? value.values : {};
+    const values = isRecord(value.values) ? value.values : {};
     for (const [settingId, settingValue] of Object.entries(values)) {
       if (!isSettingId(settingId)) {
         continue;
@@ -9090,7 +9076,7 @@ ${after}`;
     };
   }
   function parseSettingsErrors(value) {
-    if (!isRecord6(value)) {
+    if (!isRecord(value)) {
       return void 0;
     }
     const parsedErrors = {};
@@ -9115,16 +9101,13 @@ ${after}`;
     return applyWebviewMessagePatch(previousMessages, patch);
   }
   function parseWorkspaceDiffStats(value) {
-    if (!isRecord6(value)) {
+    if (!isRecord(value)) {
       return { addedLines: 0, removedLines: 0 };
     }
     return {
       addedLines: normalizeDiffLineCount(value.addedLines),
       removedLines: normalizeDiffLineCount(value.removedLines)
     };
-  }
-  function isRecord6(value) {
-    return typeof value === "object" && value !== null;
   }
 
   // src/webview/main.ts
@@ -9444,7 +9427,7 @@ ${after}`;
   window.addEventListener("click", (event) => {
     const target = eventTargetNode(event);
     composerController.handleWindowClick(target);
-    sessionsController.handleWindowClick(target, eventTargetElement4(event));
+    sessionsController.handleWindowClick(target, eventTargetElement(event));
     handleHelpWindowClick(target);
   });
   window.addEventListener("keydown", (event) => {
@@ -9891,7 +9874,7 @@ ${after}`;
     helpOverlayElement.hidden = true;
   }
   function parsePaneScrollCommand(value) {
-    if (!isRecord7(value)) {
+    if (!isRecord(value)) {
       return void 0;
     }
     const direction = value.direction === "up" || value.direction === "down" ? value.direction : void 0;
@@ -9903,7 +9886,7 @@ ${after}`;
     if (!command) {
       return false;
     }
-    const target = eventTargetElement4(event);
+    const target = eventTargetElement(event);
     if (target instanceof HTMLSelectElement || target instanceof HTMLInputElement) {
       return false;
     }
@@ -9993,13 +9976,7 @@ ${after}`;
     }
   }
   function getLineScrollAmount(element) {
-    return parseCssPixelValue2(getComputedStyle(element).lineHeight) || 20;
-  }
-  function parseCssPixelValue2(value) {
-    return Number.parseFloat(value) || 0;
-  }
-  function isRecord7(value) {
-    return typeof value === "object" && value !== null;
+    return parseCssPixelValue(getComputedStyle(element).lineHeight) || 20;
   }
   function handleToolDetailShortcut(event) {
     if (state.lane !== "chat" || state.chatFace === "settings" || event.key.toLowerCase() !== "o") {
@@ -10110,9 +10087,6 @@ ${after}`;
       }
       textarea.focus({ preventScroll: true });
     });
-  }
-  function eventTargetElement4(event) {
-    return event.target instanceof Element ? event.target : null;
   }
   function eventTargetNode(event) {
     return event.target instanceof Node ? event.target : null;

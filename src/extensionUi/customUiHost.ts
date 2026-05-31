@@ -2,6 +2,7 @@ import { hasWebviewExtensionImageBlock } from '../webviewProtocol/renderBlocks';
 import type { WebviewExtensionRenderBlock } from '../webviewProtocol/types';
 import type { ExtensionCustomUiFactory, ExtensionCustomUiOptions } from './types';
 import { defaultCellDimensions, renderComponentContent, type ExtensionCellDimensions } from './renderContent';
+import { clampInteger, clampPositiveNumber } from './dimensions';
 
 export type CustomUiComponent = {
   render(width: number): string[];
@@ -316,18 +317,6 @@ export function setComponentFocused(component: CustomUiComponent, focused: boole
   if ('focused' in component) {
     component.focused = focused;
   }
-}
-
-function clampPositiveNumber(value: number | undefined, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-function clampInteger(value: number, min: number, max: number, fallback: number): number {
-  if (!Number.isFinite(value)) {
-    return fallback;
-  }
-
-  return Math.min(Math.max(Math.floor(value), min), max);
 }
 
 function isKeyRelease(data: string): boolean {

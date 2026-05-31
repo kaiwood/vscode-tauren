@@ -1,6 +1,7 @@
 import { createReadStream, type Stats } from 'fs';
 import { extractPiMessageText } from '../pi/messageContent';
 import type { RawSessionInfo } from './types';
+import { isRecord } from '../shared/typeGuards';
 
 const maxSessionFirstMessageLength = 500;
 const truncationMarker = '…';
@@ -612,8 +613,4 @@ function skipWhitespace(text: string, index: number): number {
   }
 
   return index;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }

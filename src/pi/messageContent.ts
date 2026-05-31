@@ -1,4 +1,5 @@
 import type { ChatImage } from '../chat/chatSession';
+import { isRecord } from '../shared/typeGuards';
 
 export type ExtractPiMessageTextOptions = {
   separator?: string;
@@ -91,8 +92,4 @@ function extractContentPart(item: unknown, options: ExtractPiMessageTextOptions)
   }
 
   return [];
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }

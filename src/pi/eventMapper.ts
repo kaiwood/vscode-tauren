@@ -6,6 +6,7 @@ import type {
 import { parsePiImageContent } from './messageContent';
 import { formatCompactionTitle } from '../sessions/sessionFormatting';
 import type { PiEvent, PiRenderedContent } from '../pi/types';
+import { isRecord } from '../shared/typeGuards';
 
 const toolResultPreviewMaxLines = 8;
 const toolResultPreviewMaxCharacters = 2400;
@@ -484,10 +485,6 @@ function addActivity(activity: ChatActivityInput): ActivityAddAction {
     type: 'activity_add',
     activity
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function getRecordString(record: Record<string, unknown>, key: string): string | undefined {

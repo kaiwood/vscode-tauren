@@ -6,6 +6,7 @@ import { readSessionJsonlHeader } from '../pi/sessionJsonl';
 import { readSessionMetadataCache, writeSessionMetadataCache, type CachedSessionInfo } from './sessionMetadataCache';
 import { readSessionSummary } from './sessionSummaryParser';
 import type { ListPiSessionsOptions, PiSessionCandidate, PiSessionListItem, RawSessionInfo, SessionTreeNode } from './types';
+import { isRecord } from '../shared/typeGuards';
 export type { ListPiSessionsOptions, PiSessionCandidate, PiSessionListItem } from './types';
 
 const piSessionDirEnvName = 'PI_CODING_AGENT_SESSION_DIR';
@@ -521,8 +522,4 @@ function flattenSessionTree(roots: SessionTreeNode[]): Array<Omit<PiSessionListI
 
 function canonicalizePath(path: string | undefined): string | undefined {
   return path ? resolve(path) : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }

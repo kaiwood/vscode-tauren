@@ -1,5 +1,7 @@
 import { pruneDisconnectedCodeHighlights, requestCodeHighlightsIn } from '../codeHighlighting';
 import { messagesBottomThreshold } from '../constants';
+import { eventTargetElement } from '../dom';
+import { isHttpUrl } from '../../shared/url';
 import { pruneDisconnectedLocalImageRequests } from './markdown';
 import { shouldRenderQuietEmptyTranscript } from './renderPolicy';
 import { createMessageElement, getActivityBodyExpansion, pruneActivityRenderState, setActivityBodyExpansion, toggleActivityBodyExpansion, updateMessageBodyElement } from './renderMessages';
@@ -779,17 +781,4 @@ function parseDatasetInteger(value: string | undefined): number | undefined {
 
   const numberValue = Number(value);
   return Number.isInteger(numberValue) ? numberValue : undefined;
-}
-
-function isHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
-function eventTargetElement(event: Event): Element | null {
-  return event.target instanceof Element ? event.target : null;
 }

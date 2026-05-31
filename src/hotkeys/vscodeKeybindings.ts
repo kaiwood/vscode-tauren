@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { formatTaurenHotkeys, type VsCodeHotkey } from './hotkeys';
+import { isNonArrayRecord as isRecord } from '../shared/typeGuards';
 
 type PackageJson = {
   contributes?: {
@@ -352,8 +353,4 @@ function formatKeyPart(part: string): string {
 
 function normalizeKey(key: string): string {
   return key.trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

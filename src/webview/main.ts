@@ -8,7 +8,7 @@ import { configureMarkdownImageRendering, handleMarkdownImageMessage } from './m
 import { ComposerController } from './composer/composer';
 import { CustomUiController } from './customUI/customUi';
 import { ExtensionEditorDialogController } from './extensionEditorDialog';
-import { getWebviewDom } from './dom';
+import { eventTargetElement, getWebviewDom, parseCssPixelValue } from './dom';
 import { MessageListController } from './messages/messageList';
 import { TranscriptSearchController } from './messages/transcriptSearch';
 import { SessionViewController } from './sessions/sessionView';
@@ -26,6 +26,7 @@ import {
 } from './state';
 import type { WebviewScrollCommand } from '../webviewProtocol/types';
 import type { WebviewState } from './types';
+import { isRecord } from '../shared/typeGuards';
 
 const vscode = acquireVsCodeApi();
 configureCodeHighlighting((message) => vscode.postMessage(message));
@@ -1096,13 +1097,6 @@ function getLineScrollAmount(element: HTMLElement): number {
   return parseCssPixelValue(getComputedStyle(element).lineHeight) || 20;
 }
 
-function parseCssPixelValue(value: string): number {
-  return Number.parseFloat(value) || 0;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
 
 function handleToolDetailShortcut(event: KeyboardEvent): boolean {
   if (state.lane !== 'chat' || state.chatFace === 'settings' || event.key.toLowerCase() !== 'o') {
@@ -1241,10 +1235,6 @@ function focusPromptInput(): void {
 
     textarea.focus({ preventScroll: true });
   });
-}
-
-function eventTargetElement(event: Event): Element | null {
-  return event.target instanceof Element ? event.target : null;
 }
 
 function eventTargetNode(event: Event): Node | null {

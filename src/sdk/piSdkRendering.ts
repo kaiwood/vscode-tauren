@@ -2,6 +2,7 @@ import type { AgentToolResult, MessageRenderer, Theme, ToolDefinition } from '@e
 import { renderComponentContent } from '../extensionUi/renderContent';
 import { taurenTheme } from '../extensionUi/customUiHost';
 import type { PiEvent, PiRenderedContent } from '../pi/types';
+import { isRecord } from '../shared/typeGuards';
 
 const defaultRenderWidth = 100;
 
@@ -349,10 +350,6 @@ function safeRender<T>(render: () => T): T | undefined {
   } catch {
     return undefined;
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function getRecordString(record: Record<string, unknown>, key: string): string | undefined {

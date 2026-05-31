@@ -7,6 +7,7 @@ import {
   normalizeSessionSearchText,
   type SearchableSession
 } from './sessionSearchMatcher';
+import { isRecord } from '../shared/typeGuards';
 
 export const defaultSessionSearchTranscriptLimit = 50 * 1024;
 
@@ -348,8 +349,4 @@ function parseJsonlRecord(line: string): Record<string, unknown> | undefined {
   } catch {
     return undefined;
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }

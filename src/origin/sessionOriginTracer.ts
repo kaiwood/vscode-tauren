@@ -2,6 +2,7 @@ import { existsSync } from 'fs';
 import * as path from 'path';
 import { parseSessionJsonlFileRecords } from '../pi/sessionJsonl';
 import { listPiSessionCandidates } from '../sessions/piSessionList';
+import { isRecord } from '../shared/typeGuards';
 
 export type TraceOriginInput = {
   kind: 'file' | 'selection';
@@ -409,8 +410,4 @@ function normalizeText(value: string): string {
 
 function getString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
