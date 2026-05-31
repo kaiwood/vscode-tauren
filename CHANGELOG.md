@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-05-31
+
 ### New Features
 
 - **Session navigation shortcuts** - Added Home/End navigation for Session List and Session Tree, plus parent/last-child arrow navigation in Session Tree.
