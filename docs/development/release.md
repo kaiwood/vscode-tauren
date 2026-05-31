@@ -57,4 +57,4 @@ npm run docs:build
 git diff --check
 ```
 
-The docs site is local-only until a GitHub Pages workflow is intentionally added.
+The docs site is deployed to GitHub Pages by `.github/workflows/docs.yml` after changes are pushed to `main`.
