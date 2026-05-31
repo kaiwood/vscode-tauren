@@ -69,6 +69,7 @@ const developmentSidebar = [
 export default defineConfig({
   title: 'Tauren',
   description: 'Transparent AI coding assistant for VS Code',
+  base: '/vscode-tauren/',
   appearance: true,
   themeConfig: {
     search: {
