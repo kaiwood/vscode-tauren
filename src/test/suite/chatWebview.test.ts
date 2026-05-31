@@ -425,6 +425,8 @@ suite('Chat webview helpers', () => {
     assert.ok(html.includes('--tauren-lane-transition-duration: 190ms'));
     assert.ok(html.includes('--tauren-lane-transition-easing: cubic-bezier(0.16, 1, 0.3, 1)'));
     assert.ok(html.includes('transition: transform var(--tauren-lane-transition-duration) var(--tauren-lane-transition-easing);'));
+    assert.match(html, /\.composer--list-hidden \{\n      opacity: 0;\n      pointer-events: none;\n      transform: translateY\(0\);/);
+    assert.ok(!html.includes('transform: translateY(32px);'));
     assert.match(html, /\.tauren-view--has-extension-widgets-above \.messages \{\n      padding-bottom: calc\(14px \+ 1lh\);/);
     assert.ok(html.includes('class="settings-surface tauren-chat-surface__face tauren-chat-surface__settings"'));
     assert.ok(!html.includes('translate3d(200%, 0, 0)'));

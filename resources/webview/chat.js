@@ -1,5 +1,17 @@
 "use strict";
 (() => {
+  // src/webview/chatLaneLayout.ts
+  function getChatLaneLayout(state2) {
+    const isSessionLane = state2.lane === "sessions" || state2.lane === "tree";
+    const isSettingsFaceVisible = !isSessionLane && state2.chatFace === "settings";
+    return {
+      isSessionLane,
+      isSettingsFaceVisible,
+      hiddenBySurface: isSessionLane || isSettingsFaceVisible,
+      reserveBottomSurfaceLayout: isSessionLane
+    };
+  }
+
   // src/webview/codeHighlighting.ts
   var maxHighlightCodeLength = 2e5;
   var maxCachedHighlightCodeLength = 5e4;
@@ -9351,8 +9363,8 @@ ${after}`;
     });
   }
   function render() {
-    const isSessionLane = state.lane === "sessions" || state.lane === "tree";
-    const isSettingsFaceVisible = !isSessionLane && state.chatFace === "settings";
+    const chatLaneLayout = getChatLaneLayout(state);
+    const { isSessionLane, isSettingsFaceVisible } = chatLaneLayout;
     const shouldStickToBottom = !isSessionLane && !isSettingsFaceVisible && messagesController.shouldFollowOutput();
     viewElement.classList.toggle("tauren-view--session-lane", isSessionLane);
     viewElement.classList.toggle("tauren-view--lane-sessions", state.lane === "sessions");
@@ -9374,8 +9386,8 @@ ${after}`;
     form.classList.toggle("composer--list-hidden", isSessionLane);
     form.setAttribute("aria-hidden", isSessionLane || isSettingsFaceVisible ? "true" : "false");
     form.inert = isSessionLane || isSettingsFaceVisible;
-    syncExtensionWidgets(isSessionLane || isSettingsFaceVisible);
-    syncExtensionStatus(isSessionLane || isSettingsFaceVisible);
+    syncExtensionWidgets(chatLaneLayout.hiddenBySurface, { reserveLayout: chatLaneLayout.reserveBottomSurfaceLayout });
+    syncExtensionStatus(chatLaneLayout.hiddenBySurface, { reserveLayout: chatLaneLayout.reserveBottomSurfaceLayout });
     sessionsController.syncForRender(isSessionLane);
     settingsController.syncForRender(isSessionLane);
     customUiController.syncForRender(isSessionLane || isSettingsFaceVisible);
@@ -9414,10 +9426,12 @@ ${after}`;
       messagesController.scheduleMessagesToBottom();
     }
   }
-  function syncExtensionWidgets(hiddenBySurface) {
-    const aboveWidgets = hiddenBySurface || !areExtensionAboveWidgetsEnabled() ? [] : state.extensionWidgets.filter((widget) => widget.placement === "aboveEditor");
-    const belowWidgets = hiddenBySurface || !areExtensionBelowWidgetsEnabled() ? [] : state.extensionWidgets.filter((widget) => widget.placement === "belowEditor");
-    const placeBusySubmitOnTopWidget = !hiddenBySurface && aboveWidgets.length > 0;
+  function syncExtensionWidgets(hiddenBySurface, options = {}) {
+    const reserveLayout = Boolean(options.reserveLayout);
+    const collapseLayout = hiddenBySurface && !reserveLayout;
+    const aboveWidgets = collapseLayout || !areExtensionAboveWidgetsEnabled() ? [] : state.extensionWidgets.filter((widget) => widget.placement === "aboveEditor");
+    const belowWidgets = collapseLayout || !areExtensionBelowWidgetsEnabled() ? [] : state.extensionWidgets.filter((widget) => widget.placement === "belowEditor");
+    const placeBusySubmitOnTopWidget = (!hiddenBySurface || reserveLayout) && aboveWidgets.length > 0;
     const activeKeys = new Set([...aboveWidgets, ...belowWidgets].map((widget) => widget.key));
     for (const key of widgetDimensionSignatures.keys()) {
       if (!activeKeys.has(key)) {
@@ -9425,17 +9439,20 @@ ${after}`;
       }
     }
     const renderPlaceholderWidgets = provisionalExtensionUiSnapshot?.widgetsPending === true;
-    renderExtensionWidgetContainer(extensionWidgetsAboveElement, aboveWidgets, placeBusySubmitOnTopWidget ? busySubmitElement : void 0, renderPlaceholderWidgets);
-    renderExtensionWidgetContainer(extensionWidgetsBelowElement, belowWidgets, void 0, renderPlaceholderWidgets);
+    const widgetRenderOptions = { hiddenFromAccessibility: hiddenBySurface, postDimensions: !hiddenBySurface };
+    renderExtensionWidgetContainer(extensionWidgetsAboveElement, aboveWidgets, placeBusySubmitOnTopWidget ? busySubmitElement : void 0, renderPlaceholderWidgets, widgetRenderOptions);
+    renderExtensionWidgetContainer(extensionWidgetsBelowElement, belowWidgets, void 0, renderPlaceholderWidgets, widgetRenderOptions);
     syncBusySubmitPlacement(placeBusySubmitOnTopWidget);
     extensionWidgetsAboveElement.classList.toggle("extension-widgets--with-busy", placeBusySubmitOnTopWidget);
     viewElement.classList.toggle("tauren-view--has-extension-widgets-above", aboveWidgets.length > 0);
     viewElement.classList.toggle("tauren-view--has-extension-widgets-below", belowWidgets.length > 0);
   }
-  function renderExtensionWidgetContainer(container, widgets, leadingElement, placeholderWidgets = false) {
+  function renderExtensionWidgetContainer(container, widgets, leadingElement, placeholderWidgets = false, options = {}) {
     const hasContent = widgets.length > 0 || Boolean(leadingElement);
+    const hiddenFromAccessibility = Boolean(options.hiddenFromAccessibility);
     container.hidden = !hasContent;
-    container.setAttribute("aria-hidden", hasContent ? "false" : "true");
+    container.inert = hiddenFromAccessibility;
+    container.setAttribute("aria-hidden", hasContent && !hiddenFromAccessibility ? "false" : "true");
     if (!hasContent) {
       container.replaceChildren();
       return;
@@ -9488,7 +9505,7 @@ ${after}`;
       fragment.append(element);
     }
     container.replaceChildren(fragment);
-    if (!placeholderWidgets) {
+    if (!placeholderWidgets && options.postDimensions !== false) {
       scheduleExtensionWidgetDimensionsPost(container, widgets);
     }
   }
@@ -9568,17 +9585,19 @@ ${after}`;
   function isExtensionMonospaceFontEnabled() {
     return state.settings.values["tauren.extensions.monospaceFontEnabled"] === true;
   }
-  function syncExtensionStatus(hiddenBySurface) {
+  function syncExtensionStatus(hiddenBySurface, options = {}) {
     const statusEnabled = areExtensionStatusBarEnabled();
+    const reserveLayout = Boolean(options.reserveLayout);
     const placeholderFooter = provisionalExtensionUiSnapshot?.footerPending === true;
     const footerLine = statusEnabled ? state.extensionFooter?.line : void 0;
     const text = statusEnabled && !placeholderFooter ? footerLine !== void 0 ? footerLine : state.extensionStatus.map((entry) => entry.text.trim()).filter(Boolean).join("  \u2022  ") : "";
-    const hasStatusSlot = statusEnabled && !hiddenBySurface;
-    const hasAccessibleText = text.length > 0 && !placeholderFooter;
+    const hasStatusSlot = statusEnabled && (!hiddenBySurface || reserveLayout);
+    const hasAccessibleText = !hiddenBySurface && text.length > 0 && !placeholderFooter;
     composerStatusTextElement.replaceChildren();
     renderAnsiTextInto(composerStatusTextElement, text, state.outputColors, { suppressBackgrounds: true });
     renderAnsiSpinnersInto(composerStatusTextElement, state.animationsEnabled);
     composerStatusElement.hidden = !hasStatusSlot;
+    composerStatusElement.inert = hiddenBySurface;
     composerStatusElement.setAttribute("aria-hidden", hasAccessibleText ? "false" : "true");
     viewElement.classList.toggle("tauren-view--has-extension-status", hasStatusSlot);
     if (hasStatusSlot && hasAccessibleText && footerLine !== void 0) {

@@ -1,3 +1,4 @@
+import { getChatLaneLayout } from './chatLaneLayout';
 import { configureCodeHighlighting, handleCodeHighlightMessage, watchCodeHighlightThemeChanges } from './codeHighlighting';
 import { prepareCustomUiLines, terminalDataForKeyboardEvent } from './customUI/customUi';
 import { roundDevicePixelMetric } from './metrics';
@@ -598,8 +599,8 @@ function measureRenderBoundary(name: 'transcript.render' | 'sessionList.render' 
 }
 
 function render(): void {
-  const isSessionLane = state.lane === 'sessions' || state.lane === 'tree';
-  const isSettingsFaceVisible = !isSessionLane && state.chatFace === 'settings';
+  const chatLaneLayout = getChatLaneLayout(state);
+  const { isSessionLane, isSettingsFaceVisible } = chatLaneLayout;
   const shouldStickToBottom = !isSessionLane && !isSettingsFaceVisible && messagesController.shouldFollowOutput();
   viewElement.classList.toggle('tauren-view--session-lane', isSessionLane);
   viewElement.classList.toggle('tauren-view--lane-sessions', state.lane === 'sessions');
@@ -621,8 +622,8 @@ function render(): void {
   form.classList.toggle('composer--list-hidden', isSessionLane);
   form.setAttribute('aria-hidden', isSessionLane || isSettingsFaceVisible ? 'true' : 'false');
   form.inert = isSessionLane || isSettingsFaceVisible;
-  syncExtensionWidgets(isSessionLane || isSettingsFaceVisible);
-  syncExtensionStatus(isSessionLane || isSettingsFaceVisible);
+  syncExtensionWidgets(chatLaneLayout.hiddenBySurface, { reserveLayout: chatLaneLayout.reserveBottomSurfaceLayout });
+  syncExtensionStatus(chatLaneLayout.hiddenBySurface, { reserveLayout: chatLaneLayout.reserveBottomSurfaceLayout });
 
   sessionsController.syncForRender(isSessionLane);
   settingsController.syncForRender(isSessionLane);
@@ -672,14 +673,16 @@ function render(): void {
   }
 }
 
-function syncExtensionWidgets(hiddenBySurface: boolean): void {
-  const aboveWidgets = hiddenBySurface || !areExtensionAboveWidgetsEnabled()
+function syncExtensionWidgets(hiddenBySurface: boolean, options: { reserveLayout?: boolean } = {}): void {
+  const reserveLayout = Boolean(options.reserveLayout);
+  const collapseLayout = hiddenBySurface && !reserveLayout;
+  const aboveWidgets = collapseLayout || !areExtensionAboveWidgetsEnabled()
     ? []
     : state.extensionWidgets.filter((widget) => widget.placement === 'aboveEditor');
-  const belowWidgets = hiddenBySurface || !areExtensionBelowWidgetsEnabled()
+  const belowWidgets = collapseLayout || !areExtensionBelowWidgetsEnabled()
     ? []
     : state.extensionWidgets.filter((widget) => widget.placement === 'belowEditor');
-  const placeBusySubmitOnTopWidget = !hiddenBySurface && aboveWidgets.length > 0;
+  const placeBusySubmitOnTopWidget = (!hiddenBySurface || reserveLayout) && aboveWidgets.length > 0;
 
   const activeKeys = new Set([...aboveWidgets, ...belowWidgets].map((widget) => widget.key));
   for (const key of widgetDimensionSignatures.keys()) {
@@ -689,8 +692,9 @@ function syncExtensionWidgets(hiddenBySurface: boolean): void {
   }
 
   const renderPlaceholderWidgets = provisionalExtensionUiSnapshot?.widgetsPending === true;
-  renderExtensionWidgetContainer(extensionWidgetsAboveElement, aboveWidgets, placeBusySubmitOnTopWidget ? busySubmitElement : undefined, renderPlaceholderWidgets);
-  renderExtensionWidgetContainer(extensionWidgetsBelowElement, belowWidgets, undefined, renderPlaceholderWidgets);
+  const widgetRenderOptions = { hiddenFromAccessibility: hiddenBySurface, postDimensions: !hiddenBySurface };
+  renderExtensionWidgetContainer(extensionWidgetsAboveElement, aboveWidgets, placeBusySubmitOnTopWidget ? busySubmitElement : undefined, renderPlaceholderWidgets, widgetRenderOptions);
+  renderExtensionWidgetContainer(extensionWidgetsBelowElement, belowWidgets, undefined, renderPlaceholderWidgets, widgetRenderOptions);
   syncBusySubmitPlacement(placeBusySubmitOnTopWidget);
   extensionWidgetsAboveElement.classList.toggle('extension-widgets--with-busy', placeBusySubmitOnTopWidget);
   viewElement.classList.toggle('tauren-view--has-extension-widgets-above', aboveWidgets.length > 0);
@@ -701,11 +705,14 @@ function renderExtensionWidgetContainer(
   container: HTMLElement,
   widgets: WebviewState['extensionWidgets'],
   leadingElement?: HTMLElement,
-  placeholderWidgets = false
+  placeholderWidgets = false,
+  options: { hiddenFromAccessibility?: boolean; postDimensions?: boolean } = {}
 ): void {
   const hasContent = widgets.length > 0 || Boolean(leadingElement);
+  const hiddenFromAccessibility = Boolean(options.hiddenFromAccessibility);
   container.hidden = !hasContent;
-  container.setAttribute('aria-hidden', hasContent ? 'false' : 'true');
+  container.inert = hiddenFromAccessibility;
+  container.setAttribute('aria-hidden', hasContent && !hiddenFromAccessibility ? 'false' : 'true');
 
   if (!hasContent) {
     container.replaceChildren();
@@ -769,7 +776,7 @@ function renderExtensionWidgetContainer(
 
   container.replaceChildren(fragment);
 
-  if (!placeholderWidgets) {
+  if (!placeholderWidgets && options.postDimensions !== false) {
     scheduleExtensionWidgetDimensionsPost(container, widgets);
   }
 }
@@ -874,8 +881,9 @@ function isExtensionMonospaceFontEnabled(): boolean {
   return state.settings.values['tauren.extensions.monospaceFontEnabled'] === true;
 }
 
-function syncExtensionStatus(hiddenBySurface: boolean): void {
+function syncExtensionStatus(hiddenBySurface: boolean, options: { reserveLayout?: boolean } = {}): void {
   const statusEnabled = areExtensionStatusBarEnabled();
+  const reserveLayout = Boolean(options.reserveLayout);
   const placeholderFooter = provisionalExtensionUiSnapshot?.footerPending === true;
   const footerLine = statusEnabled ? state.extensionFooter?.line : undefined;
   const text = statusEnabled && !placeholderFooter
@@ -886,13 +894,14 @@ function syncExtensionStatus(hiddenBySurface: boolean): void {
         .filter(Boolean)
         .join('  •  ')
     : '';
-  const hasStatusSlot = statusEnabled && !hiddenBySurface;
-  const hasAccessibleText = text.length > 0 && !placeholderFooter;
+  const hasStatusSlot = statusEnabled && (!hiddenBySurface || reserveLayout);
+  const hasAccessibleText = !hiddenBySurface && text.length > 0 && !placeholderFooter;
 
   composerStatusTextElement.replaceChildren();
   renderAnsiTextInto(composerStatusTextElement, text, state.outputColors, { suppressBackgrounds: true });
   renderAnsiSpinnersInto(composerStatusTextElement, state.animationsEnabled);
   composerStatusElement.hidden = !hasStatusSlot;
+  composerStatusElement.inert = hiddenBySurface;
   composerStatusElement.setAttribute('aria-hidden', hasAccessibleText ? 'false' : 'true');
   viewElement.classList.toggle('tauren-view--has-extension-status', hasStatusSlot);
 

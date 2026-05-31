@@ -195,7 +195,7 @@ export const composerStyles = /* css */ `    .tauren-view--has-extension-status 
     .composer--list-hidden {
       opacity: 0;
       pointer-events: none;
-      transform: translateY(32px);
+      transform: translateY(0);
     }
 
     .composer--custom-hidden {
