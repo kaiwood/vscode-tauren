@@ -4,6 +4,7 @@ The guide explains Tauren's main workflows: sessions, diffs, traceability, conte
 
 If you are new to Tauren, start with [Quick Start](../getting-started/quick-start.md). If you already have Tauren running, the most important pages are:
 
+- [Feature Tour](./feature-tour.md)
 - [Sessions](./sessions.md)
 - [Session Diffs](./session-diffs.md)
 - [Trace Origin](./trace-origin.md)

@@ -25,10 +25,10 @@ title: Tauren Docs
       <strong>Getting Started</strong>
       <span>Install Tauren, connect a provider, and send your first prompt.</span>
     </a>
-    <a class="tauren-card" href="./guide/sessions">
+    <a class="tauren-card" href="./guide/feature-tour">
       <span class="tauren-card__icon">☰</span>
-      <strong>Sessions</strong>
-      <span>Work with resumable sessions, background runs, forks, and clones.</span>
+      <strong>Feature Tour</strong>
+      <span>See the workflows that make Tauren different from a generic chat panel.</span>
     </a>
     <a class="tauren-card" href="./guide/session-diffs">
       <span class="tauren-card__icon">◇</span>

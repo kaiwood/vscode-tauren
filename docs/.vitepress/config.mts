@@ -17,6 +17,7 @@ const guideSidebar = [
     text: 'Guide',
     items: [
       { text: 'Overview', link: '/guide/' },
+      { text: 'Feature Tour', link: '/guide/feature-tour' },
       { text: 'Tauren Sidebar', link: '/guide/sidebar' },
       { text: 'Sessions', link: '/guide/sessions' },
       { text: 'Session Diffs', link: '/guide/session-diffs' },

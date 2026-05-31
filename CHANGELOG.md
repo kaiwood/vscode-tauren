@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Docs: Added a Feature Tour guide for new users comparing Tauren workflows to generic AI chat panels.
 - Docs: Added a Security, Privacy, and Trust guide covering Tauren trust boundaries and safe defaults.
 - Fixed `/reload` so idle open sessions also refresh Pi extensions instead of keeping stale global extension code.
 
