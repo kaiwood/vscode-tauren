@@ -22,6 +22,7 @@ const guideSidebar = [
       { text: 'Session Diffs', link: '/guide/session-diffs' },
       { text: 'Trace Origin', link: '/guide/trace-origin' },
       { text: 'Adding Context', link: '/guide/context' },
+      { text: 'Security & Privacy', link: '/guide/security-privacy' },
       { text: 'Pi Extensions', link: '/guide/pi-extensions' },
       { text: 'Settings', link: '/guide/settings' },
       { text: 'Troubleshooting', link: '/guide/troubleshooting' }

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Docs: Added a Security, Privacy, and Trust guide covering Tauren trust boundaries and safe defaults.
 - Fixed `/reload` so idle open sessions also refresh Pi extensions instead of keeping stale global extension code.
 
 ## 1.5.1 - 2026-05-31
