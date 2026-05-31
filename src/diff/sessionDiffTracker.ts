@@ -313,8 +313,13 @@ async function computeSessionFileDiffs(cwd: string, mutations: FileMutation[]): 
   const fileDiffs: SessionFileDiff[] = [];
 
   for (const [filePath, fileMutations] of mutationsByPath) {
-    const absolutePath = path.resolve(cwd, filePath);
-    const currentContent = await readCurrentFileContent(cwd, filePath);
+    const absolutePath = resolvePathWithinCwd(cwd, filePath);
+
+    if (!absolutePath) {
+      continue;
+    }
+
+    const currentContent = await readCurrentFileContent(absolutePath);
 
     if (currentContent === undefined) {
       return undefined;
@@ -369,9 +374,15 @@ function computeSyntheticSessionFileDiffs(cwd: string | undefined, mutations: Fi
       continue;
     }
 
+    const absolutePath = cwd ? resolvePathWithinCwd(cwd, filePath) : path.resolve('/', filePath);
+
+    if (!absolutePath) {
+      continue;
+    }
+
     result.push({
       path: filePath,
-      absolutePath: cwd ? path.resolve(cwd, filePath) : path.resolve('/', filePath),
+      absolutePath,
       originalContent,
       modifiedContent
     });
@@ -388,9 +399,19 @@ function appendSyntheticSnippet(parts: string[], text: string): void {
   parts.push(text.endsWith('\n') ? text : `${text}\n`);
 }
 
-async function readCurrentFileContent(cwd: string, filePath: string): Promise<string | undefined> {
+function resolvePathWithinCwd(cwd: string, filePath: string): string | undefined {
+  const resolvedCwd = path.resolve(cwd);
+  const absolutePath = path.resolve(resolvedCwd, filePath);
+  const relativePath = path.relative(resolvedCwd, absolutePath);
+
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
+    ? absolutePath
+    : undefined;
+}
+
+async function readCurrentFileContent(absolutePath: string): Promise<string | undefined> {
   try {
-    return await fs.readFile(path.resolve(cwd, filePath), 'utf8');
+    return await fs.readFile(absolutePath, 'utf8');
   } catch {
     return undefined;
   }

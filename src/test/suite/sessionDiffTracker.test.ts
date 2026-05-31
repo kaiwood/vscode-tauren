@@ -106,6 +106,107 @@ suite('SessionDiffTracker', () => {
     }]);
   });
 
+  test('skips absolute session diff paths outside the session cwd', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tauren-session-diff-absolute-'));
+    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tauren-session-diff-outside-'));
+    const outsideFile = path.join(outsideDir, 'outside.txt');
+    const sessionFile = path.join(cwd, 'session.jsonl');
+
+    await fs.writeFile(outsideFile, 'new\n');
+    await fs.writeFile(sessionFile, [
+      JSON.stringify({ type: 'session', cwd }),
+      JSON.stringify({
+        type: 'tool_execution_end',
+        toolName: 'edit',
+        args: { path: outsideFile, edits: [{ oldText: 'old\n', newText: 'new\n' }] }
+      })
+    ].join('\n'));
+
+    assert.deepStrictEqual(await parseSessionFileDiffsFromFile(sessionFile), []);
+  });
+
+  test('skips traversal session diff paths outside the session cwd', async () => {
+    const parent = await fs.mkdtemp(path.join(os.tmpdir(), 'tauren-session-diff-parent-'));
+    const cwd = path.join(parent, 'cwd');
+    const outsideFile = path.join(parent, 'outside.txt');
+    const sessionFile = path.join(cwd, 'session.jsonl');
+
+    await fs.mkdir(cwd);
+    await fs.writeFile(outsideFile, 'new\n');
+    await fs.writeFile(sessionFile, [
+      JSON.stringify({ type: 'session', cwd }),
+      JSON.stringify({
+        type: 'tool_execution_end',
+        toolName: 'edit',
+        args: { path: '../outside.txt', edits: [{ oldText: 'old\n', newText: 'new\n' }] }
+      })
+    ].join('\n'));
+
+    assert.deepStrictEqual(await parseSessionFileDiffsFromFile(sessionFile), []);
+  });
+
+  test('keeps valid in-cwd session diffs when skipping outside paths', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tauren-session-diff-mixed-'));
+    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tauren-session-diff-mixed-outside-'));
+    const outsideFile = path.join(outsideDir, 'outside.txt');
+    const sessionFile = path.join(cwd, 'session.jsonl');
+    const editedFile = path.join(cwd, 'inside.txt');
+
+    await fs.writeFile(editedFile, 'inside new\n');
+    await fs.writeFile(outsideFile, 'outside new\n');
+    await fs.writeFile(sessionFile, [
+      JSON.stringify({ type: 'session', cwd }),
+      JSON.stringify({
+        type: 'tool_execution_end',
+        toolName: 'edit',
+        args: { path: 'inside.txt', edits: [{ oldText: 'inside old\n', newText: 'inside new\n' }] }
+      }),
+      JSON.stringify({
+        type: 'tool_execution_end',
+        toolName: 'edit',
+        args: { path: outsideFile, edits: [{ oldText: 'outside old\n', newText: 'outside new\n' }] }
+      })
+    ].join('\n'));
+
+    assert.deepStrictEqual(await parseSessionFileDiffsFromFile(sessionFile), [{
+      path: 'inside.txt',
+      absolutePath: editedFile,
+      originalContent: 'inside old\n',
+      modifiedContent: 'inside new\n'
+    }]);
+  });
+
+  test('skips outside paths in synthetic session diffs when cwd is known', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tauren-session-diff-synthetic-boundary-'));
+    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tauren-session-diff-synthetic-outside-'));
+    const outsideFile = path.join(outsideDir, 'outside.txt');
+    const sessionFile = path.join(cwd, 'session.jsonl');
+
+    await fs.writeFile(sessionFile, [
+      JSON.stringify({ type: 'session', cwd }),
+      JSON.stringify({
+        type: 'tool_execution_end',
+        toolName: 'edit',
+        args: { path: 'missing.txt', edits: [{ oldText: 'inside old\n', newText: 'inside new\n' }] }
+      }),
+      JSON.stringify({
+        type: 'tool_execution_end',
+        toolName: 'edit',
+        args: { path: outsideFile, edits: [{ oldText: 'outside old\n', newText: 'outside new\n' }] }
+      })
+    ].join('\n'));
+
+    assert.deepStrictEqual(await parseSessionBestEffortFileDiffsFromFile(sessionFile), {
+      reconstructed: false,
+      diffs: [{
+        path: 'missing.txt',
+        absolutePath: path.join(cwd, 'missing.txt'),
+        originalContent: 'inside old\n',
+        modifiedContent: 'inside new\n'
+      }]
+    });
+  });
+
   test('falls back to recorded edit snippets when full file reconstruction is unavailable', async () => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tauren-session-diff-synthetic-'));
     const sessionFile = path.join(cwd, 'session.jsonl');
