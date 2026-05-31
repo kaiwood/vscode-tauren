@@ -6621,6 +6621,11 @@ ${after}`;
     };
   }
 
+  // src/webview/sessions/sessionContextMenu.ts
+  function shouldOpenSessionListContextMenu(event, options) {
+    return !options.nameEditing && event.button === 2;
+  }
+
   // src/webview/sessions/topSessionControls.ts
   var TopSessionControls = class {
     constructor(options) {
@@ -7160,6 +7165,11 @@ ${after}`;
       }
       const index = Number(item.getAttribute("data-index"));
       if (!Number.isInteger(index) || !this.isSessionIndexVisible(index)) {
+        return;
+      }
+      if (!shouldOpenSessionListContextMenu(event, { nameEditing: this.sessionListNameEditPath !== void 0 })) {
+        event.preventDefault();
+        event.stopPropagation();
         return;
       }
       event.preventDefault();

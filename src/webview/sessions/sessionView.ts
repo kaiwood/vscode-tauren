@@ -13,6 +13,7 @@ import {
   parseSessionItemCommand,
   sessionItemMenuCommands
 } from './sessionItemCommands';
+import { shouldOpenSessionListContextMenu } from './sessionContextMenu';
 import { createSessionEmptyElement, eventTargetElement, getSessionListCommandForKey } from './sessionUiHelpers';
 import { TopSessionControls } from './topSessionControls';
 import type { SessionItem, SessionItemCommand, SessionSearchState, WebviewState } from '../types';
@@ -511,6 +512,12 @@ export class SessionViewController {
     const index = Number(item.getAttribute('data-index'));
 
     if (!Number.isInteger(index) || !this.isSessionIndexVisible(index)) {
+      return;
+    }
+
+    if (!shouldOpenSessionListContextMenu(event, { nameEditing: this.sessionListNameEditPath !== undefined })) {
+      event.preventDefault();
+      event.stopPropagation();
       return;
     }
 

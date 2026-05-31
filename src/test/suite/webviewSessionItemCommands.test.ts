@@ -1,4 +1,5 @@
 import * as assert from 'assert';
+import { shouldOpenSessionListContextMenu } from '../../webview/sessions/sessionContextMenu';
 import {
   canOpenSessionItemMenu,
   getSessionItemCommandIcon,
@@ -27,5 +28,11 @@ suite('Webview session item commands', () => {
   test('opens session item menus based on session identity, not busy command state', () => {
     assert.strictEqual(canOpenSessionItemMenu({ path: '/sessions/running.jsonl' }), true);
     assert.strictEqual(canOpenSessionItemMenu({ path: '' }), false);
+  });
+
+  test('opens context-positioned session menu only for right-click outside rename', () => {
+    assert.strictEqual(shouldOpenSessionListContextMenu({ button: 2 }, { nameEditing: false }), true);
+    assert.strictEqual(shouldOpenSessionListContextMenu({ button: 0 }, { nameEditing: false }), false);
+    assert.strictEqual(shouldOpenSessionListContextMenu({ button: 2 }, { nameEditing: true }), false);
   });
 });

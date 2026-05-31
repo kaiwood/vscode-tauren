@@ -4,6 +4,7 @@
 
 - Added a styled local VitePress documentation scaffold and first-pass Tauren documentation structure.
 - Fixed busy session-list items so their command menu still opens while blocked commands stay disabled.
+- Fixed the Session List right-click menu so it only opens from right-clicks and stays closed during inline rename.
 
 ## 1.5.0 - 2026-05-31
 
