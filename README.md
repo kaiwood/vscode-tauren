@@ -67,7 +67,9 @@ You bet! And because Τ=2\*π, it runs it twice:
 
 ## Requirements / Setup
 
-Setup Pi the standard way, if you don't already have:
+Install Tauren, open the Tauren sidebar, then use the settings gear to configure provider authentication and model defaults.
+
+If you already use Pi outside VS Code, Tauren can reuse your existing Pi runtime configuration where applicable. Optional CLI setup looks like:
 
 ```sh
 npm install -g @earendil-works/pi-coding-agent
@@ -75,9 +77,7 @@ pi
 /login
 ```
 
-For more information, read the [documentation here](https://pi.dev/docs/latest).
-
-Or, as of v2: Skip that part, Tauren also got you covered on the OAuth / API Key front. Just click on the settings gear, you might be surprised what else you will find there.
+For more detail, see the [Tauren setup docs](https://kaiwood.github.io/vscode-tauren/getting-started/installation.html) or the [Pi documentation](https://pi.dev/docs/latest).
 
 ## Using Tauren
 
