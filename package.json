@@ -2,7 +2,7 @@
   "name": "tauren",
   "displayName": "Tauren - Coding assistant built on top of the Pi agent",
   "description": "Transparent AI coding assistant with code traceability",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "publisher": "kaiwood",
   "repository": {
     "type": "git",
