@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Added a Tauren docs share viewer for `/share` links, with a setting to fall back to pi.dev.
+- Added Tauren docs-style colors and fonts to HTML exports and shared sessions when the Tauren share/export setting is enabled.
 - Docs: Audited command documentation against current Tauren command registrations and added missing workflow references.
 - Docs: Linked the installation guide to the VS Code Marketplace page.
 - Docs: Added a practical Trace Origin workflow example for reviewing suspicious generated code.

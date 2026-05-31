@@ -1,7 +1,11 @@
 import * as assert from 'assert';
-import { forkSession, withSessionClient } from '../../sessions/sessionClientActions';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { taurenExportSkinStyleId } from '../../export/taurenExportSkin';
+import { exportSessionHtml, forkSession, withSessionClient } from '../../sessions/sessionClientActions';
 import type { PiClient } from '../../pi/clientTypes';
-import type { PiClientOptions, PiEvent } from '../../pi/types';
+import type { PiClientOptions, PiEvent, PiExportHtmlResult } from '../../pi/types';
 
 suite('sessionClientActions', () => {
   test('runs background actions against the selected session client', async () => {
@@ -41,9 +45,46 @@ suite('sessionClientActions', () => {
     assert.deepStrictEqual(result, { status: 'forked', text: 'selected prompt' });
   });
 
+  test('exportSessionHtml applies Tauren export skin when enabled', async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'tauren-session-export-'));
+    const filePath = path.join(tmpDir, 'session.html');
+
+    try {
+      await writeFile(filePath, '<html><head></head><body>session</body></html>', 'utf-8');
+      const client = createFakeClient({ exportResult: { path: filePath } });
+
+      const result = await exportSessionHtml(client, filePath, { useTaurenExportSkin: true });
+      const html = await readFile(filePath, 'utf-8');
+
+      assert.deepStrictEqual(result, { path: filePath });
+      assert.ok(html.includes(`id="${taurenExportSkinStyleId}"`));
+      assert.ok(html.includes('<body>session</body>'));
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test('exportSessionHtml keeps Pi export untouched when Tauren skin is disabled', async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'tauren-session-export-'));
+    const filePath = path.join(tmpDir, 'session.html');
+    const originalHtml = '<html><head></head><body>session</body></html>';
+
+    try {
+      await writeFile(filePath, originalHtml, 'utf-8');
+      const client = createFakeClient({ exportResult: { path: filePath } });
+
+      await exportSessionHtml(client, filePath, { useTaurenExportSkin: false });
+
+      assert.strictEqual(await readFile(filePath, 'utf-8'), originalHtml);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
 });
 
 type FakeClientOptions = {
+  exportResult?: PiExportHtmlResult;
   forkMessages?: Awaited<ReturnType<PiClient['getForkMessages']>>;
   forkResult?: Awaited<ReturnType<PiClient['fork']>>;
 };
@@ -91,7 +132,7 @@ function createFakeClient(options: FakeClientOptions = {}): FakeClient {
       return {};
     },
     async exportHtml() {
-      return {};
+      return options.exportResult ?? {};
     },
     async getLastAssistantText() {
       return {};

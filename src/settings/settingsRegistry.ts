@@ -176,11 +176,11 @@ export const settingDefinitions = [
     id: 'tauren.useTaurenShareViewer',
     owner: 'tauren',
     section: 'appearance',
-    label: 'Tauren share viewer',
-    description: 'Use the Tauren docs viewer for new shared session links.',
+    label: 'Tauren export style',
+    description: 'Use Tauren docs styling for HTML exports and new shared session links.',
     control: 'toggle',
     defaultValue: true,
-    helper: 'When disabled, /share uses pi.dev unless PI_SHARE_VIEWER_URL is set.',
+    helper: 'When disabled, exports keep Pi styling and /share uses pi.dev unless PI_SHARE_VIEWER_URL is set.',
     liveBehavior: 'immediate'
   },
   {

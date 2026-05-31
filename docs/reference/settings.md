@@ -11,7 +11,7 @@ The **Settings pane** column shows where the same control appears inside Tauren:
 | `tauren.outputColors` | Appearance → Output colors | `true` | Enable ANSI and syntax colors in Tauren output boxes. When disabled, ANSI escape sequences are stripped. |
 | `tauren.animationsEnabled` | Appearance → Animations | `true` | Enable animations in the Tauren sidebar. Reduced-motion preferences still disable motion. |
 | `tauren.showWelcome` | Appearance → Welcome message | `true` | Show the Welcome to Tauren empty state for new chats. |
-| `tauren.useTaurenShareViewer` | Appearance → Tauren share viewer | `true` | Use the Tauren docs viewer for new `/share` links. When disabled, `/share` uses pi.dev unless `PI_SHARE_VIEWER_URL` is set. |
+| `tauren.useTaurenShareViewer` | Appearance → Tauren export style | `true` | Use Tauren docs styling for HTML exports and new `/share` links. When disabled, exports keep Pi styling and `/share` uses pi.dev unless `PI_SHARE_VIEWER_URL` is set. |
 | `tauren.customUiTheme` | Appearance → Custom UI theme | `default` | Visual theme for Pi extension custom UI terminal panels. Options: `default`, `modern`, `crt`, `amber`, `matrix`. |
 
 ## Extension surfaces

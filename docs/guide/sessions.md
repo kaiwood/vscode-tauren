@@ -92,7 +92,7 @@ Sharing creates a secret GitHub Gist through the GitHub CLI and returns a viewer
 /share
 ```
 
-The `gh` CLI must be installed and authenticated for sharing. New share links use Tauren's docs viewer by default. Turn off `tauren.useTaurenShareViewer` to use pi.dev instead, or set `PI_SHARE_VIEWER_URL` to override both defaults.
+The `gh` CLI must be installed and authenticated for sharing. HTML exports and new share links use Tauren's docs styling by default. Turn off `tauren.useTaurenShareViewer` to keep Pi export styling and use pi.dev for `/share`, or set `PI_SHARE_VIEWER_URL` to override the viewer URL.
 
 ## Delete sessions
 

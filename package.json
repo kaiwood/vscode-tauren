@@ -317,7 +317,7 @@
         "tauren.useTaurenShareViewer": {
           "type": "boolean",
           "default": true,
-          "description": "Use the Tauren docs share viewer for new /share links. When disabled, /share uses pi.dev unless PI_SHARE_VIEWER_URL is set."
+          "description": "Use Tauren docs styling for HTML exports and new /share links. When disabled, exports keep Pi styling and /share uses pi.dev unless PI_SHARE_VIEWER_URL is set."
         },
         "tauren.confirmSessionDeletion": {
           "type": "boolean",

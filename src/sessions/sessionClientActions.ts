@@ -1,6 +1,8 @@
 import type { ExtensionUi } from '../extensionUi/types';
 import type { PiClientFactory, PiClient } from '../pi/clientTypes';
+import { applyTaurenExportSkinToFile } from '../export/taurenExportSkin';
 import type { PiClientOptions, PiCloneResult, PiCompactResult, PiExportHtmlResult } from '../pi/types';
+import { getUseTaurenShareViewerSetting } from '../settings/taurenSettings';
 import { formatCompactionTitle, formatForkMessageLabel, formatForkMessages } from './sessionFormatting';
 
 export type SessionClientActionUi = {
@@ -67,8 +69,19 @@ export async function compactSession(client: PiClient, customInstructions?: stri
   return await client.compact(customInstructions);
 }
 
-export async function exportSessionHtml(client: PiClient, outputPath?: string): Promise<PiExportHtmlResult> {
-  return await client.exportHtml(outputPath);
+export async function exportSessionHtml(
+  client: PiClient,
+  outputPath?: string,
+  options: { useTaurenExportSkin?: boolean } = {}
+): Promise<PiExportHtmlResult> {
+  const result = await client.exportHtml(outputPath);
+  const shouldApplyTaurenSkin = options.useTaurenExportSkin ?? getUseTaurenShareViewerSetting();
+
+  if (shouldApplyTaurenSkin && typeof result.path === 'string' && result.path) {
+    await applyTaurenExportSkinToFile(result.path);
+  }
+
+  return result;
 }
 
 export async function forkSessionWithClient(client: PiClient, options: SessionClientActionUi): Promise<void> {
