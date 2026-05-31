@@ -365,7 +365,7 @@ export class SettingsPaneController {
       const emptyCard = document.createElement('article');
       emptyCard.className = 'settings-surface__card';
       emptyCard.append(createTextElement('h4', 'settings-surface__card-title', state.auth.refreshing ? 'Loading providers…' : 'No providers loaded'));
-      emptyCard.append(createTextElement('p', 'settings-surface__card-body', 'Refresh to load built-in Pi authentication providers.'));
+      emptyCard.append(createTextElement('p', 'settings-surface__card-body', 'Refresh to load Pi runtime authentication providers.'));
       cards.append(emptyCard);
       return;
     }

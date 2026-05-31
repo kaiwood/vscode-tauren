@@ -5308,7 +5308,7 @@ ${after}`;
       label: "Login",
       eyebrow: "Pi auth",
       title: "Login",
-      description: "Configure built-in Pi provider authentication. Credentials are stored in Pi auth.json."
+      description: "Configure Pi runtime provider authentication. Credentials are stored in Pi auth.json."
     },
     {
       id: "appearance",
@@ -8294,7 +8294,7 @@ ${after}`;
         const emptyCard = document.createElement("article");
         emptyCard.className = "settings-surface__card";
         emptyCard.append(createTextElement("h4", "settings-surface__card-title", state2.auth.refreshing ? "Loading providers\u2026" : "No providers loaded"));
-        emptyCard.append(createTextElement("p", "settings-surface__card-body", "Refresh to load built-in Pi authentication providers."));
+        emptyCard.append(createTextElement("p", "settings-surface__card-body", "Refresh to load Pi runtime authentication providers."));
         cards.append(emptyCard);
         return;
       }

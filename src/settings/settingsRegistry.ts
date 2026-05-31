@@ -94,7 +94,7 @@ export const settingsSections = [
     label: 'Login',
     eyebrow: 'Pi auth',
     title: 'Login',
-    description: 'Configure built-in Pi provider authentication. Credentials are stored in Pi auth.json.'
+    description: 'Configure Pi runtime provider authentication. Credentials are stored in Pi auth.json.'
   },
   {
     id: 'appearance',

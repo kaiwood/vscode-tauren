@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Changed Login settings to derive authentication providers from the Pi runtime instead of Tauren-maintained built-in provider metadata.
+
 ### Fixed
 
 - Restricted `@` file suggestions to the active workspace cwd so absolute, home, or traversal prefixes cannot browse outside it.

@@ -38,7 +38,6 @@ import { flattenPiSessionTree, type FlattenableSessionTreeNode } from '../sessio
 import { loadPiSdk, type PiSdkLoader, type PiSdkModule } from './piSdkLoader';
 import { assertPiStartupCwd } from '../workspace/cwdSafety';
 import { createWorkspaceMutationGuardTools } from './workspaceMutationGuard';
-import { isBuiltInApiKeyProvider, isBuiltInOAuthProvider } from '../auth/builtinProviderMetadata';
 
 const sdkDisposedMessage = 'Pi SDK client disposed.';
 const sessionDirEnvVar = 'PI_CODING_AGENT_SESSION_DIR';
@@ -273,9 +272,7 @@ export class PiSdkClient implements PiClient {
     const { authStorage } = session.modelRegistry;
     authStorage.reload();
 
-    const oauthProviders = authStorage
-      .getOAuthProviders()
-      .filter((provider) => isBuiltInOAuthProvider(provider.id));
+    const oauthProviders = authStorage.getOAuthProviders();
     const providers: PiAuthProvider[] = oauthProviders.map((provider) => this.createAuthProvider({
       id: provider.id,
       name: provider.name,
@@ -286,7 +283,7 @@ export class PiSdkClient implements PiClient {
     const seenApiKeyProviders = new Set<string>();
     for (const model of session.modelRegistry.getAll()) {
       const providerId = typeof model.provider === 'string' ? model.provider : '';
-      if (!providerId || seenApiKeyProviders.has(providerId) || !isBuiltInApiKeyProvider(providerId)) {
+      if (!providerId || seenApiKeyProviders.has(providerId)) {
         continue;
       }
 
@@ -305,7 +302,7 @@ export class PiSdkClient implements PiClient {
   public async loginWithApiKey(providerId: string, apiKey: string): Promise<PiAuthActionResult> {
     const { session } = await this.ensureRuntime();
 
-    if (!isBuiltInApiKeyProvider(providerId)) {
+    if (!this.hasRuntimeModelProvider(session, providerId)) {
       throw new Error(`API-key login is not supported for provider: ${providerId}`);
     }
 
@@ -326,7 +323,7 @@ export class PiSdkClient implements PiClient {
     const { session } = await this.ensureRuntime();
     const provider = session.modelRegistry.authStorage
       .getOAuthProviders()
-      .find((candidate) => candidate.id === providerId && isBuiltInOAuthProvider(candidate.id));
+      .find((candidate) => candidate.id === providerId);
 
     if (!provider) {
       throw new Error(`Subscription login is not supported for provider: ${providerId}`);
@@ -338,6 +335,10 @@ export class PiSdkClient implements PiClient {
       providerId,
       message: `Logged in to ${provider.name}.`
     };
+  }
+
+  private hasRuntimeModelProvider(session: AgentSessionRuntime['session'], providerId: string): boolean {
+    return session.modelRegistry.getAll().some((model) => model.provider === providerId);
   }
 
   public async logoutAuthProvider(providerId: string): Promise<PiAuthActionResult> {

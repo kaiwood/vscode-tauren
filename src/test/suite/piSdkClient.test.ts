@@ -302,6 +302,88 @@ suite('PiSdkClient', () => {
     harness.client.dispose();
   });
 
+  test('derives auth providers from runtime model and OAuth providers', async () => {
+    const harness = createSdkHarness();
+    harness.session.providerDisplayNames.set('custom-runtime', 'Custom Runtime');
+    harness.session.availableModels.push({ provider: 'custom-runtime', id: 'model', name: 'Custom', reasoning: false });
+    harness.session.authStorage.oauthProviders.push(createFakeOAuthProvider({
+      id: 'runtime-oauth',
+      name: 'Runtime OAuth',
+      usesCallbackServer: true
+    }));
+
+    const result = await harness.client.getAuthProviders();
+
+    assert.deepStrictEqual(result.providers.map((provider) => `${provider.authType}:${provider.id}`), [
+      'api_key:custom-runtime',
+      'api_key:openai',
+      'oauth:runtime-oauth'
+    ]);
+    assert.deepStrictEqual(result.providers.find((provider) => provider.id === 'custom-runtime'), {
+      id: 'custom-runtime',
+      name: 'Custom Runtime',
+      authType: 'api_key',
+      configured: false,
+      canLogout: false
+    });
+    assert.deepStrictEqual(result.providers.find((provider) => provider.id === 'runtime-oauth'), {
+      id: 'runtime-oauth',
+      name: 'Runtime OAuth',
+      authType: 'oauth',
+      configured: false,
+      canLogout: false,
+      usesCallbackServer: true
+    });
+    assert.strictEqual(harness.session.authStorage.reloadCount, 1);
+    harness.client.dispose();
+  });
+
+  test('logs in to runtime auth providers and rejects unknown providers', async () => {
+    const harness = createSdkHarness();
+    harness.session.providerDisplayNames.set('custom-runtime', 'Custom Runtime');
+    harness.session.availableModels.push({ provider: 'custom-runtime', id: 'model', name: 'Custom', reasoning: false });
+    harness.session.authStorage.oauthProviders.push(createFakeOAuthProvider({ id: 'runtime-oauth', name: 'Runtime OAuth' }));
+
+    assert.deepStrictEqual(
+      await harness.client.loginWithApiKey('custom-runtime', ' secret '),
+      { providerId: 'custom-runtime', message: 'Saved API key for Custom Runtime.' }
+    );
+    assert.deepStrictEqual(harness.session.authStorage.get('custom-runtime'), { type: 'api_key', key: 'secret' });
+
+    await assert.rejects(
+      harness.client.loginWithApiKey('missing-provider', 'secret'),
+      /API-key login is not supported for provider: missing-provider/
+    );
+
+    assert.deepStrictEqual(
+      await harness.client.loginWithOAuth('runtime-oauth', {
+        onAuth: () => undefined,
+        onDeviceCode: () => undefined,
+        onPrompt: async () => '',
+        onSelect: async () => undefined
+      }),
+      { providerId: 'runtime-oauth', message: 'Logged in to Runtime OAuth.' }
+    );
+    assert.deepStrictEqual(harness.session.authStorage.get('runtime-oauth'), {
+      type: 'oauth',
+      access: 'access-token',
+      refresh: 'refresh-token',
+      expires: 1
+    });
+
+    await assert.rejects(
+      harness.client.loginWithOAuth('missing-oauth', {
+        onAuth: () => undefined,
+        onDeviceCode: () => undefined,
+        onPrompt: async () => '',
+        onSelect: async () => undefined
+      }),
+      /Subscription login is not supported for provider: missing-oauth/
+    );
+    assert.strictEqual(harness.session.modelRegistryRefreshCount, 2);
+    harness.client.dispose();
+  });
+
   test('rebinds extensions and listeners after session replacement', async () => {
     const replacement = new FakeSession({ sessionFile: '/sessions/replacement.jsonl' });
     const harness = createSdkHarness({ replacementSession: replacement });
@@ -511,6 +593,52 @@ type HarnessOptions = {
   extensionUi?: ExtensionUi;
 };
 
+type FakeOAuthProvider = {
+  id: string;
+  name: string;
+  usesCallbackServer?: boolean;
+  login(callbacks: unknown): Promise<Record<string, unknown>>;
+  refreshToken(credentials: Record<string, unknown>): Promise<Record<string, unknown>>;
+  getApiKey(credentials: Record<string, unknown>): string;
+};
+
+type FakeAuthCredential = { type: 'oauth' | 'api_key'; key?: string; [key: string]: unknown };
+
+class FakeAuthStorage {
+  public reloadCount = 0;
+  public readonly credentials = new Map<string, FakeAuthCredential>();
+  public readonly oauthProviders: FakeOAuthProvider[] = [];
+
+  public reload(): void {
+    this.reloadCount += 1;
+  }
+
+  public getOAuthProviders(): FakeOAuthProvider[] {
+    return this.oauthProviders;
+  }
+
+  public get(providerId: string): FakeAuthCredential | undefined {
+    return this.credentials.get(providerId);
+  }
+
+  public set(providerId: string, credential: FakeAuthCredential): void {
+    this.credentials.set(providerId, credential);
+  }
+
+  public logout(providerId: string): void {
+    this.credentials.delete(providerId);
+  }
+
+  public async login(providerId: string, callbacks: unknown): Promise<void> {
+    const provider = this.oauthProviders.find((candidate) => candidate.id === providerId);
+    if (!provider) {
+      throw new Error(`Unknown OAuth provider: ${providerId}`);
+    }
+
+    this.set(providerId, { ...await provider.login(callbacks), type: 'oauth' });
+  }
+}
+
 class FakeSession {
   public model = { provider: 'openai', id: 'gpt-test', name: 'GPT Test', reasoning: true };
   public selectedModel: unknown;
@@ -535,12 +663,24 @@ class FakeSession {
   public readonly promptCalls: Array<{ message: string; streamingBehavior?: string; source?: string; images?: unknown }> = [];
   public scopedModels: Array<{ model: unknown }> = [];
   public readonly exportToHtmlCalls: Array<string | undefined> = [];
+  public readonly authStorage = new FakeAuthStorage();
+  public modelRegistryRefreshCount = 0;
+  public readonly providerDisplayNames = new Map<string, string>([['openai', 'OpenAI']]);
   public promptImplementation: (message: string, options?: PromptOptions) => Promise<void> = async (_message, options) => {
     options?.preflightResult?.(true);
   };
   public abortImplementation: () => Promise<void> = async () => undefined;
   public readonly modelRegistry = {
+    authStorage: this.authStorage,
     getAvailable: () => this.availableModels,
+    getAll: () => this.availableModels,
+    getProviderDisplayName: (providerId: string) => this.providerDisplayNames.get(providerId) ?? providerId,
+    getProviderAuthStatus: (providerId: string) => (
+      this.authStorage.get(providerId) ? { configured: true, source: 'stored' } : { configured: false }
+    ),
+    refresh: () => {
+      this.modelRegistryRefreshCount += 1;
+    },
     isUsingOAuth: () => false
   };
   public readonly extensionRunner = {
@@ -944,6 +1084,17 @@ type Deferred<T> = {
   resolve(value: T | PromiseLike<T>): void;
   reject(error: unknown): void;
 };
+
+function createFakeOAuthProvider(options: { id: string; name: string; usesCallbackServer?: boolean }): FakeOAuthProvider {
+  return {
+    id: options.id,
+    name: options.name,
+    ...(options.usesCallbackServer !== undefined ? { usesCallbackServer: options.usesCallbackServer } : {}),
+    login: async () => ({ access: 'access-token', refresh: 'refresh-token', expires: 1 }),
+    refreshToken: async (credentials) => credentials,
+    getApiKey: () => 'oauth-api-key'
+  };
+}
 
 function createDeferred<T>(): Deferred<T> {
   let resolve: Deferred<T>['resolve'] | undefined;
