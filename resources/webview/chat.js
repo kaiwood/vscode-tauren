@@ -5804,7 +5804,7 @@ ${after}`;
     const indicators = [];
     if (session.liveStatus === "running" || session.liveStatus === "error") {
       indicators.push(session.liveStatus);
-    } else if (session.liveStatus === "done" && !session.current) {
+    } else if (session.liveStatus === "done") {
       indicators.push("done");
     }
     return indicators;

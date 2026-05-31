@@ -27,7 +27,7 @@ suite('Webview session format', () => {
   test('uses separate right-side indicators for live status', () => {
     assert.deepStrictEqual(getSessionIndicatorKinds(createSession({ liveStatus: 'running' })), ['running']);
     assert.deepStrictEqual(getSessionIndicatorKinds(createSession({ liveStatus: 'done' })), ['done']);
-    assert.deepStrictEqual(getSessionIndicatorKinds(createSession({ current: true, liveStatus: 'done' })), []);
+    assert.deepStrictEqual(getSessionIndicatorKinds(createSession({ current: true, liveStatus: 'done' })), ['done']);
     assert.deepStrictEqual(getSessionIndicatorKinds(createSession({ liveStatus: 'error' })), ['error']);
     assert.deepStrictEqual(getSessionIndicatorKinds(createSession({ liveStatus: 'idle' })), []);
   });

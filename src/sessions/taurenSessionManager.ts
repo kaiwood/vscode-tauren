@@ -66,6 +66,7 @@ type OpenSession = {
   state: WebviewStateMessage | undefined;
   sessionFile: string | undefined;
   status: OpenSessionStatus;
+  readyUntilUserReply: boolean;
   title: string;
   customUiOpen: boolean;
   customUiHost: ExtensionCustomUiHost | undefined;
@@ -143,6 +144,10 @@ export class TaurenSessionManager {
     if (message.type === 'submit' && isForkCommand(message.text) && this.hasRunningBackgroundSession()) {
       this.options.showNotification('Wait for background sessions to finish before forking.', 'warning');
       return;
+    }
+
+    if (message.type === 'submit') {
+      this.clearReadyUntilUserReply(this.active());
     }
 
     if (message.type === 'sessionItemCommand' && message.command === 'fork' && this.hasRunningBackgroundSession()) {
@@ -328,6 +333,7 @@ export class TaurenSessionManager {
     active.sessionFile = sessionFile;
     active.title = sessionFile ? 'Loading session' : 'New session';
     active.status = 'idle';
+    active.readyUntilUserReply = false;
     this.cancelPendingExtensionEditor();
     active.customUiHost?.cancelActive();
     active.customUiOpen = false;
@@ -494,6 +500,7 @@ export class TaurenSessionManager {
       state: undefined,
       sessionFile: initialSessionFile,
       status: 'idle',
+      readyUntilUserReply: false,
       title: options.initial ? 'Current session' : options.sessionFile ? 'Loading session' : 'New session',
       customUiOpen: false,
       customUiHost,
@@ -550,7 +557,7 @@ export class TaurenSessionManager {
     }
 
     this.activeSessionId = id;
-    if (session.status === 'done') {
+    if (session.status === 'done' && !session.readyUntilUserReply) {
       session.status = 'idle';
     }
     session.forceFullStatePost = true;
@@ -680,6 +687,17 @@ export class TaurenSessionManager {
 
   private isSessionBusy(session: OpenSession): boolean {
     return session.state?.busy === true || session.status === 'running';
+  }
+
+  private clearReadyUntilUserReply(session: OpenSession): void {
+    if (!session.readyUntilUserReply) {
+      return;
+    }
+
+    session.readyUntilUserReply = false;
+    if (session.status === 'done') {
+      session.status = 'idle';
+    }
   }
 
   private dispatchTerminalInput(session: OpenSession, data: string): void {
@@ -883,7 +901,8 @@ export class TaurenSessionManager {
     }
     session.sessionFile = nextSessionFile;
     const nextStatus = getStatus(storedMessage, session.status);
-    session.status = id === this.activeSessionId && nextStatus === 'done' ? 'idle' : nextStatus;
+    session.readyUntilUserReply = nextStatus === 'done' && endsWithOpenAssistantQuestion(storedMessage);
+    session.status = id === this.activeSessionId && nextStatus === 'done' && !session.readyUntilUserReply ? 'idle' : nextStatus;
     session.title = getOpenSessionTitle(storedMessage, resetToEmptySession ? 'New session' : session.title);
 
     if (id === this.activeSessionId) {
@@ -1156,6 +1175,17 @@ function getStatus(message: WebviewStateMessage, previous: OpenSessionStatus): O
   }
 
   return 'idle';
+}
+
+function endsWithOpenAssistantQuestion(message: WebviewStateMessage): boolean {
+  const messages = message.messages ?? [];
+  const lastMessage = messages[messages.length - 1];
+
+  if (!lastMessage || lastMessage.role !== 'assistant' || lastMessage.error === true) {
+    return false;
+  }
+
+  return /\?\s*(?:["'”’`)*\]]\s*)*$/.test(lastMessage.text.trim());
 }
 
 function getOpenSessionTitle(message: WebviewStateMessage, fallback: string): string {

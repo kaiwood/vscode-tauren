@@ -10,6 +10,7 @@
 - Preserved Session List search text and named-only filter when switching sessions.
 - Added host-side full-content Session List search with progressive indexing.
 - Fixed session-list status indicators so running, stopped, and error states align consistently on the right.
+- Kept the stopped session-list indicator visible for agent responses that end with a question until the user replies.
 - Fixed the Session List to Chat Lane transition drifting diagonally.
 
 ## 1.4.0 - 2026-05-29

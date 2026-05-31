@@ -59,6 +59,57 @@ suite('TaurenSessionManager', () => {
     harness.manager.dispose();
   });
 
+  test('keeps ready status after opening a session that ends with an assistant question', async () => {
+    const firstClient = new FakePiClient({ state: { sessionFile: '/sessions/one.jsonl' } });
+    const secondClient = new FakePiClient();
+    const harness = createManagerHarness([firstClient, secondClient], {
+      initialSessionFile: '/sessions/one.jsonl',
+      listSessions: async (_cwd, currentSessionFile) => createSessionItems(currentSessionFile)
+    });
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'ask me something' });
+    firstClient.emit({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Should I continue?' } });
+    await harness.manager.handleWebviewMessage({ type: 'newSession' });
+    await flushPromises();
+    firstClient.emit({ type: 'agent_end' });
+    await flushPromises();
+    await harness.manager.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
+
+    let backgroundSession = findSession(lastState(harness), '/sessions/one.jsonl');
+    assert.strictEqual(backgroundSession?.liveStatus, 'done');
+
+    await harness.manager.handleWebviewMessage({ type: 'selectSession', sessionPath: '/sessions/one.jsonl' });
+    await flushPromises();
+
+    backgroundSession = findSession(lastState(harness), '/sessions/one.jsonl');
+    assert.strictEqual(backgroundSession?.liveStatus, 'done');
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'yes' });
+    await flushPromises();
+
+    backgroundSession = findSession(lastState(harness), '/sessions/one.jsonl');
+    assert.strictEqual(backgroundSession?.liveStatus, 'running');
+    harness.manager.dispose();
+  });
+
+  test('keeps ready status for the active session when it ends with an assistant question', async () => {
+    const client = new FakePiClient({ state: { sessionFile: '/sessions/one.jsonl' } });
+    const harness = createManagerHarness([client], {
+      initialSessionFile: '/sessions/one.jsonl',
+      listSessions: async (_cwd, currentSessionFile) => createSessionItems(currentSessionFile)
+    });
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'ask me something' });
+    client.emit({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Should I continue?' } });
+    client.emit({ type: 'agent_end' });
+    await flushPromises();
+    await harness.manager.handleWebviewMessage({ type: 'showLane', lane: 'sessions' });
+
+    const currentSession = findSession(lastState(harness), '/sessions/one.jsonl');
+    assert.strictEqual(currentSession?.liveStatus, 'done');
+    harness.manager.dispose();
+  });
+
   test('surfaces extension status entries for the active session', async () => {
     const harness = createManagerHarness([new FakePiClient()]);
 

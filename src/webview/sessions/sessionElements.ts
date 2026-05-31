@@ -8,12 +8,12 @@ import type { SessionItem, SessionItemCommand, TreeItem } from '../types';
 
 type SessionIndicatorKind = 'running' | 'done' | 'error';
 
-export function getSessionIndicatorKinds(session: Pick<SessionItem, 'current' | 'liveStatus'>): SessionIndicatorKind[] {
+export function getSessionIndicatorKinds(session: Pick<SessionItem, 'liveStatus'>): SessionIndicatorKind[] {
   const indicators: SessionIndicatorKind[] = [];
 
   if (session.liveStatus === 'running' || session.liveStatus === 'error') {
     indicators.push(session.liveStatus);
-  } else if (session.liveStatus === 'done' && !session.current) {
+  } else if (session.liveStatus === 'done') {
     indicators.push('done');
   }
 
