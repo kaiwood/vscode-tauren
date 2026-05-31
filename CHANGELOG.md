@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Fixed external VS Code setting changes so every Tauren-owned setting refreshes the sidebar state immediately.
 - Restricted `@` file suggestions to the active workspace cwd so absolute, home, or traversal prefixes cannot browse outside it.
 
 ## [1.6.1] - 2026-05-31

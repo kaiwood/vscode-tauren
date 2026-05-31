@@ -48,6 +48,7 @@ import { buildTaurenHotkeysMarkdown } from './hotkeys/vscodeKeybindings';
 import { TaurenPerfRecorder, type TaurenPerfTimer } from './perf/taurenPerf';
 import {
   affectsAnyTaurenExtensionSetting,
+  affectsAnyTaurenSetting,
   getAllowRemoteImagesSetting,
   getAnimationsEnabledSetting,
   getConfirmSessionDeletionSetting,
@@ -239,9 +240,9 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
         }
 
         const affectsWelcome = event.affectsConfiguration('tauren.showWelcome');
-        const affectsShareViewer = event.affectsConfiguration('tauren.useTaurenShareViewer');
         const affectsDebugPerformance = event.affectsConfiguration('tauren.debugPerformance');
         const affectsExtensionSettings = affectsAnyTaurenExtensionSetting(event);
+        const affectsTaurenSettings = affectsAnyTaurenSetting(event);
 
         if (affectsDebugPerformance) {
           this.debugPerformanceEnabled = getDebugPerformanceSetting();
@@ -255,16 +256,7 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
           void this.globalState?.update(welcomeDismissedStorageKey, undefined).then(undefined, () => undefined);
         }
 
-        if (
-          event.affectsConfiguration('tauren.outputColors')
-          || event.affectsConfiguration('tauren.animationsEnabled')
-          || affectsWelcome
-          || event.affectsConfiguration('tauren.customUiTheme')
-          || affectsShareViewer
-          || affectsDebugPerformance
-          || affectsRemoteImages
-          || affectsExtensionSettings
-        ) {
+        if (affectsTaurenSettings) {
           this.controller.postState();
         }
 

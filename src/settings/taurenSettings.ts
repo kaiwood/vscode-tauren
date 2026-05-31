@@ -1,9 +1,14 @@
 import * as vscode from 'vscode';
 import { parseWebviewCustomUiTheme } from '../webviewProtocol/values';
 import type { WebviewCustomUiTheme } from '../webviewProtocol/types';
-import type { SettingValue, TaurenSettingId } from './settingsRegistry';
+import { settingDefinitions, type SettingValue, type TaurenSettingId } from './settingsRegistry';
 
 export const welcomeDismissedStorageKey = 'tauren.welcomeDismissed';
+
+const taurenSettingIds = settingDefinitions
+  .filter((definition) => definition.owner === 'tauren')
+  .map((definition) => definition.id as TaurenSettingId);
+const taurenExtensionSettingIds = taurenSettingIds.filter((id) => id.startsWith('tauren.extensions.'));
 
 export function getOutputColorsSetting(): boolean {
   return vscode.workspace.getConfiguration('tauren').get<boolean>('outputColors', true);
@@ -76,12 +81,12 @@ export function getDebugPerformanceSetting(): boolean {
   return vscode.workspace.getConfiguration('tauren').get<boolean>('debugPerformance', false);
 }
 
+export function affectsAnyTaurenSetting(event: vscode.ConfigurationChangeEvent): boolean {
+  return taurenSettingIds.some((id) => event.affectsConfiguration(id));
+}
+
 export function affectsAnyTaurenExtensionSetting(event: vscode.ConfigurationChangeEvent): boolean {
-  return event.affectsConfiguration('tauren.extensions.aboveWidgetsEnabled')
-    || event.affectsConfiguration('tauren.extensions.belowWidgetsEnabled')
-    || event.affectsConfiguration('tauren.extensions.statusBarEnabled')
-    || event.affectsConfiguration('tauren.extensions.backgroundColorsEnabled')
-    || event.affectsConfiguration('tauren.extensions.monospaceFontEnabled');
+  return taurenExtensionSettingIds.some((id) => event.affectsConfiguration(id));
 }
 
 export function getExtensionAboveWidgetsEnabledSetting(): boolean {
