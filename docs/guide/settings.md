@@ -1,6 +1,8 @@
 # Settings
 
-Tauren settings combine two kinds of state: Tauren-owned UI/workspace controls and Pi-owned runtime controls.
+Tauren settings combine two kinds of state: Tauren-owned UI/workflow controls and Pi-owned runtime/engine controls.
+
+Tauren owns how the sidebar behaves in VS Code. Pi owns how the agent runtime behaves: providers, models, thinking, compaction, retry, steering, and follow-up behavior.
 
 ## Open settings
 
@@ -27,6 +29,24 @@ Tauren groups settings into practical sections:
 - **Scoped Models:** model cycling configuration.
 - **Safety:** workspace and remote-content guardrails.
 - **Advanced:** diagnostics and ready-script behavior.
+
+## Ownership at a glance
+
+| Setting | Owner | Purpose |
+| --- | --- | --- |
+| [Custom UI theme](../reference/settings.md#appearance) | Tauren | Changes how Pi extension custom UI panels look in the sidebar. |
+| [Animations](../reference/settings.md#appearance) | Tauren | Controls sidebar motion and transitions. |
+| [Remote image blocking](../reference/settings.md#safety) | Tauren | Blocks remote HTTPS images in chat markdown by default. |
+| [Output colors](../reference/settings.md#appearance) | Tauren | Enables ANSI and syntax colors in Tauren output boxes. |
+| Default provider | Pi | Chooses which provider the runtime uses by default. |
+| Default model | Pi | Chooses the model used for new prompts. |
+| Thinking level | Pi | Controls runtime reasoning effort where supported. |
+| Compaction | Pi | Controls how older context is summarized. |
+| Retry behavior | Pi | Controls runtime retry handling. |
+| Steering mode | Pi | Controls how input affects a running response. |
+| Follow-up mode | Pi | Controls follow-up behavior after agent responses. |
+
+Tauren-owned settings are listed in the [settings reference](../reference/settings.md). Pi-owned settings are edited through the Tauren Settings Face, usually under **Runtime** or **Scoped Models**, but Pi remains the source of truth.
 
 ## Tauren-owned settings
 

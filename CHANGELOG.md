@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Docs: Clarified Tauren-owned versus Pi-owned settings with a comparison table.
 - Docs: Expanded the Pi Extensions guide with portable status and widget examples plus upstream Pi documentation links.
 - Docs: Added a Feature Tour guide for new users comparing Tauren workflows to generic AI chat panels.
 - Docs: Added a Security, Privacy, and Trust guide covering Tauren trust boundaries and safe defaults.
