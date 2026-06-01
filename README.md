@@ -1,10 +1,12 @@
 # Tauren
 
-Tauren is a transparent AI coding assistant for VS Code focused on session-based workflows, code traceability and customizability.
+Tauren is a transparent AI coding assistant for VS Code, built on [Pi](https://pi.dev), focused on session-based workflows, code traceability and customizability.
+
+[Documentation](https://kaiwood.github.io/vscode-tauren/) · [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=kaiwood.tauren) · [Pi documentation](https://pi.dev/docs/latest)
 
 ## Philosophy
 
-Tauren follows the same direction as [Pi](https://pi.dev), the backend agent engine it builds on:
+Tauren follows the same direction as Pi, the backend agent engine it builds on:
 
 - full insight into every tool call
 - no hidden prompts
