@@ -1,5 +1,5 @@
 import { normalizeDiffLineCount } from './lineCount';
-import { emptySessionDiffStats, parseSessionDiffStatsFromFile, SessionDiffTracker } from './sessionDiffTracker';
+import { createTrackedSessionFile, emptySessionDiffStats, parseSessionDiffStatsFromFile, SessionDiffTracker } from './sessionDiffTracker';
 import type {
   SessionDiffControllerOptions,
   SessionDiffSnapshot,
@@ -87,6 +87,20 @@ export class SessionDiffController {
   public addToolExecution(input: unknown): void {
     const stats = this.tracker.addToolExecution(input as ToolExecutionInput);
     this.applyStats(stats);
+  }
+
+  public async recordWorkspaceFileChange(absolutePath: string): Promise<void> {
+    if (!this.currentSessionFile) {
+      return;
+    }
+
+    const trackedFile = await createTrackedSessionFile(this.options.getCwd?.(), absolutePath);
+
+    if (!trackedFile || !this.tracker.addTrackedFile(trackedFile)) {
+      return;
+    }
+
+    this.saveSnapshot();
   }
 
   private applyStats(stats: SessionDiffStats): void {

@@ -2,7 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { parseSessionBestEffortFileDiffsFromFile } from './sessionDiffTracker';
 import { sessionDiffScheme } from './sessionDiffUri';
-import type { SessionDiffDocument, SessionFileDiff } from './types';
+import type { SessionDiffDocument, SessionDiffSnapshot, SessionFileDiff } from './types';
 
 const retainedDiffViewGenerations = 3;
 const maxRetainedDiffDocuments = 400;
@@ -41,8 +41,8 @@ export class SessionDiffViewer implements vscode.TextDocumentContentProvider, vs
     return this.documents.get(uri.toString())?.content ?? '';
   }
 
-  public async showSessionChanges(sessionFile: string, displayName: string): Promise<void> {
-    const fileDiffsResult = await parseSessionBestEffortFileDiffsFromFile(sessionFile);
+  public async showSessionChanges(sessionFile: string, displayName: string, snapshot?: SessionDiffSnapshot): Promise<void> {
+    const fileDiffsResult = await parseSessionBestEffortFileDiffsFromFile(sessionFile, snapshot);
 
     if (!fileDiffsResult) {
       this.showNotification('Could not read changes for this session.', 'warning');

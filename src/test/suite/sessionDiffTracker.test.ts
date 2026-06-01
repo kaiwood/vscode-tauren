@@ -1,8 +1,12 @@
 import * as assert from 'assert';
+import { execFile } from 'child_process';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
+import { promisify } from 'util';
 import { getToolExecutionDiffStats, parseSessionBestEffortFileDiffsFromFile, parseSessionDiffStatsFromFile, parseSessionFileDiffsFromFile, SessionDiffTracker } from '../../diff/sessionDiffTracker';
+
+const execFileAsync = promisify(execFile);
 
 suite('SessionDiffTracker', () => {
   test('counts actual changed edit lines and write tool content lines', () => {
@@ -228,6 +232,100 @@ suite('SessionDiffTracker', () => {
     });
   });
 
+  test('keeps reconstructed files when one file needs synthetic fallback', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tauren-session-diff-partial-'));
+    const sessionFile = path.join(cwd, 'session.jsonl');
+    const reconstructedFile = path.join(cwd, 'kept.txt');
+    const syntheticFile = path.join(cwd, 'deleted.txt');
+
+    await fs.writeFile(reconstructedFile, 'new\n');
+    await fs.writeFile(syntheticFile, 'keep\n');
+    await fs.writeFile(sessionFile, [
+      JSON.stringify({ type: 'session', cwd }),
+      JSON.stringify({
+        type: 'tool_execution_end',
+        toolName: 'edit',
+        args: { path: 'kept.txt', edits: [{ oldText: 'old\n', newText: 'new\n' }] }
+      }),
+      JSON.stringify({
+        type: 'tool_execution_end',
+        toolName: 'edit',
+        args: { path: 'deleted.txt', edits: [{ oldText: 'delete\n', newText: '' }] }
+      })
+    ].join('\n'));
+
+    assert.deepStrictEqual(await parseSessionBestEffortFileDiffsFromFile(sessionFile), {
+      reconstructed: false,
+      diffs: [{
+        path: 'kept.txt',
+        absolutePath: reconstructedFile,
+        originalContent: 'old\n',
+        modifiedContent: 'new\n'
+      }, {
+        path: 'deleted.txt',
+        absolutePath: syntheticFile,
+        originalContent: 'delete\n',
+        modifiedContent: ''
+      }]
+    });
+  });
+
+  test('includes tracked file snapshot diffs without edit tool calls', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tauren-session-diff-tracked-'));
+    const sessionFile = path.join(cwd, 'session.jsonl');
+    const generatedFile = path.join(cwd, 'generated.js');
+
+    await fs.writeFile(generatedFile, 'new\n');
+    await fs.writeFile(sessionFile, JSON.stringify({ type: 'session', cwd }));
+
+    assert.deepStrictEqual(await parseSessionBestEffortFileDiffsFromFile(sessionFile, {
+      files: [{ path: 'generated.js', originalContent: 'old\n' }]
+    }), {
+      reconstructed: true,
+      diffs: [{
+        path: 'generated.js',
+        absolutePath: generatedFile,
+        originalContent: 'old\n',
+        modifiedContent: 'new\n'
+      }]
+    });
+  });
+
+  test('uses git-status shell output as generated-file hints', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tauren-session-diff-shell-'));
+    const sessionFile = path.join(cwd, 'session.jsonl');
+    const generatedFile = path.join(cwd, 'generated.js');
+
+    await runGit(cwd, 'init');
+    await runGit(cwd, 'config', 'user.email', 'test@example.com');
+    await runGit(cwd, 'config', 'user.name', 'Test');
+    await fs.writeFile(generatedFile, 'old\n');
+    await runGit(cwd, 'add', 'generated.js');
+    await runGit(cwd, 'commit', '-m', 'initial');
+    await fs.writeFile(generatedFile, 'new\n');
+    await fs.writeFile(sessionFile, [
+      JSON.stringify({ type: 'session', cwd }),
+      JSON.stringify({
+        type: 'message',
+        message: {
+          role: 'toolResult',
+          toolName: 'bash',
+          content: [{ type: 'text', text: ' M generated.js\n' }]
+        }
+      })
+    ].join('\n'));
+
+    assert.deepStrictEqual(await parseSessionBestEffortFileDiffsFromFile(sessionFile), {
+      reconstructed: true,
+      diffs: [{
+        path: 'generated.js',
+        absolutePath: generatedFile,
+        originalContent: 'old\n',
+        modifiedContent: 'new\n'
+      }]
+    });
+  });
+
   test('restores net historical stats across repeated edits to the same file', async () => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tauren-session-diff-net-'));
     const sessionFile = path.join(cwd, 'session.jsonl');
@@ -267,3 +365,7 @@ suite('SessionDiffTracker', () => {
     assert.deepStrictEqual(await parseSessionDiffStatsFromFile(sessionFile), { addedLines: 1, removedLines: 1 });
   });
 });
+
+async function runGit(cwd: string, ...args: string[]): Promise<void> {
+  await execFileAsync('git', args, { cwd });
+}

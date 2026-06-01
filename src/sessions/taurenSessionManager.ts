@@ -291,6 +291,10 @@ export class TaurenSessionManager {
     void this.active().controller.refreshSessionDiffStats();
   }
 
+  public recordSessionDiffFileChange(absolutePath: string): void {
+    void this.active().controller.recordSessionDiffFileChange(absolutePath);
+  }
+
   public refreshTaurenSettingValues(): void {
     if (this.syncExtensionSettingsFromOptions()) {
       this.active().controller.postState();

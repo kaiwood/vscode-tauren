@@ -82,6 +82,7 @@ export class TaurenChatController {
     this.sessionDiffController = new SessionDiffController({
       initialSessionFile: options.initialSessionFile,
       getSessionGeneration: () => this.session.generation,
+      getCwd: () => this.getPiStartupCwd(),
       postState: () => this.postState(),
       loadSnapshot: (sessionFile) => this.options.loadSessionDiffSnapshot?.(sessionFile),
       saveSnapshot: (sessionFile, snapshot) => this.options.saveSessionDiffSnapshot?.(sessionFile, snapshot)
@@ -1170,6 +1171,10 @@ export class TaurenChatController {
 
   public async refreshSessionDiffStats(): Promise<void> {
     return this.sessionDiffController.refresh();
+  }
+
+  public async recordSessionDiffFileChange(absolutePath: string): Promise<void> {
+    return this.sessionDiffController.recordWorkspaceFileChange(absolutePath);
   }
 
   private async abortActivePrompt(): Promise<void> {

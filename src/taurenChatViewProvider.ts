@@ -223,7 +223,11 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
       saveSessionDiffSnapshot: (sessionFile, snapshot) => writeSessionDiffSnapshot(this.workspaceState, sessionFile, snapshot),
       listSessions: (cwd, currentSessionFile, options) => this.listSessionsWithPerf(cwd, currentSessionFile, options),
       deleteSession: (sessionPath, displayName) => this.deleteSession(sessionPath, displayName),
-      showSessionChanges: (sessionPath, displayName) => this.sessionDiffViewer.showSessionChanges(sessionPath, displayName)
+      showSessionChanges: (sessionPath, displayName) => this.sessionDiffViewer.showSessionChanges(
+        sessionPath,
+        displayName,
+        readSessionDiffSnapshot(this.workspaceState, sessionPath)
+      )
     });
 
     const initialWorkspaceState = getPiStartupCwdState(this.workspaceCwdProvider(), getRejectEditWriteOutsideWorkspaceSetting());
@@ -270,7 +274,7 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
         }
       }),
       vscode.window.onDidChangeActiveColorTheme(() => this.resetCodeRenderer()),
-      createSessionDiffStatsFileWatcher(() => this.scheduleSessionDiffStatsRefresh()),
+      createSessionDiffStatsFileWatcher((uri) => this.scheduleSessionDiffStatsRefresh(uri)),
       vscode.workspace.onDidChangeWorkspaceFolders(() => this.handleWorkspaceFoldersChanged())
     );
   }
@@ -1333,10 +1337,14 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
     }
   }
 
-  private scheduleSessionDiffStatsRefresh(): void {
+  private scheduleSessionDiffStatsRefresh(uri?: vscode.Uri): void {
     if (!this.controller.hasSessionDiffStatsTarget()) {
       this.stopSessionDiffStatsRefreshTimer();
       return;
+    }
+
+    if (uri?.scheme === 'file') {
+      this.controller.recordSessionDiffFileChange(uri.fsPath);
     }
 
     this.stopSessionDiffStatsRefreshTimer();

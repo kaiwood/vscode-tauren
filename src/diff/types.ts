@@ -7,6 +7,12 @@ export type SessionDiffStats = {
 
 export type SessionDiffSnapshot = {
   stats?: SessionDiffStats;
+  files?: SessionDiffTrackedFile[];
+};
+
+export type SessionDiffTrackedFile = {
+  path: string;
+  originalContent: string;
 };
 
 export type SessionFileDiff = {
@@ -35,6 +41,7 @@ export type FileMutation =
 export type SessionDiffControllerOptions = {
   initialSessionFile?: string;
   getSessionGeneration: () => number;
+  getCwd?: () => string | undefined;
   postState: () => void;
   loadSnapshot?: (sessionFile: string) => SessionDiffSnapshot | undefined;
   saveSnapshot?: (sessionFile: string, snapshot: SessionDiffSnapshot) => void;

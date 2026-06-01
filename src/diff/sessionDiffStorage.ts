@@ -11,14 +11,14 @@ type StoredSessionDiffSnapshot = {
   updatedAt: number;
 };
 
-export function createSessionDiffStatsFileWatcher(onChange: () => void): vscode.Disposable {
+export function createSessionDiffStatsFileWatcher(onChange: (uri?: vscode.Uri) => void): vscode.Disposable {
   const watcher = vscode.workspace.createFileSystemWatcher('**/*');
   const disposables = [
     watcher,
-    watcher.onDidChange(onChange),
-    watcher.onDidCreate(onChange),
-    watcher.onDidDelete(onChange),
-    vscode.workspace.onDidSaveTextDocument(onChange)
+    watcher.onDidChange((uri) => onChange(uri)),
+    watcher.onDidCreate((uri) => onChange(uri)),
+    watcher.onDidDelete((uri) => onChange(uri)),
+    vscode.workspace.onDidSaveTextDocument((document) => onChange(document.uri))
   ];
 
   return new vscode.Disposable(() => {
@@ -88,14 +88,26 @@ function parseStoredSessionDiffSnapshot(value: unknown): StoredSessionDiffSnapsh
 }
 
 function parseSessionDiffSnapshot(value: unknown): SessionDiffSnapshot | undefined {
-  if (!isRecord(value) || !isRecord(value.stats)) {
+  if (!isRecord(value)) {
     return undefined;
   }
 
-  const addedLines = normalizeDiffLineCount(value.stats.addedLines);
-  const removedLines = normalizeDiffLineCount(value.stats.removedLines);
+  const stats = isRecord(value.stats)
+    ? {
+      addedLines: normalizeDiffLineCount(value.stats.addedLines),
+      removedLines: normalizeDiffLineCount(value.stats.removedLines)
+    }
+    : undefined;
+  const files = parseSnapshotFiles(value.files);
 
-  return { stats: { addedLines, removedLines } };
+  if (!stats && files.length === 0) {
+    return undefined;
+  }
+
+  return {
+    ...(stats ? { stats } : {}),
+    ...(files.length > 0 ? { files } : {})
+  };
 }
 
 function pruneSessionDiffSnapshots(
@@ -134,7 +146,26 @@ function normalizeTimestamp(value: unknown): number {
 
 function areSessionDiffSnapshotsEqual(left: SessionDiffSnapshot | undefined, right: SessionDiffSnapshot): boolean {
   return normalizeSnapshotStats(left?.stats).addedLines === normalizeSnapshotStats(right.stats).addedLines
-    && normalizeSnapshotStats(left?.stats).removedLines === normalizeSnapshotStats(right.stats).removedLines;
+    && normalizeSnapshotStats(left?.stats).removedLines === normalizeSnapshotStats(right.stats).removedLines
+    && JSON.stringify(left?.files ?? []) === JSON.stringify(right.files ?? []);
+}
+
+function parseSnapshotFiles(value: unknown): NonNullable<SessionDiffSnapshot['files']> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const files: NonNullable<SessionDiffSnapshot['files']> = [];
+
+  for (const file of value) {
+    if (!isRecord(file) || typeof file.path !== 'string' || typeof file.originalContent !== 'string') {
+      continue;
+    }
+
+    files.push({ path: file.path, originalContent: file.originalContent });
+  }
+
+  return files;
 }
 
 function normalizeSnapshotStats(stats: SessionDiffSnapshot['stats'] | undefined): { addedLines: number; removedLines: number } {

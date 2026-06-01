@@ -1,19 +1,25 @@
+import { execFile } from 'child_process';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { promisify } from 'util';
 import { parseSessionJsonlFileRecords } from '../pi/sessionJsonl';
 import { normalizeDiffLineCount } from './lineCount';
 import type {
   FileMutation,
   SessionDiffSnapshot,
   SessionDiffStats,
+  SessionDiffTrackedFile,
   SessionFileDiff,
   SessionFileDiffsResult,
   ToolExecutionInput
 } from './types';
 import { isRecord } from '../shared/typeGuards';
 
+const execFileAsync = promisify(execFile);
+
 export class SessionDiffTracker {
   private stats: SessionDiffStats = emptySessionDiffStats();
+  private readonly trackedFiles = new Map<string, SessionDiffTrackedFile>();
 
   public constructor(snapshot?: SessionDiffSnapshot) {
     this.restore(snapshot);
@@ -24,11 +30,29 @@ export class SessionDiffTracker {
   }
 
   public snapshot(): SessionDiffSnapshot {
-    return { stats: this.getStats() };
+    const files = Array.from(this.trackedFiles.values());
+    return {
+      stats: this.getStats(),
+      ...(files.length > 0 ? { files } : {})
+    };
   }
 
   public restore(snapshot: SessionDiffSnapshot | undefined): void {
     this.stats = normalizeStats(snapshot?.stats);
+    this.trackedFiles.clear();
+
+    for (const file of normalizeTrackedFiles(snapshot?.files)) {
+      this.trackedFiles.set(file.path, file);
+    }
+  }
+
+  public addTrackedFile(file: SessionDiffTrackedFile): boolean {
+    if (this.trackedFiles.has(file.path)) {
+      return false;
+    }
+
+    this.trackedFiles.set(file.path, file);
+    return true;
   }
 
   public addToolExecution(input: ToolExecutionInput): SessionDiffStats {
@@ -86,20 +110,34 @@ export async function parseSessionFileDiffsFromFile(sessionFile: string): Promis
   return parsed ? computeParsedSessionFileDiffs(parsed) : undefined;
 }
 
-export async function parseSessionBestEffortFileDiffsFromFile(sessionFile: string): Promise<SessionFileDiffsResult | undefined> {
+export async function parseSessionBestEffortFileDiffsFromFile(
+  sessionFile: string,
+  snapshot?: SessionDiffSnapshot
+): Promise<SessionFileDiffsResult | undefined> {
   const parsed = await parseSessionDiffRecordsFromFile(sessionFile);
 
   if (!parsed) {
     return undefined;
   }
 
-  const reconstructedDiffs = await computeParsedSessionFileDiffs(parsed);
+  return computeParsedBestEffortSessionFileDiffs(parsed, snapshot);
+}
 
-  if (reconstructedDiffs !== undefined) {
-    return { diffs: reconstructedDiffs, reconstructed: true };
+export async function createTrackedSessionFile(cwd: string | undefined, absolutePath: string): Promise<SessionDiffTrackedFile | undefined> {
+  if (!cwd) {
+    return undefined;
   }
 
-  return { diffs: computeParsedSyntheticSessionFileDiffs(parsed), reconstructed: false };
+  const pathInCwd = getPathWithinCwd(cwd, absolutePath);
+
+  if (!pathInCwd) {
+    return undefined;
+  }
+
+  return {
+    path: pathInCwd,
+    originalContent: await readGitFileContent(cwd, pathInCwd) ?? ''
+  };
 }
 
 type ParsedSessionDiffRecords = {
@@ -108,6 +146,7 @@ type ParsedSessionDiffRecords = {
   toolCallStats: SessionDiffStats[];
   executionMutations: FileMutation[];
   toolCallMutations: FileMutation[];
+  shellChangedFiles: string[];
 };
 
 async function parseSessionDiffRecordsFromFile(sessionFile: string): Promise<ParsedSessionDiffRecords | undefined> {
@@ -130,7 +169,8 @@ function createParsedSessionDiffRecords(): ParsedSessionDiffRecords {
     toolExecutionStats: [],
     toolCallStats: [],
     executionMutations: [],
-    toolCallMutations: []
+    toolCallMutations: [],
+    shellChangedFiles: []
   };
 }
 
@@ -141,6 +181,7 @@ function collectSessionDiffRecord(record: unknown, parsed: ParsedSessionDiffReco
 
   collectToolStats(record, parsed.toolExecutionStats, parsed.toolCallStats);
   collectToolMutations(record, parsed.executionMutations, parsed.toolCallMutations);
+  collectShellChangedFiles(record, parsed.shellChangedFiles);
 }
 
 function getParsedToolStats(parsed: ParsedSessionDiffRecords): SessionDiffStats {
@@ -165,8 +206,23 @@ async function computeParsedSessionFileDiffs(parsed: ParsedSessionDiffRecords): 
   return computeSessionFileDiffs(parsed.cwd, mutations);
 }
 
-function computeParsedSyntheticSessionFileDiffs(parsed: ParsedSessionDiffRecords): SessionFileDiff[] {
-  return computeSyntheticSessionFileDiffs(parsed.cwd, getParsedMutations(parsed));
+async function computeParsedBestEffortSessionFileDiffs(
+  parsed: ParsedSessionDiffRecords,
+  snapshot: SessionDiffSnapshot | undefined
+): Promise<SessionFileDiffsResult> {
+  const mutations = getParsedMutations(parsed);
+  const { diffs, failedMutations } = parsed.cwd
+    ? await computeSessionFileDiffsBestEffort(parsed.cwd, mutations)
+    : { diffs: [], failedMutations: mutations };
+  const syntheticDiffs = computeSyntheticSessionFileDiffs(parsed.cwd, failedMutations);
+  const existingDiffs = [...diffs, ...syntheticDiffs];
+  const shellDiffs = await computeTrackedPathSessionFileDiffs(parsed.cwd, parsed.shellChangedFiles, existingDiffs);
+  const snapshotDiffs = await computeSnapshotSessionFileDiffs(parsed.cwd, snapshot?.files, [...existingDiffs, ...shellDiffs]);
+
+  return {
+    diffs: [...existingDiffs, ...shellDiffs, ...snapshotDiffs],
+    reconstructed: syntheticDiffs.length === 0
+  };
 }
 
 function collectToolStats(value: unknown, toolExecutionStats: SessionDiffStats[], toolCallStats: SessionDiffStats[]): void {
@@ -214,6 +270,50 @@ async function parseSessionNetDiffStatsFromParsed(parsed: ParsedSessionDiffRecor
 
   const fileDiffs = await computeSessionFileDiffs(parsed.cwd, mutations);
   return fileDiffs === undefined ? undefined : sumStats(fileDiffs.map((diff) => getLineDiffStats(diff.originalContent, diff.modifiedContent)));
+}
+
+function collectShellChangedFiles(value: unknown, shellChangedFiles: string[]): void {
+  if (!isRecord(value)) {
+    return;
+  }
+
+  const message = isRecord(value.message) ? value.message : value;
+
+  if (message.toolName !== 'bash') {
+    return;
+  }
+
+  const content = message.content;
+
+  if (!Array.isArray(content)) {
+    return;
+  }
+
+  for (const item of content) {
+    if (!isRecord(item) || typeof item.text !== 'string') {
+      continue;
+    }
+
+    for (const line of item.text.split('\n')) {
+      const changedPath = parseGitStatusShortPath(line);
+
+      if (changedPath) {
+        shellChangedFiles.push(changedPath);
+      }
+    }
+  }
+}
+
+function parseGitStatusShortPath(line: string): string | undefined {
+  const match = /^[ MADRCU?!]{2} (.+)$/.exec(line);
+  const changedPath = match?.[1]?.trim();
+
+  if (!changedPath) {
+    return undefined;
+  }
+
+  const renamedPath = changedPath.split(' -> ').pop()?.trim();
+  return renamedPath || undefined;
 }
 
 function collectToolMutations(value: unknown, executionMutations: FileMutation[], toolCallMutations: FileMutation[]): void {
@@ -299,19 +399,17 @@ function getEditMutations(value: unknown): Array<{ oldText: string; newText: str
 }
 
 async function computeSessionFileDiffs(cwd: string, mutations: FileMutation[]): Promise<SessionFileDiff[] | undefined> {
-  const mutationsByPath = new Map<string, FileMutation[]>();
+  const { diffs, failedMutations } = await computeSessionFileDiffsBestEffort(cwd, mutations);
+  return failedMutations.length > 0 ? undefined : diffs;
+}
 
-  for (const mutation of mutations) {
-    const existing = mutationsByPath.get(mutation.path);
-
-    if (existing) {
-      existing.push(mutation);
-    } else {
-      mutationsByPath.set(mutation.path, [mutation]);
-    }
-  }
-
+async function computeSessionFileDiffsBestEffort(
+  cwd: string,
+  mutations: FileMutation[]
+): Promise<{ diffs: SessionFileDiff[]; failedMutations: FileMutation[] }> {
+  const mutationsByPath = groupMutationsByPath(mutations);
   const fileDiffs: SessionFileDiff[] = [];
+  const failedMutations: FileMutation[] = [];
 
   for (const [filePath, fileMutations] of mutationsByPath) {
     const absolutePath = resolvePathWithinCwd(cwd, filePath);
@@ -323,13 +421,15 @@ async function computeSessionFileDiffs(cwd: string, mutations: FileMutation[]): 
     const currentContent = await readCurrentFileContent(absolutePath);
 
     if (currentContent === undefined) {
-      return undefined;
+      failedMutations.push(...fileMutations);
+      continue;
     }
 
     const baselineContent = reverseFileMutations(currentContent, fileMutations);
 
     if (baselineContent === undefined) {
-      return undefined;
+      failedMutations.push(...fileMutations);
+      continue;
     }
 
     if (baselineContent !== currentContent) {
@@ -342,7 +442,86 @@ async function computeSessionFileDiffs(cwd: string, mutations: FileMutation[]): 
     }
   }
 
-  return fileDiffs;
+  return { diffs: fileDiffs, failedMutations };
+}
+
+async function computeTrackedPathSessionFileDiffs(
+  cwd: string | undefined,
+  filePaths: string[],
+  existingDiffs: SessionFileDiff[]
+): Promise<SessionFileDiff[]> {
+  if (!cwd || filePaths.length === 0) {
+    return [];
+  }
+
+  const trackedFiles: SessionDiffTrackedFile[] = [];
+
+  for (const filePath of new Set(filePaths)) {
+    const absolutePath = resolvePathWithinCwd(cwd, filePath);
+
+    if (!absolutePath) {
+      continue;
+    }
+
+    trackedFiles.push({
+      path: filePath,
+      originalContent: await readGitFileContent(cwd, filePath) ?? ''
+    });
+  }
+
+  return computeSnapshotSessionFileDiffs(cwd, trackedFiles, existingDiffs);
+}
+
+async function computeSnapshotSessionFileDiffs(
+  cwd: string | undefined,
+  files: SessionDiffTrackedFile[] | undefined,
+  existingDiffs: SessionFileDiff[]
+): Promise<SessionFileDiff[]> {
+  if (!cwd || !files?.length) {
+    return [];
+  }
+
+  const existingPaths = new Set(existingDiffs.map((diff) => path.resolve(diff.absolutePath)));
+  const diffs: SessionFileDiff[] = [];
+
+  for (const file of normalizeTrackedFiles(files)) {
+    const absolutePath = resolvePathWithinCwd(cwd, file.path);
+
+    if (!absolutePath || existingPaths.has(path.resolve(absolutePath))) {
+      continue;
+    }
+
+    const currentContent = await readCurrentFileContent(absolutePath) ?? '';
+
+    if (file.originalContent === currentContent) {
+      continue;
+    }
+
+    diffs.push({
+      path: file.path,
+      absolutePath,
+      originalContent: file.originalContent,
+      modifiedContent: currentContent
+    });
+  }
+
+  return diffs;
+}
+
+function groupMutationsByPath(mutations: FileMutation[]): Map<string, FileMutation[]> {
+  const mutationsByPath = new Map<string, FileMutation[]>();
+
+  for (const mutation of mutations) {
+    const existing = mutationsByPath.get(mutation.path);
+
+    if (existing) {
+      existing.push(mutation);
+    } else {
+      mutationsByPath.set(mutation.path, [mutation]);
+    }
+  }
+
+  return mutationsByPath;
 }
 
 function computeSyntheticSessionFileDiffs(cwd: string | undefined, mutations: FileMutation[]): SessionFileDiff[] {
@@ -403,11 +582,23 @@ function appendSyntheticSnippet(parts: string[], text: string): void {
 function resolvePathWithinCwd(cwd: string, filePath: string): string | undefined {
   const resolvedCwd = path.resolve(cwd);
   const absolutePath = path.resolve(resolvedCwd, filePath);
-  const relativePath = path.relative(resolvedCwd, absolutePath);
+  return isPathWithinCwd(resolvedCwd, absolutePath) ? absolutePath : undefined;
+}
 
-  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
-    ? absolutePath
-    : undefined;
+function getPathWithinCwd(cwd: string, filePath: string): string | undefined {
+  const resolvedCwd = path.resolve(cwd);
+  const absolutePath = path.resolve(filePath);
+
+  if (!isPathWithinCwd(resolvedCwd, absolutePath)) {
+    return undefined;
+  }
+
+  return path.relative(resolvedCwd, absolutePath).replace(/\\/g, '/');
+}
+
+function isPathWithinCwd(resolvedCwd: string, absolutePath: string): boolean {
+  const relativePath = path.relative(resolvedCwd, absolutePath);
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
 }
 
 async function readCurrentFileContent(absolutePath: string): Promise<string | undefined> {
@@ -415,6 +606,37 @@ async function readCurrentFileContent(absolutePath: string): Promise<string | un
     return await fs.readFile(absolutePath, 'utf8');
   } catch {
     return undefined;
+  }
+}
+
+async function readGitFileContent(cwd: string, filePath: string): Promise<string | undefined> {
+  try {
+    const { stdout: rootStdout } = await execFileAsync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' });
+    const gitRoot = await resolveRealPath(rootStdout.trim());
+    const absolutePath = resolvePathWithinCwd(cwd, filePath);
+
+    if (!gitRoot || !absolutePath) {
+      return undefined;
+    }
+
+    const realAbsolutePath = await resolveRealPath(absolutePath) ?? absolutePath;
+    const gitPath = path.relative(gitRoot, realAbsolutePath).replace(/\\/g, '/');
+    const { stdout } = await execFileAsync('git', ['-C', gitRoot, 'show', `HEAD:${gitPath}`], {
+      encoding: 'utf8',
+      maxBuffer: 10 * 1024 * 1024
+    });
+
+    return stdout;
+  } catch {
+    return undefined;
+  }
+}
+
+async function resolveRealPath(filePath: string): Promise<string | undefined> {
+  try {
+    return await fs.realpath(filePath);
+  } catch {
+    return filePath || undefined;
   }
 }
 
@@ -605,6 +827,29 @@ function normalizeStats(value: unknown): SessionDiffStats {
     addedLines: normalizeDiffLineCount(value.addedLines),
     removedLines: normalizeDiffLineCount(value.removedLines)
   };
+}
+
+function normalizeTrackedFiles(value: unknown): SessionDiffTrackedFile[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const files: SessionDiffTrackedFile[] = [];
+
+  for (const file of value) {
+    if (!isRecord(file)) {
+      continue;
+    }
+
+    const filePath = getRecordString(file, 'path');
+    const originalContent = getRecordString(file, 'originalContent');
+
+    if (filePath && originalContent !== undefined) {
+      files.push({ path: filePath, originalContent });
+    }
+  }
+
+  return files;
 }
 
 function getRecordString(record: Record<string, unknown>, key: string): string | undefined {
