@@ -430,7 +430,7 @@ export const taurenTheme = {
   }
 };
 
-export const taurenKeybindings = {
+const taurenKeybindings = {
   matches(data: string, keybinding: string) {
     const keys = keybindingDefaults[keybinding] ?? [];
     return keys.some((key) => terminalDataForKey(key) === data);

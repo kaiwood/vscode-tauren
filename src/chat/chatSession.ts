@@ -1,6 +1,6 @@
 export const chatActivityBodyMaxDisplayLength = 20000;
-export const chatActivitySummaryMaxDisplayLength = 300;
-export const chatErrorMaxDisplayLength = 6000;
+const chatActivitySummaryMaxDisplayLength = 300;
+const chatErrorMaxDisplayLength = 6000;
 export const chatTruncationMarker = '\n...[truncated]';
 
 export type ChatActivityStatus = 'running' | 'completed' | 'error' | 'info';

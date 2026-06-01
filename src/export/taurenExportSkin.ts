@@ -2,7 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 
 export const taurenExportSkinStyleId = 'tauren-export-skin';
 
-export const taurenExportSkinCss = `
+const taurenExportSkinCss = `
 /* Tauren export skin: overrides Pi export variables without replacing Pi's renderer. */
 :root {
   color-scheme: light dark;

@@ -15,11 +15,11 @@ import {
   type ComposerDragState
 } from './promptImages';
 import { SuggestionMenuController } from './suggestionMenuController';
+import type { WebviewStreamingBehavior } from '../../webviewProtocol/types';
 import type {
   PromptContextAttachment,
   PromptImageAttachment,
-  WebviewState,
-  WebviewStreamingBehavior
+  WebviewState
 } from '../types';
 
 type PostMessage = (message: unknown) => void;

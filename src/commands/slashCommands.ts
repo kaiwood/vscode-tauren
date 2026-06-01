@@ -1,4 +1,4 @@
-export type LocalSlashCommand = {
+type LocalSlashCommand = {
   name: string;
   description: string;
   source: 'builtin' | 'unsupported';

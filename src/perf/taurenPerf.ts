@@ -130,7 +130,7 @@ export class TaurenPerfRecorder {
   }
 }
 
-export function formatPerfEvent(event: TaurenPerfEvent): string {
+function formatPerfEvent(event: TaurenPerfEvent): string {
   const details = formatDetails(event.details);
   return `[Tauren perf] ${event.name} durationMs=${formatDuration(event.durationMs)} timestamp=${JSON.stringify(event.timestamp)}${details ? ' ' + details : ''}`;
 }

@@ -17,12 +17,10 @@ import type {
   WebviewSettingsSection,
   WebviewSettingsState,
   WebviewSlashCommand,
-  WebviewStreamingBehavior as ProtocolWebviewStreamingBehavior,
   WebviewTreeItem,
   WebviewWorkspaceDiffStats
 } from '../webviewProtocol/types';
 
-export type WebviewStreamingBehavior = ProtocolWebviewStreamingBehavior;
 export type CustomUiTheme = WebviewCustomUiTheme;
 export type Lane = WebviewLane;
 export type ChatFace = WebviewChatFace;
@@ -72,11 +70,6 @@ export type ChatMessage = {
   variant?: string;
   images?: ChatImage[];
   activities?: Activity[];
-};
-
-export type MessagePatch = {
-  upserts?: Array<{ index: number; message: ChatMessage }>;
-  deleteFrom?: number;
 };
 
 export type WorkspaceDiffStats = WebviewWorkspaceDiffStats;
@@ -157,13 +150,13 @@ export type MarkdownRenderer = {
   renderInline(value: string): string;
 };
 
-export type MarkdownItFactory = (options: {
+type MarkdownItFactory = (options: {
   html: boolean;
   linkify: boolean;
   breaks: boolean;
 }) => MarkdownRenderer;
 
-export type DomPurify = {
+type DomPurify = {
   sanitize(value: string, config?: unknown): string;
 };
 

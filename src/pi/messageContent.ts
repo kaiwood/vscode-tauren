@@ -62,7 +62,7 @@ export function parsePiImageContent(value: unknown): ChatImage | undefined {
   };
 }
 
-export function isSupportedRasterImageMimeType(value: unknown): value is string {
+function isSupportedRasterImageMimeType(value: unknown): value is string {
   return typeof value === 'string' && supportedRasterImageMimeTypes.has(value.toLowerCase());
 }
 

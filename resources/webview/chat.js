@@ -1963,8 +1963,8 @@
   var localSlashMenuCommands = localSlashCommandDefinitions.filter((command) => command.supported && !command.hidden).map(({ supported: _supported, hidden: _hidden, ...command }) => command);
 
   // src/webview/constants.ts
-  var hiddenLocalSlashCommandNames2 = hiddenLocalSlashCommandNames;
-  var localSlashCommands2 = localSlashMenuCommands.map((command) => ({ ...command }));
+  var webviewHiddenLocalSlashCommandNames = hiddenLocalSlashCommandNames;
+  var webviewLocalSlashCommands = localSlashMenuCommands.map((command) => ({ ...command }));
   var messagesBottomThreshold = 4;
   var maxTextareaHeight = 180;
   var minTextareaHeight = 22;
@@ -2880,10 +2880,10 @@
     }
     getAllSlashCommands() {
       const state2 = this.options.getState();
-      const commands = [...localSlashCommands2];
+      const commands = [...webviewLocalSlashCommands];
       const names = /* @__PURE__ */ new Set([
         ...commands.map((command) => command.name),
-        ...hiddenLocalSlashCommandNames2
+        ...webviewHiddenLocalSlashCommandNames
       ]);
       if (Array.isArray(state2.slashCommands)) {
         for (const command of state2.slashCommands) {
@@ -6771,8 +6771,8 @@ ${after}`;
       return this.sessionNameEditing;
     }
     attachEventListeners() {
-      this.options.sessionToggleButton.addEventListener("click", () => this.toggleSessionView());
-      this.options.treeToggleButton.addEventListener("click", () => this.toggleTreeView());
+      this.options.sessionToggleButton.addEventListener("click", () => this.toggleSessionLane("sessions"));
+      this.options.treeToggleButton.addEventListener("click", () => this.toggleSessionLane("tree"));
       this.options.toolbarTitleElement.addEventListener("dblclick", (event) => this.startSessionNameEdit(event));
       this.options.sessionNameInputElement.addEventListener("blur", () => this.cancelSessionNameEdit());
     }
@@ -6780,11 +6780,7 @@ ${after}`;
       if ((event.target === this.options.sessionToggleButton || event.target === this.options.treeToggleButton) && (event.key === "Enter" || event.key === " ")) {
         event.preventDefault();
         event.stopPropagation();
-        if (event.target === this.options.sessionToggleButton) {
-          this.toggleSessionView();
-        } else {
-          this.toggleTreeView();
-        }
+        this.toggleSessionLane(event.target === this.options.sessionToggleButton ? "sessions" : "tree");
         return true;
       }
       if (!this.sessionNameEditing || event.target !== this.options.sessionNameInputElement) {
@@ -6889,7 +6885,7 @@ ${after}`;
       this.options.toolbarTimestampElement.hidden = this.sessionNameEditing || !this.options.toolbarTimestampElement.textContent;
       this.options.sessionNameInputElement.hidden = !this.sessionNameEditing;
     }
-    toggleSessionView() {
+    toggleSessionLane(targetLane) {
       const state2 = this.options.getState();
       this.cancelSessionNameEdit();
       if (state2.lane === "sessions" || state2.lane === "tree") {
@@ -6897,17 +6893,7 @@ ${after}`;
         this.options.focusPromptInput();
         return;
       }
-      this.options.postMessage({ type: "showLane", lane: "sessions" });
-    }
-    toggleTreeView() {
-      const state2 = this.options.getState();
-      this.cancelSessionNameEdit();
-      if (state2.lane === "sessions" || state2.lane === "tree") {
-        this.options.postMessage({ type: "showLane", lane: "chat" });
-        this.options.focusPromptInput();
-        return;
-      }
-      this.options.postMessage({ type: "showLane", lane: "tree" });
+      this.options.postMessage({ type: "showLane", lane: targetLane });
     }
   };
   function setTooltipText2(element, text) {

@@ -8,11 +8,11 @@ import type {
   WebviewStreamingBehavior
 } from './types';
 
-export const webviewStreamingBehaviors = ['steer', 'followUp'] as const satisfies readonly WebviewStreamingBehavior[];
-export const webviewCustomUiThemes = ['default', 'modern', 'crt', 'amber', 'matrix'] as const satisfies readonly WebviewCustomUiTheme[];
-export const webviewLanes = ['chat', 'sessions', 'tree'] as const satisfies readonly WebviewLane[];
-export const webviewChatFaces = ['main', 'settings'] as const satisfies readonly WebviewChatFace[];
-export const webviewSettingsSections = settingsSections.map((section) => section.id) as WebviewSettingsSection[];
+const webviewStreamingBehaviors = ['steer', 'followUp'] as const satisfies readonly WebviewStreamingBehavior[];
+const webviewCustomUiThemes = ['default', 'modern', 'crt', 'amber', 'matrix'] as const satisfies readonly WebviewCustomUiTheme[];
+const webviewLanes = ['chat', 'sessions', 'tree'] as const satisfies readonly WebviewLane[];
+const webviewChatFaces = ['main', 'settings'] as const satisfies readonly WebviewChatFace[];
+const webviewSettingsSections = settingsSections.map((section) => section.id) as WebviewSettingsSection[];
 export const webviewSessionItemCommands = ['rename', 'showChanges', 'fork', 'clone', 'compact', 'export', 'delete'] as const satisfies readonly WebviewSessionItemCommand[];
 
 export function parseWebviewStreamingBehavior(value: unknown): WebviewStreamingBehavior | undefined {

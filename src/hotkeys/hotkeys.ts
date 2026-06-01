@@ -3,7 +3,7 @@ export type HotkeyRow = {
   action: string;
 };
 
-export type HotkeySection = {
+type HotkeySection = {
   title: string;
   rows: HotkeyRow[];
 };

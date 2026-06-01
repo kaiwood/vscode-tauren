@@ -9,7 +9,7 @@ import {
 } from './sessionSearchMatcher';
 import { isRecord } from '../shared/typeGuards';
 
-export const defaultSessionSearchTranscriptLimit = 50 * 1024;
+const defaultSessionSearchTranscriptLimit = 50 * 1024;
 
 const maxConcurrentSessionSearchIndexReads = 2;
 

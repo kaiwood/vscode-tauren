@@ -8,7 +8,7 @@ export function cloneWebviewExtensionRenderBlocks(blocks: readonly WebviewExtens
   return blocks.map(cloneWebviewExtensionRenderBlock);
 }
 
-export function cloneWebviewExtensionRenderBlock(block: WebviewExtensionRenderBlock): WebviewExtensionRenderBlock {
+function cloneWebviewExtensionRenderBlock(block: WebviewExtensionRenderBlock): WebviewExtensionRenderBlock {
   return block.type === 'text'
     ? { type: 'text', lines: block.lines.slice() }
     : { ...block };

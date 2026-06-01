@@ -34,7 +34,7 @@ export function normalizeSessionSearchText(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-export function hasSessionName(session: { name?: string }): boolean {
+function hasSessionName(session: { name?: string }): boolean {
   return Boolean(session.name?.trim());
 }
 

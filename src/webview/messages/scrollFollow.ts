@@ -26,7 +26,7 @@ export function isScrollAtBottom(metrics: ScrollMetrics, threshold: number): boo
   return getDistanceFromBottom(metrics) <= threshold;
 }
 
-export function getDistanceFromBottom(metrics: ScrollMetrics): number {
+function getDistanceFromBottom(metrics: ScrollMetrics): number {
   return metrics.scrollHeight - metrics.scrollTop - metrics.clientHeight;
 }
 

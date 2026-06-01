@@ -5,7 +5,7 @@ import { formatCompactionSystemMessage } from '../sessions/sessionFormatting';
 import type { PiAgentMessage } from '../pi/types';
 import { isRecord } from './typeGuards';
 
-export type RestoredToolCall = {
+type RestoredToolCall = {
   id: string;
   name?: string;
   args?: unknown;
@@ -149,7 +149,7 @@ function isRenderedContent(value: unknown): value is { body: string; expandedBod
   return isRecord(value) && typeof value.body === 'string';
 }
 
-export function extractRestoredToolCalls(content: unknown): RestoredToolCall[] {
+function extractRestoredToolCalls(content: unknown): RestoredToolCall[] {
   if (!Array.isArray(content)) {
     return [];
   }
@@ -173,7 +173,7 @@ export function extractRestoredToolCalls(content: unknown): RestoredToolCall[] {
   });
 }
 
-export function formatRestoredToolResultActivity(
+function formatRestoredToolResultActivity(
   message: PiAgentMessage,
   toolCallsById: Map<string, RestoredToolCall>
 ): ChatActivityInput | undefined {
@@ -196,7 +196,7 @@ export function formatRestoredToolResultActivity(
   });
 }
 
-export function createRestoredToolAssistantMessage(transcript: ChatMessage[]): ChatMessage {
+function createRestoredToolAssistantMessage(transcript: ChatMessage[]): ChatMessage {
   const message: ChatMessage = { role: 'assistant', text: '' };
   transcript.push(message);
   return message;

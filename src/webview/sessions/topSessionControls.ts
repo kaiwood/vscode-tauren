@@ -2,6 +2,7 @@ import { formatRelativeTime } from './sessionFormat';
 import type { WebviewState } from '../types';
 
 type PostMessage = (message: unknown) => void;
+type TargetSessionLane = 'sessions' | 'tree';
 
 type TopSessionControlsOptions = {
   getState: () => WebviewState;
@@ -31,8 +32,8 @@ export class TopSessionControls {
   }
 
   public attachEventListeners(): void {
-    this.options.sessionToggleButton.addEventListener('click', () => this.toggleSessionView());
-    this.options.treeToggleButton.addEventListener('click', () => this.toggleTreeView());
+    this.options.sessionToggleButton.addEventListener('click', () => this.toggleSessionLane('sessions'));
+    this.options.treeToggleButton.addEventListener('click', () => this.toggleSessionLane('tree'));
     this.options.toolbarTitleElement.addEventListener('dblclick', (event) => this.startSessionNameEdit(event));
     this.options.sessionNameInputElement.addEventListener('blur', () => this.cancelSessionNameEdit());
   }
@@ -43,11 +44,7 @@ export class TopSessionControls {
       event.preventDefault();
       event.stopPropagation();
 
-      if (event.target === this.options.sessionToggleButton) {
-        this.toggleSessionView();
-      } else {
-        this.toggleTreeView();
-      }
+      this.toggleSessionLane(event.target === this.options.sessionToggleButton ? 'sessions' : 'tree');
 
       return true;
     }
@@ -176,7 +173,7 @@ export class TopSessionControls {
     this.options.sessionNameInputElement.hidden = !this.sessionNameEditing;
   }
 
-  private toggleSessionView(): void {
+  private toggleSessionLane(targetLane: TargetSessionLane): void {
     const state = this.options.getState();
     this.cancelSessionNameEdit();
 
@@ -186,20 +183,7 @@ export class TopSessionControls {
       return;
     }
 
-    this.options.postMessage({ type: 'showLane', lane: 'sessions' });
-  }
-
-  private toggleTreeView(): void {
-    const state = this.options.getState();
-    this.cancelSessionNameEdit();
-
-    if (state.lane === 'sessions' || state.lane === 'tree') {
-      this.options.postMessage({ type: 'showLane', lane: 'chat' });
-      this.options.focusPromptInput();
-      return;
-    }
-
-    this.options.postMessage({ type: 'showLane', lane: 'tree' });
+    this.options.postMessage({ type: 'showLane', lane: targetLane });
   }
 }
 

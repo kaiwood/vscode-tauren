@@ -10,7 +10,6 @@ import type {
 
 export type {
   TaurenChatContextUsage,
-  TaurenChatModelMeta,
   TaurenChatSessionMetaSnapshot,
   SessionMetadataWebviewState
 } from './types';
@@ -670,7 +669,7 @@ export function formatInteger(value: number): string {
   return Math.round(value).toLocaleString('en-US');
 }
 
-export function formatCompactTokens(count: number): string {
+function formatCompactTokens(count: number): string {
   const roundedCount = Math.round(count);
   if (roundedCount < 1000) return roundedCount.toString();
   if (roundedCount < 10000) return `${(roundedCount / 1000).toFixed(1)}k`;

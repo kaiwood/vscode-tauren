@@ -1,6 +1,6 @@
 import type { WebviewApi } from './types';
 
-export type ExtensionEditorHostMessage =
+type ExtensionEditorHostMessage =
   | { type: 'extensionEditorShow'; id: string; title: string; prefill?: string }
   | { type: 'extensionEditorHide'; id: string };
 

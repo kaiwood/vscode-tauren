@@ -1,22 +1,6 @@
 import { closeSync, createReadStream, openSync, readSync } from 'fs';
 import { isRecord } from '../shared/typeGuards';
 
-export function* iterSessionJsonlRecords(content: string): Generator<unknown> {
-  let lineStart = 0;
-
-  for (;;) {
-    const lineEnd = content.indexOf('\n', lineStart);
-
-    if (lineEnd === -1) {
-      yield* yieldParsedSessionLine(content.slice(lineStart));
-      return;
-    }
-
-    yield* yieldParsedSessionLine(content.slice(lineStart, lineEnd));
-    lineStart = lineEnd + 1;
-  }
-}
-
 export async function* parseSessionJsonlFileRecords(filePath: string): AsyncGenerator<unknown> {
   let buffer = '';
 

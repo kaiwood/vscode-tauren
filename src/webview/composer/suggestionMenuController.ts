@@ -1,6 +1,6 @@
 import {
-  hiddenLocalSlashCommandNames,
-  localSlashCommands
+  webviewHiddenLocalSlashCommandNames,
+  webviewLocalSlashCommands
 } from '../constants';
 import type { FileSuggestion, SlashCommand, WebviewState } from '../types';
 import { eventTargetElement } from '../dom';
@@ -328,10 +328,10 @@ export class SuggestionMenuController {
 
   private getAllSlashCommands(): SlashCommand[] {
     const state = this.options.getState();
-    const commands = [...localSlashCommands];
+    const commands = [...webviewLocalSlashCommands];
     const names = new Set([
       ...commands.map((command) => command.name),
-      ...hiddenLocalSlashCommandNames
+      ...webviewHiddenLocalSlashCommandNames
     ]);
 
     if (Array.isArray(state.slashCommands)) {

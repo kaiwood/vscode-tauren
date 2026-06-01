@@ -109,7 +109,7 @@ function dedupeTraceOriginData(
   return result;
 }
 
-export function formatPromptContextAttachmentXml(attachment: PiPromptFormattingContextAttachment): string | undefined {
+function formatPromptContextAttachmentXml(attachment: PiPromptFormattingContextAttachment): string | undefined {
   if (attachment.kind === 'file') {
     const attributes = [
       `path="${escapeXmlAttribute(attachment.path)}"`,

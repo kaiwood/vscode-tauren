@@ -52,7 +52,7 @@ export class StatePublisher<TState> implements DisposableLike {
   }
 }
 
-export function createTimeoutStatePublisherScheduler(delayMs = 16): StatePublisherScheduler {
+function createTimeoutStatePublisherScheduler(delayMs = 16): StatePublisherScheduler {
   return {
     schedule(callback) {
       const handle = setTimeout(callback, delayMs);

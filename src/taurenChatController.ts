@@ -39,7 +39,7 @@ import { getSettingDefinition, isPiSettingId, isTaurenSettingId, type SettingId,
 import { getSteppedThinkingLevel, type ThinkingLevelStepDirection } from './controller/thinkingLevelSteps';
 
 export type { TaurenChatControllerOptions } from './controller/types';
-export type { TaurenChatContextUsage, TaurenChatModelMeta, TaurenChatSessionMetaSnapshot } from './metadata/sessionMetadata';
+export type { TaurenChatSessionMetaSnapshot } from './metadata/sessionMetadata';
 
 export type { PiPromptContextAttachment, PiPromptContextInput } from './prompt/types';
 

@@ -52,7 +52,7 @@ export function getCustomUiThemeSetting(): WebviewCustomUiTheme {
   return parseWebviewCustomUiTheme(value);
 }
 
-export function getBlockHttpsImagesSetting(): boolean {
+function getBlockHttpsImagesSetting(): boolean {
   return vscode.workspace.getConfiguration('tauren').get<boolean>('blockHttpsImages', true);
 }
 
@@ -89,23 +89,23 @@ export function affectsAnyTaurenExtensionSetting(event: vscode.ConfigurationChan
   return taurenExtensionSettingIds.some((id) => event.affectsConfiguration(id));
 }
 
-export function getExtensionAboveWidgetsEnabledSetting(): boolean {
+function getExtensionAboveWidgetsEnabledSetting(): boolean {
   return vscode.workspace.getConfiguration('tauren').get<boolean>('extensions.aboveWidgetsEnabled', true);
 }
 
-export function getExtensionBelowWidgetsEnabledSetting(): boolean {
+function getExtensionBelowWidgetsEnabledSetting(): boolean {
   return vscode.workspace.getConfiguration('tauren').get<boolean>('extensions.belowWidgetsEnabled', true);
 }
 
-export function getExtensionStatusBarEnabledSetting(): boolean {
+function getExtensionStatusBarEnabledSetting(): boolean {
   return vscode.workspace.getConfiguration('tauren').get<boolean>('extensions.statusBarEnabled', true);
 }
 
-export function getExtensionBackgroundColorsEnabledSetting(): boolean {
+function getExtensionBackgroundColorsEnabledSetting(): boolean {
   return vscode.workspace.getConfiguration('tauren').get<boolean>('extensions.backgroundColorsEnabled', true);
 }
 
-export function getExtensionMonospaceFontEnabledSetting(): boolean {
+function getExtensionMonospaceFontEnabledSetting(): boolean {
   return vscode.workspace.getConfiguration('tauren').get<boolean>('extensions.monospaceFontEnabled', true);
 }
 

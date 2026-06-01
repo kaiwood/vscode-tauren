@@ -148,7 +148,7 @@ export function createWebviewMessageSyncPlan(options: {
   };
 }
 
-export function createPostedWebviewChatSync(generation: number, messages: ChatSnapshotMessage[]): PostedWebviewChatSync {
+function createPostedWebviewChatSync(generation: number, messages: ChatSnapshotMessage[]): PostedWebviewChatSync {
   return {
     generation,
     messages: messages.map((message) => ({

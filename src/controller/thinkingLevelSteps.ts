@@ -2,7 +2,7 @@ import { thinkingLevelOptions } from '../settings/settingsRegistry';
 
 export type ThinkingLevelStepDirection = 'raise' | 'lower';
 
-export const thinkingLevelOrder = thinkingLevelOptions.map((option) => option.value);
+const thinkingLevelOrder = thinkingLevelOptions.map((option) => option.value);
 
 export function getSteppedThinkingLevel(
   currentLevel: string,

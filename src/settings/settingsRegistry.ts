@@ -69,18 +69,18 @@ export const thinkingLevelOptions = [
   { value: 'xhigh', label: 'X High' }
 ] as const satisfies readonly SettingOption[];
 
-export const deliveryModeOptions = [
+const deliveryModeOptions = [
   { value: 'one-at-a-time', label: 'One at a time' },
   { value: 'all', label: 'All queued' }
 ] as const satisfies readonly SettingOption[];
 
-export const transportOptions = [
+const transportOptions = [
   { value: 'sse', label: 'SSE' },
   { value: 'websocket', label: 'WebSocket' },
   { value: 'auto', label: 'Auto' }
 ] as const satisfies readonly SettingOption[];
 
-export const customUiThemeOptions = [
+const customUiThemeOptions = [
   { value: 'default', label: 'Default' },
   { value: 'modern', label: 'Modern' },
   { value: 'crt', label: 'CRT' },

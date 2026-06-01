@@ -1,7 +1,7 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-export type WorkspaceCwdState =
+type WorkspaceCwdState =
   | { status: 'pending'; reason: string }
   | { status: 'unsafe'; reason: string }
   | { status: 'ready'; cwd: string };
@@ -10,7 +10,7 @@ export type PiStartupCwdState =
   | { status: 'blocked'; reason: string }
   | { status: 'ready'; cwd: string; source: 'workspace' | 'home' };
 
-export function getWorkspaceCwdState(cwd: string | undefined): WorkspaceCwdState {
+function getWorkspaceCwdState(cwd: string | undefined): WorkspaceCwdState {
   const trimmed = cwd?.trim();
 
   if (!trimmed) {
