@@ -1,0 +1,53 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  // Fallow auto-detects package.json entries, npm scripts, Mocha tests, and VitePress.
+  // These files are used by tooling or runtime packaging but are not statically imported.
+  "entry": [
+    ".vscode-test.js",
+    "index.js",
+    "scripts/piSdkBundleEntry.ts"
+  ],
+  // Build output and vendored/runtime assets are generated or copied into the VSIX.
+  "ignorePatterns": [
+    "out/**",
+    "resources/pi-sdk-runtime/**",
+    "resources/vendor/**",
+    "resources/webview/chat.js",
+    "docs/.vitepress/cache/**",
+    "docs/.vitepress/.temp/**",
+    "docs/.vitepress/dist/**"
+  ],
+  // These packages are used through dynamic import, CLI binaries, or vendor-copy scripts.
+  "ignoreDependencies": [
+    "@vscode/test-electron",
+    "dompurify",
+    "markdown-it",
+    "shiki",
+    "vscode-shiki-bridge"
+  ],
+  "duplicates": {
+    "ignore": [
+      "resources/webview/**",
+      "resources/vendor/**",
+      "resources/pi-sdk-runtime/**",
+      "src/test/**"
+    ],
+    "ignoreImports": true
+  },
+  "health": {
+    // The default CRAP threshold is noisy without real coverage data. Keep complexity
+    // thresholds strict while only surfacing the highest estimated untested-risk items.
+    "maxCrap": 100,
+    "ignore": [
+      "resources/webview/**",
+      "resources/vendor/**",
+      "resources/pi-sdk-runtime/**"
+    ]
+  },
+  "rules": {
+    // Public/controller/VS Code-facing classes are often invoked through interfaces,
+    // callbacks, or command registration, which creates many false positives here.
+    "unused-class-members": "off",
+    "duplicate-exports": "warn"
+  }
+}

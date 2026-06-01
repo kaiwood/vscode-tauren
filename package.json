@@ -467,6 +467,7 @@
     "@vscode/test-electron": "^2.5.2",
     "dompurify": "^3.4.2",
     "esbuild": "^0.28.0",
+    "fallow": "^2.85.0",
     "markdown-it": "^14.1.1",
     "mocha": "^11.7.5",
     "typescript": "^6.0.3",
