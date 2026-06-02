@@ -16,6 +16,19 @@ import type {
 import { isRecord } from '../shared/typeGuards';
 
 const execFileAsync = promisify(execFile);
+const ignoredTrackedPathSegments = new Set([
+  '.git',
+  '.vscode-test',
+  'build',
+  'dist',
+  'node_modules',
+  'out'
+]);
+const ignoredTrackedPathPrefixes = [
+  'resources/pi-sdk-runtime/',
+  'resources/vendor/',
+  'resources/webview/'
+];
 
 export class SessionDiffTracker {
   private stats: SessionDiffStats = emptySessionDiffStats();
@@ -129,8 +142,9 @@ export async function createTrackedSessionFile(cwd: string | undefined, absolute
   }
 
   const pathInCwd = getPathWithinCwd(cwd, absolutePath);
+  const resolvedPath = pathInCwd ? resolvePathWithinCwd(cwd, pathInCwd) : undefined;
 
-  if (!pathInCwd) {
+  if (!pathInCwd || !resolvedPath || shouldSkipTrackedSessionPath(pathInCwd) || !await isRegularFile(resolvedPath)) {
     return undefined;
   }
 
@@ -138,6 +152,20 @@ export async function createTrackedSessionFile(cwd: string | undefined, absolute
     path: pathInCwd,
     originalContent: await readGitFileContent(cwd, pathInCwd) ?? ''
   };
+}
+
+export function shouldSkipTrackedSessionPath(filePath: string): boolean {
+  const normalizedPath = filePath.replace(/\\/g, '/');
+
+  if (normalizedPath.endsWith('.vsix')) {
+    return true;
+  }
+
+  if (ignoredTrackedPathPrefixes.some((prefix) => normalizedPath === prefix.slice(0, -1) || normalizedPath.startsWith(prefix))) {
+    return true;
+  }
+
+  return normalizedPath.split('/').some((segment) => ignoredTrackedPathSegments.has(segment));
 }
 
 type ParsedSessionDiffRecords = {
@@ -606,6 +634,14 @@ async function readCurrentFileContent(absolutePath: string): Promise<string | un
     return await fs.readFile(absolutePath, 'utf8');
   } catch {
     return undefined;
+  }
+}
+
+async function isRegularFile(absolutePath: string): Promise<boolean> {
+  try {
+    return (await fs.stat(absolutePath)).isFile();
+  } catch {
+    return false;
   }
 }
 

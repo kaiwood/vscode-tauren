@@ -4,7 +4,15 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { promisify } from 'util';
-import { getToolExecutionDiffStats, parseSessionBestEffortFileDiffsFromFile, parseSessionDiffStatsFromFile, parseSessionFileDiffsFromFile, SessionDiffTracker } from '../../diff/sessionDiffTracker';
+import {
+  createTrackedSessionFile,
+  getToolExecutionDiffStats,
+  parseSessionBestEffortFileDiffsFromFile,
+  parseSessionDiffStatsFromFile,
+  parseSessionFileDiffsFromFile,
+  SessionDiffTracker,
+  shouldSkipTrackedSessionPath
+} from '../../diff/sessionDiffTracker';
 
 const execFileAsync = promisify(execFile);
 
@@ -45,6 +53,31 @@ suite('SessionDiffTracker', () => {
 
     assert.deepStrictEqual(tracker.getStats(), { addedLines: 3, removedLines: 1 });
     assert.deepStrictEqual(new SessionDiffTracker(tracker.snapshot()).getStats(), { addedLines: 3, removedLines: 1 });
+  });
+
+  test('skips high-churn generated paths for live workspace tracking', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tauren-session-diff-generated-'));
+    const generatedFile = path.join(cwd, 'node_modules', 'pkg', 'index.js');
+    const vsixFile = path.join(cwd, 'tauren-local.vsix');
+
+    await fs.mkdir(path.dirname(generatedFile), { recursive: true });
+    await fs.writeFile(generatedFile, 'generated\n');
+    await fs.writeFile(vsixFile, 'package\n');
+
+    assert.strictEqual(shouldSkipTrackedSessionPath('node_modules/pkg/index.js'), true);
+    assert.strictEqual(shouldSkipTrackedSessionPath('resources/pi-sdk-runtime/runtime.js'), true);
+    assert.strictEqual(shouldSkipTrackedSessionPath('src/extension.ts'), false);
+    assert.strictEqual(await createTrackedSessionFile(cwd, generatedFile), undefined);
+    assert.strictEqual(await createTrackedSessionFile(cwd, vsixFile), undefined);
+  });
+
+  test('skips directories for live workspace tracking', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tauren-session-diff-directory-'));
+    const sourceDir = path.join(cwd, 'src');
+
+    await fs.mkdir(sourceDir, { recursive: true });
+
+    assert.strictEqual(await createTrackedSessionFile(cwd, sourceDir), undefined);
   });
 
   test('parses session JSONL tool execution events from session files', async () => {
