@@ -30,6 +30,16 @@ export function mapKwardTurnEvent(event: KwardTurnEvent): PiEvent | undefined {
       return mapKwardToolEvent(payload, 'tool_execution_start');
     case 'toolResult':
       return mapKwardToolEvent(payload, 'tool_execution_end');
+    case 'compactionStart':
+      return { type: 'compaction_start' };
+    case 'compactionEnd':
+      return {
+        type: 'compaction_end',
+        result: isRecord(payload.result) ? payload.result : undefined,
+        aborted: getBoolean(payload, 'aborted'),
+        willRetry: getBoolean(payload, 'willRetry'),
+        errorMessage: getString(payload, 'errorMessage') ?? undefined
+      };
     case 'error':
       return {
         type: 'message_update',
@@ -132,4 +142,9 @@ function buildSingleEdit(tool: Record<string, unknown>): Array<{ oldText: string
 function getString(record: Record<string, unknown> | undefined, key: string): string | undefined {
   const value = record?.[key];
   return typeof value === 'string' ? value : undefined;
+}
+
+function getBoolean(record: Record<string, unknown> | undefined, key: string): boolean | undefined {
+  const value = record?.[key];
+  return typeof value === 'boolean' ? value : undefined;
 }

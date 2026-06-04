@@ -30,6 +30,7 @@ export type PiClient = {
   onEvent(listener: (event: PiEvent) => void): () => void;
   onError(listener: (message: string) => void): () => void;
   prompt(message: string, streamingBehavior?: PiPromptStreamingBehavior, images?: PiImageContent[]): Promise<void>;
+  expandPromptCommand?(command: string, args: string): Promise<string>;
   abort(): Promise<void>;
   reload(): Promise<void>;
   isRunning(): boolean;

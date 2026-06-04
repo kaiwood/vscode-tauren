@@ -1,4 +1,4 @@
-import type { PiAgentMessage, PiAuthProvider, PiCommand, PiStartupResourceSection } from '../pi/types';
+import type { PiAgentMessage, PiAuthProvider, PiCommand, PiNavigateTreeResult, PiStartupResourceSection } from '../pi/types';
 
 export type KwardSession = {
   id?: string;
@@ -91,4 +91,32 @@ export type KwardQuestionRequest = {
 export type KwardTranscriptResult = {
   session?: KwardSession;
   messages?: PiAgentMessage[];
+};
+
+export type KwardCompactResult = {
+  summary?: string;
+  firstKeptEntryId?: string;
+  tokensBefore?: number;
+  details?: unknown;
+};
+
+export type KwardCapabilities = Record<string, unknown>;
+
+export type KwardInitializeResult = {
+  protocolVersion?: number;
+  serverName?: string;
+  capabilities?: KwardCapabilities;
+};
+
+export type KwardTreeResult = {
+  items?: unknown[];
+};
+
+export type KwardImportResult = {
+  session?: KwardSession;
+  cancelled?: boolean;
+};
+
+export type KwardNavigateTreeResult = PiNavigateTreeResult & {
+  session?: KwardSession;
 };

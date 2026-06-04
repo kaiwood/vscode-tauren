@@ -5,6 +5,7 @@ import type {
   WebviewAuthState,
   WebviewKwardQuestionRequest,
   WebviewMessage,
+  WebviewSlashCommand,
   WebviewStateMessage
 } from './webviewProtocol/types';
 import { createWebviewMessageSyncPlan, type PostedWebviewChatSync, type WebviewMessageSyncPlan } from './webviewProtocol/messagePatch';
@@ -27,7 +28,7 @@ import {
 } from './metadata/sessionMetadata';
 import { SessionDiffController } from './diff/sessionDiffController';
 import { getErrorMessage } from './controller/errors';
-import { parseLocalSlashCommand } from './controller/slashCommandParsing';
+import { parseLocalSlashCommand, parseSlashCommand } from './controller/slashCommandParsing';
 import { LocalSlashCommandController } from './controller/localSlashCommandController';
 import { SessionHistoryController } from './sessions/sessionHistoryController';
 import { PiClientManager } from './controller/piClientManager';
@@ -403,6 +404,19 @@ export class TaurenChatController {
     }
 
     const promptImages = this.consumePromptImages();
+    let submittedText = message.text;
+
+    try {
+      submittedText = await this.expandPromptSlashCommand(message.text);
+    } catch (error) {
+      this.restorePromptImages(promptImages);
+      const errorMessage = `Failed to expand prompt command: ${getErrorMessage(error)}`;
+      this.session.addErrorMessage(errorMessage);
+      this.options.showNotification(errorMessage, 'warning');
+      this.postState();
+      return;
+    }
+
     const submittedPrompt = this.session.beginSubmit(message.text, toChatImages(promptImages));
 
     if (!submittedPrompt) {
@@ -411,7 +425,7 @@ export class TaurenChatController {
     }
 
     const promptContext = this.consumePromptContext();
-    const promptText = this.formatPromptForPi(submittedPrompt.text, promptContext);
+    const promptText = this.formatPromptForPi(submittedText, promptContext);
 
     this.resetAbortState();
     void this.refreshSessionDiffStats();
@@ -1121,6 +1135,32 @@ export class TaurenChatController {
 
   private formatPromptForPi(userText: string, context: PiPromptContextAttachment[]): string {
     return formatPromptForPiMessage(userText, context);
+  }
+
+  private async expandPromptSlashCommand(text: string): Promise<string> {
+    const command = parseSlashCommand(text);
+
+    if (!command) {
+      return text;
+    }
+
+    const slashCommand = this.resolvePromptSlashCommand(command.name);
+
+    if (!slashCommand) {
+      return text;
+    }
+
+    const client = this.getClient();
+
+    if (!client.expandPromptCommand) {
+      return text;
+    }
+
+    return client.expandPromptCommand(slashCommand.name, command.args);
+  }
+
+  private resolvePromptSlashCommand(commandName: string): WebviewSlashCommand | undefined {
+    return this.sessionMetadata.getSlashCommands().find((command) => command.name === commandName && command.source === 'prompt');
   }
 
   private async queuePromptWhileBusy(

@@ -2870,6 +2870,109 @@ suite('TaurenChatController', () => {
     harness.controller.dispose();
   });
 
+  test('prompt slash command expands before submit while preserving visible slash command message', async () => {
+    const client = new FakePiClient({
+      commands: [{ name: 'plan', description: 'Plan work', source: 'prompt' }],
+      promptExpansions: { 'plan\u0000fix bug': 'Expanded plan for fix bug' }
+    });
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'refreshSlashCommands' });
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/plan fix bug' });
+
+    assert.deepStrictEqual(client.promptExpansionCalls, [{ command: 'plan', args: 'fix bug' }]);
+    assert.deepStrictEqual(client.prompts, ['Expanded plan for fix bug']);
+    assert.deepStrictEqual(lastState(harness).messages[0], { role: 'user', text: '/plan fix bug' });
+    harness.controller.dispose();
+  });
+
+  test('unknown slash commands are submitted literally without prompt expansion', async () => {
+    const client = new FakePiClient({
+      commands: [{ name: 'plan', description: 'Plan work', source: 'prompt' }]
+    });
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'refreshSlashCommands' });
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/unknown fix bug' });
+
+    assert.deepStrictEqual(client.promptExpansionCalls, []);
+    assert.deepStrictEqual(client.prompts, ['/unknown fix bug']);
+    harness.controller.dispose();
+  });
+
+  test('skill slash commands are not treated as prompt templates', async () => {
+    const client = new FakePiClient({
+      commands: [{ name: 'plan', description: 'Skill plan', source: 'skill' }]
+    });
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'refreshSlashCommands' });
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/plan fix bug' });
+
+    assert.deepStrictEqual(client.promptExpansionCalls, []);
+    assert.deepStrictEqual(client.prompts, ['/plan fix bug']);
+    harness.controller.dispose();
+  });
+
+  test('failed prompt slash command expansion surfaces an error without submitting literal command', async () => {
+    const client = new FakePiClient({
+      commands: [{ name: 'plan', description: 'Plan work', source: 'prompt' }],
+      promptExpansionError: new Error('template missing')
+    });
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'refreshSlashCommands' });
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/plan fix bug' });
+
+    assert.deepStrictEqual(client.promptExpansionCalls, [{ command: 'plan', args: 'fix bug' }]);
+    assert.deepStrictEqual(client.prompts, []);
+    assert.match(lastState(harness).messages[0]?.text ?? '', /Failed to expand prompt command: template missing/);
+    assert.strictEqual(lastState(harness).messages[0]?.error, true);
+    assert.match(harness.notifications[0]?.message ?? '', /Failed to expand prompt command: template missing/);
+    harness.controller.dispose();
+  });
+
+  test('Kward question notification opens dialog after expanded prompt triggers ask_user_question', async () => {
+    const client = new FakePiClient({
+      commands: [{ name: 'plan', description: 'Plan work', source: 'prompt' }],
+      promptExpansions: { 'plan\u0000fix bug': 'Expanded prompt that asks a question' }
+    });
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'refreshSlashCommands' });
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/plan fix bug' });
+    client.emit({
+      type: 'kward_ui_question',
+      request: {
+        sessionId: 'session-1',
+        questionRequestId: 'question-1',
+        questions: [{
+          question: 'Which fix?',
+          header: 'Plan',
+          options: [
+            { label: 'A', description: 'Fix A' },
+            { label: 'B', description: 'Fix B' }
+          ]
+        }]
+      }
+    });
+
+    assert.deepStrictEqual(client.prompts, ['Expanded prompt that asks a question']);
+    assert.deepStrictEqual(lastState(harness).kwardQuestion, {
+      sessionId: 'session-1',
+      questionRequestId: 'question-1',
+      questions: [{
+        question: 'Which fix?',
+        header: 'Plan',
+        options: [
+          { label: 'A', description: 'Fix A' },
+          { label: 'B', description: 'Fix B' }
+        ]
+      }]
+    });
+    harness.controller.dispose();
+  });
+
   test('failed slash command refresh preserves previous commands', async () => {
     const client = new FakePiClient({
       commands: [{ name: 'fix-tests', description: 'Fix failing tests', source: 'prompt' }]
@@ -3007,6 +3110,8 @@ type FakePiClientOptions = {
   setSessionNameResult?: Promise<void>;
   setSessionNameError?: unknown;
   treeItems?: WebviewTreeItem[];
+  promptExpansions?: Record<string, string>;
+  promptExpansionError?: unknown;
 };
 
 class FakeStateScheduler implements StatePublisherScheduler {
@@ -3055,6 +3160,9 @@ class FakePiClient implements PiClient {
   public prompts: string[] = [];
   public promptStreamingBehaviors: Array<'steer' | 'followUp' | undefined> = [];
   public promptImages: Array<PiImageContent[] | undefined> = [];
+  public promptExpansionCalls: Array<{ command: string; args: string }> = [];
+  public promptExpansions: Record<string, string>;
+  public promptExpansionError: unknown;
   public sessionNames: string[] = [];
   public state: PiSessionState;
   public models: PiModel[];
@@ -3123,6 +3231,8 @@ class FakePiClient implements PiClient {
     this.compactError = options.compactError;
     this.promptResult = options.promptResult;
     this.promptError = options.promptError;
+    this.promptExpansions = options.promptExpansions ?? {};
+    this.promptExpansionError = options.promptExpansionError;
     this.setSessionNameResult = options.setSessionNameResult;
     this.setSessionNameError = options.setSessionNameError;
     this.treeItems = options.treeItems ?? [];
@@ -3160,6 +3270,16 @@ class FakePiClient implements PiClient {
     if (this.promptError) {
       throw this.promptError;
     }
+  }
+
+  public async expandPromptCommand(command: string, args: string): Promise<string> {
+    this.promptExpansionCalls.push({ command, args });
+
+    if (this.promptExpansionError) {
+      throw this.promptExpansionError;
+    }
+
+    return this.promptExpansions[command + '\u0000' + args] ?? '';
   }
 
   public async abort(): Promise<void> {

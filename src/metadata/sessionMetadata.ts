@@ -405,6 +405,10 @@ export class SessionMetadataState {
     return this.modelOptions;
   }
 
+  public getSlashCommands(): WebviewSlashCommand[] {
+    return this.slashCommands;
+  }
+
   public applyModelState(state: PiSessionState): boolean {
     const modelChanged = this.applyModelMeta(getModelMeta(state), { notify: false });
     const runtimeChanged = this.applyPiSettings(getPiSettingsMeta(state));

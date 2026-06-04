@@ -85,4 +85,26 @@ suite('Kward event mapper', () => {
     assert.deepStrictEqual(mapKwardTurnEvent({ type: 'turnStarted', turnId: 'turn-1' }), { type: 'agent_start', turnId: 'turn-1' });
     assert.deepStrictEqual(mapKwardTurnEvent({ type: 'turnFinished', payload: { status: 'completed' } }), { type: 'agent_end' });
   });
+
+  test('maps compaction lifecycle events', () => {
+    assert.deepStrictEqual(mapKwardTurnEvent({ type: 'compactionStart' }), { type: 'compaction_start' });
+    assert.deepStrictEqual(
+      mapKwardTurnEvent({
+        type: 'compactionEnd',
+        payload: {
+          result: { summary: 'Prior context', tokensBefore: 1234 },
+          aborted: false,
+          willRetry: false,
+          errorMessage: null
+        }
+      }),
+      {
+        type: 'compaction_end',
+        result: { summary: 'Prior context', tokensBefore: 1234 },
+        aborted: false,
+        willRetry: false,
+        errorMessage: undefined
+      }
+    );
+  });
 });
