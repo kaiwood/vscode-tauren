@@ -693,11 +693,6 @@ export class TaurenChatController {
   }
 
   private async answerKwardQuestion(sessionId: string, questionRequestId: string, answers: Array<{ question: string; answer: string }>): Promise<void> {
-    if (this.pendingKwardQuestion?.questionRequestId === questionRequestId) {
-      this.pendingKwardQuestion = undefined;
-      this.postState();
-    }
-
     const client = this.getExistingClient();
     if (!client?.answerQuestion) {
       this.session.addErrorMessage('Kward question bridge is not available for this backend.');
@@ -707,6 +702,10 @@ export class TaurenChatController {
 
     try {
       await client.answerQuestion(sessionId, questionRequestId, answers);
+      if (this.pendingKwardQuestion?.questionRequestId === questionRequestId) {
+        this.pendingKwardQuestion = undefined;
+      }
+      this.postState();
     } catch (error) {
       this.session.addErrorMessage(getErrorMessage(error));
       this.postState();

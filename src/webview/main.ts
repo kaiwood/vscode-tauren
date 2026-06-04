@@ -25,6 +25,23 @@ import {
   type ProvisionalExtensionUiSnapshot
 } from './state';
 import type { WebviewScrollCommand } from '../webviewProtocol/types';
+import {
+  createKwardQuestionUiState,
+  getKwardQuestionAnswerForIndex,
+  getKwardQuestionAnswerMessage,
+  getKwardQuestionAriaLabel,
+  getKwardQuestionCustomAnswerForIndex,
+  getKwardQuestionCustomChoiceIndex,
+  getKwardQuestionLastStepIndex,
+  getKwardQuestionNextVerticalFocusTarget,
+  getKwardQuestionNextProgressFocusIndex,
+  getKwardQuestionRenderSignature,
+  getKwardQuestionRequestKey,
+  getKwardQuestionSelectedAnswerForIndex,
+  getKwardQuestionTitle,
+  isKwardQuestionSummaryStep,
+  type KwardQuestionUiState
+} from './kwardQuestion';
 import type { WebviewState } from './types';
 import { isRecord } from '../shared/typeGuards';
 
@@ -104,10 +121,15 @@ messagesElement.append(messagesContentElement, busyStatusElement);
 const kwardQuestionElement = document.createElement('section');
 kwardQuestionElement.className = 'kward-question';
 kwardQuestionElement.hidden = true;
+kwardQuestionElement.setAttribute('aria-label', 'Kward question');
 kwardQuestionElement.setAttribute('aria-live', 'polite');
+kwardQuestionElement.setAttribute('role', 'dialog');
+kwardQuestionElement.tabIndex = 0;
 extensionWidgetsAboveElement.after(kwardQuestionElement);
 
 let state: WebviewState = { ...initialWebviewState };
+let kwardQuestionUiState: KwardQuestionUiState | undefined;
+let renderedKwardQuestionSignature = '';
 let toolsExpanded = false;
 let toastHideTimeout: ReturnType<typeof setTimeout> | undefined;
 let pendingRenderFrame: number | undefined;
@@ -419,6 +441,10 @@ window.addEventListener('keydown', (event) => {
     return;
   }
 
+  if (handleKwardQuestionGlobalKeydown(event)) {
+    return;
+  }
+
   if (transcriptSearchController.handleGlobalKeydown(event)) {
     composerController.closeSlashMenu();
     composerController.closeModelMenu();
@@ -677,83 +703,429 @@ function render(): void {
   }
 }
 
+function handleKwardQuestionGlobalKeydown(event: KeyboardEvent): boolean {
+  if (event.key !== 'Escape' || kwardQuestionElement.hidden || !state.kwardQuestion) {
+    return false;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  cancelKwardQuestion(state.kwardQuestion);
+  return true;
+}
+
 function syncKwardQuestion(hiddenBySurface: boolean): void {
   const request = hiddenBySurface ? undefined : state.kwardQuestion;
 
   if (!request) {
     kwardQuestionElement.hidden = true;
     kwardQuestionElement.replaceChildren();
+    renderedKwardQuestionSignature = '';
     return;
   }
 
+  const uiState = ensureKwardQuestionUiState(request);
+  renderKwardQuestion(request, uiState);
+}
+
+function ensureKwardQuestionUiState(request: NonNullable<WebviewState['kwardQuestion']>): KwardQuestionUiState {
+  const requestKey = getKwardQuestionRequestKey(request);
+  const existing = kwardQuestionUiState;
+
+  if (existing?.requestKey === requestKey && existing.selectedAnswers.length === request.questions.length && existing.customAnswers.length === request.questions.length) {
+    existing.stepIndex = Math.min(existing.stepIndex, getKwardQuestionLastStepIndex(request));
+    return existing;
+  }
+
+  const nextState = createKwardQuestionUiState(request);
+  kwardQuestionUiState = nextState;
+  renderedKwardQuestionSignature = '';
+  return nextState;
+}
+
+function renderKwardQuestion(request: NonNullable<WebviewState['kwardQuestion']>, uiState: KwardQuestionUiState): void {
+  const signature = getKwardQuestionRenderSignature(request, uiState);
+
+  if (!kwardQuestionElement.hidden && renderedKwardQuestionSignature === signature) {
+    return;
+  }
+
+  const previousActiveName = kwardQuestionElement.contains(document.activeElement) ? (document.activeElement as HTMLElement | null)?.getAttribute('name') ?? undefined : undefined;
+  const focusQuestion = kwardQuestionElement.hidden || kwardQuestionElement.contains(document.activeElement);
+  renderedKwardQuestionSignature = signature;
   kwardQuestionElement.hidden = false;
+  kwardQuestionElement.setAttribute('aria-label', getKwardQuestionAriaLabel(request, uiState));
+  const header = document.createElement('div');
+  header.className = 'kward-question__header';
   const title = document.createElement('div');
   title.className = 'kward-question__title';
-  title.textContent = 'Kward needs your input';
+  title.textContent = getKwardQuestionTitle(request, uiState);
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'kward-question__close';
+  close.setAttribute('aria-label', 'Close Kward question');
+  close.textContent = '×';
+  close.addEventListener('click', () => cancelKwardQuestion(request));
+  header.append(title, close);
   const formElement = document.createElement('form');
   formElement.className = 'kward-question__form';
+  formElement.addEventListener('keydown', (event) => handleKwardQuestionKeydown(event, request, uiState));
 
-  request.questions.forEach((question, questionIndex) => {
-    const fieldset = document.createElement('fieldset');
-    fieldset.className = 'kward-question__fieldset';
-    const legend = document.createElement('legend');
-    legend.className = 'kward-question__legend';
-    legend.textContent = `${question.header}: ${question.question}`;
-    fieldset.append(legend);
+  if (isKwardQuestionSummaryStep(request, uiState)) {
+    formElement.append(createKwardQuestionSummary(request, uiState), createKwardQuestionActions(request, true));
+  } else {
+    const questionIndex = uiState.stepIndex;
+    formElement.append(createKwardQuestionStep(request, uiState, questionIndex), createKwardQuestionActions(request, false));
+  }
 
-    question.options.forEach((option, optionIndex) => {
-      const label = document.createElement('label');
-      label.className = 'kward-question__option';
-      const input = document.createElement('input');
-      input.type = 'radio';
-      input.name = `kward-question-${questionIndex}`;
-      input.value = option.label;
-      input.checked = optionIndex === 0;
-      const text = document.createElement('span');
-      text.textContent = `${option.label} — ${option.description}`;
-      label.append(input, text);
-      fieldset.append(label);
-    });
-
-    const custom = document.createElement('input');
-    custom.className = 'kward-question__custom';
-    custom.type = 'text';
-    custom.name = `kward-question-custom-${questionIndex}`;
-    custom.placeholder = 'Custom answer…';
-    fieldset.append(custom);
-    formElement.append(fieldset);
-  });
-
-  const actions = document.createElement('div');
-  actions.className = 'kward-question__actions';
-  const submit = document.createElement('button');
-  submit.type = 'submit';
-  submit.textContent = 'Send answer';
-  const cancel = document.createElement('button');
-  cancel.type = 'button';
-  cancel.textContent = 'Cancel';
-  cancel.addEventListener('click', () => {
-    vscode.postMessage({ type: 'kwardQuestionCancel', sessionId: request.sessionId, questionRequestId: request.questionRequestId });
-  });
-  actions.append(submit, cancel);
-  formElement.append(actions);
   formElement.addEventListener('submit', (event) => {
     event.preventDefault();
-    const formData = new FormData(formElement);
-    const answers = request.questions.map((question, index) => {
-      const custom = String(formData.get(`kward-question-custom-${index}`) ?? '').trim();
-      const selected = String(formData.get(`kward-question-${index}`) ?? '').trim();
-      return { question: question.question, answer: custom || selected };
-    });
-    vscode.postMessage({
-      type: 'kwardQuestionAnswer',
-      sessionId: request.sessionId,
-      questionRequestId: request.questionRequestId,
-      answers
-    });
+
+    if (!isKwardQuestionSummaryStep(request, uiState)) {
+      uiState.stepIndex = Math.min(uiState.stepIndex + 1, getKwardQuestionLastStepIndex(request));
+      rerenderKwardQuestion(request, { focus: true });
+      return;
+    }
+
+    const submit = formElement.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (submit) {
+      submit.disabled = true;
+    }
+
+    vscode.postMessage(getKwardQuestionAnswerMessage(request, uiState));
   });
 
-  kwardQuestionElement.replaceChildren(title, formElement);
+  kwardQuestionElement.replaceChildren(header, formElement);
+
+  if (focusQuestion) {
+    focusKwardQuestionStep(isKwardQuestionSummaryStep(request, uiState) ? undefined : previousActiveName);
+  }
+}
+
+function createKwardQuestionStep(request: NonNullable<WebviewState['kwardQuestion']>, uiState: KwardQuestionUiState, questionIndex: number): HTMLElement {
+  const body = document.createElement('div');
+  body.className = 'kward-question__body';
+  const question = request.questions[questionIndex];
+
+  if (!question) {
+    return body;
+  }
+
+  const progress = createKwardQuestionProgress(request, uiState);
+  body.append(progress);
+
+  const fieldset = document.createElement('fieldset');
+  fieldset.className = 'kward-question__fieldset';
+  const legend = document.createElement('legend');
+  legend.className = 'kward-question__legend';
+  legend.textContent = `${question.header}: ${question.question}`;
+  fieldset.append(legend);
+
+  question.options.forEach((option, optionIndex) => {
+    const label = document.createElement('label');
+    label.className = 'kward-question__option';
+    label.dataset.kwardQuestionChoiceIndex = String(optionIndex);
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = `kward-question-${questionIndex}`;
+    input.value = option.label;
+    input.checked = uiState.selectedAnswers[questionIndex] === option.label && !getKwardQuestionCustomAnswerForIndex(uiState, questionIndex);
+    input.addEventListener('change', () => {
+      uiState.selectedAnswers[questionIndex] = option.label;
+      uiState.customAnswers[questionIndex] = '';
+      const customInput = fieldset.querySelector<HTMLInputElement>(`input[name="kward-question-custom-${questionIndex}"]`);
+      if (customInput) {
+        customInput.value = '';
+      }
+    });
+    const text = document.createElement('span');
+    text.className = 'kward-question__option-text';
+    const optionLabel = document.createElement('span');
+    optionLabel.className = 'kward-question__option-label';
+    optionLabel.textContent = option.label;
+    const description = document.createElement('span');
+    description.className = 'kward-question__option-description';
+    description.textContent = option.description;
+    text.append(optionLabel, description);
+    label.append(input, text);
+    fieldset.append(label);
+  });
+
+  const customLabel = document.createElement('label');
+  customLabel.className = 'kward-question__custom-wrap';
+  customLabel.dataset.kwardQuestionChoiceIndex = String(getKwardQuestionCustomChoiceIndex(request, questionIndex));
+  const customRadio = document.createElement('input');
+  customRadio.type = 'radio';
+  customRadio.name = `kward-question-${questionIndex}`;
+  customRadio.value = '__custom__';
+  customRadio.checked = Boolean(getKwardQuestionCustomAnswerForIndex(uiState, questionIndex));
+  const customText = document.createElement('span');
+  customText.className = 'kward-question__option-label';
+  customText.textContent = 'Custom input';
+  const custom = document.createElement('input');
+  custom.className = 'kward-question__custom';
+  custom.type = 'text';
+  custom.name = `kward-question-custom-${questionIndex}`;
+  custom.placeholder = 'Custom answer…';
+  custom.value = uiState.customAnswers[questionIndex] ?? '';
+  customRadio.addEventListener('change', () => {
+    if (customRadio.checked) {
+      requestAnimationFrame(() => custom.focus({ preventScroll: true }));
+    }
+  });
+  custom.addEventListener('focus', () => {
+    customRadio.checked = true;
+  });
+  custom.addEventListener('input', () => {
+    uiState.customAnswers[questionIndex] = custom.value;
+    customRadio.checked = true;
+  });
+  customLabel.append(customRadio, customText, custom);
+  fieldset.append(customLabel);
+  body.append(fieldset, createKwardQuestionHint());
+  return body;
+}
+
+function createKwardQuestionSummary(request: NonNullable<WebviewState['kwardQuestion']>, uiState: KwardQuestionUiState): HTMLElement {
+  const body = document.createElement('div');
+  body.className = 'kward-question__body';
+  body.append(createKwardQuestionProgress(request, uiState));
+  const heading = document.createElement('div');
+  heading.className = 'kward-question__legend';
+  heading.textContent = 'Review your answers';
+  const list = document.createElement('ol');
+  list.className = 'kward-question__summary';
+
+  request.questions.forEach((question, index) => {
+    const item = document.createElement('li');
+    item.className = 'kward-question__summary-item';
+    const label = document.createElement('span');
+    label.className = 'kward-question__summary-question';
+    label.textContent = `${question.header}: ${question.question}`;
+    const selected = document.createElement('span');
+    selected.className = 'kward-question__summary-answer';
+    selected.textContent = `Selected answer: ${getKwardQuestionSelectedAnswerForIndex(request, uiState, index) || 'None'}`;
+    item.append(label, selected);
+
+    const customAnswer = getKwardQuestionCustomAnswerForIndex(uiState, index);
+    if (customAnswer) {
+      const custom = document.createElement('span');
+      custom.className = 'kward-question__summary-custom';
+      custom.textContent = `Custom answer: ${customAnswer}`;
+      item.append(custom);
+    }
+
+    list.append(item);
+  });
+
+  body.append(heading, list, createKwardQuestionHint());
+  return body;
+}
+
+function createKwardQuestionProgress(request: NonNullable<WebviewState['kwardQuestion']>, uiState: KwardQuestionUiState): HTMLElement {
+  const progress = document.createElement('div');
+  progress.className = 'kward-question__progress';
+  progress.setAttribute('aria-label', 'Question steps');
+  const totalSteps = getKwardQuestionLastStepIndex(request) + 1;
+
+  for (let index = 0; index < totalSteps; index += 1) {
+    const step = document.createElement('button');
+    step.type = 'button';
+    step.className = 'kward-question__progress-step';
+    step.classList.toggle('kward-question__progress-step--active', index === uiState.stepIndex);
+    step.classList.toggle('kward-question__progress-step--answered', index < request.questions.length && Boolean(getKwardQuestionAnswerForIndex(request, uiState, index)));
+    step.setAttribute('aria-current', index === uiState.stepIndex ? 'step' : 'false');
+    step.dataset.kwardQuestionStepIndex = String(index);
+    step.textContent = index === request.questions.length ? 'Review' : String(index + 1);
+    step.addEventListener('click', () => openKwardQuestionStep(request, uiState, index, { focusProgress: true }));
+    progress.append(step);
+  }
+
+  return progress;
+}
+
+function createKwardQuestionActions(request: NonNullable<WebviewState['kwardQuestion']>, includeSubmit: boolean): HTMLElement {
+  const actions = document.createElement('div');
+  actions.className = 'kward-question__actions';
+
+  if (includeSubmit) {
+    const submit = document.createElement('button');
+    submit.type = 'submit';
+    submit.className = 'C3PO-arm';
+    submit.textContent = request.questions.length > 1 ? 'Send answers' : 'Send answer';
+    actions.append(submit);
+  }
+
+  if (request.questions.length > 1 && !includeSubmit) {
+    const spacer = document.createElement('span');
+    spacer.className = 'kward-question__actions-hint';
+    spacer.textContent = 'Press Enter to continue';
+    actions.prepend(spacer);
+  }
+
+  return actions;
+}
+
+function createKwardQuestionHint(): HTMLElement {
+  const hint = document.createElement('div');
+  hint.className = 'kward-question__hint';
+  hint.textContent = 'Press Enter to continue. Tab to move through choices and custom answer. Focus step indicators to use ← and →.';
+  return hint;
+}
+
+function handleKwardQuestionKeydown(event: KeyboardEvent, request: NonNullable<WebviewState['kwardQuestion']>, uiState: KwardQuestionUiState): void {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+    cancelKwardQuestion(request);
+    return;
+  }
+
+  if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && !isKwardQuestionSummaryStep(request, uiState)) {
+    event.preventDefault();
+    event.stopPropagation();
+    moveKwardQuestionChoice(request, uiState, event.key === 'ArrowDown' ? 1 : -1, event.target);
+    return;
+  }
+
+  if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && isKwardQuestionProgressStep(event.target)) {
+    event.preventDefault();
+    event.stopPropagation();
+    moveKwardQuestionProgressFocus(request, event.target, event.key === 'ArrowRight' ? 1 : -1);
+    return;
+  }
+
+  if (event.key === 'Enter' && isKwardQuestionProgressStep(event.target)) {
+    event.preventDefault();
+    event.stopPropagation();
+    openKwardQuestionStep(request, uiState, getKwardQuestionProgressStepIndex(event.target), { focusProgress: true });
+    return;
+  }
+
+  if (event.key === 'Enter' && !isKwardQuestionCloseButton(event.target)) {
+    const submit = kwardQuestionElement.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (isKwardQuestionSummaryStep(request, uiState) && submit) {
+      event.preventDefault();
+      event.stopPropagation();
+      submit.click();
+      return;
+    }
+
+    if (!isKwardQuestionSummaryStep(request, uiState)) {
+      event.preventDefault();
+      event.stopPropagation();
+      openKwardQuestionStep(request, uiState, Math.min(uiState.stepIndex + 1, getKwardQuestionLastStepIndex(request)), { focus: true });
+      return;
+    }
+  }
+}
+
+function moveKwardQuestionChoice(request: NonNullable<WebviewState['kwardQuestion']>, uiState: KwardQuestionUiState, delta: number, target: EventTarget | null): void {
+  const questionIndex = uiState.stepIndex;
+  const choiceIndex = getKwardQuestionChoiceIndexFromTarget(target) ?? getKwardQuestionCurrentChoiceIndex(request, uiState, questionIndex);
+  const focusTarget = getKwardQuestionNextVerticalFocusTarget(request, questionIndex, choiceIndex, delta);
+
+  if (focusTarget.kind === 'progress') {
+    focusKwardQuestionStep(undefined, uiState.stepIndex);
+    return;
+  }
+
+  focusKwardQuestionChoice(request, uiState, questionIndex, focusTarget.choiceIndex);
+}
+
+function getKwardQuestionCurrentChoiceIndex(request: NonNullable<WebviewState['kwardQuestion']>, uiState: KwardQuestionUiState, questionIndex: number): number {
+  if (getKwardQuestionCustomAnswerForIndex(uiState, questionIndex)) {
+    return getKwardQuestionCustomChoiceIndex(request, questionIndex);
+  }
+
+  const selectedIndex = request.questions[questionIndex]?.options.findIndex((option) => option.label === uiState.selectedAnswers[questionIndex]) ?? -1;
+  return selectedIndex >= 0 ? selectedIndex : 0;
+}
+
+function focusKwardQuestionChoice(request: NonNullable<WebviewState['kwardQuestion']>, uiState: KwardQuestionUiState, questionIndex: number, choiceIndex: number): void {
+  const customIndex = getKwardQuestionCustomChoiceIndex(request, questionIndex);
+  if (choiceIndex >= customIndex) {
+    requestAnimationFrame(() => kwardQuestionElement.querySelector<HTMLInputElement>(`input[name="kward-question-custom-${questionIndex}"]`)?.focus({ preventScroll: true }));
+    return;
+  }
+
+  const option = request.questions[questionIndex]?.options[choiceIndex];
+  if (option) {
+    uiState.selectedAnswers[questionIndex] = option.label;
+    uiState.customAnswers[questionIndex] = '';
+    rerenderKwardQuestion(request, { focusChoiceIndex: choiceIndex });
+  }
+}
+
+function moveKwardQuestionProgressFocus(request: NonNullable<WebviewState['kwardQuestion']>, target: EventTarget | null, delta: number): void {
+  const nextIndex = getKwardQuestionNextProgressFocusIndex(request, getKwardQuestionProgressStepIndex(target), delta);
+  focusKwardQuestionStep(undefined, nextIndex);
+}
+
+function openKwardQuestionStep(request: NonNullable<WebviewState['kwardQuestion']>, uiState: KwardQuestionUiState, stepIndex: number, options: { focus?: boolean; focusProgress?: boolean } = {}): void {
+  uiState.stepIndex = Math.max(0, Math.min(stepIndex, getKwardQuestionLastStepIndex(request)));
+  rerenderKwardQuestion(request, { focus: options.focus, focusProgressIndex: options.focusProgress ? uiState.stepIndex : undefined });
+}
+
+function rerenderKwardQuestion(request: NonNullable<WebviewState['kwardQuestion']>, options: { focus?: boolean; focusProgressIndex?: number; focusChoiceIndex?: number } = {}): void {
+  renderedKwardQuestionSignature = '';
+  renderKwardQuestion(request, ensureKwardQuestionUiState(request));
+
+  if (options.focus || options.focusProgressIndex !== undefined || options.focusChoiceIndex !== undefined) {
+    focusKwardQuestionStep(undefined, options.focusProgressIndex, options.focusChoiceIndex);
+  }
+}
+
+function focusKwardQuestionStep(previousActiveName?: string, progressIndex?: number, choiceIndex?: number): void {
+  requestAnimationFrame(() => {
+    const preferred = previousActiveName
+      ? kwardQuestionElement.querySelector<HTMLElement>(`[name="${cssEscape(previousActiveName)}"]`)
+      : undefined;
+    const progressTarget = progressIndex !== undefined
+      ? kwardQuestionElement.querySelectorAll<HTMLElement>('.kward-question__progress-step')[progressIndex]
+      : undefined;
+    const choiceTarget = choiceIndex !== undefined
+      ? kwardQuestionElement.querySelector<HTMLElement>(`[data-kward-question-choice-index="${choiceIndex}"] input`)
+      : undefined;
+    const focusTarget = preferred
+      ?? progressTarget
+      ?? choiceTarget
+      ?? kwardQuestionElement.querySelector<HTMLElement>('button[type="submit"]')
+      ?? kwardQuestionElement.querySelector<HTMLElement>('input[type="radio"]:checked')
+      ?? kwardQuestionElement;
+    focusTarget.focus({ preventScroll: true });
+  });
+}
+
+function cancelKwardQuestion(request: NonNullable<WebviewState['kwardQuestion']>): void {
+  vscode.postMessage({ type: 'kwardQuestionCancel', sessionId: request.sessionId, questionRequestId: request.questionRequestId });
+}
+
+function isKwardQuestionProgressStep(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && target.classList.contains('kward-question__progress-step');
+}
+
+function getKwardQuestionProgressStepIndex(target: EventTarget | null): number {
+  if (!(target instanceof HTMLElement)) {
+    return 0;
+  }
+
+  const stepIndex = Number(target.dataset.kwardQuestionStepIndex);
+  return Number.isInteger(stepIndex) ? stepIndex : 0;
+}
+
+function getKwardQuestionChoiceIndexFromTarget(target: EventTarget | null): number | undefined {
+  if (!(target instanceof HTMLElement)) {
+    return undefined;
+  }
+
+  const choiceElement = target.closest<HTMLElement>('[data-kward-question-choice-index]');
+  const choiceIndex = Number(choiceElement?.dataset.kwardQuestionChoiceIndex);
+  return Number.isInteger(choiceIndex) ? choiceIndex : undefined;
+}
+
+function isKwardQuestionCloseButton(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && target.classList.contains('kward-question__close');
 }
 
 function syncExtensionWidgets(hiddenBySurface: boolean, options: { reserveLayout?: boolean } = {}): void {

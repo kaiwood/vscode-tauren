@@ -18,6 +18,7 @@
 - Fixed session changes so command-generated files and mixed reconstructable/non-reconstructable edits are included more reliably.
 - Fixed external VS Code setting changes so every Tauren-owned setting refreshes the sidebar state immediately.
 - Restricted `@` file suggestions to the active workspace cwd so absolute, home, or traversal prefixes cannot browse outside it.
+- Fixed Kward `ask_user_question` answer delivery and keyboard-friendly question dialog behavior.
 
 ## [1.6.1] - 2026-05-31
 

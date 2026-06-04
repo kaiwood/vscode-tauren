@@ -9247,6 +9247,92 @@ ${after}`;
     };
   }
 
+  // src/webview/kwardQuestion.ts
+  function createKwardQuestionUiState(request) {
+    return {
+      requestKey: getKwardQuestionRequestKey(request),
+      stepIndex: 0,
+      selectedAnswers: request.questions.map((question) => question.options[0]?.label ?? ""),
+      customAnswers: request.questions.map(() => "")
+    };
+  }
+  function getKwardQuestionAnswerMessage(request, uiState) {
+    return {
+      type: "kwardQuestionAnswer",
+      sessionId: request.sessionId,
+      questionRequestId: request.questionRequestId,
+      answers: getKwardQuestionAnswers(request, uiState)
+    };
+  }
+  function getKwardQuestionAnswers(request, uiState) {
+    return request.questions.map((question, index) => ({
+      question: question.question,
+      answer: getKwardQuestionAnswerForIndex(request, uiState, index)
+    }));
+  }
+  function getKwardQuestionAnswerForIndex(request, uiState, index) {
+    return getKwardQuestionCustomAnswerForIndex(uiState, index) || getKwardQuestionSelectedAnswerForIndex(request, uiState, index) || "";
+  }
+  function getKwardQuestionSelectedAnswerForIndex(request, uiState, index) {
+    return uiState.selectedAnswers[index] || request.questions[index]?.options[0]?.label || "";
+  }
+  function getKwardQuestionCustomAnswerForIndex(uiState, index) {
+    return (uiState.customAnswers[index] ?? "").trim();
+  }
+  function getKwardQuestionRequestKey(request) {
+    return `${request.sessionId}\0${request.questionRequestId}`;
+  }
+  function getKwardQuestionLastStepIndex(request) {
+    return request.questions.length;
+  }
+  function getKwardQuestionNextProgressFocusIndex(request, currentIndex, delta) {
+    const stepCount = getKwardQuestionLastStepIndex(request) + 1;
+    return moduloIndex(currentIndex, delta, stepCount);
+  }
+  function getKwardQuestionChoiceCount(request, questionIndex) {
+    return (request.questions[questionIndex]?.options.length ?? 0) + 1;
+  }
+  function getKwardQuestionCustomChoiceIndex(request, questionIndex) {
+    return Math.max(0, getKwardQuestionChoiceCount(request, questionIndex) - 1);
+  }
+  function getKwardQuestionNextVerticalFocusTarget(request, questionIndex, currentIndex, delta) {
+    const choiceCount = getKwardQuestionChoiceCount(request, questionIndex);
+    if (choiceCount <= 0) {
+      return { kind: "progress" };
+    }
+    if (delta < 0 && currentIndex <= 0) {
+      return { kind: "progress" };
+    }
+    return { kind: "choice", choiceIndex: moduloIndex(currentIndex, delta, choiceCount) };
+  }
+  function isKwardQuestionSummaryStep(request, uiState) {
+    return uiState.stepIndex >= request.questions.length;
+  }
+  function getKwardQuestionTitle(request, uiState) {
+    if (request.questions.length === 1) {
+      return "Kward needs your input";
+    }
+    return isKwardQuestionSummaryStep(request, uiState) ? `Kward needs your input \xB7 Review (${request.questions.length + 1}/${request.questions.length + 1})` : `Kward needs your input \xB7 Question ${uiState.stepIndex + 1}/${request.questions.length}`;
+  }
+  function getKwardQuestionAriaLabel(request, uiState) {
+    return isKwardQuestionSummaryStep(request, uiState) ? "Kward question review" : "Kward question";
+  }
+  function getKwardQuestionRenderSignature(request, uiState) {
+    return JSON.stringify({
+      key: uiState.requestKey,
+      questions: request.questions,
+      stepIndex: uiState.stepIndex,
+      selectedAnswers: uiState.selectedAnswers,
+      customAnswers: uiState.customAnswers
+    });
+  }
+  function moduloIndex(currentIndex, delta, count) {
+    if (count <= 0) {
+      return 0;
+    }
+    return (currentIndex + delta + count) % count;
+  }
+
   // src/webview/main.ts
   var vscode = acquireVsCodeApi();
   configureCodeHighlighting((message) => vscode.postMessage(message));
@@ -9321,9 +9407,14 @@ ${after}`;
   var kwardQuestionElement = document.createElement("section");
   kwardQuestionElement.className = "kward-question";
   kwardQuestionElement.hidden = true;
+  kwardQuestionElement.setAttribute("aria-label", "Kward question");
   kwardQuestionElement.setAttribute("aria-live", "polite");
+  kwardQuestionElement.setAttribute("role", "dialog");
+  kwardQuestionElement.tabIndex = 0;
   extensionWidgetsAboveElement.after(kwardQuestionElement);
   var state = { ...initialWebviewState };
+  var kwardQuestionUiState;
+  var renderedKwardQuestionSignature = "";
   var toolsExpanded = false;
   var toastHideTimeout;
   var pendingRenderFrame;
@@ -9582,6 +9673,9 @@ ${after}`;
     if (settingsController.handleGlobalKeydown(event)) {
       return;
     }
+    if (handleKwardQuestionGlobalKeydown(event)) {
+      return;
+    }
     if (transcriptSearchController.handleGlobalKeydown(event)) {
       composerController.closeSlashMenu();
       composerController.closeModelMenu();
@@ -9797,76 +9891,357 @@ ${after}`;
       messagesController.scheduleMessagesToBottom();
     }
   }
+  function handleKwardQuestionGlobalKeydown(event) {
+    if (event.key !== "Escape" || kwardQuestionElement.hidden || !state.kwardQuestion) {
+      return false;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    cancelKwardQuestion(state.kwardQuestion);
+    return true;
+  }
   function syncKwardQuestion(hiddenBySurface) {
     const request = hiddenBySurface ? void 0 : state.kwardQuestion;
     if (!request) {
       kwardQuestionElement.hidden = true;
       kwardQuestionElement.replaceChildren();
+      renderedKwardQuestionSignature = "";
       return;
     }
+    const uiState = ensureKwardQuestionUiState(request);
+    renderKwardQuestion(request, uiState);
+  }
+  function ensureKwardQuestionUiState(request) {
+    const requestKey = getKwardQuestionRequestKey(request);
+    const existing = kwardQuestionUiState;
+    if (existing?.requestKey === requestKey && existing.selectedAnswers.length === request.questions.length && existing.customAnswers.length === request.questions.length) {
+      existing.stepIndex = Math.min(existing.stepIndex, getKwardQuestionLastStepIndex(request));
+      return existing;
+    }
+    const nextState = createKwardQuestionUiState(request);
+    kwardQuestionUiState = nextState;
+    renderedKwardQuestionSignature = "";
+    return nextState;
+  }
+  function renderKwardQuestion(request, uiState) {
+    const signature = getKwardQuestionRenderSignature(request, uiState);
+    if (!kwardQuestionElement.hidden && renderedKwardQuestionSignature === signature) {
+      return;
+    }
+    const previousActiveName = kwardQuestionElement.contains(document.activeElement) ? document.activeElement?.getAttribute("name") ?? void 0 : void 0;
+    const focusQuestion = kwardQuestionElement.hidden || kwardQuestionElement.contains(document.activeElement);
+    renderedKwardQuestionSignature = signature;
     kwardQuestionElement.hidden = false;
+    kwardQuestionElement.setAttribute("aria-label", getKwardQuestionAriaLabel(request, uiState));
+    const header = document.createElement("div");
+    header.className = "kward-question__header";
     const title = document.createElement("div");
     title.className = "kward-question__title";
-    title.textContent = "Kward needs your input";
+    title.textContent = getKwardQuestionTitle(request, uiState);
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "kward-question__close";
+    close.setAttribute("aria-label", "Close Kward question");
+    close.textContent = "\xD7";
+    close.addEventListener("click", () => cancelKwardQuestion(request));
+    header.append(title, close);
     const formElement = document.createElement("form");
     formElement.className = "kward-question__form";
-    request.questions.forEach((question, questionIndex) => {
-      const fieldset = document.createElement("fieldset");
-      fieldset.className = "kward-question__fieldset";
-      const legend = document.createElement("legend");
-      legend.className = "kward-question__legend";
-      legend.textContent = `${question.header}: ${question.question}`;
-      fieldset.append(legend);
-      question.options.forEach((option, optionIndex) => {
-        const label = document.createElement("label");
-        label.className = "kward-question__option";
-        const input = document.createElement("input");
-        input.type = "radio";
-        input.name = `kward-question-${questionIndex}`;
-        input.value = option.label;
-        input.checked = optionIndex === 0;
-        const text = document.createElement("span");
-        text.textContent = `${option.label} \u2014 ${option.description}`;
-        label.append(input, text);
-        fieldset.append(label);
-      });
-      const custom = document.createElement("input");
-      custom.className = "kward-question__custom";
-      custom.type = "text";
-      custom.name = `kward-question-custom-${questionIndex}`;
-      custom.placeholder = "Custom answer\u2026";
-      fieldset.append(custom);
-      formElement.append(fieldset);
-    });
-    const actions = document.createElement("div");
-    actions.className = "kward-question__actions";
-    const submit = document.createElement("button");
-    submit.type = "submit";
-    submit.textContent = "Send answer";
-    const cancel = document.createElement("button");
-    cancel.type = "button";
-    cancel.textContent = "Cancel";
-    cancel.addEventListener("click", () => {
-      vscode.postMessage({ type: "kwardQuestionCancel", sessionId: request.sessionId, questionRequestId: request.questionRequestId });
-    });
-    actions.append(submit, cancel);
-    formElement.append(actions);
+    formElement.addEventListener("keydown", (event) => handleKwardQuestionKeydown(event, request, uiState));
+    if (isKwardQuestionSummaryStep(request, uiState)) {
+      formElement.append(createKwardQuestionSummary(request, uiState), createKwardQuestionActions(request, true));
+    } else {
+      const questionIndex = uiState.stepIndex;
+      formElement.append(createKwardQuestionStep(request, uiState, questionIndex), createKwardQuestionActions(request, false));
+    }
     formElement.addEventListener("submit", (event) => {
       event.preventDefault();
-      const formData = new FormData(formElement);
-      const answers = request.questions.map((question, index) => {
-        const custom = String(formData.get(`kward-question-custom-${index}`) ?? "").trim();
-        const selected = String(formData.get(`kward-question-${index}`) ?? "").trim();
-        return { question: question.question, answer: custom || selected };
-      });
-      vscode.postMessage({
-        type: "kwardQuestionAnswer",
-        sessionId: request.sessionId,
-        questionRequestId: request.questionRequestId,
-        answers
-      });
+      if (!isKwardQuestionSummaryStep(request, uiState)) {
+        uiState.stepIndex = Math.min(uiState.stepIndex + 1, getKwardQuestionLastStepIndex(request));
+        rerenderKwardQuestion(request, { focus: true });
+        return;
+      }
+      const submit = formElement.querySelector('button[type="submit"]');
+      if (submit) {
+        submit.disabled = true;
+      }
+      vscode.postMessage(getKwardQuestionAnswerMessage(request, uiState));
     });
-    kwardQuestionElement.replaceChildren(title, formElement);
+    kwardQuestionElement.replaceChildren(header, formElement);
+    if (focusQuestion) {
+      focusKwardQuestionStep(isKwardQuestionSummaryStep(request, uiState) ? void 0 : previousActiveName);
+    }
+  }
+  function createKwardQuestionStep(request, uiState, questionIndex) {
+    const body = document.createElement("div");
+    body.className = "kward-question__body";
+    const question = request.questions[questionIndex];
+    if (!question) {
+      return body;
+    }
+    const progress = createKwardQuestionProgress(request, uiState);
+    body.append(progress);
+    const fieldset = document.createElement("fieldset");
+    fieldset.className = "kward-question__fieldset";
+    const legend = document.createElement("legend");
+    legend.className = "kward-question__legend";
+    legend.textContent = `${question.header}: ${question.question}`;
+    fieldset.append(legend);
+    question.options.forEach((option, optionIndex) => {
+      const label = document.createElement("label");
+      label.className = "kward-question__option";
+      label.dataset.kwardQuestionChoiceIndex = String(optionIndex);
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = `kward-question-${questionIndex}`;
+      input.value = option.label;
+      input.checked = uiState.selectedAnswers[questionIndex] === option.label && !getKwardQuestionCustomAnswerForIndex(uiState, questionIndex);
+      input.addEventListener("change", () => {
+        uiState.selectedAnswers[questionIndex] = option.label;
+        uiState.customAnswers[questionIndex] = "";
+        const customInput = fieldset.querySelector(`input[name="kward-question-custom-${questionIndex}"]`);
+        if (customInput) {
+          customInput.value = "";
+        }
+      });
+      const text = document.createElement("span");
+      text.className = "kward-question__option-text";
+      const optionLabel = document.createElement("span");
+      optionLabel.className = "kward-question__option-label";
+      optionLabel.textContent = option.label;
+      const description = document.createElement("span");
+      description.className = "kward-question__option-description";
+      description.textContent = option.description;
+      text.append(optionLabel, description);
+      label.append(input, text);
+      fieldset.append(label);
+    });
+    const customLabel = document.createElement("label");
+    customLabel.className = "kward-question__custom-wrap";
+    customLabel.dataset.kwardQuestionChoiceIndex = String(getKwardQuestionCustomChoiceIndex(request, questionIndex));
+    const customRadio = document.createElement("input");
+    customRadio.type = "radio";
+    customRadio.name = `kward-question-${questionIndex}`;
+    customRadio.value = "__custom__";
+    customRadio.checked = Boolean(getKwardQuestionCustomAnswerForIndex(uiState, questionIndex));
+    const customText = document.createElement("span");
+    customText.className = "kward-question__option-label";
+    customText.textContent = "Custom input";
+    const custom = document.createElement("input");
+    custom.className = "kward-question__custom";
+    custom.type = "text";
+    custom.name = `kward-question-custom-${questionIndex}`;
+    custom.placeholder = "Custom answer\u2026";
+    custom.value = uiState.customAnswers[questionIndex] ?? "";
+    customRadio.addEventListener("change", () => {
+      if (customRadio.checked) {
+        requestAnimationFrame(() => custom.focus({ preventScroll: true }));
+      }
+    });
+    custom.addEventListener("focus", () => {
+      customRadio.checked = true;
+    });
+    custom.addEventListener("input", () => {
+      uiState.customAnswers[questionIndex] = custom.value;
+      customRadio.checked = true;
+    });
+    customLabel.append(customRadio, customText, custom);
+    fieldset.append(customLabel);
+    body.append(fieldset, createKwardQuestionHint());
+    return body;
+  }
+  function createKwardQuestionSummary(request, uiState) {
+    const body = document.createElement("div");
+    body.className = "kward-question__body";
+    body.append(createKwardQuestionProgress(request, uiState));
+    const heading = document.createElement("div");
+    heading.className = "kward-question__legend";
+    heading.textContent = "Review your answers";
+    const list = document.createElement("ol");
+    list.className = "kward-question__summary";
+    request.questions.forEach((question, index) => {
+      const item = document.createElement("li");
+      item.className = "kward-question__summary-item";
+      const label = document.createElement("span");
+      label.className = "kward-question__summary-question";
+      label.textContent = `${question.header}: ${question.question}`;
+      const selected = document.createElement("span");
+      selected.className = "kward-question__summary-answer";
+      selected.textContent = `Selected answer: ${getKwardQuestionSelectedAnswerForIndex(request, uiState, index) || "None"}`;
+      item.append(label, selected);
+      const customAnswer = getKwardQuestionCustomAnswerForIndex(uiState, index);
+      if (customAnswer) {
+        const custom = document.createElement("span");
+        custom.className = "kward-question__summary-custom";
+        custom.textContent = `Custom answer: ${customAnswer}`;
+        item.append(custom);
+      }
+      list.append(item);
+    });
+    body.append(heading, list, createKwardQuestionHint());
+    return body;
+  }
+  function createKwardQuestionProgress(request, uiState) {
+    const progress = document.createElement("div");
+    progress.className = "kward-question__progress";
+    progress.setAttribute("aria-label", "Question steps");
+    const totalSteps = getKwardQuestionLastStepIndex(request) + 1;
+    for (let index = 0; index < totalSteps; index += 1) {
+      const step = document.createElement("button");
+      step.type = "button";
+      step.className = "kward-question__progress-step";
+      step.classList.toggle("kward-question__progress-step--active", index === uiState.stepIndex);
+      step.classList.toggle("kward-question__progress-step--answered", index < request.questions.length && Boolean(getKwardQuestionAnswerForIndex(request, uiState, index)));
+      step.setAttribute("aria-current", index === uiState.stepIndex ? "step" : "false");
+      step.dataset.kwardQuestionStepIndex = String(index);
+      step.textContent = index === request.questions.length ? "Review" : String(index + 1);
+      step.addEventListener("click", () => openKwardQuestionStep(request, uiState, index, { focusProgress: true }));
+      progress.append(step);
+    }
+    return progress;
+  }
+  function createKwardQuestionActions(request, includeSubmit) {
+    const actions = document.createElement("div");
+    actions.className = "kward-question__actions";
+    if (includeSubmit) {
+      const submit = document.createElement("button");
+      submit.type = "submit";
+      submit.className = "C3PO-arm";
+      submit.textContent = request.questions.length > 1 ? "Send answers" : "Send answer";
+      actions.append(submit);
+    }
+    if (request.questions.length > 1 && !includeSubmit) {
+      const spacer = document.createElement("span");
+      spacer.className = "kward-question__actions-hint";
+      spacer.textContent = "Press Enter to continue";
+      actions.prepend(spacer);
+    }
+    return actions;
+  }
+  function createKwardQuestionHint() {
+    const hint = document.createElement("div");
+    hint.className = "kward-question__hint";
+    hint.textContent = "Press Enter to continue. Tab to move through choices and custom answer. Focus step indicators to use \u2190 and \u2192.";
+    return hint;
+  }
+  function handleKwardQuestionKeydown(event, request, uiState) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      cancelKwardQuestion(request);
+      return;
+    }
+    if ((event.key === "ArrowUp" || event.key === "ArrowDown") && !isKwardQuestionSummaryStep(request, uiState)) {
+      event.preventDefault();
+      event.stopPropagation();
+      moveKwardQuestionChoice(request, uiState, event.key === "ArrowDown" ? 1 : -1, event.target);
+      return;
+    }
+    if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && isKwardQuestionProgressStep(event.target)) {
+      event.preventDefault();
+      event.stopPropagation();
+      moveKwardQuestionProgressFocus(request, event.target, event.key === "ArrowRight" ? 1 : -1);
+      return;
+    }
+    if (event.key === "Enter" && isKwardQuestionProgressStep(event.target)) {
+      event.preventDefault();
+      event.stopPropagation();
+      openKwardQuestionStep(request, uiState, getKwardQuestionProgressStepIndex(event.target), { focusProgress: true });
+      return;
+    }
+    if (event.key === "Enter" && !isKwardQuestionCloseButton(event.target)) {
+      const submit = kwardQuestionElement.querySelector('button[type="submit"]');
+      if (isKwardQuestionSummaryStep(request, uiState) && submit) {
+        event.preventDefault();
+        event.stopPropagation();
+        submit.click();
+        return;
+      }
+      if (!isKwardQuestionSummaryStep(request, uiState)) {
+        event.preventDefault();
+        event.stopPropagation();
+        openKwardQuestionStep(request, uiState, Math.min(uiState.stepIndex + 1, getKwardQuestionLastStepIndex(request)), { focus: true });
+        return;
+      }
+    }
+  }
+  function moveKwardQuestionChoice(request, uiState, delta, target) {
+    const questionIndex = uiState.stepIndex;
+    const choiceIndex = getKwardQuestionChoiceIndexFromTarget(target) ?? getKwardQuestionCurrentChoiceIndex(request, uiState, questionIndex);
+    const focusTarget = getKwardQuestionNextVerticalFocusTarget(request, questionIndex, choiceIndex, delta);
+    if (focusTarget.kind === "progress") {
+      focusKwardQuestionStep(void 0, uiState.stepIndex);
+      return;
+    }
+    focusKwardQuestionChoice(request, uiState, questionIndex, focusTarget.choiceIndex);
+  }
+  function getKwardQuestionCurrentChoiceIndex(request, uiState, questionIndex) {
+    if (getKwardQuestionCustomAnswerForIndex(uiState, questionIndex)) {
+      return getKwardQuestionCustomChoiceIndex(request, questionIndex);
+    }
+    const selectedIndex = request.questions[questionIndex]?.options.findIndex((option) => option.label === uiState.selectedAnswers[questionIndex]) ?? -1;
+    return selectedIndex >= 0 ? selectedIndex : 0;
+  }
+  function focusKwardQuestionChoice(request, uiState, questionIndex, choiceIndex) {
+    const customIndex = getKwardQuestionCustomChoiceIndex(request, questionIndex);
+    if (choiceIndex >= customIndex) {
+      requestAnimationFrame(() => kwardQuestionElement.querySelector(`input[name="kward-question-custom-${questionIndex}"]`)?.focus({ preventScroll: true }));
+      return;
+    }
+    const option = request.questions[questionIndex]?.options[choiceIndex];
+    if (option) {
+      uiState.selectedAnswers[questionIndex] = option.label;
+      uiState.customAnswers[questionIndex] = "";
+      rerenderKwardQuestion(request, { focusChoiceIndex: choiceIndex });
+    }
+  }
+  function moveKwardQuestionProgressFocus(request, target, delta) {
+    const nextIndex = getKwardQuestionNextProgressFocusIndex(request, getKwardQuestionProgressStepIndex(target), delta);
+    focusKwardQuestionStep(void 0, nextIndex);
+  }
+  function openKwardQuestionStep(request, uiState, stepIndex, options = {}) {
+    uiState.stepIndex = Math.max(0, Math.min(stepIndex, getKwardQuestionLastStepIndex(request)));
+    rerenderKwardQuestion(request, { focus: options.focus, focusProgressIndex: options.focusProgress ? uiState.stepIndex : void 0 });
+  }
+  function rerenderKwardQuestion(request, options = {}) {
+    renderedKwardQuestionSignature = "";
+    renderKwardQuestion(request, ensureKwardQuestionUiState(request));
+    if (options.focus || options.focusProgressIndex !== void 0 || options.focusChoiceIndex !== void 0) {
+      focusKwardQuestionStep(void 0, options.focusProgressIndex, options.focusChoiceIndex);
+    }
+  }
+  function focusKwardQuestionStep(previousActiveName, progressIndex, choiceIndex) {
+    requestAnimationFrame(() => {
+      const preferred = previousActiveName ? kwardQuestionElement.querySelector(`[name="${cssEscape(previousActiveName)}"]`) : void 0;
+      const progressTarget = progressIndex !== void 0 ? kwardQuestionElement.querySelectorAll(".kward-question__progress-step")[progressIndex] : void 0;
+      const choiceTarget = choiceIndex !== void 0 ? kwardQuestionElement.querySelector(`[data-kward-question-choice-index="${choiceIndex}"] input`) : void 0;
+      const focusTarget = preferred ?? progressTarget ?? choiceTarget ?? kwardQuestionElement.querySelector('button[type="submit"]') ?? kwardQuestionElement.querySelector('input[type="radio"]:checked') ?? kwardQuestionElement;
+      focusTarget.focus({ preventScroll: true });
+    });
+  }
+  function cancelKwardQuestion(request) {
+    vscode.postMessage({ type: "kwardQuestionCancel", sessionId: request.sessionId, questionRequestId: request.questionRequestId });
+  }
+  function isKwardQuestionProgressStep(target) {
+    return target instanceof HTMLElement && target.classList.contains("kward-question__progress-step");
+  }
+  function getKwardQuestionProgressStepIndex(target) {
+    if (!(target instanceof HTMLElement)) {
+      return 0;
+    }
+    const stepIndex = Number(target.dataset.kwardQuestionStepIndex);
+    return Number.isInteger(stepIndex) ? stepIndex : 0;
+  }
+  function getKwardQuestionChoiceIndexFromTarget(target) {
+    if (!(target instanceof HTMLElement)) {
+      return void 0;
+    }
+    const choiceElement = target.closest("[data-kward-question-choice-index]");
+    const choiceIndex = Number(choiceElement?.dataset.kwardQuestionChoiceIndex);
+    return Number.isInteger(choiceIndex) ? choiceIndex : void 0;
+  }
+  function isKwardQuestionCloseButton(target) {
+    return target instanceof HTMLElement && target.classList.contains("kward-question__close");
   }
   function syncExtensionWidgets(hiddenBySurface, options = {}) {
     const reserveLayout = Boolean(options.reserveLayout);

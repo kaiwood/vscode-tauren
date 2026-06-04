@@ -205,6 +205,30 @@ suite('Chat webview helpers', () => {
     assert.deepStrictEqual(parseWebviewMessage({ type: 'authLogout', providerId: 'anthropic' }), { type: 'authLogout', providerId: 'anthropic' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'authRefresh' }), { type: 'authRefresh' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'authCancel' }), { type: 'authCancel' });
+    assert.deepStrictEqual(
+      parseWebviewMessage({
+        type: 'kwardQuestionAnswer',
+        sessionId: 'session-1',
+        questionRequestId: 'question-1',
+        answers: [
+          { question: 'First?', answer: 'A' },
+          { question: 'Second?', answer: 'Custom text' }
+        ]
+      }),
+      {
+        type: 'kwardQuestionAnswer',
+        sessionId: 'session-1',
+        questionRequestId: 'question-1',
+        answers: [
+          { question: 'First?', answer: 'A' },
+          { question: 'Second?', answer: 'Custom text' }
+        ]
+      }
+    );
+    assert.deepStrictEqual(
+      parseWebviewMessage({ type: 'kwardQuestionCancel', sessionId: 'session-1', questionRequestId: 'question-1' }),
+      { type: 'kwardQuestionCancel', sessionId: 'session-1', questionRequestId: 'question-1' }
+    );
     assert.deepStrictEqual(parseWebviewMessage({ type: 'refreshSessions' }), { type: 'refreshSessions' });
     assert.deepStrictEqual(
       parseWebviewMessage({ type: 'searchSessions', requestId: 1, query: 'session list', namedOnly: true }),
@@ -359,6 +383,13 @@ suite('Chat webview helpers', () => {
     assert.deepStrictEqual(parseWebviewMessage({ type: 'setSettingsSection', section: 'bogus' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'authLogin', providerId: '' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'authLogout', providerId: 42 }), { type: 'unknown' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'kwardQuestionAnswer', sessionId: '', questionRequestId: 'question-1', answers: [] }), { type: 'unknown' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'kwardQuestionAnswer', sessionId: 'session-1', questionRequestId: 'question-1', answers: 'nope' }), { type: 'unknown' });
+    assert.deepStrictEqual(
+      parseWebviewMessage({ type: 'kwardQuestionAnswer', sessionId: 'session-1', questionRequestId: 'question-1', answers: [{ question: 'First?', answer: 42 }] }),
+      { type: 'unknown' }
+    );
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'kwardQuestionCancel', sessionId: '', questionRequestId: 'question-1' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'openExternal', url: 'file:///tmp/session.html' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'submit', text: 42 }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'searchSessions', requestId: 0, query: 'x', namedOnly: false }), { type: 'unknown' });

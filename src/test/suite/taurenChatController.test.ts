@@ -2973,6 +2973,134 @@ suite('TaurenChatController', () => {
     harness.controller.dispose();
   });
 
+  test('Kward question answer reaches client and clears pending question after success', async () => {
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'ready' });
+    client.emit({
+      type: 'kward_ui_question',
+      request: {
+        sessionId: 'session-1',
+        questionRequestId: 'question-1',
+        questions: [{
+          question: 'Which fix?',
+          header: 'Plan',
+          options: [
+            { label: 'A', description: 'Fix A' },
+            { label: 'B', description: 'Fix B' }
+          ]
+        }]
+      }
+    });
+
+    await harness.controller.handleWebviewMessage({
+      type: 'kwardQuestionAnswer',
+      sessionId: 'session-1',
+      questionRequestId: 'question-1',
+      answers: [{ question: 'Which fix?', answer: 'B' }]
+    });
+
+    assert.deepStrictEqual(client.questionAnswers, [{
+      sessionId: 'session-1',
+      questionRequestId: 'question-1',
+      answers: [{ question: 'Which fix?', answer: 'B' }]
+    }]);
+    assert.strictEqual(lastState(harness).kwardQuestion, undefined);
+    harness.controller.dispose();
+  });
+
+  test('Kward review send reaches model through controller bridge', async () => {
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'ready' });
+    client.emit({
+      type: 'kward_ui_question',
+      request: {
+        sessionId: 'session-1',
+        questionRequestId: 'question-1',
+        questions: [
+          {
+            question: 'First?',
+            header: 'One',
+            options: [
+              { label: 'A1', description: 'Fix A' },
+              { label: 'B1', description: 'Fix B' }
+            ]
+          },
+          {
+            question: 'Second?',
+            header: 'Two',
+            options: [
+              { label: 'A2', description: 'Fix A' },
+              { label: 'B2', description: 'Fix B' }
+            ]
+          }
+        ]
+      }
+    });
+
+    await harness.controller.handleWebviewMessage({
+      type: 'kwardQuestionAnswer',
+      sessionId: 'session-1',
+      questionRequestId: 'question-1',
+      answers: [
+        { question: 'First?', answer: 'B1' },
+        { question: 'Second?', answer: 'Typed second answer' }
+      ]
+    });
+
+    assert.deepStrictEqual(client.questionAnswers, [{
+      sessionId: 'session-1',
+      questionRequestId: 'question-1',
+      answers: [
+        { question: 'First?', answer: 'B1' },
+        { question: 'Second?', answer: 'Typed second answer' }
+      ]
+    }]);
+    assert.strictEqual(lastState(harness).kwardQuestion, undefined);
+    harness.controller.dispose();
+  });
+
+  test('Kward question remains pending when answer bridge fails', async () => {
+    const client = new FakePiClient({ answerQuestionError: new Error('bridge failed') });
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'ready' });
+    client.emit({
+      type: 'kward_ui_question',
+      request: {
+        sessionId: 'session-1',
+        questionRequestId: 'question-1',
+        questions: [{
+          question: 'Which fix?',
+          header: 'Plan',
+          options: [
+            { label: 'A', description: 'Fix A' },
+            { label: 'B', description: 'Fix B' }
+          ]
+        }]
+      }
+    });
+
+    await harness.controller.handleWebviewMessage({
+      type: 'kwardQuestionAnswer',
+      sessionId: 'session-1',
+      questionRequestId: 'question-1',
+      answers: [{ question: 'Which fix?', answer: 'B' }]
+    });
+
+    assert.deepStrictEqual(client.questionAnswers, [{
+      sessionId: 'session-1',
+      questionRequestId: 'question-1',
+      answers: [{ question: 'Which fix?', answer: 'B' }]
+    }]);
+    assert.strictEqual(lastState(harness).kwardQuestion?.questionRequestId, 'question-1');
+    assert.match(lastState(harness).messages.at(-1)?.text ?? '', /bridge failed/);
+    harness.controller.dispose();
+  });
+
   test('failed slash command refresh preserves previous commands', async () => {
     const client = new FakePiClient({
       commands: [{ name: 'fix-tests', description: 'Fix failing tests', source: 'prompt' }]
@@ -3112,6 +3240,7 @@ type FakePiClientOptions = {
   treeItems?: WebviewTreeItem[];
   promptExpansions?: Record<string, string>;
   promptExpansionError?: unknown;
+  answerQuestionError?: unknown;
 };
 
 class FakeStateScheduler implements StatePublisherScheduler {
@@ -3163,6 +3292,8 @@ class FakePiClient implements PiClient {
   public promptExpansionCalls: Array<{ command: string; args: string }> = [];
   public promptExpansions: Record<string, string>;
   public promptExpansionError: unknown;
+  public questionAnswers: Array<{ sessionId: string; questionRequestId: string; answers: unknown[] }> = [];
+  public answerQuestionError: unknown;
   public sessionNames: string[] = [];
   public state: PiSessionState;
   public models: PiModel[];
@@ -3233,6 +3364,7 @@ class FakePiClient implements PiClient {
     this.promptError = options.promptError;
     this.promptExpansions = options.promptExpansions ?? {};
     this.promptExpansionError = options.promptExpansionError;
+    this.answerQuestionError = options.answerQuestionError;
     this.setSessionNameResult = options.setSessionNameResult;
     this.setSessionNameError = options.setSessionNameError;
     this.treeItems = options.treeItems ?? [];
@@ -3280,6 +3412,14 @@ class FakePiClient implements PiClient {
     }
 
     return this.promptExpansions[command + '\u0000' + args] ?? '';
+  }
+
+  public async answerQuestion(sessionId: string, questionRequestId: string, answers: unknown[]): Promise<void> {
+    this.questionAnswers.push({ sessionId, questionRequestId, answers });
+
+    if (this.answerQuestionError) {
+      throw this.answerQuestionError;
+    }
   }
 
   public async abort(): Promise<void> {

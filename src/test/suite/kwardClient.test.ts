@@ -58,6 +58,38 @@ suite('KwardClient', () => {
     }
   });
 
+  test('answerQuestion initializes and sends ui/answerQuestion without requiring an existing session', async () => {
+    const child = new FakeChildProcess();
+    const client = new KwardClient({ kwardPath: createKwardPath() });
+    const spawned = require('node:child_process') as { spawn: unknown };
+    const originalSpawn = spawned.spawn;
+
+    try {
+      spawned.spawn = () => child;
+
+      const answerPromise = client.answerQuestion('session-1', 'question-1', [{ question: 'Continue?', answer: 'Yes' }]);
+
+      await waitForWriteCount(child, 1);
+      assertWrittenRequest(child.writes[0], { method: 'initialize' });
+      respond(client, 1, { capabilities: { extensionUi: { uiQuestion: { supported: true } } } });
+
+      await waitForWriteCount(child, 2);
+      assertWrittenRequest(child.writes[1], {
+        method: 'ui/answerQuestion',
+        params: {
+          sessionId: 'session-1',
+          questionRequestId: 'question-1',
+          answers: [{ question: 'Continue?', answer: 'Yes' }]
+        }
+      });
+      respond(client, 2, { ok: true });
+      await answerPromise;
+    } finally {
+      spawned.spawn = originalSpawn;
+      client.dispose();
+    }
+  });
+
   test('prompt command expansion calls prompts/expand before prompt sends turns/start', async () => {
     const child = new FakeChildProcess();
     const client = new KwardClient({ kwardPath: createKwardPath() });

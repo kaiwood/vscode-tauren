@@ -1,4 +1,5 @@
-export const customUiStyles = /* css */ `    .custom-ui {
+export const customUiStyles = /* css */ `    .custom-ui,
+    .kward-question {
       position: absolute;
       left: var(--tauren-custom-ui-inline-offset);
       right: var(--tauren-custom-ui-inline-offset);
@@ -20,12 +21,15 @@ export const customUiStyles = /* css */ `    .custom-ui {
       box-shadow: inset 0 1px 0 color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
     }
 
-    .custom-ui[hidden] {
+    .custom-ui[hidden],
+    .kward-question[hidden] {
       display: none;
     }
 
     .custom-ui:focus,
-    .custom-ui:focus-visible {
+    .custom-ui:focus-visible,
+    .kward-question:focus,
+    .kward-question:focus-visible {
       outline: 1px solid var(--vscode-focusBorder);
       outline-offset: -1px;
     }
@@ -149,12 +153,15 @@ export const customUiStyles = /* css */ `    .custom-ui {
     }
 
     body[class*="tauren-custom-ui-theme-"] .custom-ui__header,
-    body[class*="tauren-custom-ui-theme-"] .custom-ui__output {
+    body[class*="tauren-custom-ui-theme-"] .custom-ui__output,
+    body[class*="tauren-custom-ui-theme-"] .kward-question__title,
+    body[class*="tauren-custom-ui-theme-"] .kward-question__form {
       position: relative;
       z-index: var(--tauren-z-raised);
     }
 
-    body.tauren-custom-ui-theme-modern .custom-ui {
+    body.tauren-custom-ui-theme-modern .custom-ui,
+    body.tauren-custom-ui-theme-modern .kward-question {
       color: var(--vscode-foreground);
       background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent 28%) padding-box,
@@ -167,7 +174,8 @@ export const customUiStyles = /* css */ `    .custom-ui {
         inset 0 -14px 24px rgba(0, 0, 0, 0.32);
     }
 
-    body.tauren-custom-ui-theme-modern .custom-ui::before {
+    body.tauren-custom-ui-theme-modern .custom-ui::before,
+    body.tauren-custom-ui-theme-modern .kward-question::before {
       content: "";
       position: absolute;
       inset: 7px;
@@ -181,11 +189,13 @@ export const customUiStyles = /* css */ `    .custom-ui {
         0 0 0 1px rgba(255, 255, 255, 0.04);
     }
 
-    body.tauren-custom-ui-theme-modern .custom-ui__header {
+    body.tauren-custom-ui-theme-modern .custom-ui__header,
+    body.tauren-custom-ui-theme-modern .kward-question__title {
       padding: 0 4px;
     }
 
-    body.tauren-custom-ui-theme-modern .custom-ui__output {
+    body.tauren-custom-ui-theme-modern .custom-ui__output,
+    body.tauren-custom-ui-theme-modern .kward-question__form {
       margin: 0 2px 2px;
       padding: 8px 10px;
     }
@@ -260,8 +270,11 @@ export const customUiStyles = /* css */ `    .custom-ui {
     }
 
     body.tauren-custom-ui-theme-crt .custom-ui,
+    body.tauren-custom-ui-theme-crt .kward-question,
     body.tauren-custom-ui-theme-amber .custom-ui,
-    body.tauren-custom-ui-theme-matrix .custom-ui {
+    body.tauren-custom-ui-theme-amber .kward-question,
+    body.tauren-custom-ui-theme-matrix .custom-ui,
+    body.tauren-custom-ui-theme-matrix .kward-question {
       --tauren-custom-ui-screen: #061008;
       --tauren-custom-ui-bezel: #101510;
       --tauren-custom-ui-text: #9cff9c;
@@ -300,11 +313,17 @@ export const customUiStyles = /* css */ `    .custom-ui {
     }
 
     body.tauren-custom-ui-theme-crt .custom-ui::before,
+    body.tauren-custom-ui-theme-crt .kward-question::before,
     body.tauren-custom-ui-theme-amber .custom-ui::before,
+    body.tauren-custom-ui-theme-amber .kward-question::before,
     body.tauren-custom-ui-theme-matrix .custom-ui::before,
+    body.tauren-custom-ui-theme-matrix .kward-question::before,
     body.tauren-custom-ui-theme-crt .custom-ui::after,
+    body.tauren-custom-ui-theme-crt .kward-question::after,
     body.tauren-custom-ui-theme-amber .custom-ui::after,
-    body.tauren-custom-ui-theme-matrix .custom-ui::after {
+    body.tauren-custom-ui-theme-amber .kward-question::after,
+    body.tauren-custom-ui-theme-matrix .custom-ui::after,
+    body.tauren-custom-ui-theme-matrix .kward-question::after {
       content: "";
       position: absolute;
       inset: 7px;
@@ -313,8 +332,11 @@ export const customUiStyles = /* css */ `    .custom-ui {
     }
 
     body.tauren-custom-ui-theme-crt .custom-ui::before,
+    body.tauren-custom-ui-theme-crt .kward-question::before,
     body.tauren-custom-ui-theme-amber .custom-ui::before,
-    body.tauren-custom-ui-theme-matrix .custom-ui::before {
+    body.tauren-custom-ui-theme-amber .kward-question::before,
+    body.tauren-custom-ui-theme-matrix .custom-ui::before,
+    body.tauren-custom-ui-theme-matrix .kward-question::before {
       z-index: var(--tauren-z-base);
       background:
         radial-gradient(ellipse at center, transparent 0%, transparent 58%, var(--tauren-custom-ui-vignette) 100%),
@@ -326,8 +348,11 @@ export const customUiStyles = /* css */ `    .custom-ui {
     }
 
     body.tauren-custom-ui-theme-crt .custom-ui::after,
+    body.tauren-custom-ui-theme-crt .kward-question::after,
     body.tauren-custom-ui-theme-amber .custom-ui::after,
-    body.tauren-custom-ui-theme-matrix .custom-ui::after {
+    body.tauren-custom-ui-theme-amber .kward-question::after,
+    body.tauren-custom-ui-theme-matrix .custom-ui::after,
+    body.tauren-custom-ui-theme-matrix .kward-question::after {
       z-index: var(--tauren-z-tooltip);
       background:
         repeating-linear-gradient(
@@ -342,8 +367,11 @@ export const customUiStyles = /* css */ `    .custom-ui {
     }
 
     body.tauren-custom-ui-theme-crt .custom-ui__header,
+    body.tauren-custom-ui-theme-crt .kward-question__title,
     body.tauren-custom-ui-theme-amber .custom-ui__header,
-    body.tauren-custom-ui-theme-matrix .custom-ui__header {
+    body.tauren-custom-ui-theme-amber .kward-question__title,
+    body.tauren-custom-ui-theme-matrix .custom-ui__header,
+    body.tauren-custom-ui-theme-matrix .kward-question__title {
       color: var(--tauren-custom-ui-dim);
       padding: 0 4px;
       font-family: var(--vscode-editor-font-family, monospace);
@@ -352,8 +380,11 @@ export const customUiStyles = /* css */ `    .custom-ui {
     }
 
     body.tauren-custom-ui-theme-crt .custom-ui__output,
+    body.tauren-custom-ui-theme-crt .kward-question__form,
     body.tauren-custom-ui-theme-amber .custom-ui__output,
-    body.tauren-custom-ui-theme-matrix .custom-ui__output {
+    body.tauren-custom-ui-theme-amber .kward-question__form,
+    body.tauren-custom-ui-theme-matrix .custom-ui__output,
+    body.tauren-custom-ui-theme-matrix .kward-question__form {
       margin: 0 2px 2px;
       padding: 8px 10px;
       color: var(--tauren-custom-ui-text);
@@ -383,7 +414,8 @@ export const customUiStyles = /* css */ `    .custom-ui {
       box-shadow: 0 0 10px var(--tauren-custom-ui-glow);
     }
 
-    body.tauren-custom-ui-theme-amber .custom-ui {
+    body.tauren-custom-ui-theme-amber .custom-ui,
+    body.tauren-custom-ui-theme-amber .kward-question {
       --tauren-custom-ui-screen: #120b02;
       --tauren-custom-ui-bezel: #16110a;
       --tauren-custom-ui-text: #ffbf4d;
@@ -409,7 +441,8 @@ export const customUiStyles = /* css */ `    .custom-ui {
       --vscode-terminal-ansiBrightWhite: #fff3d6;
     }
 
-    body.tauren-custom-ui-theme-matrix .custom-ui {
+    body.tauren-custom-ui-theme-matrix .custom-ui,
+    body.tauren-custom-ui-theme-matrix .kward-question {
       --tauren-custom-ui-screen: #020703;
       --tauren-custom-ui-bezel: #07100a;
       --tauren-custom-ui-text: #00ff66;
