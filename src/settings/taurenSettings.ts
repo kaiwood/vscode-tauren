@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { parseWebviewCustomUiTheme } from '../webviewProtocol/values';
 import type { WebviewCustomUiTheme } from '../webviewProtocol/types';
-import { settingDefinitions, type SettingValue, type TaurenSettingId } from './settingsRegistry';
+import { settingDefinitions, type SettingValue, type TaurenBackend, type TaurenSettingId } from './settingsRegistry';
 
 export const welcomeDismissedStorageKey = 'tauren.welcomeDismissed';
 
@@ -9,6 +9,16 @@ const taurenSettingIds = settingDefinitions
   .filter((definition) => definition.owner === 'tauren')
   .map((definition) => definition.id as TaurenSettingId);
 const taurenExtensionSettingIds = taurenSettingIds.filter((id) => id.startsWith('tauren.extensions.'));
+
+export function getBackendSetting(): TaurenBackend {
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('backend', 'pi');
+  return value === 'kward' ? 'kward' : 'pi';
+}
+
+export function getKwardPathSetting(): string | undefined {
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('kward.path', '').trim();
+  return value || undefined;
+}
 
 export function getOutputColorsSetting(): boolean {
   return vscode.workspace.getConfiguration('tauren').get<boolean>('outputColors', true);
@@ -111,6 +121,8 @@ function getExtensionMonospaceFontEnabledSetting(): boolean {
 
 export function getTaurenSettingValues(globalState?: vscode.Memento): Partial<Record<TaurenSettingId, SettingValue>> {
   return {
+    'tauren.backend': getBackendSetting(),
+    'tauren.kward.path': getKwardPathSetting() ?? '',
     'tauren.outputColors': getOutputColorsSetting(),
     'tauren.animationsEnabled': getAnimationsEnabledSetting(),
     'tauren.showWelcome': getShowWelcomeSetting(globalState),

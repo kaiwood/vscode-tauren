@@ -15,7 +15,7 @@ suite('Settings registry', () => {
     );
     assert.deepStrictEqual(
       getSettingsForSection('runtime').map((setting) => setting.id),
-      ['defaultProvider', 'defaultModel', 'defaultThinkingLevel', 'hideThinkingBlock', 'quietStartup', 'compaction.enabled', 'retry.enabled', 'steeringMode', 'followUpMode']
+      ['tauren.backend', 'tauren.kward.path', 'defaultProvider', 'defaultModel', 'defaultThinkingLevel', 'hideThinkingBlock', 'quietStartup', 'compaction.enabled', 'retry.enabled', 'steeringMode', 'followUpMode']
     );
     assert.deepStrictEqual(
       getSettingsForSection('scopedModels').map((setting) => setting.id),
@@ -57,6 +57,9 @@ suite('Settings registry', () => {
     assert.strictEqual(normalizeSettingValue('tauren.extensions.aboveWidgetsEnabled', false), false);
     assert.strictEqual(normalizeSettingValue('tauren.extensions.belowWidgetsEnabled', false), false);
     assert.strictEqual(normalizeSettingValue('tauren.extensions.monospaceFontEnabled', false), false);
+    assert.strictEqual(normalizeSettingValue('tauren.backend', 'kward'), 'kward');
+    assert.strictEqual(normalizeSettingValue('tauren.backend', 'unknown'), undefined);
+    assert.strictEqual(normalizeSettingValue('tauren.kward.path', ' /tmp/kward '), '/tmp/kward');
     assert.strictEqual(normalizeSettingValue('tauren.customUiTheme', 'matrix'), 'matrix');
     assert.strictEqual(normalizeSettingValue('tauren.customUiTheme', 'random'), undefined);
     assert.strictEqual(normalizeSettingValue('enabledModels', ['gpt-*', ' claude-* '])?.toString(), 'gpt-*,claude-*');

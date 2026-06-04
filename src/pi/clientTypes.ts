@@ -58,6 +58,7 @@ export type PiClient = {
   getForkMessages(): Promise<PiForkMessagesResult>;
   fork(entryId: string): Promise<PiForkResult>;
   clone(): Promise<PiCloneResult>;
+  answerQuestion?(sessionId: string, questionRequestId: string, answers: unknown[]): Promise<void>;
   dispose(): void;
 };
 

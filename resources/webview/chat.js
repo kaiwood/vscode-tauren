@@ -5370,6 +5370,10 @@ ${after}`;
     { value: "websocket", label: "WebSocket" },
     { value: "auto", label: "Auto" }
   ];
+  var backendOptions = [
+    { value: "pi", label: "Pi" },
+    { value: "kward", label: "Kward" }
+  ];
   var customUiThemeOptions = [
     { value: "default", label: "Default" },
     { value: "modern", label: "Modern" },
@@ -5429,6 +5433,29 @@ ${after}`;
     }
   ];
   var settingDefinitions = [
+    {
+      id: "tauren.backend",
+      owner: "tauren",
+      section: "runtime",
+      label: "Backend",
+      description: "Agent backend Tauren should use for sidebar chat.",
+      control: "select",
+      options: backendOptions,
+      defaultValue: "pi",
+      helper: "Kward is experimental and uses a local RPC process.",
+      liveBehavior: "reload"
+    },
+    {
+      id: "tauren.kward.path",
+      owner: "tauren",
+      section: "runtime",
+      label: "Kward path",
+      description: "Local Kward repository path used when Backend is Kward.",
+      control: "text",
+      defaultValue: "",
+      helper: "Tauren runs bundle exec ruby lib/main.rb rpc from this directory.",
+      liveBehavior: "reload"
+    },
     {
       id: "tauren.outputColors",
       owner: "tauren",
@@ -8815,6 +8842,7 @@ ${after}`;
     settingsSection: "appearance",
     settings: { values: {} },
     auth: { providers: [] },
+    kwardQuestion: void 0,
     sessions: [],
     sessionsRefreshing: false,
     sessionsError: "",
@@ -8967,6 +8995,7 @@ ${after}`;
       settingsSection: parseWebviewSettingsSection(record.settingsSection, "appearance"),
       settings: parseSettingsState(record.settings),
       auth: parseAuthState(record.auth),
+      kwardQuestion: parseKwardQuestion(record.kwardQuestion),
       sessions: Array.isArray(record.sessions) ? record.sessions : [],
       sessionsRefreshing: Boolean(record.sessionsRefreshing),
       sessionsError: typeof record.sessionsError === "string" ? record.sessionsError : "",
@@ -8978,6 +9007,34 @@ ${after}`;
       treeError: typeof record.treeError === "string" ? record.treeError : "",
       sessionLoading: Boolean(record.sessionLoading),
       perfEnabled: Boolean(record.perfEnabled)
+    };
+  }
+  function parseKwardQuestion(value) {
+    if (!isRecord(value) || typeof value.sessionId !== "string" || typeof value.questionRequestId !== "string" || !Array.isArray(value.questions)) {
+      return void 0;
+    }
+    const questions = value.questions.map((question) => {
+      if (!isRecord(question) || typeof question.question !== "string" || typeof question.header !== "string" || !Array.isArray(question.options)) {
+        return void 0;
+      }
+      const options = question.options.map((option) => {
+        if (!isRecord(option) || typeof option.label !== "string" || typeof option.description !== "string") {
+          return void 0;
+        }
+        return { label: option.label, description: option.description };
+      });
+      if (options.some((option) => !option)) {
+        return void 0;
+      }
+      return { question: question.question, header: question.header, options };
+    });
+    if (questions.some((question) => !question)) {
+      return void 0;
+    }
+    return {
+      sessionId: value.sessionId,
+      questionRequestId: value.questionRequestId,
+      questions
     };
   }
   function createEmptySessionSearchState() {
@@ -9250,6 +9307,11 @@ ${after}`;
   busyStatusElement.append(busyStatusSpinnerElement, busyStatusTextElement);
   messagesContentElement.replaceChildren(...Array.from(messagesElement.childNodes));
   messagesElement.append(messagesContentElement, busyStatusElement);
+  var kwardQuestionElement = document.createElement("section");
+  kwardQuestionElement.className = "kward-question";
+  kwardQuestionElement.hidden = true;
+  kwardQuestionElement.setAttribute("aria-live", "polite");
+  extensionWidgetsAboveElement.after(kwardQuestionElement);
   var state = { ...initialWebviewState };
   var toolsExpanded = false;
   var toastHideTimeout;
@@ -9685,6 +9747,7 @@ ${after}`;
     form.inert = isSessionLane || isSettingsFaceVisible;
     syncExtensionWidgets(chatLaneLayout.hiddenBySurface, { reserveLayout: chatLaneLayout.reserveBottomSurfaceLayout });
     syncExtensionStatus(chatLaneLayout.hiddenBySurface, { reserveLayout: chatLaneLayout.reserveBottomSurfaceLayout });
+    syncKwardQuestion(chatLaneLayout.hiddenBySurface || isSessionLane || isSettingsFaceVisible);
     sessionsController.syncForRender(isSessionLane);
     settingsController.syncForRender(isSessionLane);
     customUiController.syncForRender(isSessionLane || isSettingsFaceVisible);
@@ -9722,6 +9785,77 @@ ${after}`;
     if (shouldStickToBottom) {
       messagesController.scheduleMessagesToBottom();
     }
+  }
+  function syncKwardQuestion(hiddenBySurface) {
+    const request = hiddenBySurface ? void 0 : state.kwardQuestion;
+    if (!request) {
+      kwardQuestionElement.hidden = true;
+      kwardQuestionElement.replaceChildren();
+      return;
+    }
+    kwardQuestionElement.hidden = false;
+    const title = document.createElement("div");
+    title.className = "kward-question__title";
+    title.textContent = "Kward needs your input";
+    const formElement = document.createElement("form");
+    formElement.className = "kward-question__form";
+    request.questions.forEach((question, questionIndex) => {
+      const fieldset = document.createElement("fieldset");
+      fieldset.className = "kward-question__fieldset";
+      const legend = document.createElement("legend");
+      legend.className = "kward-question__legend";
+      legend.textContent = `${question.header}: ${question.question}`;
+      fieldset.append(legend);
+      question.options.forEach((option, optionIndex) => {
+        const label = document.createElement("label");
+        label.className = "kward-question__option";
+        const input = document.createElement("input");
+        input.type = "radio";
+        input.name = `kward-question-${questionIndex}`;
+        input.value = option.label;
+        input.checked = optionIndex === 0;
+        const text = document.createElement("span");
+        text.textContent = `${option.label} \u2014 ${option.description}`;
+        label.append(input, text);
+        fieldset.append(label);
+      });
+      const custom = document.createElement("input");
+      custom.className = "kward-question__custom";
+      custom.type = "text";
+      custom.name = `kward-question-custom-${questionIndex}`;
+      custom.placeholder = "Custom answer\u2026";
+      fieldset.append(custom);
+      formElement.append(fieldset);
+    });
+    const actions = document.createElement("div");
+    actions.className = "kward-question__actions";
+    const submit = document.createElement("button");
+    submit.type = "submit";
+    submit.textContent = "Send answer";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.textContent = "Cancel";
+    cancel.addEventListener("click", () => {
+      vscode.postMessage({ type: "kwardQuestionCancel", sessionId: request.sessionId, questionRequestId: request.questionRequestId });
+    });
+    actions.append(submit, cancel);
+    formElement.append(actions);
+    formElement.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const formData = new FormData(formElement);
+      const answers = request.questions.map((question, index) => {
+        const custom = String(formData.get(`kward-question-custom-${index}`) ?? "").trim();
+        const selected = String(formData.get(`kward-question-${index}`) ?? "").trim();
+        return { question: question.question, answer: custom || selected };
+      });
+      vscode.postMessage({
+        type: "kwardQuestionAnswer",
+        sessionId: request.sessionId,
+        questionRequestId: request.questionRequestId,
+        answers
+      });
+    });
+    kwardQuestionElement.replaceChildren(title, formElement);
   }
   function syncExtensionWidgets(hiddenBySurface, options = {}) {
     const reserveLayout = Boolean(options.reserveLayout);

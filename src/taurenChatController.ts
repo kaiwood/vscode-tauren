@@ -3,6 +3,7 @@ import { createWebviewStateMessage } from './sidebar/chatWebview';
 import type {
   WebviewAuthProvider,
   WebviewAuthState,
+  WebviewKwardQuestionRequest,
   WebviewMessage,
   WebviewStateMessage
 } from './webviewProtocol/types';
@@ -37,6 +38,7 @@ import { NavigationController } from './navigation/navigationController';
 import { getPiStartupCwdState, type PiStartupCwdState } from './workspace/cwdSafety';
 import { getSettingDefinition, isPiSettingId, isTaurenSettingId, type SettingId, type SettingValue } from './settings/settingsRegistry';
 import { getSteppedThinkingLevel, type ThinkingLevelStepDirection } from './controller/thinkingLevelSteps';
+import { isRecord } from './shared/typeGuards';
 
 export type { TaurenChatControllerOptions } from './controller/types';
 export type { TaurenChatSessionMetaSnapshot } from './metadata/sessionMetadata';
@@ -77,6 +79,7 @@ export class TaurenChatController {
   private workspaceWarningNoticeAdded = false;
   private authState: WebviewAuthState = { providers: [] };
   private authAbortController: AbortController | undefined;
+  private pendingKwardQuestion: WebviewKwardQuestionRequest | undefined;
 
   public constructor(private readonly options: TaurenChatControllerOptions) {
     this.sessionDiffController = new SessionDiffController({
@@ -287,6 +290,12 @@ export class TaurenChatController {
         return;
       case 'authCancel':
         this.cancelAuthFlow();
+        return;
+      case 'kwardQuestionAnswer':
+        await this.answerKwardQuestion(message.sessionId, message.questionRequestId, message.answers);
+        return;
+      case 'kwardQuestionCancel':
+        await this.answerKwardQuestion(message.sessionId, message.questionRequestId, []);
         return;
       case 'refreshSessions':
         await this.sessionView.refreshSessions();
@@ -638,7 +647,8 @@ export class TaurenChatController {
       navigation: this.navigation.getWebviewState(),
       sessionView: this.sessionView.getWebviewState(this.sessionHistory.isLoading),
       settingsView: this.settingsView.getWebviewState(),
-      ...(hasAuthStatePayload(this.authState) ? { auth: this.authState } : {})
+      ...(hasAuthStatePayload(this.authState) ? { auth: this.authState } : {}),
+      ...(this.pendingKwardQuestion ? { kwardQuestion: this.pendingKwardQuestion } : {})
     });
 
     if (chatSync) {
@@ -665,6 +675,27 @@ export class TaurenChatController {
   private showLoginSettings(_mode: 'login' | 'logout'): void {
     this.showSettings('login');
     void this.refreshAuthProviders({ startClient: true, force: true });
+  }
+
+  private async answerKwardQuestion(sessionId: string, questionRequestId: string, answers: Array<{ question: string; answer: string }>): Promise<void> {
+    if (this.pendingKwardQuestion?.questionRequestId === questionRequestId) {
+      this.pendingKwardQuestion = undefined;
+      this.postState();
+    }
+
+    const client = this.getExistingClient();
+    if (!client?.answerQuestion) {
+      this.session.addErrorMessage('Kward question bridge is not available for this backend.');
+      this.postState();
+      return;
+    }
+
+    try {
+      await client.answerQuestion(sessionId, questionRequestId, answers);
+    } catch (error) {
+      this.session.addErrorMessage(getErrorMessage(error));
+      this.postState();
+    }
   }
 
   private async refreshAuthProviders(options: { startClient?: boolean; force?: boolean } = {}): Promise<void> {
@@ -1350,6 +1381,19 @@ export class TaurenChatController {
   }
 
   private handlePiEvent(event: PiEvent): void {
+    if (event.type === 'kward_ui_question') {
+      const request = isKwardQuestionEventRequest(event.request) ? event.request : undefined;
+      if (request) {
+        this.pendingKwardQuestion = request;
+        this.postState();
+      }
+      return;
+    }
+
+    if (event.type === 'agent_end') {
+      this.pendingKwardQuestion = undefined;
+    }
+
     this.piEventHandler.handleEvent(event);
   }
 
@@ -1365,6 +1409,13 @@ export class TaurenChatController {
     this.sessionHistory.setLoading(false);
     this.postState();
   }
+}
+
+function isKwardQuestionEventRequest(value: unknown): value is WebviewKwardQuestionRequest {
+  return isRecord(value)
+    && typeof value.sessionId === 'string'
+    && typeof value.questionRequestId === 'string'
+    && Array.isArray(value.questions);
 }
 
 function toPiImages(images: PiPromptImageAttachment[]): PiImageContent[] | undefined {

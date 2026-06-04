@@ -60,6 +60,28 @@ export type WebviewSessionSearchState = {
 
 export type WebviewAuthAction = 'login' | 'logout' | 'refresh' | 'cancel';
 
+export type WebviewKwardQuestionOption = {
+  label: string;
+  description: string;
+};
+
+export type WebviewKwardQuestion = {
+  question: string;
+  header: string;
+  options: WebviewKwardQuestionOption[];
+};
+
+export type WebviewKwardQuestionRequest = {
+  sessionId: string;
+  questionRequestId: string;
+  questions: WebviewKwardQuestion[];
+};
+
+export type WebviewKwardQuestionAnswer = {
+  question: string;
+  answer: string;
+};
+
 export type WebviewPerfEventName = 'transcript.render' | 'sessionList.render' | 'tree.render';
 
 export type WebviewPerfEvent = {
@@ -118,6 +140,8 @@ export type WebviewMessage =
   | { type: 'authLogout'; providerId: string }
   | { type: 'authRefresh' }
   | { type: 'authCancel' }
+  | { type: 'kwardQuestionAnswer'; sessionId: string; questionRequestId: string; answers: WebviewKwardQuestionAnswer[] }
+  | { type: 'kwardQuestionCancel'; sessionId: string; questionRequestId: string }
   | { type: 'refreshSessions' }
   | { type: 'searchSessions'; requestId: number; query: string; namedOnly: boolean }
   | { type: 'showCurrentChanges' }
@@ -325,6 +349,7 @@ export type WebviewStateMessageBase = Omit<ChatState, 'messages'> & {
   settingsSection?: WebviewSettingsSection;
   settings?: WebviewSettingsState;
   auth?: WebviewAuthState;
+  kwardQuestion?: WebviewKwardQuestionRequest;
 };
 
 export type WebviewFullStateMessage = WebviewStateMessageBase & {
@@ -392,6 +417,7 @@ export type CreateWebviewStateMessageOptions = {
   };
   settingsView?: WebviewSettingsViewState;
   auth?: WebviewAuthState;
+  kwardQuestion?: WebviewKwardQuestionRequest;
   perfEnabled?: boolean;
 };
 

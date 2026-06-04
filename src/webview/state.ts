@@ -49,6 +49,7 @@ export const initialWebviewState: WebviewState = {
   settingsSection: 'appearance',
   settings: { values: {} },
   auth: { providers: [] },
+  kwardQuestion: undefined,
   sessions: [],
   sessionsRefreshing: false,
   sessionsError: '',
@@ -229,6 +230,7 @@ export function parseWebviewStateMessage(data: unknown, previousState?: WebviewS
     settingsSection: parseWebviewSettingsSection(record.settingsSection, 'appearance'),
     settings: parseSettingsState(record.settings),
     auth: parseAuthState(record.auth),
+    kwardQuestion: parseKwardQuestion(record.kwardQuestion),
     sessions: Array.isArray(record.sessions) ? record.sessions : [],
     sessionsRefreshing: Boolean(record.sessionsRefreshing),
     sessionsError: typeof record.sessionsError === 'string' ? record.sessionsError : '',
@@ -240,6 +242,42 @@ export function parseWebviewStateMessage(data: unknown, previousState?: WebviewS
     treeError: typeof record.treeError === 'string' ? record.treeError : '',
     sessionLoading: Boolean(record.sessionLoading),
     perfEnabled: Boolean(record.perfEnabled)
+  };
+}
+
+function parseKwardQuestion(value: unknown): WebviewState['kwardQuestion'] {
+  if (!isRecord(value) || typeof value.sessionId !== 'string' || typeof value.questionRequestId !== 'string' || !Array.isArray(value.questions)) {
+    return undefined;
+  }
+
+  const questions = value.questions.map((question) => {
+    if (!isRecord(question) || typeof question.question !== 'string' || typeof question.header !== 'string' || !Array.isArray(question.options)) {
+      return undefined;
+    }
+
+    const options = question.options.map((option) => {
+      if (!isRecord(option) || typeof option.label !== 'string' || typeof option.description !== 'string') {
+        return undefined;
+      }
+
+      return { label: option.label, description: option.description };
+    });
+
+    if (options.some((option) => !option)) {
+      return undefined;
+    }
+
+    return { question: question.question, header: question.header, options: options as Array<{ label: string; description: string }> };
+  });
+
+  if (questions.some((question) => !question)) {
+    return undefined;
+  }
+
+  return {
+    sessionId: value.sessionId,
+    questionRequestId: value.questionRequestId,
+    questions: questions as NonNullable<WebviewState['kwardQuestion']>['questions']
   };
 }
 

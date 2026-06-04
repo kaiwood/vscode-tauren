@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added an experimental configurable Kward JSON-RPC backend for Tauren sidebar chat.
+
 ### Changed
 
 - Changed Login settings to derive authentication providers from the Pi runtime instead of Tauren-maintained built-in provider metadata.

@@ -936,4 +936,71 @@ export const composerStyles = /* css */ `    .tauren-view--has-extension-status 
       background: var(--vscode-descriptionForeground);
       background: color-mix(in srgb, var(--vscode-foreground) 48%, transparent);
       cursor: default;
-    }`;
+    }
+    .kward-question {
+      grid-row: 4;
+      grid-column: 1;
+      margin: 0 12px 8px;
+      padding: 10px;
+      border: 1px solid var(--vscode-inputValidation-warningBorder, var(--vscode-panel-border));
+      border-radius: 8px;
+      background: var(--vscode-inputValidation-warningBackground, var(--vscode-editorWidget-background));
+      color: var(--vscode-editor-foreground);
+    }
+
+    .kward-question__title {
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .kward-question__fieldset {
+      border: 0;
+      padding: 0;
+      margin: 0 0 10px;
+    }
+
+    .kward-question__legend {
+      padding: 0;
+      margin-bottom: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .kward-question__option {
+      display: flex;
+      gap: 6px;
+      align-items: flex-start;
+      margin: 4px 0;
+      font-size: 12px;
+    }
+
+    .kward-question__custom {
+      box-sizing: border-box;
+      width: 100%;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+      border-radius: 4px;
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+    }
+
+    .kward-question__actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .kward-question__actions button {
+      padding: 3px 8px;
+      border: 1px solid var(--vscode-button-border, transparent);
+      border-radius: 4px;
+      background: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+    }
+
+    .kward-question__actions button[type="submit"] {
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+    }
+`;

@@ -89,6 +89,12 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
       return { type: 'authRefresh' };
     case 'authCancel':
       return { type: 'authCancel' };
+    case 'kwardQuestionAnswer':
+      return parseKwardQuestionAnswer(value);
+    case 'kwardQuestionCancel':
+      return typeof value.sessionId === 'string' && value.sessionId && typeof value.questionRequestId === 'string' && value.questionRequestId
+        ? { type: 'kwardQuestionCancel', sessionId: value.sessionId, questionRequestId: value.questionRequestId }
+        : { type: 'unknown' };
     case 'refreshSessions':
       return { type: 'refreshSessions' };
     case 'searchSessions': {
@@ -349,6 +355,7 @@ export function createWebviewStateMessage({
   sessionView,
   settingsView,
   auth,
+  kwardQuestion,
   perfEnabled = false,
   includeMessages = true,
   messagePatch
@@ -453,6 +460,18 @@ export function createWebviewStateMessage({
       ...(auth.busyAction ? { busyAction: auth.busyAction } : {}),
       ...(auth.progress ? { progress: { ...auth.progress } } : {}),
       ...(auth.error ? { error: auth.error } : {})
+    };
+  }
+
+  if (kwardQuestion) {
+    message.kwardQuestion = {
+      sessionId: kwardQuestion.sessionId,
+      questionRequestId: kwardQuestion.questionRequestId,
+      questions: kwardQuestion.questions.map((question) => ({
+        question: question.question,
+        header: question.header,
+        options: question.options.map((option) => ({ ...option }))
+      }))
     };
   }
 
@@ -727,6 +746,35 @@ function escapeHtmlAttribute(value: string): string {
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+function parseKwardQuestionAnswer(value: Record<string, unknown>): WebviewMessage {
+  if (typeof value.sessionId !== 'string' || !value.sessionId || typeof value.questionRequestId !== 'string' || !value.questionRequestId) {
+    return { type: 'unknown' };
+  }
+
+  if (!Array.isArray(value.answers)) {
+    return { type: 'unknown' };
+  }
+
+  const answers = value.answers.map((answer) => {
+    if (!isRecord(answer) || typeof answer.question !== 'string' || typeof answer.answer !== 'string') {
+      return undefined;
+    }
+
+    return { question: answer.question, answer: answer.answer };
+  });
+
+  if (answers.some((answer) => !answer)) {
+    return { type: 'unknown' };
+  }
+
+  return {
+    type: 'kwardQuestionAnswer',
+    sessionId: value.sessionId,
+    questionRequestId: value.questionRequestId,
+    answers: answers as Array<{ question: string; answer: string }>
+  };
 }
 
 function parseDroppedPromptImages(value: unknown): WebviewDroppedPromptImage[] | undefined {

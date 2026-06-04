@@ -1,4 +1,8 @@
+export type TaurenBackend = 'pi' | 'kward';
+
 export type TaurenSettingId =
+  | 'tauren.backend'
+  | 'tauren.kward.path'
   | 'tauren.outputColors'
   | 'tauren.animationsEnabled'
   | 'tauren.showWelcome'
@@ -80,6 +84,11 @@ const transportOptions = [
   { value: 'auto', label: 'Auto' }
 ] as const satisfies readonly SettingOption[];
 
+const backendOptions = [
+  { value: 'pi', label: 'Pi' },
+  { value: 'kward', label: 'Kward' }
+] as const satisfies readonly SettingOption[];
+
 const customUiThemeOptions = [
   { value: 'default', label: 'Default' },
   { value: 'modern', label: 'Modern' },
@@ -141,6 +150,29 @@ export const settingsSections = [
 ] as const;
 
 export const settingDefinitions = [
+  {
+    id: 'tauren.backend',
+    owner: 'tauren',
+    section: 'runtime',
+    label: 'Backend',
+    description: 'Agent backend Tauren should use for sidebar chat.',
+    control: 'select',
+    options: backendOptions,
+    defaultValue: 'pi',
+    helper: 'Kward is experimental and uses a local RPC process.',
+    liveBehavior: 'reload'
+  },
+  {
+    id: 'tauren.kward.path',
+    owner: 'tauren',
+    section: 'runtime',
+    label: 'Kward path',
+    description: 'Local Kward repository path used when Backend is Kward.',
+    control: 'text',
+    defaultValue: '',
+    helper: 'Tauren runs bundle exec ruby lib/main.rb rpc from this directory.',
+    liveBehavior: 'reload'
+  },
   {
     id: 'tauren.outputColors',
     owner: 'tauren',

@@ -6,6 +6,7 @@ import type {
   WebviewExtensionStatusEntry,
   WebviewExtensionWidgetEntry,
   WebviewFileSuggestion,
+  WebviewKwardQuestionRequest,
   WebviewLane,
   WebviewModelOption,
   WebviewPromptContextAttachment,
@@ -28,6 +29,7 @@ export type SettingsSection = WebviewSettingsSection;
 export type SettingsState = WebviewSettingsState;
 export type AuthState = WebviewAuthState;
 export type SessionItemCommand = WebviewSessionItemCommand;
+export type KwardQuestionRequest = WebviewKwardQuestionRequest;
 
 export type WebviewApi = {
   postMessage(message: unknown): void;
@@ -118,6 +120,7 @@ export type WebviewState = {
   settingsSection: SettingsSection;
   settings: SettingsState;
   auth: AuthState;
+  kwardQuestion?: KwardQuestionRequest;
   sessions: SessionItem[];
   sessionsRefreshing: boolean;
   sessionsError: string;

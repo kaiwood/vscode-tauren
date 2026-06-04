@@ -340,6 +340,24 @@
       "title": "Tauren",
       "type": "object",
       "properties": {
+        "tauren.backend": {
+          "type": "string",
+          "default": "pi",
+          "enum": [
+            "pi",
+            "kward"
+          ],
+          "enumDescriptions": [
+            "Use the bundled Pi SDK backend.",
+            "Use an experimental local Kward JSON-RPC backend."
+          ],
+          "description": "Agent backend Tauren should use for sidebar chat. Kward is experimental."
+        },
+        "tauren.kward.path": {
+          "type": "string",
+          "default": "",
+          "description": "Local Kward repository path. Tauren runs `bundle exec ruby lib/main.rb rpc` from this directory when the Kward backend is selected."
+        },
         "tauren.outputColors": {
           "type": "boolean",
           "default": true,

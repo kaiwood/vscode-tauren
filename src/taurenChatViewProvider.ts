@@ -10,6 +10,8 @@ import type { WebviewLane, WebviewMessage, WebviewPerfEvent, WebviewScrollComman
 import { type PiClientFactory, type PiClient } from './pi/clientTypes';
 import type { PiClientOptions } from './pi/types';
 import { PiSdkClient } from './sdk/piSdkClient';
+import { KwardClient } from './kward/kwardClient';
+import { listKwardSessions } from './kward/sessionList';
 import type { CustomUiHostMessage } from './extensionUi/customUiHost';
 import type { ExtensionEditorHostMessage, ExtensionUi } from './extensionUi/types';
 import { createSessionDiffStatsFileWatcher, readSessionDiffSnapshot, writeSessionDiffSnapshot } from './diff/sessionDiffStorage';
@@ -51,6 +53,8 @@ import {
   affectsAnyTaurenSetting,
   getAllowRemoteImagesSetting,
   getAnimationsEnabledSetting,
+  getBackendSetting,
+  getKwardPathSetting,
   getConfirmSessionDeletionSetting,
   getCustomUiThemeSetting,
   getDebugPerformanceSetting,
@@ -99,6 +103,14 @@ function createConfiguredPiClient(
   options: PiClientOptions,
   dependencies: ConfiguredPiClientDependencies
 ): PiClient {
+  if (getBackendSetting() === 'kward') {
+    return new KwardClient({
+      ...options,
+      kwardPath: getKwardPathSetting(),
+      showNotification: dependencies.showNotification
+    });
+  }
+
   return new PiSdkClient({
     ...options,
     extensionUi: options.extensionUi ?? dependencies.extensionUi,
@@ -253,6 +265,10 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
           this.debugPerformanceEnabled = getDebugPerformanceSetting();
         }
 
+        if (event.affectsConfiguration('tauren.backend') || event.affectsConfiguration('tauren.kward.path')) {
+          this.restartBackendForConfigurationChange();
+        }
+
         if (affectsExtensionSettings) {
           this.controller.refreshTaurenSettingValues();
         }
@@ -286,18 +302,20 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
   ): Promise<WebviewSessionItem[]> {
     const timer = this.perf.start('sessionList.load');
     let metrics: { sessionCount: number; totalBytes: number; cacheHits: number; cacheMisses: number } | undefined;
-    const sessions = await listPiSessions({
-      cwd,
-      currentSessionFile,
-      sessionMetadataCacheFile: getSessionMetadataCacheFile(this.sessionMetadataStorageUri),
-      onProgress: options?.onProgress,
-      previousSessions: options?.previousSessions,
-      ...(this.perf.enabled ? {
-        onMetrics: (nextMetrics) => {
-          metrics = nextMetrics;
-        }
-      } : {})
-    });
+    const sessions = getBackendSetting() === 'kward'
+      ? await listKwardSessions({ cwd, currentSessionFile, progress: options })
+      : await listPiSessions({
+        cwd,
+        currentSessionFile,
+        sessionMetadataCacheFile: getSessionMetadataCacheFile(this.sessionMetadataStorageUri),
+        onProgress: options?.onProgress,
+        previousSessions: options?.previousSessions,
+        ...(this.perf.enabled ? {
+          onMetrics: (nextMetrics) => {
+            metrics = nextMetrics;
+          }
+        } : {})
+      });
 
     this.perf.finish(timer, {
       sessionCount: metrics?.sessionCount ?? sessions.length,
@@ -1299,6 +1317,18 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
     }
 
     this.controller.refreshSessionMeta({ startClient: true });
+  }
+
+  private restartBackendForConfigurationChange(): void {
+    const startupState = getPiStartupCwdState(this.workspaceCwdProvider(), getRejectEditWriteOutsideWorkspaceSetting());
+
+    if (startupState.status === 'ready') {
+      this.lastWorkspaceCwd = startupState.cwd;
+      this.controller.restartForWorkspaceChange(startupState.cwd, undefined);
+      this.showNotification('Restarted Tauren backend for configuration change.', 'info');
+    } else {
+      this.controller.refreshSessionMeta({ startClient: true, force: true });
+    }
   }
 
   private handleWorkspaceFoldersChanged(): void {

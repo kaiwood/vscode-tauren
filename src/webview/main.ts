@@ -101,6 +101,12 @@ busyStatusElement.append(busyStatusSpinnerElement, busyStatusTextElement);
 messagesContentElement.replaceChildren(...Array.from(messagesElement.childNodes));
 messagesElement.append(messagesContentElement, busyStatusElement);
 
+const kwardQuestionElement = document.createElement('section');
+kwardQuestionElement.className = 'kward-question';
+kwardQuestionElement.hidden = true;
+kwardQuestionElement.setAttribute('aria-live', 'polite');
+extensionWidgetsAboveElement.after(kwardQuestionElement);
+
 let state: WebviewState = { ...initialWebviewState };
 let toolsExpanded = false;
 let toastHideTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -621,6 +627,7 @@ function render(): void {
   form.inert = isSessionLane || isSettingsFaceVisible;
   syncExtensionWidgets(chatLaneLayout.hiddenBySurface, { reserveLayout: chatLaneLayout.reserveBottomSurfaceLayout });
   syncExtensionStatus(chatLaneLayout.hiddenBySurface, { reserveLayout: chatLaneLayout.reserveBottomSurfaceLayout });
+  syncKwardQuestion(chatLaneLayout.hiddenBySurface || isSessionLane || isSettingsFaceVisible);
 
   sessionsController.syncForRender(isSessionLane);
   settingsController.syncForRender(isSessionLane);
@@ -668,6 +675,85 @@ function render(): void {
   if (shouldStickToBottom) {
     messagesController.scheduleMessagesToBottom();
   }
+}
+
+function syncKwardQuestion(hiddenBySurface: boolean): void {
+  const request = hiddenBySurface ? undefined : state.kwardQuestion;
+
+  if (!request) {
+    kwardQuestionElement.hidden = true;
+    kwardQuestionElement.replaceChildren();
+    return;
+  }
+
+  kwardQuestionElement.hidden = false;
+  const title = document.createElement('div');
+  title.className = 'kward-question__title';
+  title.textContent = 'Kward needs your input';
+  const formElement = document.createElement('form');
+  formElement.className = 'kward-question__form';
+
+  request.questions.forEach((question, questionIndex) => {
+    const fieldset = document.createElement('fieldset');
+    fieldset.className = 'kward-question__fieldset';
+    const legend = document.createElement('legend');
+    legend.className = 'kward-question__legend';
+    legend.textContent = `${question.header}: ${question.question}`;
+    fieldset.append(legend);
+
+    question.options.forEach((option, optionIndex) => {
+      const label = document.createElement('label');
+      label.className = 'kward-question__option';
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = `kward-question-${questionIndex}`;
+      input.value = option.label;
+      input.checked = optionIndex === 0;
+      const text = document.createElement('span');
+      text.textContent = `${option.label} — ${option.description}`;
+      label.append(input, text);
+      fieldset.append(label);
+    });
+
+    const custom = document.createElement('input');
+    custom.className = 'kward-question__custom';
+    custom.type = 'text';
+    custom.name = `kward-question-custom-${questionIndex}`;
+    custom.placeholder = 'Custom answer…';
+    fieldset.append(custom);
+    formElement.append(fieldset);
+  });
+
+  const actions = document.createElement('div');
+  actions.className = 'kward-question__actions';
+  const submit = document.createElement('button');
+  submit.type = 'submit';
+  submit.textContent = 'Send answer';
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.textContent = 'Cancel';
+  cancel.addEventListener('click', () => {
+    vscode.postMessage({ type: 'kwardQuestionCancel', sessionId: request.sessionId, questionRequestId: request.questionRequestId });
+  });
+  actions.append(submit, cancel);
+  formElement.append(actions);
+  formElement.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const formData = new FormData(formElement);
+    const answers = request.questions.map((question, index) => {
+      const custom = String(formData.get(`kward-question-custom-${index}`) ?? '').trim();
+      const selected = String(formData.get(`kward-question-${index}`) ?? '').trim();
+      return { question: question.question, answer: custom || selected };
+    });
+    vscode.postMessage({
+      type: 'kwardQuestionAnswer',
+      sessionId: request.sessionId,
+      questionRequestId: request.questionRequestId,
+      answers
+    });
+  });
+
+  kwardQuestionElement.replaceChildren(title, formElement);
 }
 
 function syncExtensionWidgets(hiddenBySurface: boolean, options: { reserveLayout?: boolean } = {}): void {
