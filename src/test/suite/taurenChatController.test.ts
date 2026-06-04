@@ -11,6 +11,7 @@ import type { PiClient } from '../../pi/clientTypes';
 import { resolveWebviewStateMessageMessages } from '../../webviewProtocol/messagePatch';
 import type { WebviewFullStateMessage, WebviewSessionItem, WebviewStateMessage, WebviewTreeItem } from '../../webviewProtocol/types';
 import type { StatePublisherScheduler } from '../../controller/statePublisher';
+import type { SettingValue, TaurenSettingId } from '../../settings/settingsRegistry';
 import type {
   PiAgentMessage,
   PiCommand,
@@ -2516,6 +2517,25 @@ suite('TaurenChatController', () => {
     harness.controller.dispose();
   });
 
+  test('busy slash command notice uses Kward backend label', async () => {
+    const deferred = createDeferred<void>();
+    const client = new FakePiClient({ promptResult: deferred.promise });
+    const harness = createControllerHarness([client], {
+      getTaurenSettingValues: () => ({ 'tauren.backend': 'kward' })
+    });
+
+    const submit = harness.controller.handleWebviewMessage({ type: 'submit', text: 'hello' });
+    harness.controller.startNewSession();
+    deferred.reject(new Error('late failure'));
+    await submit;
+
+    assert.strictEqual(
+      lastState(harness).messages[1]?.activities?.[0]?.summary,
+      'Sidebar commands are not available while Kward is working.'
+    );
+    harness.controller.dispose();
+  });
+
   test('agent start and end events update busy state', async () => {
     const client = new FakePiClient();
     const harness = createControllerHarness([client]);
@@ -2895,6 +2915,7 @@ type ControllerHarnessOptions = {
   getHotkeysMarkdown?: () => string;
   isActiveSession?: () => boolean;
   runReadyScript?: TaurenChatControllerOptions['runReadyScript'];
+  getTaurenSettingValues?: () => Partial<Record<TaurenSettingId, SettingValue>>;
 };
 
 function createControllerHarness(
@@ -2940,7 +2961,8 @@ function createControllerHarness(
     getRejectEditWriteOutsideWorkspace: options.getRejectEditWriteOutsideWorkspace,
     getHotkeysMarkdown: options.getHotkeysMarkdown,
     isActiveSession: options.isActiveSession,
-    runReadyScript: options.runReadyScript
+    runReadyScript: options.runReadyScript,
+    getTaurenSettingValues: options.getTaurenSettingValues
   };
 
   const controller = new TaurenChatController(controllerOptions);

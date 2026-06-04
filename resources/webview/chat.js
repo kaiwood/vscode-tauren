@@ -3873,6 +3873,14 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
     return value.type === "extensionEditorHide" && typeof value.id === "string" && value.id.length > 0;
   }
 
+  // src/shared/agentRuntimeLabels.ts
+  function getAgentRuntimeLabel(backend) {
+    return backend === "kward" ? "Kward" : "Pi engine";
+  }
+  function getAgentRuntimeWorkingText(backend, options = {}) {
+    return `${getAgentRuntimeLabel(backend)} is working${options.ellipsis ? "..." : ""}`;
+  }
+
   // src/shared/url.ts
   function isHttpUrl(value) {
     try {
@@ -4742,11 +4750,14 @@ ${after}`;
     getBusyStatusText() {
       const activity = this.getLatestRunningActivity();
       if (!activity) {
-        return "Pi engine is working...";
+        return getAgentRuntimeWorkingText(this.getBackend(), { ellipsis: true });
       }
-      const title = typeof activity.title === "string" && activity.title ? activity.title : "Pi engine is working";
+      const title = typeof activity.title === "string" && activity.title ? activity.title : getAgentRuntimeWorkingText(this.getBackend());
       const summary = typeof activity.summary === "string" && activity.summary ? ": " + activity.summary : "";
       return title + summary;
+    }
+    getBackend() {
+      return this.options.getState().settings.values["tauren.backend"];
     }
     getLatestRunningActivity() {
       const state2 = this.options.getState();

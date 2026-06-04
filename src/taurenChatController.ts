@@ -38,6 +38,7 @@ import { NavigationController } from './navigation/navigationController';
 import { getPiStartupCwdState, type PiStartupCwdState } from './workspace/cwdSafety';
 import { getSettingDefinition, isPiSettingId, isTaurenSettingId, type SettingId, type SettingValue } from './settings/settingsRegistry';
 import { getSteppedThinkingLevel, type ThinkingLevelStepDirection } from './controller/thinkingLevelSteps';
+import { getAgentRuntimeWorkingText } from './shared/agentRuntimeLabels';
 import { isRecord } from './shared/typeGuards';
 
 export type { TaurenChatControllerOptions } from './controller/types';
@@ -1181,7 +1182,7 @@ export class TaurenChatController {
       kind: 'queue',
       title: `/${commandName} not queued`,
       status: 'error',
-      summary: 'Sidebar commands are not available while Pi engine is working.'
+      summary: `Sidebar commands are not available while ${getAgentRuntimeWorkingText(this.getBackend())}.`
     });
     this.postState();
   }
@@ -1194,6 +1195,10 @@ export class TaurenChatController {
       summary: 'Wait for context compaction to finish before sending another message.'
     });
     this.postState();
+  }
+
+  private getBackend(): unknown {
+    return this.options.getTaurenSettingValues?.()['tauren.backend'];
   }
 
   public hasSessionDiffStatsTarget(): boolean {

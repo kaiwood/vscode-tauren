@@ -1,6 +1,7 @@
 import { pruneDisconnectedCodeHighlights, requestCodeHighlightsIn } from '../codeHighlighting';
 import { messagesBottomThreshold } from '../constants';
 import { eventTargetElement } from '../dom';
+import { getAgentRuntimeWorkingText } from '../../shared/agentRuntimeLabels';
 import { isHttpUrl } from '../../shared/url';
 import { pruneDisconnectedLocalImageRequests } from './markdown';
 import { shouldRenderQuietEmptyTranscript } from './renderPolicy';
@@ -498,17 +499,21 @@ export class MessageListController {
     const activity = this.getLatestRunningActivity();
 
     if (!activity) {
-      return 'Pi engine is working...';
+      return getAgentRuntimeWorkingText(this.getBackend(), { ellipsis: true });
     }
 
     const title = typeof activity.title === 'string' && activity.title
       ? activity.title
-      : 'Pi engine is working';
+      : getAgentRuntimeWorkingText(this.getBackend());
     const summary = typeof activity.summary === 'string' && activity.summary
       ? ': ' + activity.summary
       : '';
 
     return title + summary;
+  }
+
+  private getBackend(): unknown {
+    return this.options.getState().settings.values['tauren.backend'];
   }
 
   private getLatestRunningActivity(): Activity | undefined {
