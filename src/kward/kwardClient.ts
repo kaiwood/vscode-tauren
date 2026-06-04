@@ -5,6 +5,10 @@ import type { PiClient } from '../pi/clientTypes';
 import type {
   PiAvailableCommands,
   PiAgentMessage,
+  PiAuthActionResult,
+  PiAuthProvider,
+  PiAuthProvidersResult,
+  PiAuthSource,
   PiAvailableModels,
   PiCloneResult,
   PiCompactResult,
@@ -18,9 +22,11 @@ import type {
   PiMessagesResult,
   PiModel,
   PiNavigateTreeResult,
+  PiOAuthLoginCallbacks,
   PiPromptStreamingBehavior,
   PiSessionState,
   PiSessionStats,
+  PiStartupResources,
   PiSwitchSessionResult
 } from '../pi/types';
 import type { PiSettingId, SettingValue } from '../settings/settingsRegistry';
@@ -28,7 +34,19 @@ import type { WebviewTreeItem } from '../webviewProtocol/types';
 import { isRecord } from '../shared/typeGuards';
 import { KwardRpcTransport, type KwardJsonRpcNotification } from './rpcTransport';
 import { mapKwardTurnEvent } from './eventMapper';
-import type { KwardModel, KwardQuestionRequest, KwardSession, KwardTranscriptResult, KwardTurn, KwardTurnEvent } from './types';
+import type {
+  KwardAuthProvidersResult,
+  KwardCommandsResult,
+  KwardModel,
+  KwardOAuthLoginStart,
+  KwardQuestionRequest,
+  KwardRuntimeSettingResult,
+  KwardSession,
+  KwardStartupResourcesResult,
+  KwardTranscriptResult,
+  KwardTurn,
+  KwardTurnEvent
+} from './types';
 
 export type KwardClientOptions = {
   cwd?: string;
@@ -39,6 +57,8 @@ export type KwardClientOptions = {
 
 const defaultKwardPath = '/Users/kwood/Repositories/github.com/kaiwood/kward';
 const unsupportedKwardFeatureMessage = 'This feature is not available with the experimental Kward backend yet.';
+const authLoginPollIntervalMs = 1000;
+const authLoginTimeoutSeconds = 120;
 
 export class KwardClient implements PiClient {
   private transport: KwardRpcTransport | undefined;
@@ -66,13 +86,14 @@ export class KwardClient implements PiClient {
     return !this.disposed && Boolean(this.transport?.running || this.initializePromise || this.session);
   }
 
-  public async prompt(message: string, _streamingBehavior?: PiPromptStreamingBehavior, images?: PiImageContent[]): Promise<void> {
-    if (images && images.length > 0) {
-      throw new Error('Kward backend does not support image prompts in Tauren yet.');
-    }
-
+  public async prompt(message: string, streamingBehavior?: PiPromptStreamingBehavior, images?: PiImageContent[]): Promise<void> {
     const session = await this.ensureSession();
-    const result = await this.request('turns/start', { sessionId: requiredString(session.id, 'Kward session id'), input: message });
+    const result = await this.request('turns/start', {
+      sessionId: requiredString(session.id, 'Kward session id'),
+      input: message,
+      ...(streamingBehavior ? { streamingBehavior } : {}),
+      ...(images && images.length > 0 ? { attachments: images.map(toKwardAttachment) } : {})
+    });
     const turn = normalizeTurn(result);
     this.currentTurnId = requiredString(turn.id, 'Kward turn id');
   }
@@ -88,40 +109,20 @@ export class KwardClient implements PiClient {
   }
 
   public async reload(): Promise<void> {
-    throw new Error('unknown command: reload');
+    const session = await this.ensureSession();
+    await this.request('runtime/reload', { sessionId: requiredString(session.id, 'Kward session id') });
   }
 
   public async getState(): Promise<PiSessionState> {
-    const [session, model] = await Promise.all([
-      this.ensureSession(),
-      this.getCurrentModel().catch(() => undefined)
-    ]);
-
-    return {
-      model: model ? mapKwardCurrentModel(model) : undefined,
-      thinkingLevel: model?.reasoningEffort,
-      sessionFile: session.path,
-      sessionId: session.persistentId ?? session.id,
-      sessionName: typeof session.name === 'string' ? session.name : undefined,
-      transport: 'kward',
-      quietStartup: false
-    };
+    const session = await this.ensureSession();
+    const result = await this.request('runtime/state', { sessionId: requiredString(session.id, 'Kward session id') });
+    return normalizeSessionState(result, session);
   }
 
   public async getSessionStats(): Promise<PiSessionStats> {
-    const transcript = await this.getTranscript();
-    const messages = Array.isArray(transcript.messages) ? transcript.messages : [];
-    const session = transcript.session ?? this.session;
-
-    return {
-      sessionFile: session?.path,
-      sessionId: session?.persistentId ?? session?.id,
-      sessionName: typeof session?.name === 'string' ? session.name : undefined,
-      userMessages: messages.filter((message) => message.role === 'user').length,
-      assistantMessages: messages.filter((message) => message.role === 'assistant').length,
-      toolCalls: messages.filter((message) => message.role === 'toolResult').length,
-      totalMessages: messages.length
-    };
+    const session = await this.ensureSession();
+    const result = await this.request('runtime/stats', { sessionId: requiredString(session.id, 'Kward session id') });
+    return normalizeSessionStats(result, session);
   }
 
   public async getAvailableModels(): Promise<PiAvailableModels> {
@@ -132,7 +133,56 @@ export class KwardClient implements PiClient {
   }
 
   public async getCommands(): Promise<PiAvailableCommands> {
-    return { commands: [] };
+    const session = await this.ensureSession();
+    const result = normalizeCommandsResult(await this.request('commands/list', { sessionId: requiredString(session.id, 'Kward session id') }));
+    return { commands: result.commands ?? [] };
+  }
+
+  public async getStartupResources(): Promise<PiStartupResources> {
+    const session = await this.ensureSession();
+    const result = normalizeStartupResourcesResult(await this.request('resources/startup', { sessionId: requiredString(session.id, 'Kward session id') }));
+    return { sections: result.sections ?? [] };
+  }
+
+  public async getAuthProviders(): Promise<PiAuthProvidersResult> {
+    await this.ensureInitialized();
+    const result = normalizeAuthProvidersResult(await this.request('auth/providers'));
+    return { providers: result.providers ?? [] };
+  }
+
+  public async loginWithApiKey(providerId: string, apiKey: string): Promise<PiAuthActionResult> {
+    await this.ensureInitialized();
+    const result = await this.request('auth/loginWithApiKey', { providerId, apiKey });
+    return normalizeAuthActionResult(result, providerId, `Saved API key for ${providerId}.`);
+  }
+
+  public async loginWithOAuth(providerId: string, callbacks: PiOAuthLoginCallbacks): Promise<PiAuthActionResult> {
+    await this.ensureInitialized();
+    const start = normalizeOAuthLoginStart(await this.request('auth/loginWithOAuth', { providerId, timeoutSeconds: authLoginTimeoutSeconds }));
+    const loginId = requiredString(start.loginId, 'Kward auth login id');
+    const authorizationUrl = requiredString(start.authorizationUrl, 'Kward authorization URL');
+
+    callbacks.onAuth({
+      url: authorizationUrl,
+      instructions: `Complete login for ${providerId} in your browser.`
+    });
+    callbacks.onProgress?.('Waiting for browser login to complete…');
+
+    const finished = await this.waitForOAuthLogin(loginId, callbacks);
+    if (finished.status !== 'completed') {
+      throw new Error(finished.error ?? finished.message ?? `Login failed for ${providerId}.`);
+    }
+
+    return {
+      providerId: finished.providerId ?? providerId,
+      message: finished.message ?? `Logged in to ${providerId}.`
+    };
+  }
+
+  public async logoutAuthProvider(providerId: string): Promise<PiAuthActionResult> {
+    await this.ensureInitialized();
+    const result = await this.request('auth/logoutProvider', { providerId });
+    return normalizeAuthActionResult(result, providerId, `Logged out of ${providerId}.`);
   }
 
   public async setModel(provider: string, modelId: string): Promise<PiModel> {
@@ -147,18 +197,16 @@ export class KwardClient implements PiClient {
   }
 
   public async updateRuntimeSetting(settingId: PiSettingId, value: SettingValue): Promise<{ applied: 'live' | 'reload'; message?: string }> {
-    if (settingId === 'defaultModel' && typeof value === 'string') {
-      const current = await this.getCurrentModel().catch(() => undefined);
-      await this.setModel(current?.provider ?? '', value);
-      return { applied: 'live' };
-    }
-
-    if (settingId === 'defaultThinkingLevel' && typeof value === 'string') {
-      await this.setThinkingLevel(value);
-      return { applied: 'live' };
-    }
-
-    throw new Error(`Kward backend does not support runtime setting ${settingId} yet.`);
+    const session = await this.ensureSession();
+    const result = normalizeRuntimeSettingResult(await this.request('runtime/updateSetting', {
+      sessionId: requiredString(session.id, 'Kward session id'),
+      settingId,
+      value
+    }));
+    return {
+      applied: result.applied === 'reload' ? 'reload' : 'live',
+      ...(result.message ? { message: result.message } : {})
+    };
   }
 
   public async setSessionName(name: string): Promise<void> {
@@ -226,11 +274,22 @@ export class KwardClient implements PiClient {
   }
 
   public async getForkMessages(): Promise<PiForkMessagesResult> {
-    return { messages: [] };
+    const session = await this.ensureSession();
+    const result = await this.request('sessions/forkMessages', { sessionId: requiredString(session.id, 'Kward session id') });
+    return normalizeForkMessagesResult(result);
   }
 
-  public async fork(_entryId: string): Promise<PiForkResult> {
-    throw new Error('Fork is not available with Kward yet. Use /clone instead.');
+  public async fork(entryId: string): Promise<PiForkResult> {
+    const session = await this.ensureSession();
+    const result = normalizeForkResult(await this.request('sessions/fork', {
+      sessionId: requiredString(session.id, 'Kward session id'),
+      entryId
+    }));
+    if (result.session) {
+      this.session = result.session;
+      this.currentTurnId = undefined;
+    }
+    return { text: result.text, cancelled: result.cancelled };
   }
 
   public async clone(): Promise<PiCloneResult> {
@@ -265,11 +324,6 @@ export class KwardClient implements PiClient {
       this.session = transcript.session;
     }
     return transcript;
-  }
-
-  private async getCurrentModel(): Promise<KwardModel> {
-    await this.ensureInitialized();
-    return normalizeModel(await this.request('models/current'));
   }
 
   private async ensureSession(): Promise<KwardSession> {
@@ -357,8 +411,22 @@ export class KwardClient implements PiClient {
     }
 
     if (notification.method === 'auth/loginFinished') {
-      this.emitError('Kward auth finished, but Tauren Kward auth UI is not wired yet.');
+      return;
     }
+  }
+
+  private async waitForOAuthLogin(loginId: string, callbacks: PiOAuthLoginCallbacks): Promise<KwardOAuthLoginStart> {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < authLoginTimeoutSeconds * 1000 + authLoginPollIntervalMs) {
+      throwIfAborted(callbacks.signal);
+      const status = normalizeOAuthLoginStart(await this.request('auth/loginStatus', { loginId }));
+      if (status.status === 'completed' || status.status === 'failed' || status.status === 'cancelled') {
+        return status;
+      }
+      await sleep(authLoginPollIntervalMs, callbacks.signal);
+    }
+
+    throw new Error('Login timed out.');
   }
 
   private showStartupWarning(): void {
@@ -408,6 +476,80 @@ function normalizeTurn(value: unknown): KwardTurn {
   return isRecord(value) ? { id: getString(value, 'id'), sessionId: getString(value, 'sessionId'), status: getString(value, 'status') } : {};
 }
 
+function normalizeSessionState(value: unknown, fallbackSession: KwardSession): PiSessionState {
+  if (!isRecord(value)) {
+    return {
+      sessionFile: fallbackSession.path,
+      sessionId: fallbackSession.persistentId ?? fallbackSession.id,
+      sessionName: typeof fallbackSession.name === 'string' ? fallbackSession.name : undefined,
+      transport: 'kward-rpc',
+      quietStartup: false
+    };
+  }
+
+  return {
+    model: isRecord(value.model) ? mapKwardCurrentModel(normalizeModel(value.model)) : undefined,
+    thinkingLevel: getString(value, 'thinkingLevel'),
+    isStreaming: getBoolean(value, 'isStreaming'),
+    isCompacting: getBoolean(value, 'isCompacting'),
+    steeringMode: getString(value, 'steeringMode'),
+    followUpMode: getString(value, 'followUpMode'),
+    sessionFile: getString(value, 'sessionFile') ?? fallbackSession.path,
+    sessionId: getString(value, 'sessionId') ?? fallbackSession.persistentId ?? fallbackSession.id,
+    sessionName: getString(value, 'sessionName') ?? (typeof fallbackSession.name === 'string' ? fallbackSession.name : undefined),
+    autoCompactionEnabled: getBoolean(value, 'autoCompactionEnabled'),
+    autoRetryEnabled: getBoolean(value, 'autoRetryEnabled'),
+    defaultProvider: getString(value, 'defaultProvider'),
+    defaultModel: getString(value, 'defaultModel'),
+    defaultThinkingLevel: getString(value, 'defaultThinkingLevel'),
+    hideThinkingBlock: getBoolean(value, 'hideThinkingBlock'),
+    quietStartup: getBoolean(value, 'quietStartup') ?? false,
+    transport: getString(value, 'transport') ?? 'kward-rpc',
+    imageAutoResize: getBoolean(value, 'imageAutoResize'),
+    blockImages: getBoolean(value, 'blockImages'),
+    enabledModels: getStringArray(value.enabledModels),
+    enableSkillCommands: getBoolean(value, 'enableSkillCommands'),
+    messageCount: getNumber(value, 'messageCount'),
+    pendingMessageCount: getNumber(value, 'pendingMessageCount')
+  };
+}
+
+function normalizeSessionStats(value: unknown, fallbackSession: KwardSession): PiSessionStats {
+  if (!isRecord(value)) {
+    return {
+      sessionFile: fallbackSession.path,
+      sessionId: fallbackSession.persistentId ?? fallbackSession.id,
+      sessionName: typeof fallbackSession.name === 'string' ? fallbackSession.name : undefined
+    };
+  }
+
+  return {
+    sessionFile: getString(value, 'sessionFile') ?? fallbackSession.path,
+    sessionId: getString(value, 'sessionId') ?? fallbackSession.persistentId ?? fallbackSession.id,
+    sessionName: getString(value, 'sessionName') ?? (typeof fallbackSession.name === 'string' ? fallbackSession.name : undefined),
+    userMessages: getNumber(value, 'userMessages'),
+    assistantMessages: getNumber(value, 'assistantMessages'),
+    toolCalls: getNumber(value, 'toolCalls'),
+    toolResults: getNumber(value, 'toolResults'),
+    totalMessages: getNumber(value, 'totalMessages'),
+    tokens: isRecord(value.tokens) ? {
+      input: getNumber(value.tokens, 'input'),
+      output: getNumber(value.tokens, 'output'),
+      cacheRead: getNumber(value.tokens, 'cacheRead'),
+      cacheWrite: getNumber(value.tokens, 'cacheWrite'),
+      total: getNumber(value.tokens, 'total')
+    } : undefined,
+    cost: getNumber(value, 'cost'),
+    usingSubscription: getBoolean(value, 'usingSubscription'),
+    autoCompactionEnabled: getBoolean(value, 'autoCompactionEnabled'),
+    contextUsage: isRecord(value.contextUsage) ? {
+      tokens: getNumber(value.contextUsage, 'tokens'),
+      contextWindow: getNumber(value.contextUsage, 'contextWindow'),
+      percent: getNumber(value.contextUsage, 'percent')
+    } : undefined
+  };
+}
+
 function normalizeModel(value: unknown): KwardModel {
   if (!isRecord(value)) {
     return {};
@@ -420,6 +562,7 @@ function normalizeModel(value: unknown): KwardModel {
     name: getString(value, 'name'),
     reasoning: typeof value.reasoning === 'boolean' ? value.reasoning : undefined,
     reasoningEffort: getString(value, 'reasoningEffort'),
+    contextWindow: getNumber(value, 'contextWindow'),
     current: typeof value.current === 'boolean' ? value.current : undefined
   };
 }
@@ -430,14 +573,49 @@ function mapKwardCurrentModel(model: KwardModel): PiModel {
     provider: model.provider,
     id,
     name: model.name ?? id,
-    reasoning: model.reasoning ?? Boolean(model.reasoningEffort)
+    reasoning: model.reasoning ?? Boolean(model.reasoningEffort),
+    contextWindow: model.contextWindow
   };
 }
 
 function mapKwardListModel(value: unknown): PiModel | undefined {
   const model = normalizeModel(value);
   const id = model.id ?? model.model;
-  return id ? { provider: model.provider, id, name: model.name ?? id, reasoning: model.reasoning ?? model.provider === 'Codex' } : undefined;
+  return id ? { provider: model.provider, id, name: model.name ?? id, reasoning: model.reasoning ?? model.provider === 'Codex', contextWindow: model.contextWindow } : undefined;
+}
+
+function normalizeRuntimeSettingResult(value: unknown): KwardRuntimeSettingResult {
+  return isRecord(value) ? { applied: getString(value, 'applied'), message: getString(value, 'message') } : {};
+}
+
+function normalizeCommandsResult(value: unknown): KwardCommandsResult {
+  if (!isRecord(value) || !Array.isArray(value.commands)) {
+    return { commands: [] };
+  }
+
+  return {
+    commands: value.commands.filter(isRecord).map((command) => ({
+      name: getString(command, 'name'),
+      description: getString(command, 'description'),
+      source: getString(command, 'source'),
+      sourceInfo: command.sourceInfo,
+      location: getString(command, 'location'),
+      path: getString(command, 'path')
+    }))
+  };
+}
+
+function normalizeStartupResourcesResult(value: unknown): KwardStartupResourcesResult {
+  if (!isRecord(value) || !Array.isArray(value.sections)) {
+    return { sections: [] };
+  }
+
+  return {
+    sections: value.sections.filter(isRecord).map((section) => ({
+      name: getString(section, 'name') ?? '',
+      items: getStringArray(section.items) ?? []
+    })).filter((section) => section.name)
+  };
 }
 
 function normalizeTurnEvent(value: unknown): KwardTurnEvent {
@@ -478,6 +656,98 @@ function normalizeTranscriptMessage(value: unknown): PiAgentMessage {
     ...value,
     ...(role === 'tool' ? { role: 'toolResult' } : role ? { role } : {}),
     content
+  };
+}
+
+function normalizeAuthProvidersResult(value: unknown): KwardAuthProvidersResult {
+  if (!isRecord(value) || !Array.isArray(value.providers)) {
+    return { providers: [] };
+  }
+
+  return {
+    providers: value.providers.filter(isRecord).map(normalizeAuthProvider).filter(isDefined)
+  };
+}
+
+function normalizeAuthProvider(value: Record<string, unknown>): PiAuthProvider | undefined {
+  const id = getString(value, 'id');
+  const name = getString(value, 'name');
+  const authType = getString(value, 'authType');
+
+  if (!id || !name || (authType !== 'oauth' && authType !== 'api_key')) {
+    return undefined;
+  }
+
+  const source = getString(value, 'source');
+  const storedCredentialType = getString(value, 'storedCredentialType');
+
+  return {
+    id,
+    name,
+    authType,
+    configured: getBoolean(value, 'configured') ?? false,
+    ...(isAuthSource(source) ? { source } : {}),
+    ...(getString(value, 'label') ? { label: getString(value, 'label') } : {}),
+    ...(storedCredentialType === 'oauth' || storedCredentialType === 'api_key' ? { storedCredentialType } : {}),
+    canLogout: getBoolean(value, 'canLogout') ?? false,
+    ...(getBoolean(value, 'usesCallbackServer') !== undefined ? { usesCallbackServer: getBoolean(value, 'usesCallbackServer') } : {})
+  };
+}
+
+function normalizeAuthActionResult(value: unknown, fallbackProviderId: string, fallbackMessage: string): PiAuthActionResult {
+  return {
+    providerId: isRecord(value) ? getString(value, 'providerId') ?? fallbackProviderId : fallbackProviderId,
+    message: isRecord(value) ? getString(value, 'message') ?? fallbackMessage : fallbackMessage
+  };
+}
+
+function normalizeOAuthLoginStart(value: unknown): KwardOAuthLoginStart {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return {
+    providerId: getString(value, 'providerId'),
+    loginId: getString(value, 'loginId'),
+    authorizationUrl: getString(value, 'authorizationUrl'),
+    redirectUri: getString(value, 'redirectUri'),
+    status: getString(value, 'status'),
+    message: getString(value, 'message'),
+    error: getString(value, 'error')
+  };
+}
+
+function isAuthSource(value: string | undefined): value is PiAuthSource {
+  return value === 'stored'
+    || value === 'runtime'
+    || value === 'environment'
+    || value === 'fallback'
+    || value === 'models_json_key'
+    || value === 'models_json_command';
+}
+
+function normalizeForkMessagesResult(value: unknown): PiForkMessagesResult {
+  if (!isRecord(value) || !Array.isArray(value.messages)) {
+    return { messages: [] };
+  }
+
+  return {
+    messages: value.messages.filter(isRecord).map((message) => ({
+      entryId: getString(message, 'entryId'),
+      text: getString(message, 'text')
+    }))
+  };
+}
+
+function normalizeForkResult(value: unknown): PiForkResult & { session?: KwardSession } {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return {
+    session: value.session ? normalizeSession(value.session) : undefined,
+    text: getString(value, 'text'),
+    cancelled: getBoolean(value, 'cancelled')
   };
 }
 
@@ -530,6 +800,44 @@ function requiredString(value: string | undefined, label: string): string {
 function getString(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key];
   return typeof value === 'string' ? value : undefined;
+}
+
+function getNumber(record: Record<string, unknown>, key: string): number | undefined {
+  const value = record[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function getBoolean(record: Record<string, unknown>, key: string): boolean | undefined {
+  const value = record[key];
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+function getStringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : undefined;
+}
+
+function toKwardAttachment(image: PiImageContent): Record<string, unknown> {
+  return {
+    type: image.type,
+    data: image.data,
+    mimeType: image.mimeType
+  };
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new Error('Login cancelled');
+  }
+}
+
+function sleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => {
+      clearTimeout(timeout);
+      reject(new Error('Login cancelled'));
+    }, { once: true });
+  });
 }
 
 function extractText(content: unknown): string {

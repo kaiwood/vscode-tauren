@@ -5,12 +5,21 @@ import { join, resolve } from 'node:path';
 import type { WebviewSessionItem } from '../webviewProtocol/types';
 import type { SessionListProgressOptions } from '../controller/types';
 import { isRecord } from '../shared/typeGuards';
+import { KwardRpcTransport } from './rpcTransport';
+
+const defaultKwardPath = '/Users/kwood/Repositories/github.com/kaiwood/kward';
 
 export async function listKwardSessions(options: {
   cwd?: string;
   currentSessionFile?: string;
+  kwardPath?: string;
   progress?: SessionListProgressOptions;
 } = {}): Promise<WebviewSessionItem[]> {
+  const rpcSessions = await listKwardSessionsViaRpc(options).catch(() => undefined);
+  if (rpcSessions) {
+    return decorateSessions(rpcSessions, options.currentSessionFile);
+  }
+
   const sessionDir = getKwardSessionDir(options.cwd);
   if (!sessionDir || !existsSync(sessionDir)) {
     return [];
@@ -24,6 +33,54 @@ export async function listKwardSessions(options: {
   return decorateSessions(sessions, options.currentSessionFile);
 }
 
+async function listKwardSessionsViaRpc(options: {
+  cwd?: string;
+  kwardPath?: string;
+}): Promise<WebviewSessionItem[] | undefined> {
+  if (!options.cwd) {
+    return undefined;
+  }
+
+  const transport = new KwardRpcTransport({ cwd: resolveKwardPath(options.kwardPath) });
+  try {
+    await transport.request('initialize');
+    const result = await transport.request('sessions/list', { workspaceRoot: options.cwd, limit: 100 });
+    return isRecord(result) && Array.isArray(result.sessions)
+      ? result.sessions.map(readKwardSessionItemFromRpc).filter((item): item is WebviewSessionItem => Boolean(item))
+      : [];
+  } finally {
+    transport.dispose();
+  }
+}
+
+function readKwardSessionItemFromRpc(value: unknown): WebviewSessionItem | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const file = getString(value, 'path');
+  const id = getString(value, 'id') ?? file;
+  if (!file || !id) {
+    return undefined;
+  }
+
+  return {
+    path: file,
+    id,
+    cwd: getString(value, 'cwd') ?? getString(value, 'workspaceRoot') ?? '',
+    ...(getString(value, 'name') ? { name: getString(value, 'name') } : {}),
+    created: getString(value, 'createdAt') ?? '',
+    modified: getString(value, 'modifiedAt') ?? '',
+    messageCount: getNumber(value, 'messageCount') ?? 0,
+    firstMessage: getString(value, 'firstMessage') ?? '',
+    depth: 0,
+    isLast: false,
+    ancestorContinues: [],
+    current: false,
+    metadataState: 'ready'
+  };
+}
+
 function getKwardSessionDir(cwd: string | undefined): string | undefined {
   if (!cwd) {
     return undefined;
@@ -35,6 +92,11 @@ function getKwardSessionDir(cwd: string | undefined): string | undefined {
 function getKwardConfigDir(): string {
   const configPath = process.env.KWARD_CONFIG_PATH;
   return configPath ? resolve(configPath, '..') : join(homedir(), '.kward');
+}
+
+function resolveKwardPath(kwardPath: string | undefined): string {
+  const path = kwardPath || defaultKwardPath;
+  return path.startsWith('~') ? join(homedir(), path.slice(1)) : path;
 }
 
 function safeCwd(cwd: string): string {
@@ -101,6 +163,16 @@ function getFirstUserMessage(messages: Array<Record<string, unknown>>): string {
   }
 
   return '';
+}
+
+function getString(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function getNumber(record: Record<string, unknown>, key: string): number | undefined {
+  const value = record[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 function decorateSessions(sessions: WebviewSessionItem[], currentSessionFile: string | undefined): WebviewSessionItem[] {

@@ -48,12 +48,15 @@ export function mapKwardTurnEvent(event: KwardTurnEvent): PiEvent | undefined {
 function mapKwardToolEvent(payload: Record<string, unknown>, type: 'tool_execution_start' | 'tool_execution_end'): PiEvent {
   const toolCall = isRecord(payload.toolCall) ? payload.toolCall : undefined;
   const tool = isRecord(payload.tool) ? payload.tool : undefined;
-  const toolCallId = getString(toolCall, 'id') ?? getString(toolCall, 'tool_call_id') ?? getString(toolCall, 'callId');
-  const toolName = normalizeToolName(getString(toolCall, 'name'), getString(tool, 'kind'));
-  const args = normalizeToolArgs(tool, toolCall);
-  const content = payload.content;
+  const toolCallId = getString(payload, 'toolCallId') ?? getString(toolCall, 'id') ?? getString(toolCall, 'tool_call_id') ?? getString(toolCall, 'callId');
+  const toolName = getString(payload, 'toolName') ?? normalizeToolName(getString(toolCall, 'name') ?? getNestedFunctionName(toolCall), getString(tool, 'kind'));
+  const args = isRecord(payload.args) ? payload.args : normalizeToolArgs(tool, toolCall);
+  const payloadResult = isRecord(payload.result) ? payload.result : undefined;
   const result = type === 'tool_execution_end'
-    ? { content, ...(tool ? { details: { tool } } : {}) }
+    ? payloadResult ?? { content: payload.content, ...(tool ? { details: { tool } } : {}) }
+    : undefined;
+  const isError = type === 'tool_execution_end' && isRecord(result) && typeof result.isError === 'boolean'
+    ? result.isError
     : undefined;
 
   return {
@@ -61,8 +64,14 @@ function mapKwardToolEvent(payload: Record<string, unknown>, type: 'tool_executi
     ...(toolCallId ? { toolCallId } : {}),
     ...(toolName ? { toolName } : {}),
     ...(args ? { args } : {}),
-    ...(result ? { result } : {})
+    ...(result ? { result } : {}),
+    ...(isError !== undefined ? { isError } : {})
   };
+}
+
+function getNestedFunctionName(toolCall: Record<string, unknown> | undefined): string | undefined {
+  const fn = isRecord(toolCall?.function) ? toolCall.function : undefined;
+  return getString(fn, 'name');
 }
 
 function normalizeToolName(name: string | undefined, kind: string | undefined): string | undefined {

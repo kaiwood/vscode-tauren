@@ -303,7 +303,7 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
     const timer = this.perf.start('sessionList.load');
     let metrics: { sessionCount: number; totalBytes: number; cacheHits: number; cacheMisses: number } | undefined;
     const sessions = getBackendSetting() === 'kward'
-      ? await listKwardSessions({ cwd, currentSessionFile, progress: options })
+      ? await listKwardSessions({ cwd, currentSessionFile, kwardPath: getKwardPathSetting(), progress: options })
       : await listPiSessions({
         cwd,
         currentSessionFile,

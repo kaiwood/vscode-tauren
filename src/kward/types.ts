@@ -1,4 +1,4 @@
-import type { PiAgentMessage } from '../pi/types';
+import type { PiAgentMessage, PiAuthProvider, PiCommand, PiStartupResourceSection } from '../pi/types';
 
 export type KwardSession = {
   id?: string;
@@ -10,6 +10,7 @@ export type KwardSession = {
   createdAt?: string;
   modifiedAt?: string;
   firstMessage?: string;
+  messageCount?: number;
 };
 
 export type KwardTurn = {
@@ -34,7 +35,35 @@ export type KwardModel = {
   name?: string;
   reasoning?: boolean;
   reasoningEffort?: string;
+  contextWindow?: number;
   current?: boolean;
+};
+
+export type KwardRuntimeSettingResult = {
+  applied?: string;
+  message?: string;
+};
+
+export type KwardOAuthLoginStart = {
+  providerId?: string;
+  loginId?: string;
+  authorizationUrl?: string;
+  redirectUri?: string;
+  status?: string;
+  message?: string;
+  error?: string;
+};
+
+export type KwardAuthProvidersResult = {
+  providers?: PiAuthProvider[];
+};
+
+export type KwardCommandsResult = {
+  commands?: PiCommand[];
+};
+
+export type KwardStartupResourcesResult = {
+  sections?: PiStartupResourceSection[];
 };
 
 export type KwardQuestionOption = {

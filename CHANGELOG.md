@@ -9,6 +9,7 @@
 ### Changed
 
 - Changed Login settings to derive authentication providers from the Pi runtime instead of Tauren-maintained built-in provider metadata.
+- Wired the experimental Kward backend to the expanded RPC parity contract for images, runtime metadata, commands, auth, fork, and session listing.
 
 ### Fixed
 

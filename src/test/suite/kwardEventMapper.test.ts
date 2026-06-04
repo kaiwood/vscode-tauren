@@ -20,18 +20,22 @@ suite('Kward event mapper', () => {
     );
   });
 
-  test('maps normalized edit tool metadata to Pi-style tool execution events', () => {
+  test('maps canonical edit tool metadata to Pi-style tool execution events', () => {
     assert.deepStrictEqual(
       mapKwardTurnEvent({
         type: 'toolResult',
         payload: {
-          toolCall: { id: 'call-1', name: 'edit_file' },
-          tool: {
-            kind: 'edit',
+          toolCallId: 'call-1',
+          toolName: 'edit',
+          args: {
             path: 'src/file.ts',
             edits: [{ oldText: 'old', newText: 'new' }]
           },
-          content: 'edited'
+          result: {
+            content: 'edited',
+            isError: false,
+            diff: '--- a/src/file.ts\n+++ b/src/file.ts\n'
+          }
         }
       }),
       {
@@ -44,13 +48,34 @@ suite('Kward event mapper', () => {
         },
         result: {
           content: 'edited',
-          details: {
-            tool: {
-              kind: 'edit',
-              path: 'src/file.ts',
-              edits: [{ oldText: 'old', newText: 'new' }]
-            }
+          isError: false,
+          diff: '--- a/src/file.ts\n+++ b/src/file.ts\n'
+        },
+        isError: false
+      }
+    );
+  });
+
+  test('keeps legacy tool metadata mapping for older Kward events', () => {
+    assert.deepStrictEqual(
+      mapKwardTurnEvent({
+        type: 'toolCall',
+        payload: {
+          toolCall: { id: 'call-1', function: { name: 'edit_file' } },
+          tool: {
+            kind: 'edit',
+            path: 'src/file.ts',
+            edits: [{ oldText: 'old', newText: 'new' }]
           }
+        }
+      }),
+      {
+        type: 'tool_execution_start',
+        toolCallId: 'call-1',
+        toolName: 'edit',
+        args: {
+          path: 'src/file.ts',
+          edits: [{ oldText: 'old', newText: 'new' }]
         }
       }
     );
