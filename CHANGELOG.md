@@ -21,6 +21,7 @@
 - Fixed Kward `ask_user_question` answer delivery and keyboard-friendly question dialog behavior.
 - Fixed Kward live reasoning blocks so separated reasoning phases no longer collapse into one transcript entry.
 - Fixed Kward RPC session switching to use active RPC session IDs and ignore stale old-session responses.
+- Fixed Kward startup session restore so concurrent metadata/history requests share one resumed RPC session.
 - Fixed empty unnamed Kward sessions so they refresh the Session List Lane when left and are not remembered for startup reconnection.
 
 ## [1.6.1] - 2026-05-31

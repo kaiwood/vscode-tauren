@@ -76,6 +76,7 @@ export class KwardClient implements PiClient {
   private transport: KwardRpcTransport | undefined;
   private initializePromise: Promise<void> | undefined;
   private session: KwardSession | undefined;
+  private sessionPromise: Promise<KwardSession> | undefined;
   private capabilities: KwardCapabilities = {};
   private currentTurnId: string | undefined;
   private readonly eventNormalizer = new KwardTurnEventNormalizer();
@@ -318,6 +319,7 @@ export class KwardClient implements PiClient {
 
   public async switchSession(sessionPath: string): Promise<PiSwitchSessionResult> {
     await this.ensureInitialized();
+    this.sessionPromise = undefined;
     const result = await this.request('sessions/resume', { path: sessionPath, workspaceRoot: this.options.cwd });
     this.session = normalizeSession(result);
     this.currentTurnId = undefined;
@@ -425,6 +427,7 @@ export class KwardClient implements PiClient {
     this.transport = undefined;
     this.initializePromise = undefined;
     this.session = undefined;
+    this.sessionPromise = undefined;
     this.capabilities = {};
     this.currentTurnId = undefined;
     this.eventListeners.clear();
@@ -448,11 +451,34 @@ export class KwardClient implements PiClient {
       return this.session;
     }
 
+    if (this.sessionPromise) {
+      return this.sessionPromise;
+    }
+
+    let sessionPromise!: Promise<KwardSession>;
+    sessionPromise = this.createSession().then((session) => {
+      if (this.sessionPromise === sessionPromise) {
+        this.session = session;
+        this.sessionPromise = undefined;
+      }
+
+      return session;
+    }).catch((error) => {
+      if (this.sessionPromise === sessionPromise) {
+        this.sessionPromise = undefined;
+      }
+
+      throw error;
+    });
+    this.sessionPromise = sessionPromise;
+    return sessionPromise;
+  }
+
+  private async createSession(): Promise<KwardSession> {
     const result = this.options.sessionFile
       ? await this.request('sessions/resume', { path: this.options.sessionFile, workspaceRoot: this.options.cwd })
       : await this.request('sessions/create', { workspaceRoot: this.options.cwd });
-    this.session = normalizeSession(result);
-    return this.session;
+    return normalizeSession(result);
   }
 
   private async ensureInitialized(): Promise<void> {

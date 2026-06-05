@@ -137,6 +137,68 @@ suite('KwardClient', () => {
     }
   });
 
+  test('shares initial session resume across concurrent startup requests', async () => {
+    const child = new FakeChildProcess();
+    const client = new KwardClient({ cwd: '/workspace', sessionFile: '/tmp/resumed.jsonl', kwardPath: createKwardPath() });
+    const spawned = require('node:child_process') as { spawn: unknown };
+    const originalSpawn = spawned.spawn;
+
+    try {
+      spawned.spawn = () => child;
+
+      const messagesPromise = client.getMessages();
+      const statePromise = client.getState();
+      const statsPromise = client.getSessionStats();
+
+      await waitForWriteCount(child, 1);
+      assertWrittenRequest(child.writes[0], { method: 'initialize' });
+      respond(client, 1, { capabilities: {} });
+
+      await waitForWriteCount(child, 2);
+      assertWrittenRequest(child.writes[1], {
+        method: 'sessions/resume',
+        params: { path: '/tmp/resumed.jsonl', workspaceRoot: '/workspace' }
+      });
+      respond(client, 2, { id: 'rpc-resumed', persistentId: 'persist-resumed', path: '/tmp/resumed.jsonl' });
+
+      await waitForWriteCount(child, 5);
+      const startupRequests = child.writes.map(parseWrittenRequest);
+      assert.strictEqual(startupRequests.filter((request) => request.method === 'sessions/resume').length, 1);
+
+      for (const request of startupRequests.slice(2)) {
+        assert.deepStrictEqual(request.params, { sessionId: 'rpc-resumed' });
+
+        if (request.method === 'sessions/transcript') {
+          respond(client, request.id ?? 0, {
+            session: { id: 'rpc-resumed', persistentId: 'persist-resumed', path: '/tmp/resumed.jsonl' },
+            messages: [{ role: 'user', content: 'Restored prompt' }]
+          });
+        } else if (request.method === 'runtime/state') {
+          respond(client, request.id ?? 0, {
+            rpcSessionId: 'rpc-resumed',
+            persistentSessionId: 'persist-resumed',
+            sessionFile: '/tmp/resumed.jsonl'
+          });
+        } else if (request.method === 'runtime/stats') {
+          respond(client, request.id ?? 0, {
+            rpcSessionId: 'rpc-resumed',
+            persistentSessionId: 'persist-resumed',
+            sessionFile: '/tmp/resumed.jsonl'
+          });
+        } else {
+          assert.fail(`Unexpected startup request: ${request.method}`);
+        }
+      }
+
+      assert.deepStrictEqual(await messagesPromise, { messages: [{ role: 'user', content: 'Restored prompt' }] });
+      assert.strictEqual((await statePromise).sessionFile, '/tmp/resumed.jsonl');
+      assert.strictEqual((await statsPromise).sessionFile, '/tmp/resumed.jsonl');
+    } finally {
+      spawned.spawn = originalSpawn;
+      client.dispose();
+    }
+  });
+
   test('ignores stale runtime state success after switching sessions', async () => {
     const child = new FakeChildProcess();
     const client = new KwardClient({ kwardPath: createKwardPath() });
