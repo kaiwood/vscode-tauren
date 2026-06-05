@@ -1,7 +1,34 @@
 import * as assert from 'assert';
-import { mapKwardTurnEvent } from '../../kward/eventMapper';
+import { KwardTurnEventNormalizer, mapKwardTurnEvent } from '../../kward/eventMapper';
 
 suite('Kward event mapper', () => {
+  test('normalizes Kward reasoning deltas into separate Pi-style thinking blocks', () => {
+    const normalizer = new KwardTurnEventNormalizer();
+
+    assert.deepStrictEqual(normalizer.map({ type: 'turnStarted', turnId: 'turn-1' }), [
+      { type: 'agent_start', turnId: 'turn-1' }
+    ]);
+    assert.deepStrictEqual(normalizer.map({ type: 'reasoningDelta', payload: { delta: 'first thought' } }), [
+      { type: 'message_update', assistantMessageEvent: { type: 'thinking_start', contentIndex: 1 } },
+      { type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', contentIndex: 1, delta: 'first thought' } }
+    ]);
+    assert.deepStrictEqual(normalizer.map({ type: 'assistantDelta', payload: { delta: 'answer' } }), [
+      { type: 'message_update', assistantMessageEvent: { type: 'thinking_end', contentIndex: 1 } },
+      { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'answer' } }
+    ]);
+    assert.deepStrictEqual(normalizer.map({ type: 'toolCall', payload: { toolCallId: 'call-1', toolName: 'bash', args: { command: 'true' } } }), [
+      { type: 'tool_execution_start', toolCallId: 'call-1', toolName: 'bash', args: { command: 'true' } }
+    ]);
+    assert.deepStrictEqual(normalizer.map({ type: 'reasoningDelta', payload: { delta: 'second thought' } }), [
+      { type: 'message_update', assistantMessageEvent: { type: 'thinking_start', contentIndex: 2 } },
+      { type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', contentIndex: 2, delta: 'second thought' } }
+    ]);
+    assert.deepStrictEqual(normalizer.map({ type: 'turnFinished', payload: { status: 'completed' } }), [
+      { type: 'message_update', assistantMessageEvent: { type: 'thinking_end', contentIndex: 2 } },
+      { type: 'agent_end' }
+    ]);
+  });
+
   test('maps assistant and reasoning deltas to Tauren message updates', () => {
     assert.deepStrictEqual(
       mapKwardTurnEvent({ type: 'assistantDelta', payload: { delta: 'hello' } }),

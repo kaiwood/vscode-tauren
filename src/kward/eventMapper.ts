@@ -2,6 +2,66 @@ import type { PiEvent } from '../pi/types';
 import { isRecord } from '../shared/typeGuards';
 import type { KwardTurnEvent } from './types';
 
+export class KwardTurnEventNormalizer {
+  private activeReasoningContentIndex: number | undefined;
+  private reasoningBlockSequence = 0;
+
+  public reset(): void {
+    this.activeReasoningContentIndex = undefined;
+    this.reasoningBlockSequence = 0;
+  }
+
+  public map(event: KwardTurnEvent): PiEvent[] {
+    const events: PiEvent[] = [];
+
+    if (event.type === 'turnStarted') {
+      this.reset();
+    }
+
+    if (event.type === 'reasoningDelta') {
+      const isNewReasoningBlock = this.activeReasoningContentIndex === undefined;
+      const contentIndex = this.ensureReasoningContentIndex();
+      if (isNewReasoningBlock) {
+        events.push(createThinkingEvent('thinking_start', contentIndex));
+      }
+      events.push(createThinkingEvent('thinking_delta', contentIndex, getString(isRecord(event.payload) ? event.payload : {}, 'delta') ?? ''));
+      return events;
+    }
+
+    this.finishReasoning(events);
+
+    const mapped = mapKwardTurnEvent(event);
+    if (mapped) {
+      events.push(mapped);
+    }
+
+    if (event.type === 'turnFinished') {
+      this.reset();
+    }
+
+    return events;
+  }
+
+  private ensureReasoningContentIndex(): number {
+    if (this.activeReasoningContentIndex !== undefined) {
+      return this.activeReasoningContentIndex;
+    }
+
+    this.reasoningBlockSequence += 1;
+    this.activeReasoningContentIndex = this.reasoningBlockSequence;
+    return this.activeReasoningContentIndex;
+  }
+
+  private finishReasoning(events: PiEvent[]): void {
+    if (this.activeReasoningContentIndex === undefined) {
+      return;
+    }
+
+    events.push(createThinkingEvent('thinking_end', this.activeReasoningContentIndex));
+    this.activeReasoningContentIndex = undefined;
+  }
+}
+
 export function mapKwardTurnEvent(event: KwardTurnEvent): PiEvent | undefined {
   const payload = isRecord(event.payload) ? event.payload : {};
   const turnId = typeof event.turnId === 'string' ? event.turnId : undefined;
@@ -53,6 +113,17 @@ export function mapKwardTurnEvent(event: KwardTurnEvent): PiEvent | undefined {
     default:
       return undefined;
   }
+}
+
+function createThinkingEvent(type: 'thinking_start' | 'thinking_delta' | 'thinking_end', contentIndex: number, delta?: string): PiEvent {
+  return {
+    type: 'message_update',
+    assistantMessageEvent: {
+      type,
+      contentIndex,
+      ...(delta !== undefined ? { delta } : {})
+    }
+  };
 }
 
 function mapKwardToolEvent(payload: Record<string, unknown>, type: 'tool_execution_start' | 'tool_execution_end'): PiEvent {

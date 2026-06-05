@@ -33,7 +33,7 @@ import type { PiSettingId, SettingValue } from '../settings/settingsRegistry';
 import type { WebviewTreeItem } from '../webviewProtocol/types';
 import { isRecord } from '../shared/typeGuards';
 import { KwardRpcTransport, type KwardJsonRpcNotification } from './rpcTransport';
-import { mapKwardTurnEvent } from './eventMapper';
+import { KwardTurnEventNormalizer } from './eventMapper';
 import type {
   KwardAuthProvidersResult,
   KwardCommandsResult,
@@ -71,6 +71,7 @@ export class KwardClient implements PiClient {
   private session: KwardSession | undefined;
   private capabilities: KwardCapabilities = {};
   private currentTurnId: string | undefined;
+  private readonly eventNormalizer = new KwardTurnEventNormalizer();
   private disposed = false;
   private startupWarningShown = false;
   private readonly eventListeners = new Set<(event: PiEvent) => void>();
@@ -498,8 +499,7 @@ export class KwardClient implements PiClient {
   private handleNotification(notification: KwardJsonRpcNotification): void {
     if (notification.method === 'turn/event') {
       const event = normalizeTurnEvent(notification.params);
-      const mapped = mapKwardTurnEvent(event);
-      if (mapped) {
+      for (const mapped of this.eventNormalizer.map(event)) {
         this.emitEvent(mapped);
       }
       if (event.type === 'turnFinished') {
