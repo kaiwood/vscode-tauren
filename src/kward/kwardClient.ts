@@ -65,6 +65,13 @@ const defaultKwardPath = '/Users/kwood/Repositories/github.com/kaiwood/kward';
 const authLoginPollIntervalMs = 1000;
 const authLoginTimeoutSeconds = 120;
 
+export class StaleKwardSessionRequestError extends Error {
+  public constructor(public readonly method: string, public readonly sessionId: string) {
+    super('Stale Kward session response ignored.');
+    this.name = 'StaleKwardSessionRequestError';
+  }
+}
+
 export class KwardClient implements PiClient {
   private transport: KwardRpcTransport | undefined;
   private initializePromise: Promise<void> | undefined;
@@ -145,14 +152,16 @@ export class KwardClient implements PiClient {
 
   public async getState(): Promise<PiSessionState> {
     const session = await this.ensureSession();
-    const result = await this.request('runtime/state', { sessionId: requiredString(session.id, 'Kward session id') });
-    return normalizeSessionState(result, session);
+    const result = await this.requestForSession('runtime/state', session);
+    this.refreshSessionIdentityFromRuntime(result, session);
+    return normalizeSessionState(result, this.session ?? session);
   }
 
   public async getSessionStats(): Promise<PiSessionStats> {
     const session = await this.ensureSession();
-    const result = await this.request('runtime/stats', { sessionId: requiredString(session.id, 'Kward session id') });
-    return normalizeSessionStats(result, session);
+    const result = await this.requestForSession('runtime/stats', session);
+    this.refreshSessionIdentityFromRuntime(result, session);
+    return normalizeSessionStats(result, this.session ?? session);
   }
 
   public async getAvailableModels(): Promise<PiAvailableModels> {
@@ -168,7 +177,7 @@ export class KwardClient implements PiClient {
       return { commands: [] };
     }
     const session = await this.ensureSession();
-    const result = normalizeCommandsResult(await this.request('commands/list', { sessionId: requiredString(session.id, 'Kward session id') }));
+    const result = normalizeCommandsResult(await this.requestForSession('commands/list', session));
     return { commands: result.commands ?? [] };
   }
 
@@ -178,7 +187,7 @@ export class KwardClient implements PiClient {
       return { sections: [] };
     }
     const session = await this.ensureSession();
-    const result = normalizeStartupResourcesResult(await this.request('resources/startup', { sessionId: requiredString(session.id, 'Kward session id') }));
+    const result = normalizeStartupResourcesResult(await this.requestForSession('resources/startup', session));
     return { sections: result.sections ?? [] };
   }
 
@@ -424,7 +433,7 @@ export class KwardClient implements PiClient {
 
   private async getTranscript(): Promise<KwardTranscriptResult> {
     const session = await this.ensureSession();
-    const result = await this.request('sessions/transcript', { sessionId: requiredString(session.id, 'Kward session id') });
+    const result = await this.requestForSession('sessions/transcript', session);
     const transcript = normalizeTranscript(result);
     if (transcript.session) {
       this.session = transcript.session;
@@ -471,6 +480,26 @@ export class KwardClient implements PiClient {
     return this.initializePromise;
   }
 
+  private async requestForSession(method: string, session: KwardSession, params: Record<string, unknown> = {}): Promise<unknown> {
+    const sessionId = requiredString(session.id, 'Kward session id');
+
+    try {
+      const result = await this.request(method, { sessionId, ...params });
+
+      if (!this.isCurrentRpcSession(sessionId)) {
+        throw new StaleKwardSessionRequestError(method, sessionId);
+      }
+
+      return result;
+    } catch (error) {
+      if (!this.isCurrentRpcSession(sessionId) && isUnknownSessionError(error)) {
+        throw new StaleKwardSessionRequestError(method, sessionId);
+      }
+
+      throw error;
+    }
+  }
+
   private request(method: string, params?: unknown): Promise<unknown> {
     if (!this.transport) {
       const kwardPath = this.resolveKwardPath();
@@ -499,6 +528,9 @@ export class KwardClient implements PiClient {
   private handleNotification(notification: KwardJsonRpcNotification): void {
     if (notification.method === 'turn/event') {
       const event = normalizeTurnEvent(notification.params);
+      if (event.sessionId && !this.isCurrentRpcSession(event.sessionId)) {
+        return;
+      }
       for (const mapped of this.eventNormalizer.map(event)) {
         this.emitEvent(mapped);
       }
@@ -510,7 +542,7 @@ export class KwardClient implements PiClient {
 
     if (notification.method === 'ui/question') {
       const request = normalizeQuestionRequest(notification.params);
-      if (request) {
+      if (request && this.isCurrentRpcSession(request.sessionId)) {
         this.emitEvent({ type: 'kward_ui_question', request });
       }
       return;
@@ -519,6 +551,34 @@ export class KwardClient implements PiClient {
     if (notification.method === 'auth/loginFinished') {
       return;
     }
+  }
+
+  private isCurrentRpcSession(sessionId: string): boolean {
+    return this.session?.id === sessionId;
+  }
+
+  private refreshSessionIdentityFromRuntime(value: unknown, fallbackSession: KwardSession): void {
+    if (!isRecord(value)) {
+      return;
+    }
+
+    const rpcSessionId = getString(value, 'rpcSessionId');
+    const persistentId = getString(value, 'persistentSessionId') ?? getString(value, 'sessionId');
+    const sessionFile = getString(value, 'sessionFile');
+    const sessionName = getString(value, 'sessionName');
+
+    if (!rpcSessionId && !persistentId && !sessionFile && !sessionName) {
+      return;
+    }
+
+    const current = this.session ?? fallbackSession;
+    this.session = {
+      ...current,
+      id: rpcSessionId ?? current.id,
+      persistentId: persistentId ?? current.persistentId,
+      path: sessionFile ?? current.path,
+      ...(sessionName !== undefined ? { name: sessionName } : {})
+    };
   }
 
   private requireCapability(name: string, supported: boolean, message: string): void {
@@ -683,7 +743,7 @@ function normalizeSessionState(value: unknown, fallbackSession: KwardSession): P
     steeringMode: getString(value, 'steeringMode'),
     followUpMode: getString(value, 'followUpMode'),
     sessionFile: getString(value, 'sessionFile') ?? fallbackSession.path,
-    sessionId: getString(value, 'sessionId') ?? fallbackSession.persistentId ?? fallbackSession.id,
+    sessionId: getString(value, 'persistentSessionId') ?? getString(value, 'sessionId') ?? fallbackSession.persistentId ?? fallbackSession.id,
     sessionName: getString(value, 'sessionName') ?? (typeof fallbackSession.name === 'string' ? fallbackSession.name : undefined),
     autoCompactionEnabled: getBoolean(value, 'autoCompactionEnabled'),
     autoRetryEnabled: getBoolean(value, 'autoRetryEnabled'),
@@ -713,7 +773,7 @@ function normalizeSessionStats(value: unknown, fallbackSession: KwardSession): P
 
   return {
     sessionFile: getString(value, 'sessionFile') ?? fallbackSession.path,
-    sessionId: getString(value, 'sessionId') ?? fallbackSession.persistentId ?? fallbackSession.id,
+    sessionId: getString(value, 'persistentSessionId') ?? getString(value, 'sessionId') ?? fallbackSession.persistentId ?? fallbackSession.id,
     sessionName: getString(value, 'sessionName') ?? (typeof fallbackSession.name === 'string' ? fallbackSession.name : undefined),
     userMessages: getNumber(value, 'userMessages'),
     assistantMessages: getNumber(value, 'assistantMessages'),
@@ -1054,6 +1114,11 @@ function requiredString(value: string | undefined, label: string): string {
   }
 
   return value;
+}
+
+function isUnknownSessionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /Unknown session:/i.test(message);
 }
 
 function getCapabilityGroup(capabilities: KwardCapabilities, groupName: string): unknown {

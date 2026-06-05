@@ -1,6 +1,7 @@
 import type { ChatSession } from '../chat/chatSession';
 import type { PiClient } from '../pi/clientTypes';
 import type { PiSessionState, PiSessionStats } from '../pi/types';
+import { isStaleKwardSessionRequestError } from '../controller/errors';
 import { formatAgentMessages } from '../controller/transcriptFormatting';
 import type { PiEventHandler } from '../controller/piEventHandler';
 import { getSessionFile } from './sessionFormatting';
@@ -60,11 +61,14 @@ export class SessionHistoryController {
     try {
       [messagesResult, stateResult] = await Promise.all([
         client.getMessages(),
-        client.getState().catch(() => undefined)
+        client.getState().catch((error) => isStaleKwardSessionRequestError(error) ? undefined : Promise.reject(error))
       ]);
     } catch (error) {
       this.loading = false;
       this.options.postState();
+      if (isStaleKwardSessionRequestError(error)) {
+        return;
+      }
       throw error;
     }
 
@@ -101,6 +105,10 @@ export class SessionHistoryController {
     try {
       result = await client.getMessages();
     } catch (error) {
+      if (isStaleKwardSessionRequestError(error)) {
+        return;
+      }
+
       if (isCurrent()) {
         this.loading = false;
         this.options.postState();

@@ -137,6 +137,172 @@ suite('KwardClient', () => {
     }
   });
 
+  test('ignores stale runtime state success after switching sessions', async () => {
+    const child = new FakeChildProcess();
+    const client = new KwardClient({ kwardPath: createKwardPath() });
+    const spawned = require('node:child_process') as { spawn: unknown };
+    const originalSpawn = spawned.spawn;
+
+    try {
+      spawned.spawn = () => child;
+
+      const statePromise = client.getState();
+
+      await waitForWriteCount(child, 1);
+      assertWrittenRequest(child.writes[0], { method: 'initialize' });
+      respond(client, 1, { capabilities: {} });
+
+      await waitForWriteCount(child, 2);
+      assertWrittenRequest(child.writes[1], { method: 'sessions/create' });
+      respond(client, 2, { id: 'rpc-old', persistentId: 'persist-old', path: '/tmp/old.jsonl' });
+
+      await waitForWriteCount(child, 3);
+      assertWrittenRequest(child.writes[2], {
+        method: 'runtime/state',
+        params: { sessionId: 'rpc-old' }
+      });
+
+      const switchPromise = client.switchSession('/tmp/new.jsonl');
+      await waitForWriteCount(child, 4);
+      assertWrittenRequest(child.writes[3], {
+        method: 'sessions/resume',
+        params: { path: '/tmp/new.jsonl' }
+      });
+      respond(client, 4, { id: 'rpc-new', persistentId: 'persist-new', path: '/tmp/new.jsonl' });
+      await switchPromise;
+
+      respond(client, 3, {
+        rpcSessionId: 'rpc-old',
+        persistentSessionId: 'persist-old',
+        sessionId: 'persist-old',
+        sessionFile: '/tmp/old.jsonl',
+        model: { provider: 'openai', id: 'old-model' }
+      });
+
+      await assert.rejects(statePromise, (error: unknown) => {
+        assert.strictEqual((error as Error).name, 'StaleKwardSessionRequestError');
+        return true;
+      });
+
+      const statsPromise = client.getSessionStats();
+      await waitForWriteCount(child, 5);
+      assertWrittenRequest(child.writes[4], {
+        method: 'runtime/stats',
+        params: { sessionId: 'rpc-new' }
+      });
+      respond(client, 5, { sessionId: 'persist-new' });
+      await statsPromise;
+    } finally {
+      spawned.spawn = originalSpawn;
+      client.dispose();
+    }
+  });
+
+  test('ignores stale Unknown session errors but surfaces current Unknown session errors', async () => {
+    const child = new FakeChildProcess();
+    const client = new KwardClient({ kwardPath: createKwardPath() });
+    const spawned = require('node:child_process') as { spawn: unknown };
+    const originalSpawn = spawned.spawn;
+
+    try {
+      spawned.spawn = () => child;
+
+      const oldStatsPromise = client.getSessionStats();
+      await waitForWriteCount(child, 1);
+      respond(client, 1, { capabilities: {} });
+      await waitForWriteCount(child, 2);
+      respond(client, 2, { id: 'rpc-old', persistentId: 'persist-old', path: '/tmp/old.jsonl' });
+      await waitForWriteCount(child, 3);
+      assertWrittenRequest(child.writes[2], {
+        method: 'runtime/stats',
+        params: { sessionId: 'rpc-old' }
+      });
+
+      const switchPromise = client.switchSession('/tmp/new.jsonl');
+      await waitForWriteCount(child, 4);
+      respond(client, 4, { id: 'rpc-new', persistentId: 'persist-new', path: '/tmp/new.jsonl' });
+      await switchPromise;
+
+      respondError(client, 3, 'Unknown session: rpc-old');
+      await assert.rejects(oldStatsPromise, (error: unknown) => {
+        assert.strictEqual((error as Error).name, 'StaleKwardSessionRequestError');
+        return true;
+      });
+
+      const currentStatsPromise = client.getSessionStats();
+      await waitForWriteCount(child, 5);
+      assertWrittenRequest(child.writes[4], {
+        method: 'runtime/stats',
+        params: { sessionId: 'rpc-new' }
+      });
+      respondError(client, 5, 'Unknown session: rpc-new');
+      await assert.rejects(currentStatsPromise, /Unknown session: rpc-new/);
+    } finally {
+      spawned.spawn = originalSpawn;
+      client.dispose();
+    }
+  });
+
+  test('uses active rpcSessionId for RPC requests instead of persistent IDs', async () => {
+    const child = new FakeChildProcess();
+    const client = new KwardClient({ kwardPath: createKwardPath() });
+    const spawned = require('node:child_process') as { spawn: unknown };
+    const originalSpawn = spawned.spawn;
+
+    try {
+      spawned.spawn = () => child;
+
+      const statePromise = client.getState();
+      await waitForWriteCount(child, 1);
+      respond(client, 1, { capabilities: { commands: { supported: true }, startupResources: { supported: true } } });
+      await waitForWriteCount(child, 2);
+      respond(client, 2, { id: 'rpc-created', persistentId: 'persist-created', path: '/tmp/session.jsonl' });
+      await waitForWriteCount(child, 3);
+      assertWrittenRequest(child.writes[2], {
+        method: 'runtime/state',
+        params: { sessionId: 'rpc-created' }
+      });
+      respond(client, 3, {
+        rpcSessionId: 'rpc-runtime',
+        persistentSessionId: 'persist-runtime',
+        sessionId: 'legacy-persist-runtime',
+        sessionFile: '/tmp/session.jsonl'
+      });
+      const state = await statePromise;
+      assert.strictEqual(state.sessionId, 'persist-runtime');
+
+      const statsPromise = client.getSessionStats();
+      await waitForWriteCount(child, 4);
+      assertWrittenRequest(child.writes[3], {
+        method: 'runtime/stats',
+        params: { sessionId: 'rpc-runtime' }
+      });
+      respond(client, 4, { sessionId: 'legacy-persist-runtime' });
+      await statsPromise;
+
+      const commandsPromise = client.getCommands();
+      await waitForWriteCount(child, 5);
+      assertWrittenRequest(child.writes[4], {
+        method: 'commands/list',
+        params: { sessionId: 'rpc-runtime' }
+      });
+      respond(client, 5, { commands: [] });
+      await commandsPromise;
+
+      const resourcesPromise = client.getStartupResources();
+      await waitForWriteCount(child, 6);
+      assertWrittenRequest(child.writes[5], {
+        method: 'resources/startup',
+        params: { sessionId: 'rpc-runtime' }
+      });
+      respond(client, 6, { sections: [] });
+      await resourcesPromise;
+    } finally {
+      spawned.spawn = originalSpawn;
+      client.dispose();
+    }
+  });
+
   test('compact sends sessions/compact with custom instructions and normalizes result when capability is supported', async () => {
     const child = new FakeChildProcess();
     const client = new KwardClient({ kwardPath: createKwardPath() });
@@ -212,6 +378,12 @@ function parseWrittenRequest(chunk: Buffer): WrittenRequest {
 
 function respond(client: KwardClient, id: number, result: unknown): void {
   const body = JSON.stringify({ jsonrpc: '2.0', id, result });
+  const message = Buffer.from(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`, 'utf8');
+  (client as unknown as { transport: { handleStdout(chunk: Buffer): void } }).transport.handleStdout(message);
+}
+
+function respondError(client: KwardClient, id: number, messageText: string): void {
+  const body = JSON.stringify({ jsonrpc: '2.0', id, error: { message: messageText } });
   const message = Buffer.from(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`, 'utf8');
   (client as unknown as { transport: { handleStdout(chunk: Buffer): void } }).transport.handleStdout(message);
 }

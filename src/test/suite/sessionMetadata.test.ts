@@ -127,6 +127,34 @@ suite('SessionMetadataState', () => {
     }), '↑999 ↓1.0k\nR10.0k W10k\n25.0%/1.0k');
   });
 
+  test('ignores stale Kward refresh errors without clearing existing context usage', async () => {
+    const state = new SessionMetadataState();
+    state.applySessionStats({ contextUsage: { tokens: 40, contextWindow: 100, percent: 40 } });
+    let errorCount = 0;
+    const staleError = new Error('Stale Kward session response ignored.');
+    staleError.name = 'StaleKwardSessionRequestError';
+    const refresh = new SessionMetadataRefreshController({
+      state,
+      getSessionGeneration: () => 1,
+      getClient: () => ({
+        getSessionStats: async () => Promise.reject(staleError)
+      } as FakeMetadataClient),
+      restoreInitialSessionHistory: async () => {},
+      applySessionState: () => ({ sessionFileChanged: false, sessionNameChanged: false }),
+      applySessionStatsIdentity: () => ({ sessionFileChanged: false, sessionNameChanged: false }),
+      refreshSessions: () => {},
+      postState: () => {},
+      onMetadataStartError: () => {},
+      onError: () => { errorCount += 1; },
+      getErrorMessage: (error) => error instanceof Error ? error.message : String(error)
+    });
+
+    await refresh.refreshContextUsage({ startClient: true });
+
+    assert.strictEqual(errorCount, 0);
+    assert.strictEqual(state.getWebviewState().contextUsage.label, '40%');
+  });
+
   test('refresh controller dedupes session metadata refreshes', async () => {
     const state = new SessionMetadataState();
     const client = new FakeMetadataClient();

@@ -12,6 +12,10 @@ export function isUnsupportedReloadCommandError(error: unknown): boolean {
   return /unknown command:?\s+reload/i.test(getErrorMessage(error));
 }
 
+export function isStaleKwardSessionRequestError(error: unknown): boolean {
+  return isObject(error) && error.name === 'StaleKwardSessionRequestError';
+}
+
 export type MissingSessionCwdIssueLike = {
   sessionCwd: string;
   fallbackCwd: string;

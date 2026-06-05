@@ -1,5 +1,6 @@
 import type { WebviewModelOption, WebviewSlashCommand, WebviewStartupResourceSection } from '../webviewProtocol/types';
 import type { PiCommand, PiMessagesResult, PiModel, PiSessionState, PiSessionStats, PiStartupResources } from '../pi/types';
+import { isStaleKwardSessionRequestError } from '../controller/errors';
 import type {
   TaurenChatContextUsage,
   TaurenChatModelMeta,
@@ -158,7 +159,7 @@ export class SessionMetadataRefreshController {
 
     let handledError = false;
     const handleRefreshError = (error: unknown): void => {
-      if (handledError || !this.isCurrentMetadataRefresh(sessionGeneration, refreshId)) {
+      if (handledError || isStaleKwardSessionRequestError(error) || !this.isCurrentMetadataRefresh(sessionGeneration, refreshId)) {
         return;
       }
 
@@ -246,7 +247,7 @@ export class SessionMetadataRefreshController {
 
       this.applySessionStats(stats);
     } catch (error) {
-      if (!options.silent && sessionGeneration === this.options.getSessionGeneration()) {
+      if (!options.silent && !isStaleKwardSessionRequestError(error) && sessionGeneration === this.options.getSessionGeneration()) {
         this.options.onError(this.options.getErrorMessage(error));
       }
     }
@@ -334,7 +335,7 @@ export class SessionMetadataRefreshController {
         this.options.postState();
       }
     } catch (error) {
-      if (this.isCurrentSlashCommandRefresh(sessionGeneration, refreshId)) {
+      if (!isStaleKwardSessionRequestError(error) && this.isCurrentSlashCommandRefresh(sessionGeneration, refreshId)) {
         this.options.onError(this.options.getErrorMessage(error));
       }
     } finally {
