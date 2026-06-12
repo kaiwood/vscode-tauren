@@ -55,6 +55,7 @@ export type SessionTreeNode = {
 
 export type PiSessionTreeItem = {
   entryId: string;
+  parentId?: string;
   role: string;
   text: string;
   current: boolean;
@@ -62,7 +63,9 @@ export type PiSessionTreeItem = {
   isLast?: boolean;
   ancestorContinues?: boolean[];
   activePath?: boolean;
+  selectable?: boolean;
   label?: string;
+  labelTimestamp?: string;
   prefix?: string;
 };
 

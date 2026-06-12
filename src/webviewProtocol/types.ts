@@ -236,6 +236,7 @@ export type WebviewSessionItem = {
 
 export type WebviewTreeItem = {
   entryId: string;
+  parentId?: string;
   role: string;
   text: string;
   current: boolean;
@@ -243,7 +244,9 @@ export type WebviewTreeItem = {
   isLast?: boolean;
   ancestorContinues?: boolean[];
   activePath?: boolean;
+  selectable?: boolean;
   label?: string;
+  labelTimestamp?: string;
   prefix?: string;
 };
 

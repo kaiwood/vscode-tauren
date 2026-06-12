@@ -1268,6 +1268,7 @@ function normalizeSessionListTreeItem(value: unknown, currentSessionPath: string
     isLast,
     ancestorContinues,
     activePath: current,
+    selectable: true,
     prefix: buildTreePrefix(depth, isLast, ancestorContinues)
   };
 }
@@ -1308,6 +1309,7 @@ function normalizeTreeItem(value: unknown): WebviewTreeItem | undefined {
 
   return {
     entryId,
+    parentId: getString(value, 'parentId'),
     role: getString(value, 'role') ?? 'message',
     text: getString(value, 'text') ?? '',
     current: getBoolean(value, 'current') ?? false,
@@ -1315,7 +1317,9 @@ function normalizeTreeItem(value: unknown): WebviewTreeItem | undefined {
     isLast: getBoolean(value, 'isLast'),
     ancestorContinues: Array.isArray(value.ancestorContinues) ? value.ancestorContinues.filter((entry): entry is boolean => typeof entry === 'boolean') : undefined,
     activePath: getBoolean(value, 'activePath'),
+    selectable: getBoolean(value, 'selectable'),
     label: getString(value, 'label'),
+    labelTimestamp: getString(value, 'labelTimestamp'),
     prefix: getString(value, 'prefix')
   };
 }

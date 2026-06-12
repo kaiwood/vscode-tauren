@@ -5,6 +5,8 @@ import type { WebviewState } from '../types';
 type PostMessage = (message: unknown) => void;
 
 type SummaryChoice = 'none' | 'summarize' | 'custom';
+type TreeFilterMode = 'default' | 'no-tools' | 'user-only' | 'labeled-only' | 'all';
+const treeFilterModes: TreeFilterMode[] = ['default', 'no-tools', 'user-only', 'labeled-only', 'all'];
 
 export type SessionTreeControllerOptions = {
   getState: () => WebviewState;
@@ -22,19 +24,31 @@ export class SessionTreeController {
   private customInstructions = '';
   private pendingTreeScrollIndex: number | undefined;
   private pendingTreeScrollFrame: number | undefined;
+  private searchQuery = '';
+  private filterMode: TreeFilterMode = 'default';
+  private showLabelTimestamps = false;
+  private readonly foldedEntryIds = new Set<string>();
 
   public constructor(private readonly options: SessionTreeControllerOptions) {}
 
   public render(): void {
     const state = this.options.getState();
     this.options.treeElement.replaceChildren();
+    const visibleItems = this.getVisibleItems();
     this.selectedIndex = this.clampIndex(this.selectedIndex);
 
     const header = document.createElement('div');
     header.className = 'sessions__header';
-    const count = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
-    header.textContent = state.treeRefreshing ? 'Loading session tree...' : 'Session tree';
+    const count = visibleItems.length;
+    header.textContent = state.treeRefreshing ? 'Loading session tree...' : 'Session tree' + this.getStatusLabel();
     this.options.treeElement.append(header);
+
+    if (this.searchQuery) {
+      const search = document.createElement('div');
+      search.className = 'sessions__header';
+      search.textContent = `Search: ${this.searchQuery}`;
+      this.options.treeElement.append(search);
+    }
 
     if (state.treeError) {
       const error = document.createElement('div');
@@ -53,8 +67,8 @@ export class SessionTreeController {
       return;
     }
 
-    for (let index = 0; index < state.treeItems.length; index += 1) {
-      const item = state.treeItems[index];
+    for (let index = 0; index < visibleItems.length; index += 1) {
+      const item = visibleItems[index];
 
       if (item.entryId === this.pendingLabelEntryId) {
         this.options.treeElement.append(this.createLabelDialog());
@@ -64,10 +78,14 @@ export class SessionTreeController {
         this.options.treeElement.append(this.createSummaryDialog());
       }
 
-      this.options.treeElement.append(createTreeItemElement(item, index, {
-        selectedIndex: this.selectedIndex,
-        disabled: state.busy || state.treeRefreshing
-      }));
+      this.options.treeElement.append(createTreeItemElement(
+        this.showLabelTimestamps ? item : { ...item, labelTimestamp: undefined },
+        index,
+        {
+          selectedIndex: this.selectedIndex,
+          disabled: state.busy || state.treeRefreshing || item.selectable === false
+        }
+      ));
     }
 
     const footer = document.createElement('div');
@@ -78,8 +96,7 @@ export class SessionTreeController {
   }
 
   public selectCurrent(): void {
-    const state = this.options.getState();
-    const items = Array.isArray(state.treeItems) ? state.treeItems : [];
+    const items = this.getVisibleItems();
     const currentIndex = items.findIndex((item) => item.current);
 
     if (currentIndex >= 0) {
@@ -92,13 +109,13 @@ export class SessionTreeController {
   }
 
   public moveSelection(delta: number): void {
-    const state = this.options.getState();
+    const items = this.getVisibleItems();
 
-    if (!Array.isArray(state.treeItems) || state.treeItems.length === 0) {
+    if (items.length === 0) {
       return;
     }
 
-    this.setSelectionIndex(this.wrapIndex(this.selectedIndex + delta, state.treeItems.length));
+    this.setSelectionIndex(this.wrapIndex(this.selectedIndex + delta, items.length));
   }
 
   private moveToFirst(): boolean {
@@ -106,8 +123,7 @@ export class SessionTreeController {
   }
 
   private moveToLast(): boolean {
-    const state = this.options.getState();
-    const count = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
+    const count = this.getVisibleItems().length;
 
     if (count === 0) {
       return false;
@@ -117,16 +133,14 @@ export class SessionTreeController {
   }
 
   private moveToParent(): boolean {
-    const state = this.options.getState();
-    const items = Array.isArray(state.treeItems) ? state.treeItems : [];
+    const items = this.getVisibleItems();
     const parentIndex = findParentTreeItemIndex(items, this.selectedIndex);
 
     return parentIndex === undefined ? false : this.setSelectionIndex(parentIndex);
   }
 
   private moveToDeepestLastChild(): boolean {
-    const state = this.options.getState();
-    const items = Array.isArray(state.treeItems) ? state.treeItems : [];
+    const items = this.getVisibleItems();
     const childIndex = findDeepestLastChildTreeItemIndex(items, this.selectedIndex);
 
     return childIndex === undefined ? false : this.setSelectionIndex(childIndex);
@@ -138,9 +152,9 @@ export class SessionTreeController {
 
   public selectIndex(index: number): void {
     const state = this.options.getState();
-    const treeItem = Array.isArray(state.treeItems) ? state.treeItems[index] : undefined;
+    const treeItem = this.getVisibleItems()[index];
 
-    if (!treeItem?.entryId || state.busy || state.treeRefreshing) {
+    if (!treeItem?.entryId || treeItem.selectable === false || state.busy || state.treeRefreshing) {
       return;
     }
 
@@ -220,6 +234,40 @@ export class SessionTreeController {
       const handled = this.handleNavigationKey(event);
 
       if (handled) {
+        return true;
+      }
+
+      if (event.key === 'Backspace' && this.searchQuery) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.searchQuery = this.searchQuery.slice(0, -1);
+        this.selectedIndex = this.clampIndex(this.selectedIndex);
+        this.render();
+        return true;
+      }
+
+      if (event.key === 'T') {
+        event.preventDefault();
+        event.stopPropagation();
+        this.showLabelTimestamps = !this.showLabelTimestamps;
+        this.render();
+        return true;
+      }
+
+      if (event.ctrlKey && event.key.toLowerCase() === 'o') {
+        event.preventDefault();
+        event.stopPropagation();
+        this.cycleFilterMode(event.shiftKey ? -1 : 1);
+        return true;
+      }
+
+      if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.searchQuery += event.key;
+        this.foldedEntryIds.clear();
+        this.selectedIndex = this.clampIndex(this.selectedIndex);
+        this.render();
         return true;
       }
 
@@ -406,9 +454,9 @@ export class SessionTreeController {
 
   private openLabelDialogForSelected(): void {
     const state = this.options.getState();
-    const treeItem = Array.isArray(state.treeItems) ? state.treeItems[this.selectedIndex] : undefined;
+    const treeItem = this.getVisibleItems()[this.selectedIndex];
 
-    if (!treeItem?.entryId || state.busy || state.treeRefreshing) {
+    if (!treeItem?.entryId || treeItem.selectable === false || state.busy || state.treeRefreshing) {
       return;
     }
 
@@ -511,9 +559,7 @@ export class SessionTreeController {
   }
 
   private setSelectionIndex(index: number): boolean {
-    const state = this.options.getState();
-
-    if (!Array.isArray(state.treeItems) || state.treeItems.length === 0) {
+    if (this.getVisibleItems().length === 0) {
       return false;
     }
 
@@ -544,9 +590,23 @@ export class SessionTreeController {
       : event.key === 'End'
       ? this.moveToLast()
       : event.key === 'ArrowLeft'
-      ? this.moveToParent()
+      ? event.ctrlKey || event.altKey
+        ? this.foldSelectedOrMoveToParent()
+        : this.moveToParent()
       : event.key === 'ArrowRight'
-      ? this.moveToDeepestLastChild()
+      ? event.ctrlKey || event.altKey
+        ? this.unfoldSelectedOrMoveToDeepestLastChild()
+        : this.moveToDeepestLastChild()
+      : event.key === '1'
+      ? this.setFilterMode('default')
+      : event.key === '2'
+      ? this.setFilterMode(this.filterMode === 'no-tools' ? 'default' : 'no-tools')
+      : event.key === '3'
+      ? this.setFilterMode(this.filterMode === 'user-only' ? 'default' : 'user-only')
+      : event.key === '4'
+      ? this.setFilterMode(this.filterMode === 'labeled-only' ? 'default' : 'labeled-only')
+      : event.key === '5'
+      ? this.setFilterMode(this.filterMode === 'all' ? 'default' : 'all')
       : false;
 
     if (!handled) {
@@ -556,6 +616,102 @@ export class SessionTreeController {
     event.preventDefault();
     event.stopPropagation();
     return true;
+  }
+
+  private getVisibleItems(): WebviewState['treeItems'] {
+    const state = this.options.getState();
+    const items = Array.isArray(state.treeItems) ? state.treeItems : [];
+    const searchTokens = this.searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+    const visible = items.filter((item) => this.passesFilter(item) && this.passesSearch(item, searchTokens));
+
+    if (this.foldedEntryIds.size === 0) {
+      return visible;
+    }
+
+    const hidden = new Set<string>();
+    for (const item of items) {
+      if (item.parentId && (this.foldedEntryIds.has(item.parentId) || hidden.has(item.parentId))) {
+        hidden.add(item.entryId);
+      }
+    }
+
+    return visible.filter((item) => !hidden.has(item.entryId));
+  }
+
+  private passesFilter(item: WebviewState['treeItems'][number]): boolean {
+    switch (this.filterMode) {
+      case 'no-tools':
+        return item.role !== 'tool';
+      case 'user-only':
+        return item.role === 'user';
+      case 'labeled-only':
+        return Boolean(item.label);
+      case 'all':
+        return true;
+      default:
+        return !['label', 'custom', 'model_change', 'thinking_level_change', 'session_info'].includes(item.role);
+    }
+  }
+
+  private passesSearch(item: WebviewState['treeItems'][number], tokens: string[]): boolean {
+    if (tokens.length === 0) {
+      return true;
+    }
+
+    const text = [item.role, item.text, item.label].filter(Boolean).join(' ').toLowerCase();
+    return tokens.every((token) => text.includes(token));
+  }
+
+  private getStatusLabel(): string {
+    const labels: string[] = [];
+    if (this.filterMode !== 'default') {
+      labels.push(this.filterMode);
+    }
+    if (this.showLabelTimestamps) {
+      labels.push('+label time');
+    }
+    return labels.length > 0 ? ' [' + labels.join(', ') + ']' : '';
+  }
+
+  private setFilterMode(mode: TreeFilterMode): boolean {
+    this.filterMode = mode;
+    this.foldedEntryIds.clear();
+    this.selectedIndex = this.clampIndex(this.selectedIndex);
+    this.render();
+    return true;
+  }
+
+  private cycleFilterMode(delta: number): void {
+    const currentIndex = treeFilterModes.indexOf(this.filterMode);
+    const nextIndex = this.wrapIndex(currentIndex + delta, treeFilterModes.length);
+    this.setFilterMode(treeFilterModes[nextIndex]);
+  }
+
+  private foldSelectedOrMoveToParent(): boolean {
+    const item = this.getVisibleItems()[this.selectedIndex];
+    if (item && this.hasVisibleChildren(item.entryId) && !this.foldedEntryIds.has(item.entryId)) {
+      this.foldedEntryIds.add(item.entryId);
+      this.selectedIndex = this.clampIndex(this.selectedIndex);
+      this.render();
+      return true;
+    }
+
+    return this.moveToParent();
+  }
+
+  private unfoldSelectedOrMoveToDeepestLastChild(): boolean {
+    const item = this.getVisibleItems()[this.selectedIndex];
+    if (item && this.foldedEntryIds.has(item.entryId)) {
+      this.foldedEntryIds.delete(item.entryId);
+      this.render();
+      return true;
+    }
+
+    return this.moveToDeepestLastChild();
+  }
+
+  private hasVisibleChildren(entryId: string): boolean {
+    return this.getVisibleItems().some((item) => item.parentId === entryId);
   }
 
   private updateRenderedSelection(previousIndex: number): void {
@@ -582,8 +738,7 @@ export class SessionTreeController {
   }
 
   private updateRenderedFooter(): void {
-    const state = this.options.getState();
-    const count = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
+    const count = this.getVisibleItems().length;
     const footer = this.options.treeElement.querySelector<HTMLElement>('.sessions__tree-footer');
 
     if (footer) {
@@ -642,8 +797,7 @@ export class SessionTreeController {
   }
 
   private clampIndex(index: number): number {
-    const state = this.options.getState();
-    const count = Array.isArray(state.treeItems) ? state.treeItems.length : 0;
+    const count = this.getVisibleItems().length;
 
     if (count === 0) {
       return 0;

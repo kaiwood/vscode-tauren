@@ -117,6 +117,13 @@ export function createTreeItemElement(
     label.className = 'sessions__tree-label';
     label.textContent = `[${treeItem.label}]`;
     title.append(label);
+
+    if (treeItem.labelTimestamp) {
+      const timestamp = document.createElement('span');
+      timestamp.className = 'sessions__meta sessions__tree-label-time';
+      timestamp.textContent = formatTreeLabelTimestamp(treeItem.labelTimestamp);
+      title.append(timestamp);
+    }
   }
 
   if (treeItem.role === 'tool') {
@@ -143,6 +150,20 @@ export function createTreeItemElement(
 
 function formatTreeRoleLabel(role: string): string {
   return role === 'summary' ? '[branch summary]:' : role + ':';
+}
+
+function formatTreeLabelTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString(undefined, {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 }
 
 function createTreePrefixElement(treeItem: TreeItem, selected: boolean): HTMLElement {

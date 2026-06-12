@@ -280,6 +280,7 @@ suite('PiSdkClient', () => {
       isLast: true,
       ancestorContinues: [],
       activePath: true,
+      selectable: true,
       prefix: ''
     }]);
 

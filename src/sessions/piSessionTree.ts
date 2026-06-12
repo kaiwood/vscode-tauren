@@ -41,6 +41,7 @@ export function flattenPiSessionTree(
 
     result.push({
       entryId,
+      ...(typeof node.source.entry.parentId === 'string' ? { parentId: node.source.entry.parentId } : {}),
       role: formatted.role,
       text: formatted.text,
       current: Boolean(visibleCurrentEntryId && entryId === visibleCurrentEntryId),
@@ -48,6 +49,7 @@ export function flattenPiSessionTree(
       isLast,
       ancestorContinues: gutters.map((gutter) => gutter.show),
       activePath: activePathIds.has(entryId),
+      selectable: formatted.role === 'user',
       prefix: buildTreePrefix({
         displayIndent,
         gutters,
@@ -55,7 +57,8 @@ export function flattenPiSessionTree(
         isLast,
         foldable: node.children.length > 0
       }),
-      ...(label ? { label } : {})
+      ...(label ? { label } : {}),
+      ...(typeof node.source.labelTimestamp === 'string' ? { labelTimestamp: node.source.labelTimestamp } : {})
     });
 
     const children = orderActivePathFirst(node.children, activePathIds);

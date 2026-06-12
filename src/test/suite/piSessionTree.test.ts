@@ -50,6 +50,7 @@ suite('Pi session tree', () => {
     ], 's1');
 
     assert.strictEqual(items[1].role, 'summary');
+    assert.strictEqual(items[1].selectable, false);
     assert.strictEqual(items[1].text, 'Summary of that exploration:\n\n## Goal\nFix PR #1.');
   });
 
@@ -75,9 +76,9 @@ suite('Pi session tree', () => {
       }
     ], 't1');
 
-    assert.deepStrictEqual(items.map((item) => ({ entryId: item.entryId, role: item.role, text: item.text })), [
-      { entryId: 'u1', role: 'user', text: 'Run tests' },
-      { entryId: 't1', role: 'tool', text: '[bash: npm test -- --grep "Chat webview"]' }
+    assert.deepStrictEqual(items.map((item) => ({ entryId: item.entryId, role: item.role, text: item.text, selectable: item.selectable })), [
+      { entryId: 'u1', role: 'user', text: 'Run tests', selectable: true },
+      { entryId: 't1', role: 'tool', text: '[bash: npm test -- --grep "Chat webview"]', selectable: false }
     ]);
   });
 
@@ -141,10 +142,12 @@ suite('Pi session tree', () => {
         isLast: true,
         ancestorContinues: [],
         activePath: true,
+        selectable: true,
         prefix: ''
       },
       {
         entryId: 'u2',
+        parentId: 'u1',
         role: 'user',
         text: 'Second prompt',
         current: false,
@@ -152,11 +155,13 @@ suite('Pi session tree', () => {
         isLast: false,
         ancestorContinues: [],
         activePath: true,
+        selectable: true,
         prefix: '├⊟ ',
         label: 'retry'
       },
       {
         entryId: 'a2',
+        parentId: 'u2',
         role: 'assistant',
         text: 'Second answer',
         current: true,
@@ -164,10 +169,12 @@ suite('Pi session tree', () => {
         isLast: true,
         ancestorContinues: [true],
         activePath: true,
+        selectable: false,
         prefix: '│     '
       },
       {
         entryId: 'a1',
+        parentId: 'u1',
         role: 'assistant',
         text: 'First answer',
         current: false,
@@ -175,6 +182,7 @@ suite('Pi session tree', () => {
         isLast: true,
         ancestorContinues: [],
         activePath: false,
+        selectable: false,
         prefix: '└─ '
       }
     ]);

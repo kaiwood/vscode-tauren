@@ -5965,6 +5965,12 @@ ${after}`;
       label.className = "sessions__tree-label";
       label.textContent = `[${treeItem.label}]`;
       title.append(label);
+      if (treeItem.labelTimestamp) {
+        const timestamp = document.createElement("span");
+        timestamp.className = "sessions__meta sessions__tree-label-time";
+        timestamp.textContent = formatTreeLabelTimestamp(treeItem.labelTimestamp);
+        title.append(timestamp);
+      }
     }
     if (treeItem.role === "tool") {
       const toolText = document.createElement("span");
@@ -5986,6 +5992,18 @@ ${after}`;
   }
   function formatTreeRoleLabel(role) {
     return role === "summary" ? "[branch summary]:" : role + ":";
+  }
+  function formatTreeLabelTimestamp(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    return date.toLocaleString(void 0, {
+      month: "numeric",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
   }
   function createTreePrefixElement(treeItem, selected) {
     const prefix = document.createElement("span");
@@ -6206,6 +6224,7 @@ ${after}`;
   }
 
   // src/webview/sessions/sessionTreeController.ts
+  var treeFilterModes = ["default", "no-tools", "user-only", "labeled-only", "all"];
   var SessionTreeController = class {
     constructor(options) {
       this.options = options;
@@ -6220,15 +6239,26 @@ ${after}`;
     customInstructions = "";
     pendingTreeScrollIndex;
     pendingTreeScrollFrame;
+    searchQuery = "";
+    filterMode = "default";
+    showLabelTimestamps = false;
+    foldedEntryIds = /* @__PURE__ */ new Set();
     render() {
       const state2 = this.options.getState();
       this.options.treeElement.replaceChildren();
+      const visibleItems = this.getVisibleItems();
       this.selectedIndex = this.clampIndex(this.selectedIndex);
       const header = document.createElement("div");
       header.className = "sessions__header";
-      const count = Array.isArray(state2.treeItems) ? state2.treeItems.length : 0;
-      header.textContent = state2.treeRefreshing ? "Loading session tree..." : "Session tree";
+      const count = visibleItems.length;
+      header.textContent = state2.treeRefreshing ? "Loading session tree..." : "Session tree" + this.getStatusLabel();
       this.options.treeElement.append(header);
+      if (this.searchQuery) {
+        const search = document.createElement("div");
+        search.className = "sessions__header";
+        search.textContent = `Search: ${this.searchQuery}`;
+        this.options.treeElement.append(search);
+      }
       if (state2.treeError) {
         const error = document.createElement("div");
         error.className = "sessions__error";
@@ -6243,18 +6273,22 @@ ${after}`;
         this.options.treeElement.append(createSessionEmptyElement("No persisted tree entries found for this session."));
         return;
       }
-      for (let index = 0; index < state2.treeItems.length; index += 1) {
-        const item = state2.treeItems[index];
+      for (let index = 0; index < visibleItems.length; index += 1) {
+        const item = visibleItems[index];
         if (item.entryId === this.pendingLabelEntryId) {
           this.options.treeElement.append(this.createLabelDialog());
         }
         if (item.entryId === this.pendingSummaryEntryId) {
           this.options.treeElement.append(this.createSummaryDialog());
         }
-        this.options.treeElement.append(createTreeItemElement(item, index, {
-          selectedIndex: this.selectedIndex,
-          disabled: state2.busy || state2.treeRefreshing
-        }));
+        this.options.treeElement.append(createTreeItemElement(
+          this.showLabelTimestamps ? item : { ...item, labelTimestamp: void 0 },
+          index,
+          {
+            selectedIndex: this.selectedIndex,
+            disabled: state2.busy || state2.treeRefreshing || item.selectable === false
+          }
+        ));
       }
       const footer = document.createElement("div");
       footer.className = "sessions__header sessions__tree-footer";
@@ -6263,8 +6297,7 @@ ${after}`;
       requestAnimationFrame(() => this.scrollSelectedIntoView());
     }
     selectCurrent() {
-      const state2 = this.options.getState();
-      const items = Array.isArray(state2.treeItems) ? state2.treeItems : [];
+      const items = this.getVisibleItems();
       const currentIndex = items.findIndex((item) => item.current);
       if (currentIndex >= 0) {
         this.selectedIndex = currentIndex;
@@ -6274,32 +6307,29 @@ ${after}`;
       this.selectedIndex = activePathIndex >= 0 ? activePathIndex : 0;
     }
     moveSelection(delta) {
-      const state2 = this.options.getState();
-      if (!Array.isArray(state2.treeItems) || state2.treeItems.length === 0) {
+      const items = this.getVisibleItems();
+      if (items.length === 0) {
         return;
       }
-      this.setSelectionIndex(this.wrapIndex(this.selectedIndex + delta, state2.treeItems.length));
+      this.setSelectionIndex(this.wrapIndex(this.selectedIndex + delta, items.length));
     }
     moveToFirst() {
       return this.setSelectionIndex(0);
     }
     moveToLast() {
-      const state2 = this.options.getState();
-      const count = Array.isArray(state2.treeItems) ? state2.treeItems.length : 0;
+      const count = this.getVisibleItems().length;
       if (count === 0) {
         return false;
       }
       return this.setSelectionIndex(count - 1);
     }
     moveToParent() {
-      const state2 = this.options.getState();
-      const items = Array.isArray(state2.treeItems) ? state2.treeItems : [];
+      const items = this.getVisibleItems();
       const parentIndex = findParentTreeItemIndex(items, this.selectedIndex);
       return parentIndex === void 0 ? false : this.setSelectionIndex(parentIndex);
     }
     moveToDeepestLastChild() {
-      const state2 = this.options.getState();
-      const items = Array.isArray(state2.treeItems) ? state2.treeItems : [];
+      const items = this.getVisibleItems();
       const childIndex = findDeepestLastChildTreeItemIndex(items, this.selectedIndex);
       return childIndex === void 0 ? false : this.setSelectionIndex(childIndex);
     }
@@ -6308,8 +6338,8 @@ ${after}`;
     }
     selectIndex(index) {
       const state2 = this.options.getState();
-      const treeItem = Array.isArray(state2.treeItems) ? state2.treeItems[index] : void 0;
-      if (!treeItem?.entryId || state2.busy || state2.treeRefreshing) {
+      const treeItem = this.getVisibleItems()[index];
+      if (!treeItem?.entryId || treeItem.selectable === false || state2.busy || state2.treeRefreshing) {
         return;
       }
       this.selectedIndex = this.clampIndex(index);
@@ -6373,6 +6403,36 @@ ${after}`;
         }
         const handled = this.handleNavigationKey(event);
         if (handled) {
+          return true;
+        }
+        if (event.key === "Backspace" && this.searchQuery) {
+          event.preventDefault();
+          event.stopPropagation();
+          this.searchQuery = this.searchQuery.slice(0, -1);
+          this.selectedIndex = this.clampIndex(this.selectedIndex);
+          this.render();
+          return true;
+        }
+        if (event.key === "T") {
+          event.preventDefault();
+          event.stopPropagation();
+          this.showLabelTimestamps = !this.showLabelTimestamps;
+          this.render();
+          return true;
+        }
+        if (event.ctrlKey && event.key.toLowerCase() === "o") {
+          event.preventDefault();
+          event.stopPropagation();
+          this.cycleFilterMode(event.shiftKey ? -1 : 1);
+          return true;
+        }
+        if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+          event.preventDefault();
+          event.stopPropagation();
+          this.searchQuery += event.key;
+          this.foldedEntryIds.clear();
+          this.selectedIndex = this.clampIndex(this.selectedIndex);
+          this.render();
           return true;
         }
         return false;
@@ -6532,8 +6592,8 @@ ${after}`;
     }
     openLabelDialogForSelected() {
       const state2 = this.options.getState();
-      const treeItem = Array.isArray(state2.treeItems) ? state2.treeItems[this.selectedIndex] : void 0;
-      if (!treeItem?.entryId || state2.busy || state2.treeRefreshing) {
+      const treeItem = this.getVisibleItems()[this.selectedIndex];
+      if (!treeItem?.entryId || treeItem.selectable === false || state2.busy || state2.treeRefreshing) {
         return;
       }
       this.closeSummaryDialog();
@@ -6617,8 +6677,7 @@ ${after}`;
       });
     }
     setSelectionIndex(index) {
-      const state2 = this.options.getState();
-      if (!Array.isArray(state2.treeItems) || state2.treeItems.length === 0) {
+      if (this.getVisibleItems().length === 0) {
         return false;
       }
       const previousIndex = this.selectedIndex;
@@ -6638,13 +6697,94 @@ ${after}`;
       return true;
     }
     handleNavigationKey(event) {
-      const handled = event.key === "Home" ? this.moveToFirst() : event.key === "End" ? this.moveToLast() : event.key === "ArrowLeft" ? this.moveToParent() : event.key === "ArrowRight" ? this.moveToDeepestLastChild() : false;
+      const handled = event.key === "Home" ? this.moveToFirst() : event.key === "End" ? this.moveToLast() : event.key === "ArrowLeft" ? event.ctrlKey || event.altKey ? this.foldSelectedOrMoveToParent() : this.moveToParent() : event.key === "ArrowRight" ? event.ctrlKey || event.altKey ? this.unfoldSelectedOrMoveToDeepestLastChild() : this.moveToDeepestLastChild() : event.key === "1" ? this.setFilterMode("default") : event.key === "2" ? this.setFilterMode(this.filterMode === "no-tools" ? "default" : "no-tools") : event.key === "3" ? this.setFilterMode(this.filterMode === "user-only" ? "default" : "user-only") : event.key === "4" ? this.setFilterMode(this.filterMode === "labeled-only" ? "default" : "labeled-only") : event.key === "5" ? this.setFilterMode(this.filterMode === "all" ? "default" : "all") : false;
       if (!handled) {
         return false;
       }
       event.preventDefault();
       event.stopPropagation();
       return true;
+    }
+    getVisibleItems() {
+      const state2 = this.options.getState();
+      const items = Array.isArray(state2.treeItems) ? state2.treeItems : [];
+      const searchTokens = this.searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+      const visible = items.filter((item) => this.passesFilter(item) && this.passesSearch(item, searchTokens));
+      if (this.foldedEntryIds.size === 0) {
+        return visible;
+      }
+      const hidden = /* @__PURE__ */ new Set();
+      for (const item of items) {
+        if (item.parentId && (this.foldedEntryIds.has(item.parentId) || hidden.has(item.parentId))) {
+          hidden.add(item.entryId);
+        }
+      }
+      return visible.filter((item) => !hidden.has(item.entryId));
+    }
+    passesFilter(item) {
+      switch (this.filterMode) {
+        case "no-tools":
+          return item.role !== "tool";
+        case "user-only":
+          return item.role === "user";
+        case "labeled-only":
+          return Boolean(item.label);
+        case "all":
+          return true;
+        default:
+          return !["label", "custom", "model_change", "thinking_level_change", "session_info"].includes(item.role);
+      }
+    }
+    passesSearch(item, tokens) {
+      if (tokens.length === 0) {
+        return true;
+      }
+      const text = [item.role, item.text, item.label].filter(Boolean).join(" ").toLowerCase();
+      return tokens.every((token) => text.includes(token));
+    }
+    getStatusLabel() {
+      const labels = [];
+      if (this.filterMode !== "default") {
+        labels.push(this.filterMode);
+      }
+      if (this.showLabelTimestamps) {
+        labels.push("+label time");
+      }
+      return labels.length > 0 ? " [" + labels.join(", ") + "]" : "";
+    }
+    setFilterMode(mode) {
+      this.filterMode = mode;
+      this.foldedEntryIds.clear();
+      this.selectedIndex = this.clampIndex(this.selectedIndex);
+      this.render();
+      return true;
+    }
+    cycleFilterMode(delta) {
+      const currentIndex = treeFilterModes.indexOf(this.filterMode);
+      const nextIndex = this.wrapIndex(currentIndex + delta, treeFilterModes.length);
+      this.setFilterMode(treeFilterModes[nextIndex]);
+    }
+    foldSelectedOrMoveToParent() {
+      const item = this.getVisibleItems()[this.selectedIndex];
+      if (item && this.hasVisibleChildren(item.entryId) && !this.foldedEntryIds.has(item.entryId)) {
+        this.foldedEntryIds.add(item.entryId);
+        this.selectedIndex = this.clampIndex(this.selectedIndex);
+        this.render();
+        return true;
+      }
+      return this.moveToParent();
+    }
+    unfoldSelectedOrMoveToDeepestLastChild() {
+      const item = this.getVisibleItems()[this.selectedIndex];
+      if (item && this.foldedEntryIds.has(item.entryId)) {
+        this.foldedEntryIds.delete(item.entryId);
+        this.render();
+        return true;
+      }
+      return this.moveToDeepestLastChild();
+    }
+    hasVisibleChildren(entryId) {
+      return this.getVisibleItems().some((item) => item.parentId === entryId);
     }
     updateRenderedSelection(previousIndex) {
       this.updateRenderedTreeItemSelection(previousIndex, false);
@@ -6664,8 +6804,7 @@ ${after}`;
       }
     }
     updateRenderedFooter() {
-      const state2 = this.options.getState();
-      const count = Array.isArray(state2.treeItems) ? state2.treeItems.length : 0;
+      const count = this.getVisibleItems().length;
       const footer = this.options.treeElement.querySelector(".sessions__tree-footer");
       if (footer) {
         footer.textContent = `(${this.selectedIndex + 1}/${count})`;
@@ -6709,8 +6848,7 @@ ${after}`;
       }
     }
     clampIndex(index) {
-      const state2 = this.options.getState();
-      const count = Array.isArray(state2.treeItems) ? state2.treeItems.length : 0;
+      const count = this.getVisibleItems().length;
       if (count === 0) {
         return 0;
       }

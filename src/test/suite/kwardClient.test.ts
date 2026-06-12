@@ -244,6 +244,7 @@ suite('KwardClient', () => {
           isLast: true,
           ancestorContinues: [],
           activePath: true,
+          selectable: true,
           prefix: ''
         },
         {
@@ -255,6 +256,7 @@ suite('KwardClient', () => {
           isLast: true,
           ancestorContinues: [false],
           activePath: false,
+          selectable: true,
           prefix: '└─ '
         }
       ]);
