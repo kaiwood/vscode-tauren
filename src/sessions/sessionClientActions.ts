@@ -135,6 +135,12 @@ export async function withSessionClient<T>(
   try {
     return await action(client);
   } finally {
+    try {
+      await client.closeSession?.();
+    } catch (error) {
+      options.onError(error instanceof Error ? error.message : String(error));
+    }
+
     for (const disposable of disposables) {
       disposable.dispose();
     }

@@ -28,6 +28,7 @@
 - Added Tauren bridge handling for Kward RPC footer notifications so Kward plugin footers can render in the Footer.
 - Fixed Kward compaction status updates from the current `session/event` RPC notification channel.
 - Routed Kward Session List deletion through the backend `sessions/delete` RPC method.
+- Closed temporary Kward background RPC sessions through `sessions/close` when supported.
 
 ## [1.6.1] - 2026-05-31
 

@@ -460,6 +460,26 @@ export class KwardClient implements PiClient {
     return false;
   }
 
+  public async closeSession(): Promise<void> {
+    if (this.disposed || !this.session) {
+      return;
+    }
+
+    await this.ensureInitialized();
+    if (!this.capabilityResolver.isMethodSupported('sessions', 'sessions/close')) {
+      return;
+    }
+
+    const session = this.session;
+    await this.request('sessions/close', { sessionId: requiredString(session.id, 'Kward session id') });
+    if (this.session === session) {
+      this.session = undefined;
+      this.sessionPromise = undefined;
+      this.currentTurnId = undefined;
+      this.clearExtensionFooter();
+    }
+  }
+
   public async answerQuestion(sessionId: string, questionRequestId: string, answers: unknown[]): Promise<void> {
     await this.ensureInitialized();
     await this.request('ui/answerQuestion', { sessionId, questionRequestId, answers });

@@ -592,6 +592,64 @@ suite('KwardClient', () => {
     }
   });
 
+  test('closes the active Kward RPC session when supported', async () => {
+    const child = new FakeChildProcess();
+    const client = new KwardClient({ kwardPath: createKwardPath() });
+    const spawned = require('node:child_process') as { spawn: unknown };
+    const originalSpawn = spawned.spawn;
+
+    try {
+      spawned.spawn = () => child;
+
+      const statePromise = client.getState();
+      await waitForWriteCount(child, 1);
+      respond(client, 1, { capabilities: { sessions: { supported: true, methods: ['sessions/close'] } } });
+      await waitForWriteCount(child, 2);
+      respond(client, 2, { id: 'session-1', persistentId: 'persisted-1', path: '/tmp/session.jsonl' });
+      await waitForWriteCount(child, 3);
+      respond(client, 3, { sessionId: 'persisted-1' });
+      await statePromise;
+
+      const closePromise = client.closeSession();
+      await waitForWriteCount(child, 4);
+      assertWrittenRequest(child.writes[3], {
+        method: 'sessions/close',
+        params: { sessionId: 'session-1' }
+      });
+      respond(client, 4, { closed: true });
+      await closePromise;
+    } finally {
+      spawned.spawn = originalSpawn;
+      client.dispose();
+    }
+  });
+
+  test('skips closing the active Kward RPC session when unsupported', async () => {
+    const child = new FakeChildProcess();
+    const client = new KwardClient({ kwardPath: createKwardPath() });
+    const spawned = require('node:child_process') as { spawn: unknown };
+    const originalSpawn = spawned.spawn;
+
+    try {
+      spawned.spawn = () => child;
+
+      const statePromise = client.getState();
+      await waitForWriteCount(child, 1);
+      respond(client, 1, { capabilities: { sessions: { supported: true, methods: [] } } });
+      await waitForWriteCount(child, 2);
+      respond(client, 2, { id: 'session-1', persistentId: 'persisted-1', path: '/tmp/session.jsonl' });
+      await waitForWriteCount(child, 3);
+      respond(client, 3, { sessionId: 'persisted-1' });
+      await statePromise;
+
+      await client.closeSession();
+      assert.strictEqual(child.writes.length, 3);
+    } finally {
+      spawned.spawn = originalSpawn;
+      client.dispose();
+    }
+  });
+
   test('deletes a persisted Kward session through sessions/delete', async () => {
     const child = new FakeChildProcess();
     const client = new KwardClient({ cwd: '/workspace', kwardPath: createKwardPath() });

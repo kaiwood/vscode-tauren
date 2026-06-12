@@ -60,6 +60,7 @@ export type PiClient = {
   fork(entryId: string): Promise<PiForkResult>;
   clone(): Promise<PiCloneResult>;
   deleteSession?(sessionPath?: string): Promise<boolean>;
+  closeSession?(): Promise<void>;
   answerQuestion?(sessionId: string, questionRequestId: string, answers: unknown[]): Promise<void>;
   dispose(): void;
 };

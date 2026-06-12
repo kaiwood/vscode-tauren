@@ -9,7 +9,8 @@ import type { PiClientOptions, PiEvent, PiExportHtmlResult } from '../../pi/type
 
 suite('sessionClientActions', () => {
   test('runs background actions against the selected session client', async () => {
-    const client = createFakeClient();
+    let closed = false;
+    const client = createFakeClient({ closeSession: async () => { closed = true; } });
     const clientOptions: PiClientOptions[] = [];
 
     const result = await withSessionClient('/sessions/background.jsonl', {
@@ -29,6 +30,7 @@ suite('sessionClientActions', () => {
       cwd: '/workspace',
       sessionFile: '/sessions/background.jsonl'
     }]);
+    assert.strictEqual(closed, true);
     assert.strictEqual(client.disposed, true);
   });
 
@@ -87,6 +89,7 @@ type FakeClientOptions = {
   exportResult?: PiExportHtmlResult;
   forkMessages?: Awaited<ReturnType<PiClient['getForkMessages']>>;
   forkResult?: Awaited<ReturnType<PiClient['fork']>>;
+  closeSession?: PiClient['closeSession'];
 };
 
 type FakeClient = PiClient & {
@@ -162,6 +165,7 @@ function createFakeClient(options: FakeClientOptions = {}): FakeClient {
     async clone() {
       return {};
     },
+    closeSession: options.closeSession,
     dispose() {
       client.disposed = true;
     },
