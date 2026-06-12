@@ -37,6 +37,7 @@
 - Clarified Kward path setting copy for source-directory and executable launch modes.
 - Filtered Pi-owned settings from the Kward Settings view unless Kward reports current values for them.
 - Added an empty state for Kward Settings sections with no Kward-supported settings.
+- Added coverage for Kward-specific Settings filtering.
 
 ## [1.6.1] - 2026-05-31
 

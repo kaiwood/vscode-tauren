@@ -8355,10 +8355,8 @@ ${after}`;
       if (section.id === "login") {
         this.appendAuthCards(cards, state2);
       } else {
-        for (const definition of getSettingsForSection(section.id)) {
-          if (isSettingVisible(definition, state2)) {
-            cards.append(this.createSettingCard(definition, state2));
-          }
+        for (const definition of getVisibleSettingsForSection(section.id, state2)) {
+          cards.append(this.createSettingCard(definition, state2));
         }
         if (cards.childElementCount === 0 && state2.settings.values["tauren.backend"] === "kward") {
           cards.append(createKwardUnsupportedSettingsEmptyState());
@@ -8731,6 +8729,9 @@ ${after}`;
     );
     return empty;
   }
+  function getVisibleSettingsForSection(sectionId, state2) {
+    return getSettingsForSection(sectionId).filter((definition) => isSettingVisible(definition, state2));
+  }
   function isSettingVisible(definition, state2) {
     if (state2.settings.values["tauren.backend"] !== "kward" || definition.owner !== "pi") {
       return true;
@@ -8772,7 +8773,7 @@ ${after}`;
     return providerFilter ? selection.orderedModels.filter((model) => model.provider === providerFilter) : selection.orderedModels;
   }
   function createSettingsSignature(sectionId, state2, scopedModelsProviderFilter) {
-    const values = getSettingsForSection(sectionId).filter((definition) => isSettingVisible(definition, state2)).map((definition) => [definition.id, state2.settings.values[definition.id]]);
+    const values = getVisibleSettingsForSection(sectionId, state2).map((definition) => [definition.id, state2.settings.values[definition.id]]);
     const modelOptions = sectionId === "runtime" || sectionId === "scopedModels" ? state2.modelOptions.map((model) => `${model.provider}/${model.id}:${model.name}`).join("|") : "";
     const auth = sectionId === "login" ? state2.auth : void 0;
     const providerFilter = sectionId === "scopedModels" ? scopedModelsProviderFilter : void 0;

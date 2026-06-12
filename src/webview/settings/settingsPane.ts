@@ -321,10 +321,8 @@ export class SettingsPaneController {
     if (section.id === 'login') {
       this.appendAuthCards(cards, state);
     } else {
-      for (const definition of getSettingsForSection(section.id)) {
-        if (isSettingVisible(definition, state)) {
-          cards.append(this.createSettingCard(definition, state));
-        }
+      for (const definition of getVisibleSettingsForSection(section.id, state)) {
+        cards.append(this.createSettingCard(definition, state));
       }
 
       if (cards.childElementCount === 0 && state.settings.values['tauren.backend'] === 'kward') {
@@ -791,6 +789,10 @@ function createKwardUnsupportedSettingsEmptyState(): HTMLElement {
   return empty;
 }
 
+export function getVisibleSettingsForSection(sectionId: SettingsSection, state: WebviewState): SettingDefinition[] {
+  return getSettingsForSection(sectionId).filter((definition) => isSettingVisible(definition, state));
+}
+
 function isSettingVisible(definition: SettingDefinition, state: WebviewState): boolean {
   if (state.settings.values['tauren.backend'] !== 'kward' || definition.owner !== 'pi') {
     return true;
@@ -853,8 +855,7 @@ function getVisibleScopedModels(
 }
 
 function createSettingsSignature(sectionId: SettingsSection, state: WebviewState, scopedModelsProviderFilter: string | undefined): string {
-  const values = getSettingsForSection(sectionId)
-    .filter((definition) => isSettingVisible(definition, state))
+  const values = getVisibleSettingsForSection(sectionId, state)
     .map((definition) => [definition.id, state.settings.values[definition.id]]);
   const modelOptions = sectionId === 'runtime' || sectionId === 'scopedModels'
     ? state.modelOptions.map((model) => `${model.provider}/${model.id}:${model.name}`).join('|')
