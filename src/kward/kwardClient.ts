@@ -33,6 +33,7 @@ import type {
 import type { PiSettingId, SettingValue } from '../settings/settingsRegistry';
 import type { WebviewTreeItem } from '../webviewProtocol/types';
 import { isRecord } from '../shared/typeGuards';
+import { normalizeSessionPath } from '../sessions/sessionFormatting';
 import { KwardCapabilityResolver } from './capabilities';
 import { KwardRpcTransport, type KwardJsonRpcNotification } from './rpcTransport';
 import { KwardTurnEventNormalizer } from './eventMapper';
@@ -436,6 +437,27 @@ export class KwardClient implements PiClient {
     this.currentTurnId = undefined;
     this.clearExtensionFooter();
     return {};
+  }
+
+  public async deleteSession(sessionPath?: string): Promise<boolean> {
+    await this.ensureInitialized();
+    this.requireCapability('sessions.delete', this.capabilityResolver.isMethodSupported('sessions', 'sessions/delete'), 'Kward backend does not support session deletion yet.');
+    const session = sessionPath
+      ? normalizeSession(await this.request('sessions/resume', { path: sessionPath, workspaceRoot: this.options.cwd }))
+      : await this.ensureSession();
+    const result = await this.request('sessions/delete', { sessionId: requiredString(session.id, 'Kward session id') });
+
+    if (!isRecord(result) || result.deleted !== false) {
+      if (!sessionPath || normalizeSessionPath(session.path) === normalizeSessionPath(this.session?.path)) {
+        this.session = undefined;
+        this.sessionPromise = undefined;
+        this.currentTurnId = undefined;
+        this.clearExtensionFooter();
+      }
+      return true;
+    }
+
+    return false;
   }
 
   public async answerQuestion(sessionId: string, questionRequestId: string, answers: unknown[]): Promise<void> {

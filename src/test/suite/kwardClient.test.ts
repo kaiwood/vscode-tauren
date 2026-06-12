@@ -592,6 +592,68 @@ suite('KwardClient', () => {
     }
   });
 
+  test('deletes a persisted Kward session through sessions/delete', async () => {
+    const child = new FakeChildProcess();
+    const client = new KwardClient({ cwd: '/workspace', kwardPath: createKwardPath() });
+    const spawned = require('node:child_process') as { spawn: unknown };
+    const originalSpawn = spawned.spawn;
+
+    try {
+      spawned.spawn = () => child;
+
+      const deletePromise = client.deleteSession('/tmp/old.jsonl');
+
+      await waitForWriteCount(child, 1);
+      assertWrittenRequest(child.writes[0], { method: 'initialize' });
+      respond(client, 1, { capabilities: { sessions: { supported: true, methods: ['sessions/delete'] } } });
+
+      await waitForWriteCount(child, 2);
+      assertWrittenRequest(child.writes[1], {
+        method: 'sessions/resume',
+        params: { path: '/tmp/old.jsonl', workspaceRoot: '/workspace' }
+      });
+      respond(client, 2, { id: 'session-delete', persistentId: 'persisted-delete', path: '/tmp/old.jsonl' });
+
+      await waitForWriteCount(child, 3);
+      assertWrittenRequest(child.writes[2], {
+        method: 'sessions/delete',
+        params: { sessionId: 'session-delete' }
+      });
+      respond(client, 3, { deleted: true, path: '/tmp/old.jsonl' });
+
+      assert.strictEqual(await deletePromise, true);
+    } finally {
+      spawned.spawn = originalSpawn;
+      client.dispose();
+    }
+  });
+
+  test('gates Kward session deletion by initialize capabilities', async () => {
+    const child = new FakeChildProcess();
+    const client = new KwardClient({ kwardPath: createKwardPath() });
+    const spawned = require('node:child_process') as { spawn: unknown };
+    const originalSpawn = spawned.spawn;
+
+    try {
+      spawned.spawn = () => child;
+
+      const deletePromise = assert.rejects(
+        client.deleteSession('/tmp/old.jsonl'),
+        /Kward backend does not support session deletion yet\./
+      );
+
+      await waitForWriteCount(child, 1);
+      assertWrittenRequest(child.writes[0], { method: 'initialize' });
+      respond(client, 1, { capabilities: { sessions: { supported: true, methods: [] } } });
+
+      await deletePromise;
+      assert.strictEqual(child.writes.length, 1);
+    } finally {
+      spawned.spawn = originalSpawn;
+      client.dispose();
+    }
+  });
+
   test('compact sends sessions/compact with custom instructions and normalizes result when capability is supported', async () => {
     const child = new FakeChildProcess();
     const client = new KwardClient({ kwardPath: createKwardPath() });

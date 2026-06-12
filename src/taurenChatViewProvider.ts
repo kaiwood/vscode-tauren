@@ -1181,6 +1181,10 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
   }
 
   private async deleteSession(sessionPath: string, displayName: string): Promise<boolean> {
+    if (getBackendSetting() === 'kward') {
+      return this.deleteKwardSession(sessionPath, displayName);
+    }
+
     if (getConfirmSessionDeletionSetting()) {
       const moveToTrash = 'Move to Trash';
       const selected = await vscode.window.showWarningMessage(
@@ -1196,6 +1200,41 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
 
     await vscode.workspace.fs.delete(vscode.Uri.file(sessionPath), { useTrash: true });
     return true;
+  }
+
+  private async deleteKwardSession(sessionPath: string, displayName: string): Promise<boolean> {
+    if (getConfirmSessionDeletionSetting()) {
+      const deleteSession = 'Delete Session';
+      const selected = await vscode.window.showWarningMessage(
+        `Delete "${displayName}"?`,
+        { modal: true, detail: sessionPath },
+        deleteSession
+      );
+
+      if (selected !== deleteSession) {
+        return false;
+      }
+    }
+
+    const client = createConfiguredPiClient({ cwd: this.workspaceCwdProvider(), sessionFile: sessionPath }, {
+      extensionUi: {
+        notify: (message, notifyType) => this.showNotification(message, notifyType),
+        select: (title, options) => vscode.window.showQuickPick(options, { title, placeHolder: title }),
+        confirm: (title, message) => this.showConfirmation(title, message),
+        input: (title, placeholder) => vscode.window.showInputBox({ title, placeHolder: placeholder })
+      },
+      showNotification: (message, notifyType) => this.showNotification(message, notifyType),
+      getRejectEditWriteOutsideWorkspace: () => getRejectEditWriteOutsideWorkspaceSetting()
+    });
+
+    try {
+      if (!client.deleteSession) {
+        throw new Error('Kward backend does not support session deletion yet.');
+      }
+      return await client.deleteSession(sessionPath);
+    } finally {
+      client.dispose();
+    }
   }
 
   private postInputFocus(): void {
