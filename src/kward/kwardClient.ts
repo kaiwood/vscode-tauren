@@ -250,7 +250,8 @@ export class KwardClient implements PiClient {
 
   public async setModel(provider: string, modelId: string): Promise<PiModel> {
     await this.ensureInitialized();
-    const result = await this.request('models/set', { ...(provider ? { provider } : {}), model: modelId });
+    const normalizedProvider = normalizeKwardProvider(provider);
+    const result = await this.request('models/set', { ...(normalizedProvider ? { provider: normalizedProvider } : {}), model: modelId });
     return mapKwardCurrentModel(normalizeModel(result));
   }
 
@@ -261,6 +262,13 @@ export class KwardClient implements PiClient {
 
   public async updateRuntimeSetting(settingId: PiSettingId, value: SettingValue): Promise<{ applied: 'live' | 'reload'; message?: string }> {
     await this.ensureInitialized();
+
+    if (settingId === 'defaultModel') {
+      const selected = await this.resolveModelSelection(value);
+      await this.setModel(selected.provider, selected.modelId);
+      return { applied: 'live', message: 'Model updated for this session.' };
+    }
+
     this.requireCapability('runtimeSettings', this.capabilityResolver.isRuntimeSettingSupported(settingId), `Kward backend does not support runtime setting: ${settingId}.`);
     const session = await this.ensureSession();
     const result = normalizeRuntimeSettingResult(await this.request('runtime/updateSetting', {
@@ -271,6 +279,33 @@ export class KwardClient implements PiClient {
     return {
       applied: result.applied === 'reload' ? 'reload' : 'live',
       ...(result.message ? { message: result.message } : {})
+    };
+  }
+
+  private async resolveModelSelection(value: SettingValue): Promise<{ provider: string; modelId: string }> {
+    if (typeof value !== 'string') {
+      throw new Error('Model must be a non-empty string.');
+    }
+
+    const modelRef = value.trim();
+    if (!modelRef) {
+      throw new Error('Model must be a non-empty string.');
+    }
+
+    const availableModels = (await this.getAvailableModels()).models ?? [];
+    const selected = availableModels.find((model) => model.provider && model.id && `${model.provider}/${model.id}` === modelRef);
+    if (selected?.provider && selected.id) {
+      return { provider: selected.provider, modelId: selected.id };
+    }
+
+    const slashIndex = modelRef.indexOf('/');
+    if (slashIndex <= 0 || slashIndex === modelRef.length - 1) {
+      throw new Error(`Model must include a provider: ${modelRef}`);
+    }
+
+    return {
+      provider: modelRef.slice(0, slashIndex),
+      modelId: modelRef.slice(slashIndex + 1)
     };
   }
 
@@ -958,6 +993,20 @@ function mapKwardListModel(value: unknown): PiModel | undefined {
   const model = normalizeModel(value);
   const id = model.id ?? model.model;
   return id ? { provider: model.provider, id, name: model.name ?? id, reasoning: model.reasoning ?? model.provider === 'Codex', contextWindow: model.contextWindow } : undefined;
+}
+
+function normalizeKwardProvider(provider: string | undefined): string | undefined {
+  switch (provider?.trim().toLowerCase()) {
+    case 'codex':
+    case 'openai':
+      return 'Codex';
+    case 'openrouter':
+      return 'OpenRouter';
+    case 'copilot':
+      return 'Copilot';
+    default:
+      return provider?.trim() || undefined;
+  }
 }
 
 function normalizeRuntimeSettingResult(value: unknown): KwardRuntimeSettingResult {

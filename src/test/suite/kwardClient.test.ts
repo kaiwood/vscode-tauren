@@ -96,6 +96,78 @@ suite('KwardClient', () => {
     }
   });
 
+  test('defaultModel setting sends structured models/set for Kward model ids with slashes', async () => {
+    const child = new FakeChildProcess();
+    const client = new KwardClient({ kwardPath: createKwardPath() });
+    const spawned = require('node:child_process') as { spawn: unknown };
+    const originalSpawn = spawned.spawn;
+
+    try {
+      spawned.spawn = () => child;
+
+      const updatePromise = client.updateRuntimeSetting('defaultModel', 'OpenRouter/anthropic/claude-sonnet-4.5');
+
+      await waitForWriteCount(child, 1);
+      assertWrittenRequest(child.writes[0], { method: 'initialize' });
+      respond(client, 1, { capabilities: { runtimeSettings: { supported: true, settings: ['defaultModel'] } } });
+
+      await waitForWriteCount(child, 2);
+      assertWrittenRequest(child.writes[1], { method: 'models/list' });
+      respond(client, 2, {
+        models: [
+          { provider: 'OpenRouter', id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet' }
+        ]
+      });
+
+      await waitForWriteCount(child, 3);
+      assertWrittenRequest(child.writes[2], {
+        method: 'models/set',
+        params: { provider: 'OpenRouter', model: 'anthropic/claude-sonnet-4.5' }
+      });
+      respond(client, 3, { provider: 'OpenRouter', id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet' });
+
+      assert.deepStrictEqual(await updatePromise, { applied: 'live', message: 'Model updated for this session.' });
+    } finally {
+      spawned.spawn = originalSpawn;
+      client.dispose();
+    }
+  });
+
+  test('setModel normalizes Kward provider ids before sending models/set', async () => {
+    const child = new FakeChildProcess();
+    const client = new KwardClient({ kwardPath: createKwardPath() });
+    const spawned = require('node:child_process') as { spawn: unknown };
+    const originalSpawn = spawned.spawn;
+
+    try {
+      spawned.spawn = () => child;
+
+      const setPromise = client.setModel('openrouter', 'anthropic/claude-sonnet-4.5');
+
+      await waitForWriteCount(child, 1);
+      assertWrittenRequest(child.writes[0], { method: 'initialize' });
+      respond(client, 1, { capabilities: {} });
+
+      await waitForWriteCount(child, 2);
+      assertWrittenRequest(child.writes[1], {
+        method: 'models/set',
+        params: { provider: 'OpenRouter', model: 'anthropic/claude-sonnet-4.5' }
+      });
+      respond(client, 2, { provider: 'OpenRouter', id: 'anthropic/claude-sonnet-4.5' });
+
+      assert.deepStrictEqual(await setPromise, {
+        provider: 'OpenRouter',
+        id: 'anthropic/claude-sonnet-4.5',
+        name: 'anthropic/claude-sonnet-4.5',
+        reasoning: false,
+        contextWindow: undefined
+      });
+    } finally {
+      spawned.spawn = originalSpawn;
+      client.dispose();
+    }
+  });
+
   test('answerQuestion initializes and sends ui/answerQuestion without requiring an existing session', async () => {
     const child = new FakeChildProcess();
     const client = new KwardClient({ kwardPath: createKwardPath() });
