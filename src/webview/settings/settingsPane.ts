@@ -326,6 +326,10 @@ export class SettingsPaneController {
           cards.append(this.createSettingCard(definition, state));
         }
       }
+
+      if (cards.childElementCount === 0 && state.settings.values['tauren.backend'] === 'kward') {
+        cards.append(createKwardUnsupportedSettingsEmptyState());
+      }
     }
 
     panel.append(cards);
@@ -775,6 +779,16 @@ function getAuthStatusLabel(provider: WebviewState['auth']['providers'][number])
 
 function getSettingValue(definition: SettingDefinition, state: WebviewState): SettingValue {
   return state.settings.values[definition.id] ?? definition.defaultValue;
+}
+
+function createKwardUnsupportedSettingsEmptyState(): HTMLElement {
+  const empty = document.createElement('div');
+  empty.className = 'settings-surface__card settings-surface__card--subtle';
+  empty.append(
+    createTextElement('h4', 'settings-surface__card-title', 'No Kward-supported settings in this section yet'),
+    createTextElement('p', 'settings-surface__card-body', 'Kward reports supported runtime settings through RPC capabilities. Unsupported Pi settings are hidden.')
+  );
+  return empty;
 }
 
 function isSettingVisible(definition: SettingDefinition, state: WebviewState): boolean {
