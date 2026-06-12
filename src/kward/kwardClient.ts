@@ -484,7 +484,7 @@ export class KwardClient implements PiClient {
 
   public async answerQuestion(sessionId: string, questionRequestId: string, answers: unknown[]): Promise<void> {
     await this.ensureInitialized();
-    await this.request('ui/answerQuestion', { sessionId, questionRequestId, answers });
+    await this.request(this.capabilityResolver.getQuestionAnswerMethod(), { sessionId, questionRequestId, answers });
   }
 
   public dispose(): void {
@@ -659,7 +659,7 @@ export class KwardClient implements PiClient {
       return;
     }
 
-    if (notification.method === 'session/event') {
+    if (notification.method === this.capabilityResolver.getCompactionNotificationMethod()) {
       const event = normalizeTurnEvent(notification.params);
       if (event.sessionId && !this.isCurrentRpcSession(event.sessionId)) {
         return;
@@ -670,7 +670,7 @@ export class KwardClient implements PiClient {
       return;
     }
 
-    if (notification.method === 'ui/question') {
+    if (notification.method === this.capabilityResolver.getQuestionNotificationMethod()) {
       const request = normalizeQuestionRequest(notification.params);
       if (request && this.isCurrentRpcSession(request.sessionId)) {
         this.emitEvent({ type: 'kward_ui_question', request });

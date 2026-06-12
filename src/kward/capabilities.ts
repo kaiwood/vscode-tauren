@@ -55,7 +55,30 @@ export class KwardCapabilityResolver {
     return isRecord(input) && input.supported === true;
   }
 
+  public getQuestionNotificationMethod(): string {
+    const extensionUi = this.getGroup('extensionUi');
+    const question = isRecord(extensionUi) ? extensionUi.question : undefined;
+    return getString(isRecord(question) ? question : undefined, 'notification') ?? 'ui/question';
+  }
+
+  public getQuestionAnswerMethod(): string {
+    const extensionUi = this.getGroup('extensionUi');
+    const question = isRecord(extensionUi) ? extensionUi.question : undefined;
+    return getString(isRecord(question) ? question : undefined, 'method') ?? 'ui/answerQuestion';
+  }
+
+  public getCompactionNotificationMethod(): string {
+    const sessions = this.getGroup('sessions');
+    const compact = isRecord(sessions) ? sessions.compact : undefined;
+    return getString(isRecord(compact) ? compact : undefined, 'notification') ?? 'session/event';
+  }
+
   private getGroup(groupName: string): unknown {
     return this.capabilities[groupName];
   }
+}
+
+function getString(record: Record<string, unknown> | undefined, key: string): string | undefined {
+  const value = record?.[key];
+  return typeof value === 'string' && value ? value : undefined;
 }

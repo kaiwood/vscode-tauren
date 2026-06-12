@@ -53,6 +53,31 @@ suite('KwardCapabilityResolver', () => {
     assert.strictEqual(resolver.isTreeFeatureSupported('summarize'), false);
   });
 
+  test('reads protocol method and notification names with defaults', () => {
+    const defaults = new KwardCapabilityResolver({});
+    assert.strictEqual(defaults.getQuestionNotificationMethod(), 'ui/question');
+    assert.strictEqual(defaults.getQuestionAnswerMethod(), 'ui/answerQuestion');
+    assert.strictEqual(defaults.getCompactionNotificationMethod(), 'session/event');
+
+    const resolver = new KwardCapabilityResolver({
+      extensionUi: {
+        question: {
+          notification: 'custom/question',
+          method: 'custom/answerQuestion'
+        }
+      },
+      sessions: {
+        compact: {
+          notification: 'custom/sessionEvent'
+        }
+      }
+    });
+
+    assert.strictEqual(resolver.getQuestionNotificationMethod(), 'custom/question');
+    assert.strictEqual(resolver.getQuestionAnswerMethod(), 'custom/answerQuestion');
+    assert.strictEqual(resolver.getCompactionNotificationMethod(), 'custom/sessionEvent');
+  });
+
   test('detects runtime settings, busy input modes, and attachment input', () => {
     const resolver = new KwardCapabilityResolver({
       runtimeSettings: {
