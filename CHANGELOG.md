@@ -21,6 +21,7 @@
 - Fixed external VS Code setting changes so every Tauren-owned setting refreshes the sidebar state immediately.
 - Restricted `@` file suggestions to the active workspace cwd so absolute, home, or traversal prefixes cannot browse outside it.
 - Fixed Kward `ask_user_question` answer delivery and keyboard-friendly question dialog behavior.
+- Fixed Kward model and thinking selections so the sidebar updates immediately while slower metadata refreshes continue in the background.
 - Fixed Kward model picker options when the backend reports scoped model cycling as unsupported.
 - Fixed Kward live reasoning blocks so separated reasoning phases no longer collapse into one transcript entry.
 - Fixed Kward RPC session switching to use active RPC session IDs and ignore stale old-session responses.

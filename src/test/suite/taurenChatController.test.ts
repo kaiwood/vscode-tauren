@@ -2555,6 +2555,93 @@ suite('TaurenChatController', () => {
     harness.controller.dispose();
   });
 
+  test('model selection updates the label without waiting for full metadata refresh', async () => {
+    const stateDeferred = createDeferred<PiSessionState>();
+    const statsDeferred = createDeferred<PiSessionStats>();
+    const modelsDeferred = createDeferred<PiModel[]>();
+    const client = new FakePiClient({
+      stateResult: stateDeferred.promise,
+      statsResult: statsDeferred.promise,
+      modelsResult: modelsDeferred.promise,
+      setModelResult: { provider: 'anthropic', id: 'claude-test', reasoning: true }
+    });
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'setModel', provider: 'anthropic', modelId: 'claude-test' });
+    await flushPromises();
+
+    assert.strictEqual(client.setModelCalls, 1);
+    assert.strictEqual(client.stateCalls, 1);
+    assert.strictEqual(client.modelsCalls, 1);
+    assert.strictEqual(lastState(harness).modelProvider, 'anthropic');
+    assert.strictEqual(lastState(harness).modelId, 'claude-test');
+    assert.strictEqual(lastState(harness).modelReasoning, true);
+    assert.strictEqual(lastState(harness).metadataRefreshing, true);
+
+    stateDeferred.resolve({
+      model: { provider: 'anthropic', id: 'claude-test', reasoning: true },
+      thinkingLevel: 'high'
+    });
+    statsDeferred.resolve({});
+    modelsDeferred.resolve([{ provider: 'anthropic', id: 'claude-test', name: 'Claude Test', reasoning: true }]);
+    await flushPromises();
+
+    assert.strictEqual(lastState(harness).thinkingLevel, 'high');
+    assert.strictEqual(lastState(harness).metadataRefreshing, false);
+    harness.controller.dispose();
+  });
+
+  test('thinking level selection updates the label without waiting for full metadata refresh', async () => {
+    const stateDeferred = createDeferred<PiSessionState>();
+    const statsDeferred = createDeferred<PiSessionStats>();
+    const modelsDeferred = createDeferred<PiModel[]>();
+    const client = new FakePiClient({
+      state: {
+        model: { provider: 'openai', id: 'gpt-test', reasoning: true },
+        thinkingLevel: 'medium'
+      },
+      stateResult: stateDeferred.promise,
+      statsResult: statsDeferred.promise,
+      modelsResult: modelsDeferred.promise
+    });
+    const harness = createControllerHarness([client]);
+
+    const initialRefresh = harness.controller.refreshSessionMeta({ startClient: true });
+    stateDeferred.resolve({
+      model: { provider: 'openai', id: 'gpt-test', reasoning: true },
+      thinkingLevel: 'medium'
+    });
+    statsDeferred.resolve({});
+    modelsDeferred.resolve([{ provider: 'openai', id: 'gpt-test', name: 'GPT Test', reasoning: true }]);
+    await initialRefresh;
+
+    const nextStateDeferred = createDeferred<PiSessionState>();
+    const nextStatsDeferred = createDeferred<PiSessionStats>();
+    const nextModelsDeferred = createDeferred<PiModel[]>();
+    client.stateResult = nextStateDeferred.promise;
+    client.statsResult = nextStatsDeferred.promise;
+    client.modelsResult = nextModelsDeferred.promise;
+
+    await harness.controller.handleWebviewMessage({ type: 'setThinkingLevel', level: 'high' });
+    await flushPromises();
+
+    assert.strictEqual(client.setThinkingLevelCalls, 1);
+    assert.strictEqual(lastState(harness).thinkingLevel, 'high');
+    assert.strictEqual(lastState(harness).modelLabel, 'gpt-test High');
+    assert.strictEqual(lastState(harness).metadataRefreshing, true);
+
+    nextStateDeferred.resolve({
+      model: { provider: 'openai', id: 'gpt-test', reasoning: true },
+      thinkingLevel: 'high'
+    });
+    nextStatsDeferred.resolve({});
+    nextModelsDeferred.resolve([{ provider: 'openai', id: 'gpt-test', name: 'GPT Test', reasoning: true }]);
+    await flushPromises();
+
+    assert.strictEqual(lastState(harness).metadataRefreshing, false);
+    harness.controller.dispose();
+  });
+
   test('prompt failure is surfaced when new session is blocked while busy', async () => {
     const deferred = createDeferred<void>();
     const client = new FakePiClient({ promptResult: deferred.promise });
@@ -3308,6 +3395,7 @@ type FakePiClientOptions = {
   cloneResult?: { cancelled?: boolean };
   compactResult?: Promise<{}> | {};
   compactError?: unknown;
+  setModelResult?: PiModel;
   promptResult?: Promise<void>;
   promptError?: unknown;
   setSessionNameResult?: Promise<void>;
@@ -3397,6 +3485,9 @@ class FakePiClient implements PiClient {
   public cloneResult: { cancelled?: boolean };
   public cloneCalls = 0;
   public compactCalls = 0;
+  public setModelCalls = 0;
+  public setThinkingLevelCalls = 0;
+  public setModelResult: PiModel;
   public compactResult: Promise<{}> | {};
   public compactError: unknown;
   public promptResult: Promise<void> | undefined;
@@ -3433,6 +3524,7 @@ class FakePiClient implements PiClient {
     this.forkMessages = options.forkMessages ?? [];
     this.forkResult = options.forkResult ?? { cancelled: false };
     this.cloneResult = options.cloneResult ?? { cancelled: false };
+    this.setModelResult = options.setModelResult ?? {};
     this.compactResult = options.compactResult ?? {};
     this.compactError = options.compactError;
     this.promptResult = options.promptResult;
@@ -3597,10 +3689,13 @@ class FakePiClient implements PiClient {
   }
 
   public async setModel(_provider: string, _modelId: string): Promise<PiModel> {
-    return {};
+    this.setModelCalls += 1;
+    return this.setModelResult;
   }
 
-  public async setThinkingLevel(_level: string): Promise<void> {}
+  public async setThinkingLevel(_level: string): Promise<void> {
+    this.setThinkingLevelCalls += 1;
+  }
 
   public async setSessionName(name: string): Promise<void> {
     this.sessionNames.push(name);

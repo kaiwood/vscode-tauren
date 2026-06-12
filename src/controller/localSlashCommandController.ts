@@ -1,7 +1,7 @@
 import type { ChatSession } from '../chat/chatSession';
 import type { ExtensionUi } from '../extensionUi/types';
 import type { PiClient } from '../pi/clientTypes';
-import type { PiSessionState, PiSessionStats } from '../pi/types';
+import type { PiModel, PiSessionState, PiSessionStats } from '../pi/types';
 import { SessionMetadataState } from '../metadata/sessionMetadata';
 import type { WebviewSettingsSection } from '../webviewProtocol/types';
 import { isSupportedBuiltinSlashCommand } from '../commands/slashCommands';
@@ -191,8 +191,9 @@ export class LocalSlashCommandController {
     }
 
     try {
-      await this.options.getClient().setModel(provider, modelId);
-      await this.options.refreshSessionMeta({ startClient: true, force: true });
+      const model = await this.options.getClient().setModel(provider, modelId);
+      this.applySelectedModel(model, provider, modelId);
+      void this.options.refreshSessionMeta({ startClient: true, force: true });
     } catch (error) {
       this.options.session.addErrorMessage(getErrorMessage(error));
       this.options.postState();
@@ -206,11 +207,34 @@ export class LocalSlashCommandController {
 
     try {
       await this.options.getClient().setThinkingLevel(level);
-      await this.options.refreshSessionMeta({ startClient: true, force: true });
+      this.applySelectedThinkingLevel(level);
+      void this.options.refreshSessionMeta({ startClient: true, force: true });
     } catch (error) {
       this.options.session.addErrorMessage(getErrorMessage(error));
       this.options.postState();
     }
+  }
+
+  private applySelectedModel(model: PiModel, provider: string, modelId: string): void {
+    const current = this.options.sessionMetadata.getWebviewState().model;
+    this.options.sessionMetadata.applyModelSelection({
+      provider: model.provider ?? provider,
+      id: model.id ?? modelId,
+      name: model.name,
+      reasoning: model.reasoning ?? current.reasoning,
+      contextWindow: model.contextWindow
+    }, current.thinkingLevel);
+    this.options.postState();
+  }
+
+  private applySelectedThinkingLevel(level: string): void {
+    const current = this.options.sessionMetadata.getWebviewState().model;
+    this.options.sessionMetadata.applyModelSelection({
+      provider: current.provider,
+      id: current.id,
+      reasoning: current.reasoning
+    }, level);
+    this.options.postState();
   }
 
   public async copyTextFromWebview(text: string, successMessage = 'Copied response.'): Promise<void> {

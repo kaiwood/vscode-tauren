@@ -425,6 +425,10 @@ export class SessionMetadataState {
     return false;
   }
 
+  public applyModelSelection(model: PiModel, thinkingLevel: string): boolean {
+    return this.applyModelMeta(getModelMeta({ model, thinkingLevel }));
+  }
+
   public applySessionStats(stats: PiSessionStats): boolean {
     return this.applyContextUsage(formatContextUsage(stats));
   }
