@@ -608,6 +608,17 @@ export class KwardClient implements PiClient {
       return;
     }
 
+    if (notification.method === 'session/event') {
+      const event = normalizeTurnEvent(notification.params);
+      if (event.sessionId && !this.isCurrentRpcSession(event.sessionId)) {
+        return;
+      }
+      for (const mapped of this.eventNormalizer.map(event)) {
+        this.emitEvent(mapped);
+      }
+      return;
+    }
+
     if (notification.method === 'ui/question') {
       const request = normalizeQuestionRequest(notification.params);
       if (request && this.isCurrentRpcSession(request.sessionId)) {

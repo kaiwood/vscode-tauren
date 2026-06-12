@@ -227,6 +227,58 @@ suite('KwardClient', () => {
     }
   });
 
+  test('maps Kward session/event compaction notifications for the active session', async () => {
+    const child = new FakeChildProcess();
+    const events: unknown[] = [];
+    const client = new KwardClient({ kwardPath: createKwardPath() });
+    const spawned = require('node:child_process') as { spawn: unknown };
+    const originalSpawn = spawned.spawn;
+
+    try {
+      spawned.spawn = () => child;
+      client.onEvent((event) => events.push(event));
+
+      const statePromise = client.getState();
+      await waitForWriteCount(child, 1);
+      respond(client, 1, { capabilities: {} });
+      await waitForWriteCount(child, 2);
+      respond(client, 2, { id: 'session-1', persistentId: 'persisted-1', path: '/tmp/session.jsonl' });
+      await waitForWriteCount(child, 3);
+
+      notify(client, 'session/event', { sessionId: 'other-session', type: 'compactionStart', payload: {} });
+      assert.deepStrictEqual(events, []);
+
+      notify(client, 'session/event', { sessionId: 'session-1', type: 'compactionStart', payload: {} });
+      notify(client, 'session/event', {
+        sessionId: 'session-1',
+        type: 'compactionEnd',
+        payload: {
+          result: { summary: 'Compacted' },
+          aborted: false,
+          willRetry: false,
+          errorMessage: null
+        }
+      });
+
+      assert.deepStrictEqual(events, [
+        { type: 'compaction_start' },
+        {
+          type: 'compaction_end',
+          result: { summary: 'Compacted' },
+          aborted: false,
+          willRetry: false,
+          errorMessage: undefined
+        }
+      ]);
+
+      respond(client, 3, { sessionId: 'persisted-1' });
+      await statePromise;
+    } finally {
+      spawned.spawn = originalSpawn;
+      client.dispose();
+    }
+  });
+
   test('prompt command expansion calls prompts/expand before prompt sends turns/start', async () => {
     const child = new FakeChildProcess();
     const client = new KwardClient({ kwardPath: createKwardPath() });
