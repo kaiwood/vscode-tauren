@@ -34,6 +34,7 @@
 - Capability-gated Kward RPC session listing before falling back to local session files.
 - Extracted Kward RPC launch resolution in preparation for additional Kward launch modes.
 - Allowed Kward path to point at an executable file launched directly with `rpc`.
+- Clarified Kward path setting copy for source-directory and executable launch modes.
 
 ## [1.6.1] - 2026-05-31
 

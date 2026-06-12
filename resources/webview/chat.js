@@ -5462,10 +5462,10 @@ ${after}`;
       owner: "tauren",
       section: "runtime",
       label: "Kward path",
-      description: "Local Kward repository path used when Backend is Kward.",
+      description: "Local Kward source directory or executable path used when Backend is Kward.",
       control: "text",
       defaultValue: "",
-      helper: "Tauren runs bundle exec ruby lib/main.rb rpc from this directory.",
+      helper: "Directories launch with bundle exec ruby lib/main.rb rpc; executable files launch with rpc.",
       liveBehavior: "reload"
     },
     {

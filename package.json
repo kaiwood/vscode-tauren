@@ -356,7 +356,7 @@
         "tauren.kward.path": {
           "type": "string",
           "default": "",
-          "description": "Local Kward repository path. Tauren runs `bundle exec ruby lib/main.rb rpc` from this directory when the Kward backend is selected."
+          "description": "Local Kward source directory or executable path. Directories launch with `bundle exec ruby lib/main.rb rpc`; executable files launch with `rpc` when the Kward backend is selected."
         },
         "tauren.outputColors": {
           "type": "boolean",
