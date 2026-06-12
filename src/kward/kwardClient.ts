@@ -349,7 +349,10 @@ export class KwardClient implements PiClient {
 
   public async getSessionTree(): Promise<WebviewTreeItem[]> {
     await this.ensureInitialized();
-    this.requireCapability('sessions.tree', this.isSessionFeatureSupported('tree'), 'Kward backend does not support session tree navigation yet.');
+    if (!this.isSessionFeatureSupported('tree')) {
+      return this.getSessionAncestryTree();
+    }
+
     const session = await this.ensureSession();
     const result = normalizeTreeResult(await this.request('sessions/tree', { sessionId: requiredString(session.id, 'Kward session id') }));
     return result.items?.map(normalizeTreeItem).filter(isDefined) ?? [];
@@ -368,7 +371,15 @@ export class KwardClient implements PiClient {
 
   public async navigateTree(entryId: string, options: { summarize?: boolean; customInstructions?: string } = {}): Promise<PiNavigateTreeResult> {
     await this.ensureInitialized();
-    this.requireCapability('sessions.tree.navigate', this.isTreeFeatureSupported('navigate'), 'Kward backend does not support session tree navigation yet.');
+    if (!this.isTreeFeatureSupported('navigate')) {
+      if (options.summarize || options.customInstructions) {
+        throw new Error('Kward backend does not support summarized session tree navigation yet.');
+      }
+
+      await this.switchSession(entryId);
+      return {};
+    }
+
     if (options.summarize) {
       this.requireCapability('sessions.tree.summarize', this.isTreeFeatureSupported('summarize'), 'Kward backend does not support summarized session tree navigation yet.');
     }
@@ -452,6 +463,27 @@ export class KwardClient implements PiClient {
       this.session = transcript.session;
     }
     return transcript;
+  }
+
+  private async getSessionAncestryTree(): Promise<WebviewTreeItem[]> {
+    const session = await this.ensureSession();
+    const result = await this.request('sessions/list', { workspaceRoot: this.options.cwd, limit: 100 });
+    const items = normalizeSessionListTreeItems(result, session.path);
+    if (items.length === 0 && session.path) {
+      return [{
+        entryId: session.path,
+        role: 'session',
+        text: formatSessionTreeText(session),
+        current: true,
+        depth: 0,
+        isLast: true,
+        ancestorContinues: [],
+        activePath: true,
+        prefix: ''
+      }];
+    }
+
+    return items;
   }
 
   private async ensureSession(): Promise<KwardSession> {
@@ -1101,6 +1133,66 @@ function normalizeTreeResult(value: unknown): KwardTreeResult {
   return {
     items: Array.isArray(value.items) ? value.items : undefined
   };
+}
+
+function normalizeSessionListTreeItems(value: unknown, currentSessionPath: string | undefined): WebviewTreeItem[] {
+  if (!isRecord(value) || !Array.isArray(value.sessions)) {
+    return [];
+  }
+
+  return value.sessions.map((session) => normalizeSessionListTreeItem(session, currentSessionPath)).filter(isDefined);
+}
+
+function normalizeSessionListTreeItem(value: unknown, currentSessionPath: string | undefined): WebviewTreeItem | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const path = getString(value, 'path');
+  if (!path) {
+    return undefined;
+  }
+
+  const current = Boolean(currentSessionPath && path === currentSessionPath);
+  const depth = getNumber(value, 'depth') ?? 0;
+  const isLast = getBoolean(value, 'isLast') ?? false;
+  const ancestorContinues = Array.isArray(value.ancestorContinues) ? value.ancestorContinues.filter((entry): entry is boolean => typeof entry === 'boolean') : [];
+
+  return {
+    entryId: path,
+    role: 'session',
+    text: formatSessionTreeText(normalizeSession(value)),
+    current,
+    depth,
+    isLast,
+    ancestorContinues,
+    activePath: current,
+    prefix: buildTreePrefix(depth, isLast, ancestorContinues)
+  };
+}
+
+function formatSessionTreeText(session: KwardSession): string {
+  const name = typeof session.name === 'string' ? session.name.trim() : '';
+  if (name) {
+    return name;
+  }
+
+  const firstMessage = typeof session.firstMessage === 'string' ? session.firstMessage.trim() : '';
+  if (firstMessage) {
+    return firstMessage;
+  }
+
+  return session.path ? path.basename(session.path) : 'Current session';
+}
+
+function buildTreePrefix(depth: number, isLast: boolean, ancestorContinues: boolean[]): string {
+  if (depth <= 0) {
+    return '';
+  }
+
+  const parts: string[] = ancestorContinues.slice(0, Math.max(0, depth - 1)).map((continues) => continues ? '│  ' : '   ');
+  parts.push(isLast ? '└─ ' : '├─ ');
+  return parts.join('');
 }
 
 function normalizeTreeItem(value: unknown): WebviewTreeItem | undefined {

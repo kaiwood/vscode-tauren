@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added a `/restart` command that restarts open backend engines, reconnects persisted sessions, and refreshes session navigation.
 - Added an experimental configurable Kward JSON-RPC backend for Tauren sidebar chat.
 
 ### Changed

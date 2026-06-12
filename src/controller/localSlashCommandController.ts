@@ -35,7 +35,10 @@ export type LocalSlashCommandControllerOptions = {
   adoptReplacedSession: (options?: { fallbackSessionFile?: string; refreshSessions?: boolean }) => Promise<void>;
   setComposerText: (text: string) => void;
   restartClientForReload: (sessionFile: string | undefined) => void;
+  restartClient: (sessionFile: string | undefined) => void;
   reloadOpenSessions?: () => Promise<number>;
+  restartOpenSessions?: () => Promise<number>;
+  hasBusyOpenSession?: () => boolean;
   markStartupResourcesReloaded?: () => void;
   getHotkeysMarkdown?: () => string;
   showSettings: (section?: WebviewSettingsSection) => void;
@@ -116,6 +119,9 @@ export class LocalSlashCommandController {
           return;
         case 'reload':
           await this.handleReloadSlashCommand();
+          return;
+        case 'restart':
+          await this.handleRestartSlashCommand();
           return;
         case 'export':
           await this.handleExportSlashCommand(command.args);
@@ -498,8 +504,57 @@ export class LocalSlashCommandController {
     this.options.postState();
   }
 
+  public async restartBackendEngine(options: { announce?: boolean; restartOpenSessions?: boolean } = {}): Promise<void> {
+    const announce = options.announce ?? true;
+
+    if (this.options.session.isBusy || this.options.hasBusyOpenSession?.()) {
+      this.options.session.addSystemMessage('Cannot restart the backend engine while a session is busy. Wait for it to finish or stop it first.');
+      this.options.postState();
+      return;
+    }
+
+    if (announce) {
+      this.options.session.addSystemMessage('Restarting backend engine...');
+      this.options.postState();
+    }
+
+    const client = this.options.getClient();
+    const sessionFile = getSessionFile(await client.getState());
+    this.options.restartClient(sessionFile);
+
+    await Promise.all([
+      this.options.refreshSessionMeta({ startClient: true, force: true }),
+      this.options.refreshSlashCommands({ startClient: true, force: true }),
+      this.options.sessionView.refreshSessions(),
+      this.options.sessionView.refreshTree()
+    ]);
+
+    const restartedOpenSessions = options.restartOpenSessions === false
+      ? 0
+      : (await this.options.restartOpenSessions?.()) ?? 0;
+
+    this.options.markStartupResourcesReloaded?.();
+
+    if (!announce) {
+      return;
+    }
+
+    const openSessionSuffix = restartedOpenSessions > 0
+      ? ` Restarted ${restartedOpenSessions} other open session${restartedOpenSessions === 1 ? '' : 's'}.`
+      : '';
+
+    this.options.session.addSystemMessage((sessionFile
+      ? 'Restarted backend engine and reconnected the current persisted session.'
+      : 'Restarted backend engine. No persisted session was available to reconnect.') + openSessionSuffix);
+    this.options.postState();
+  }
+
   private async handleReloadSlashCommand(): Promise<void> {
     await this.reloadPiResources();
+  }
+
+  private async handleRestartSlashCommand(): Promise<void> {
+    await this.restartBackendEngine();
   }
 }
 

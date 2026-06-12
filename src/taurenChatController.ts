@@ -34,6 +34,7 @@ import { SessionHistoryController } from './sessions/sessionHistoryController';
 import { PiClientManager } from './controller/piClientManager';
 import { PiEventHandler } from './controller/piEventHandler';
 import { SessionViewController } from './sessions/sessionViewController';
+import { getSessionFile } from './sessions/sessionFormatting';
 import { SettingsViewController } from './settings/settingsViewController';
 import { NavigationController } from './navigation/navigationController';
 import { getPiStartupCwdState, type PiStartupCwdState } from './workspace/cwdSafety';
@@ -205,7 +206,10 @@ export class TaurenChatController {
         this.clientManager.setNextSessionFile(sessionFile);
         this.disposeClient();
       },
+      restartClient: (sessionFile) => this.restartClient(sessionFile),
       reloadOpenSessions: options.reloadOpenSessions,
+      restartOpenSessions: options.restartOpenSessions,
+      hasBusyOpenSession: options.hasBusyOpenSession,
       markStartupResourcesReloaded: () => {
         this.startupResourcesReloadRevision += 1;
       },
@@ -238,6 +242,30 @@ export class TaurenChatController {
 
   public async reloadPiResources(options: { announce?: boolean; reloadOpenSessions?: boolean } = {}): Promise<void> {
     await this.slashCommandController.reloadPiResources(options);
+  }
+
+  public async restartBackendEngine(options: { announce?: boolean; restartOpenSessions?: boolean } = {}): Promise<void> {
+    await this.slashCommandController.restartBackendEngine(options);
+  }
+
+  public isBusy(): boolean {
+    return this.session.isBusy;
+  }
+
+  public async refreshSessionNavigation(): Promise<void> {
+    await Promise.all([
+      this.sessionView.refreshSessions(),
+      this.sessionView.refreshTree()
+    ]);
+  }
+
+  public async getCurrentSessionFile(): Promise<string | undefined> {
+    return getSessionFile(await this.getClient().getState());
+  }
+
+  public restartClient(sessionFile: string | undefined): void {
+    this.clientManager.setNextSessionFile(sessionFile);
+    this.disposeClient();
   }
 
   public async handleWebviewMessage(message: WebviewMessage): Promise<void> {

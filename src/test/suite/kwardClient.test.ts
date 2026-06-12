@@ -90,6 +90,99 @@ suite('KwardClient', () => {
     }
   });
 
+  test('uses sessions/list ancestry as tree fallback when sessions/tree is unsupported', async () => {
+    const child = new FakeChildProcess();
+    const client = new KwardClient({ cwd: '/workspace', kwardPath: createKwardPath() });
+    const spawned = require('node:child_process') as { spawn: unknown };
+    const originalSpawn = spawned.spawn;
+
+    try {
+      spawned.spawn = () => child;
+
+      const treePromise = client.getSessionTree();
+
+      await waitForWriteCount(child, 1);
+      assertWrittenRequest(child.writes[0], { method: 'initialize' });
+      respond(client, 1, { capabilities: { sessions: { tree: { supported: false } } } });
+
+      await waitForWriteCount(child, 2);
+      assertWrittenRequest(child.writes[1], {
+        method: 'sessions/create',
+        params: { workspaceRoot: '/workspace' }
+      });
+      respond(client, 2, { id: 'session-1', persistentId: 'parent-id', path: '/sessions/parent.jsonl' });
+
+      await waitForWriteCount(child, 3);
+      assertWrittenRequest(child.writes[2], {
+        method: 'sessions/list',
+        params: { workspaceRoot: '/workspace', limit: 100 }
+      });
+      respond(client, 3, {
+        sessions: [
+          { path: '/sessions/parent.jsonl', name: 'Parent', depth: 0, isLast: true, ancestorContinues: [] },
+          { path: '/sessions/child.jsonl', firstMessage: 'Child prompt', depth: 1, isLast: true, ancestorContinues: [false] }
+        ]
+      });
+
+      assert.deepStrictEqual(await treePromise, [
+        {
+          entryId: '/sessions/parent.jsonl',
+          role: 'session',
+          text: 'Parent',
+          current: true,
+          depth: 0,
+          isLast: true,
+          ancestorContinues: [],
+          activePath: true,
+          prefix: ''
+        },
+        {
+          entryId: '/sessions/child.jsonl',
+          role: 'session',
+          text: 'Child prompt',
+          current: false,
+          depth: 1,
+          isLast: true,
+          ancestorContinues: [false],
+          activePath: false,
+          prefix: '└─ '
+        }
+      ]);
+    } finally {
+      spawned.spawn = originalSpawn;
+      client.dispose();
+    }
+  });
+
+  test('navigates Kward session ancestry tree by switching sessions when sessions/tree navigation is unsupported', async () => {
+    const child = new FakeChildProcess();
+    const client = new KwardClient({ cwd: '/workspace', kwardPath: createKwardPath() });
+    const spawned = require('node:child_process') as { spawn: unknown };
+    const originalSpawn = spawned.spawn;
+
+    try {
+      spawned.spawn = () => child;
+
+      const navigatePromise = client.navigateTree('/sessions/child.jsonl');
+
+      await waitForWriteCount(child, 1);
+      assertWrittenRequest(child.writes[0], { method: 'initialize' });
+      respond(client, 1, { capabilities: { sessions: { tree: { supported: false } } } });
+
+      await waitForWriteCount(child, 2);
+      assertWrittenRequest(child.writes[1], {
+        method: 'sessions/resume',
+        params: { path: '/sessions/child.jsonl', workspaceRoot: '/workspace' }
+      });
+      respond(client, 2, { id: 'session-2', persistentId: 'child-id', path: '/sessions/child.jsonl' });
+
+      assert.deepStrictEqual(await navigatePromise, {});
+    } finally {
+      spawned.spawn = originalSpawn;
+      client.dispose();
+    }
+  });
+
   test('surfaces Kward footer notifications through the extension footer bridge', async () => {
     const child = new FakeChildProcess();
     const footers: Array<unknown> = [];

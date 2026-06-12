@@ -500,6 +500,8 @@ export class TaurenSessionManager {
         initialSessionMeta: this.options.initialSessionMeta,
         renameOpenSession: (sessionPath, name) => this.renameOpenSessionFrom(id, sessionPath, name),
         reloadOpenSessions: () => this.reloadOpenSessionsFrom(id),
+        restartOpenSessions: () => this.restartOpenSessionsFrom(id),
+        hasBusyOpenSession: () => this.hasBusyOpenSession(id),
         useMessagePatches: true,
         postState: (message) => this.handleSessionState(id, message),
         onSessionMetaChange: (metadata) => this.handleSessionMetaChange(id, metadata),
@@ -1034,6 +1036,31 @@ export class TaurenSessionManager {
     }
 
     return reloaded;
+  }
+
+  private async restartOpenSessionsFrom(sourceSessionId: string): Promise<number> {
+    let restarted = 0;
+
+    for (const session of [...this.sessions]) {
+      if (session.id === sourceSessionId) {
+        continue;
+      }
+
+      try {
+        const sessionFile = await session.controller.getCurrentSessionFile();
+        session.controller.restartClient(sessionFile);
+        await session.controller.refreshSessionNavigation();
+        restarted += 1;
+      } catch (error) {
+        this.options.showNotification(`Failed to restart ${session.title}: ${getErrorMessage(error)}`, 'error');
+      }
+    }
+
+    return restarted;
+  }
+
+  private hasBusyOpenSession(sourceSessionId: string): boolean {
+    return this.sessions.some((session) => session.id !== sourceSessionId && this.isSessionBusy(session));
   }
 
   private findOpenSessionBySessionFile(sessionFile: string): OpenSession | undefined {

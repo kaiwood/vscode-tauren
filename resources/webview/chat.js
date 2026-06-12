@@ -1951,6 +1951,7 @@
     { name: "logout", description: "Remove stored provider authentication", source: "builtin", supported: true },
     { name: "resume", description: "Resume a different session", source: "builtin", supported: true },
     { name: "reload", description: "Reload keybindings, extensions, skills, prompts, and themes", source: "builtin", supported: true },
+    { name: "restart", description: "Restart the backend engine and reconnect the session", source: "builtin", supported: true },
     { name: "quit", description: "Not supported here", source: "unsupported", supported: false }
   ];
   var builtinSlashCommandNames = new Set(localSlashCommandDefinitions.map((command) => command.name));

@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { WebviewSessionItem } from '../webviewProtocol/types';
 import type { SessionListProgressOptions } from '../controller/types';
+import type { RawSessionInfo, SessionTreeNode } from '../sessions/types';
 import { isRecord } from '../shared/typeGuards';
 import { KwardRpcTransport } from './rpcTransport';
 
@@ -72,18 +73,21 @@ function readKwardSessionItemFromRpc(value: unknown): WebviewSessionItem | undef
     return undefined;
   }
 
+  const parentPath = getString(value, 'parentPath');
+
   return {
     path: file,
     id,
     cwd: getString(value, 'cwd') ?? getString(value, 'workspaceRoot') ?? '',
     ...(name ? { name } : {}),
+    ...(parentPath ? { parentSessionPath: parentPath } : {}),
     created: getString(value, 'createdAt') ?? '',
     modified: getString(value, 'modifiedAt') ?? '',
     messageCount: messageCount ?? 0,
     firstMessage: firstMessage ?? '',
-    depth: 0,
-    isLast: false,
-    ancestorContinues: [],
+    depth: getNumber(value, 'depth') ?? 0,
+    isLast: getBoolean(value, 'isLast') ?? false,
+    ancestorContinues: getBooleanArray(value, 'ancestorContinues') ?? [],
     current: false,
     metadataState: 'ready'
   };
@@ -136,6 +140,7 @@ async function readKwardSessionItem(file: string): Promise<WebviewSessionItem | 
     const created = typeof header.timestamp === 'string' ? header.timestamp : stats.birthtime.toISOString();
     const modified = stats.mtime.toISOString();
     const name = isRecord(latestInfo) && typeof latestInfo.name === 'string' ? latestInfo.name : undefined;
+    const parentPath = typeof header.parentPath === 'string' ? header.parentPath : undefined;
     const firstMessage = getFirstUserMessage(messages);
 
     return {
@@ -143,6 +148,7 @@ async function readKwardSessionItem(file: string): Promise<WebviewSessionItem | 
       id,
       cwd,
       ...(name ? { name } : {}),
+      ...(parentPath ? { parentSessionPath: parentPath } : {}),
       created,
       modified,
       messageCount: messages.length,
@@ -183,6 +189,16 @@ function getNumber(record: Record<string, unknown>, key: string): number | undef
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
+function getBoolean(record: Record<string, unknown>, key: string): boolean | undefined {
+  const value = record[key];
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+function getBooleanArray(record: Record<string, unknown>, key: string): boolean[] | undefined {
+  const value = record[key];
+  return Array.isArray(value) ? value.filter((entry): entry is boolean => typeof entry === 'boolean') : undefined;
+}
+
 function isKwardSessionItem(session: WebviewSessionItem | undefined): session is WebviewSessionItem {
   return session !== undefined;
 }
@@ -202,10 +218,81 @@ function isEmptyUnnamedKwardSessionFields(messageCount: number | undefined, name
 }
 
 function decorateSessions(sessions: WebviewSessionItem[], currentSessionFile: string | undefined): WebviewSessionItem[] {
-  return sessions.map((session, index) => ({
+  const currentPath = canonicalizePath(currentSessionFile);
+
+  return flattenSessionTree(buildSessionTree(sessions)).map((session) => ({
     ...session,
-    current: Boolean(currentSessionFile && resolve(session.path) === resolve(currentSessionFile)),
-    isLast: index === sessions.length - 1,
-    ancestorContinues: []
+    current: currentPath !== undefined && canonicalizePath(session.path) === currentPath,
+    metadataState: 'ready'
   }));
+}
+
+function buildSessionTree(sessions: RawSessionInfo[]): SessionTreeNode[] {
+  const byPath = new Map<string, SessionTreeNode>();
+
+  for (const session of sessions) {
+    byPath.set(canonicalizePath(session.path) ?? session.path, { session, children: [] });
+  }
+
+  const roots: SessionTreeNode[] = [];
+
+  for (const session of sessions) {
+    const sessionPath = canonicalizePath(session.path) ?? session.path;
+    const node = byPath.get(sessionPath);
+
+    if (!node) {
+      continue;
+    }
+
+    const parentPath = canonicalizePath(session.parentSessionPath);
+
+    if (parentPath && byPath.has(parentPath)) {
+      byPath.get(parentPath)?.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  sortSessionTree(roots);
+  return roots;
+}
+
+function sortSessionTree(nodes: SessionTreeNode[]): void {
+  nodes.sort((left, right) => Date.parse(right.session.modified || '') - Date.parse(left.session.modified || ''));
+
+  for (const node of nodes) {
+    sortSessionTree(node.children);
+  }
+}
+
+function flattenSessionTree(roots: SessionTreeNode[]): Array<Omit<WebviewSessionItem, 'current'>> {
+  const result: Array<Omit<WebviewSessionItem, 'current'>> = [];
+
+  const walk = (
+    node: SessionTreeNode,
+    depth: number,
+    ancestorContinues: boolean[],
+    isLast: boolean
+  ): void => {
+    result.push({
+      ...node.session,
+      depth,
+      isLast,
+      ancestorContinues
+    });
+
+    node.children.forEach((child, index) => {
+      walk(child, depth + 1, [...ancestorContinues, depth > 0 ? !isLast : false], index === node.children.length - 1);
+    });
+  };
+
+  roots.forEach((root, index) => {
+    walk(root, 0, [], index === roots.length - 1);
+  });
+
+  return result;
+}
+
+function canonicalizePath(path: string | undefined): string | undefined {
+  return path ? resolve(path) : undefined;
 }

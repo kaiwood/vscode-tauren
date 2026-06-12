@@ -2326,6 +2326,77 @@ suite('TaurenChatController', () => {
     harness.controller.dispose();
   });
 
+  test('restart slash command restarts backend and refreshes session navigation', async () => {
+    const oldClient = new FakePiClient({
+      state: {
+        model: { provider: 'openai', id: 'gpt-test', reasoning: false },
+        thinkingLevel: 'off',
+        sessionFile: '/sessions/current.jsonl'
+      }
+    });
+    const newClient = new FakePiClient({
+      commands: [
+        { name: 'skill:new-skill', description: 'Newly added skill', source: 'skill', location: 'project' }
+      ],
+      treeItems: [{ entryId: 'entry-1', role: 'user', text: 'Current', current: true, label: 'Current', depth: 0 }]
+    });
+    const listedSessions: WebviewSessionItem[] = [{
+      path: '/sessions/current.jsonl',
+      id: 'current',
+      cwd: '/workspace',
+      name: 'Current',
+      created: '2026-01-01T00:00:00.000Z',
+      modified: '2026-01-01T00:00:00.000Z',
+      messageCount: 1,
+      firstMessage: 'hello',
+      depth: 0,
+      isLast: true,
+      ancestorContinues: [],
+      current: false
+    }];
+    let restartedOpenSessions = 0;
+    const harness = createControllerHarness([oldClient, newClient], {
+      listSessions: async () => listedSessions,
+      restartOpenSessions: async () => {
+        restartedOpenSessions += 1;
+        return 2;
+      }
+    });
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/restart' });
+
+    assert.strictEqual(harness.createCalls, 2);
+    assert.strictEqual(harness.clientOptions[1].sessionFile, '/sessions/current.jsonl');
+    assert.strictEqual(oldClient.reloadCalls, 0);
+    assert.strictEqual(oldClient.disposed, true);
+    assert.strictEqual(newClient.commandsCalls, 1);
+    assert.strictEqual(newClient.treeCalls, 1);
+    assert.strictEqual(restartedOpenSessions, 1);
+    assert.deepStrictEqual(lastState(harness).messages, [
+      { role: 'system', text: 'Restarting backend engine...' },
+      { role: 'system', text: 'Restarted backend engine and reconnected the current persisted session. Restarted 2 other open sessions.' }
+    ]);
+    assert.deepStrictEqual(lastState(harness).treeItems, [{ entryId: 'entry-1', role: 'user', text: 'Current', current: true, label: 'Current', depth: 0 }]);
+    assert.strictEqual(lastState(harness).sessions?.[0]?.path, '/sessions/current.jsonl');
+    harness.controller.dispose();
+  });
+
+  test('restart slash command rejects while a session is busy', async () => {
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client], { hasBusyOpenSession: () => true });
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/restart' });
+
+    assert.strictEqual(harness.createCalls, 0);
+    assert.strictEqual(client.disposed, false);
+    assert.strictEqual(client.reloadCalls, 0);
+    assert.strictEqual(client.commandsCalls, 0);
+    assert.deepStrictEqual(lastState(harness).messages, [
+      { role: 'system', text: 'Cannot restart the backend engine while a session is busy. Wait for it to finish or stop it first.' }
+    ]);
+    harness.controller.dispose();
+  });
+
   test('submit failure marks the active assistant message as an error', async () => {
     const client = new FakePiClient({ promptError: new Error('Prompt failed') });
     const harness = createControllerHarness([client]);
@@ -3138,6 +3209,8 @@ type ControllerHarnessOptions = {
   onSessionMetaChange?: (metadata: TaurenChatSessionMetaSnapshot) => void;
   onSessionFileChange?: (sessionFile: string | undefined) => void;
   listSessions?: (cwd: string | undefined, currentSessionFile: string | undefined) => Promise<WebviewSessionItem[]>;
+  restartOpenSessions?: () => Promise<number>;
+  hasBusyOpenSession?: () => boolean;
   deleteSession?: (sessionPath: string, displayName: string) => Promise<boolean>;
   showSessionChanges?: (sessionPath: string, displayName: string) => Promise<void>;
   getReadyScript?: () => string | undefined;
@@ -3185,6 +3258,8 @@ function createControllerHarness(
     onSessionMetaChange: options.onSessionMetaChange,
     onSessionFileChange: options.onSessionFileChange,
     listSessions: options.listSessions,
+    restartOpenSessions: options.restartOpenSessions,
+    hasBusyOpenSession: options.hasBusyOpenSession,
     deleteSession: options.deleteSession,
     showSessionChanges: options.showSessionChanges,
     getReadyScript: options.getReadyScript,
