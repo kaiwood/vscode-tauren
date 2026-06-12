@@ -121,6 +121,7 @@ export type PiSessionState = {
   blockImages?: boolean;
   enabledModels?: string[];
   enableSkillCommands?: boolean;
+  activePersonaLabel?: string;
   messageCount?: number;
   pendingMessageCount?: number;
 };

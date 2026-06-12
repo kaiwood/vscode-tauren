@@ -26,6 +26,17 @@ suite('ChatSession', () => {
     assert.strictEqual(session.beginSubmit('second prompt'), undefined);
   });
 
+  test('beginSubmit stamps assistant label on the new assistant message', () => {
+    const session = new ChatSession();
+
+    session.beginSubmit('hello', undefined, 'Samantha');
+
+    assert.deepStrictEqual(session.snapshot().messages, [
+      { role: 'user', text: 'hello' },
+      { role: 'assistant', text: '', assistantLabel: 'Samantha' }
+    ]);
+  });
+
   test('beginSubmit attaches images to the user message', () => {
     const session = new ChatSession();
 

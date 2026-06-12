@@ -19,6 +19,7 @@ export type TaurenChatSessionMetaSnapshot = {
   model?: TaurenChatModelMeta;
   modelOptions?: WebviewModelOption[];
   contextUsage?: TaurenChatContextUsage;
+  activePersonaLabel?: string;
 };
 
 export type PiRuntimeSettingsMeta = Partial<Record<PiSettingId, SettingValue>>;
@@ -38,6 +39,7 @@ export type SessionMetadataWebviewState = {
   slashCommandsRefreshing: boolean;
   startupResources: WebviewStartupResourceSection[];
   piSettings: PiRuntimeSettingsMeta;
+  activePersonaLabel: string;
 };
 
 export type SessionMetadataCacheStorage = {

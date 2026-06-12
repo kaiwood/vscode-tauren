@@ -77,6 +77,20 @@ suite('SessionMetadataState', () => {
     ]);
   });
 
+  test('applies active persona label from runtime state', () => {
+    const snapshots: unknown[] = [];
+    const state = new SessionMetadataState({ onChange: (snapshot) => snapshots.push(snapshot) });
+
+    assert.strictEqual(state.applyModelState({ activePersonaLabel: 'Samantha' }), true);
+    assert.strictEqual(state.getWebviewState().activePersonaLabel, 'Samantha');
+    assert.deepStrictEqual(snapshots[0], {
+      model: undefined,
+      modelOptions: [],
+      contextUsage: undefined,
+      activePersonaLabel: 'Samantha'
+    });
+  });
+
   test('applies startup resources for webview state only', () => {
     const state = new SessionMetadataState();
 

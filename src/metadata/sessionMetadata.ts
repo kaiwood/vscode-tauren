@@ -372,6 +372,7 @@ export class SessionMetadataState {
   private slashCommandsRefreshing = false;
   private startupResources: WebviewStartupResourceSection[] = [];
   private piSettings: PiRuntimeSettingsMeta = {};
+  private activePersonaLabel = '';
 
   public constructor(private readonly options: SessionMetadataStateOptions = {}) {
     if (options.initialSessionMeta) {
@@ -398,7 +399,8 @@ export class SessionMetadataState {
       slashCommands: this.slashCommands,
       slashCommandsRefreshing: this.slashCommandsRefreshing,
       startupResources: cloneStartupResources(this.startupResources),
-      piSettings: { ...this.piSettings }
+      piSettings: { ...this.piSettings },
+      activePersonaLabel: this.activePersonaLabel
     };
   }
 
@@ -413,8 +415,9 @@ export class SessionMetadataState {
   public applyModelState(state: PiSessionState): boolean {
     const modelChanged = this.applyModelMeta(getModelMeta(state), { notify: false });
     const runtimeChanged = this.applyPiSettings(getPiSettingsMeta(state));
+    const personaLabelChanged = this.applyActivePersonaLabel(state.activePersonaLabel);
 
-    if (modelChanged || runtimeChanged) {
+    if (modelChanged || runtimeChanged || personaLabelChanged) {
       this.notifyChange();
       return true;
     }
@@ -511,6 +514,17 @@ export class SessionMetadataState {
     return true;
   }
 
+  private applyActivePersonaLabel(label: string | undefined): boolean {
+    const nextLabel = label ?? '';
+
+    if (nextLabel === this.activePersonaLabel) {
+      return false;
+    }
+
+    this.activePersonaLabel = nextLabel;
+    return true;
+  }
+
   private applyContextUsage(contextUsage: TaurenChatContextUsage): boolean {
     if (
       contextUsage.label === this.contextUsageLabel
@@ -569,6 +583,8 @@ export class SessionMetadataState {
       this.contextUsageTitle = snapshot.contextUsage.title;
       this.contextUsageLevel = snapshot.contextUsage.level;
     }
+
+    this.activePersonaLabel = snapshot.activePersonaLabel ?? '';
   }
 
   private notifyChange(): void {
@@ -593,7 +609,8 @@ export class SessionMetadataState {
           title: this.contextUsageTitle,
           level: this.contextUsageLevel
         }
-        : undefined
+        : undefined,
+      ...(this.activePersonaLabel ? { activePersonaLabel: this.activePersonaLabel } : {})
     };
   }
 }

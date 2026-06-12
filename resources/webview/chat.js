@@ -3937,7 +3937,7 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
     if (showRole) {
       const role = document.createElement("div");
       role.className = "message__role";
-      role.textContent = roleLabel(message.role);
+      role.textContent = roleLabel(message);
       article.append(role);
     }
     const activities = Array.isArray(message.activities) ? message.activities : [];
@@ -4335,12 +4335,12 @@ ${after}`;
   function shouldKeepActivityOpen(activity) {
     return typeof activity.body === "string" && activity.body.length > 0 || getRenderableImages(activity.images).length > 0;
   }
-  function roleLabel(role) {
-    if (role === "user") {
+  function roleLabel(message) {
+    if (message.role === "user") {
       return "You";
     }
-    if (role === "assistant") {
-      return "Tauren";
+    if (message.role === "assistant") {
+      return message.assistantLabel || "Tauren";
     }
     return "System";
   }

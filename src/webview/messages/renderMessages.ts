@@ -60,7 +60,7 @@ export function createMessageElement(
   if (showRole) {
     const role = document.createElement('div');
     role.className = 'message__role';
-    role.textContent = roleLabel(message.role);
+    role.textContent = roleLabel(message);
     article.append(role);
   }
 
@@ -623,13 +623,13 @@ function shouldKeepActivityOpen(activity: Activity): boolean {
     || getRenderableImages(activity.images).length > 0;
 }
 
-function roleLabel(role: string): string {
-  if (role === 'user') {
+function roleLabel(message: ChatMessage): string {
+  if (message.role === 'user') {
     return 'You';
   }
 
-  if (role === 'assistant') {
-    return 'Tauren';
+  if (message.role === 'assistant') {
+    return message.assistantLabel || 'Tauren';
   }
 
   return 'System';

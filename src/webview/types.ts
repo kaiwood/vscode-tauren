@@ -70,6 +70,7 @@ export type ChatMessage = {
   text: string;
   error?: boolean;
   variant?: string;
+  assistantLabel?: string;
   images?: ChatImage[];
   activities?: Activity[];
 };

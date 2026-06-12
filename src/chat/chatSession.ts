@@ -45,6 +45,7 @@ export type ChatMessage = {
   text: string;
   error?: boolean;
   variant?: 'thinking' | 'branchSummary' | 'compactionSummary';
+  assistantLabel?: string;
   images?: ChatImage[];
   activities?: ChatActivity[];
 };
@@ -121,7 +122,7 @@ export class ChatSession {
       : this.transcript;
   }
 
-  public beginSubmit(text: string, images?: ChatImage[]): SubmittedPrompt | undefined {
+  public beginSubmit(text: string, images?: ChatImage[], assistantLabel?: string): SubmittedPrompt | undefined {
     const trimmedText = text.trim();
 
     if (!trimmedText || this.busy) {
@@ -133,7 +134,11 @@ export class ChatSession {
       text: trimmedText,
       ...(images && images.length > 0 ? { images: images.map((image) => ({ ...image })) } : {})
     });
-    this.activeAssistantIndex = this.pushMessage({ role: 'assistant', text: '' });
+    this.activeAssistantIndex = this.pushMessage({
+      role: 'assistant',
+      text: '',
+      ...(assistantLabel ? { assistantLabel } : {})
+    });
     this.busy = true;
 
     return {

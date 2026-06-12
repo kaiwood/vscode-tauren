@@ -859,6 +859,7 @@ function normalizeSessionState(value: unknown, fallbackSession: KwardSession): P
     blockImages: getBoolean(value, 'blockImages'),
     enabledModels: getStringArray(value.enabledModels),
     enableSkillCommands: getBoolean(value, 'enableSkillCommands'),
+    activePersonaLabel: getString(value, 'activePersonaLabel'),
     messageCount: getNumber(value, 'messageCount'),
     pendingMessageCount: getNumber(value, 'pendingMessageCount')
   };

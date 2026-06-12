@@ -436,7 +436,9 @@ export class TaurenChatController {
     let submittedText = message.text;
 
     try {
-      submittedText = await this.expandPromptSlashCommand(message.text);
+      if (parseSlashCommand(message.text)) {
+        submittedText = await this.expandPromptSlashCommand(message.text);
+      }
     } catch (error) {
       this.restorePromptImages(promptImages);
       const errorMessage = `Failed to expand prompt command: ${getErrorMessage(error)}`;
@@ -446,11 +448,19 @@ export class TaurenChatController {
       return;
     }
 
-    const submittedPrompt = this.session.beginSubmit(message.text, toChatImages(promptImages));
+    const submittedPrompt = this.session.beginSubmit(
+      message.text,
+      toChatImages(promptImages),
+      this.sessionMetadata.getWebviewState().activePersonaLabel
+    );
 
     if (!submittedPrompt) {
       this.restorePromptImages(promptImages);
       return;
+    }
+
+    if (submittedText === message.text) {
+      submittedText = submittedPrompt.text;
     }
 
     const promptContext = this.consumePromptContext();
