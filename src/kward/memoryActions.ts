@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
-import { KwardClient } from './kwardClient';
-import type { KwardMemoryInspect, KwardMemoryList, KwardMemoryRecord, KwardMemoryStatus, KwardMemoryWhy } from './types';
+import { isAgentMemoryClient, type AgentMemoryClient, type AgentMemoryInspect, type AgentMemoryList, type AgentMemoryRecord, type AgentMemoryStatus, type AgentMemoryWhy } from '../agent/memory';
 
 export type KwardMemoryAction =
   | 'status'
@@ -25,7 +24,7 @@ type MemoryActionOptions = {
 };
 
 export async function runKwardMemoryAction(options: MemoryActionOptions): Promise<string | undefined> {
-  const client = requireKwardMemoryClient(options.client);
+  const client = requireAgentMemoryClient(options.client);
   const args = options.args?.trim() ?? '';
 
   switch (options.action) {
@@ -104,38 +103,15 @@ export async function pickAndRunKwardMemoryAction(client: unknown, action: Kward
   }
 }
 
-type KwardMemoryClient = Pick<KwardClient,
-  | 'getMemoryStatus'
-  | 'setMemoryEnabled'
-  | 'setMemoryAutoSummary'
-  | 'listMemory'
-  | 'addMemory'
-  | 'forgetMemory'
-  | 'promoteMemory'
-  | 'relaxMemory'
-  | 'inspectMemory'
-  | 'whyMemory'
-  | 'summarizeMemory'
->;
-
-function requireKwardMemoryClient(client: unknown): KwardMemoryClient {
-  if (!(client instanceof KwardClient) && !isKwardMemoryClient(client)) {
-    throw new Error('Kward memory is only available when the Kward backend is selected.');
+function requireAgentMemoryClient(client: unknown): AgentMemoryClient {
+  if (!isAgentMemoryClient(client)) {
+    throw new Error('Memory is only available when the selected backend supports it.');
   }
 
   return client;
 }
 
-function isKwardMemoryClient(client: unknown): client is KwardMemoryClient {
-  return !!client
-    && typeof client === 'object'
-    && typeof (client as Partial<KwardMemoryClient>).getMemoryStatus === 'function'
-    && typeof (client as Partial<KwardMemoryClient>).setMemoryEnabled === 'function'
-    && typeof (client as Partial<KwardMemoryClient>).listMemory === 'function'
-    && typeof (client as Partial<KwardMemoryClient>).addMemory === 'function';
-}
-
-async function setAutoSummary(client: KwardMemoryClient, args: string): Promise<string> {
+async function setAutoSummary(client: AgentMemoryClient, args: string): Promise<string> {
   const normalized = args.toLowerCase();
   const enabled = normalized === 'enable' || normalized === 'on' || normalized === 'true'
     ? true
@@ -145,7 +121,7 @@ async function setAutoSummary(client: KwardMemoryClient, args: string): Promise<
   return formatMemoryStatus(await client.setMemoryAutoSummary(enabled));
 }
 
-async function addMemory(client: KwardMemoryClient, args: string, core: boolean): Promise<string | undefined> {
+async function addMemory(client: AgentMemoryClient, args: string, core: boolean): Promise<string | undefined> {
   const text = args || await vscode.window.showInputBox({
     title: core ? 'Add Kward core memory' : 'Add Kward soft memory',
     prompt: 'Memory text',
@@ -161,7 +137,7 @@ async function addMemory(client: KwardMemoryClient, args: string, core: boolean)
 }
 
 async function actOnMemoryId(
-  client: KwardMemoryClient,
+  client: AgentMemoryClient,
   args: string,
   action: 'forget' | 'promote' | 'relax'
 ): Promise<string | undefined> {
@@ -179,7 +155,7 @@ async function actOnMemoryId(
   return `${action === 'promote' ? 'Promoted' : 'Relaxed'} memory ${memory.id ?? id}.`;
 }
 
-async function pickMemoryId(client: KwardMemoryClient, action: string): Promise<string | undefined> {
+async function pickMemoryId(client: AgentMemoryClient, action: string): Promise<string | undefined> {
   const memories = flattenMemoryList(await client.listMemory({ includeInactive: false }));
   const picked = await vscode.window.showQuickPick(memories.map((memory) => ({
     label: memory.id ?? '(unknown id)',
@@ -193,7 +169,7 @@ async function pickMemoryId(client: KwardMemoryClient, action: string): Promise<
   return picked?.memory.id;
 }
 
-function flattenMemoryList(list: KwardMemoryList): KwardMemoryRecord[] {
+function flattenMemoryList(list: AgentMemoryList): AgentMemoryRecord[] {
   return [
     ...list.globalCore.map((memory) => ({ ...memory, scope: memory.scope ?? 'global core' })),
     ...list.workspaceCore.map((memory) => ({ ...memory, scope: memory.scope ?? 'workspace core' })),
@@ -201,11 +177,11 @@ function flattenMemoryList(list: KwardMemoryList): KwardMemoryRecord[] {
   ];
 }
 
-function formatMemoryStatus(status: KwardMemoryStatus): string {
+function formatMemoryStatus(status: AgentMemoryStatus): string {
   return `Kward memory ${status.enabled ? 'enabled' : 'disabled'}; auto-summary ${status.autoSummary ? 'enabled' : 'disabled'}.`;
 }
 
-function formatMemoryList(list: KwardMemoryList): string {
+function formatMemoryList(list: AgentMemoryList): string {
   return [
     formatMemorySection('Global Core Memories', list.globalCore),
     formatMemorySection('Workspace Core Memories', list.workspaceCore),
@@ -213,7 +189,7 @@ function formatMemoryList(list: KwardMemoryList): string {
   ].join('\n\n');
 }
 
-function formatMemoryInspect(inspect: KwardMemoryInspect): string {
+function formatMemoryInspect(inspect: AgentMemoryInspect): string {
   const paths = inspect.paths
     ? [
       inspect.paths.core ? `- core: ${inspect.paths.core}` : undefined,
@@ -230,7 +206,7 @@ function formatMemoryInspect(inspect: KwardMemoryInspect): string {
   ].filter(Boolean).join('\n\n');
 }
 
-function formatMemorySection(title: string, records: KwardMemoryRecord[]): string {
+function formatMemorySection(title: string, records: AgentMemoryRecord[]): string {
   const lines = [`${title}:`];
 
   if (records.length === 0) {
@@ -248,7 +224,7 @@ function formatMemorySection(title: string, records: KwardMemoryRecord[]): strin
   return lines.join('\n');
 }
 
-function formatMemoryWhy(why: KwardMemoryWhy): string {
+function formatMemoryWhy(why: AgentMemoryWhy): string {
   if (why.explanation) {
     return why.explanation;
   }
