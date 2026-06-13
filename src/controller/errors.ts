@@ -1,4 +1,4 @@
-import type { PiEvent } from '../pi/types';
+import type { AgentEvent } from '../agent/types';
 
 export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -45,7 +45,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-export function isMessageUpdateStart(event: PiEvent): boolean {
+export function isMessageUpdateStart(event: AgentEvent): boolean {
   const assistantMessageEvent = event.assistantMessageEvent;
 
   return typeof assistantMessageEvent === 'object'

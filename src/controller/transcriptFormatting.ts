@@ -2,7 +2,7 @@ import type { ChatActivityInput, ChatMessage } from '../chat/chatSession';
 import { formatToolExecutionActivity } from '../pi/eventMapper';
 import { extractPiMessageImages, extractPiMessageText } from '../pi/messageContent';
 import { formatCompactionSystemMessage } from '../sessions/sessionFormatting';
-import type { PiAgentMessage } from '../pi/types';
+import type { AgentMessage } from '../agent/types';
 import { isRecord } from './typeGuards';
 
 type RestoredToolCall = {
@@ -11,7 +11,7 @@ type RestoredToolCall = {
   args?: unknown;
 };
 
-export function formatAgentMessages(messages: PiAgentMessage[] | undefined): ChatMessage[] {
+export function formatAgentMessages(messages: AgentMessage[] | undefined): ChatMessage[] {
   if (!Array.isArray(messages)) {
     return [];
   }
@@ -174,7 +174,7 @@ function extractRestoredToolCalls(content: unknown): RestoredToolCall[] {
 }
 
 function formatRestoredToolResultActivity(
-  message: PiAgentMessage,
+  message: AgentMessage,
   toolCallsById: Map<string, RestoredToolCall>
 ): ChatActivityInput | undefined {
   const toolCallId = typeof message.toolCallId === 'string' ? message.toolCallId : '';

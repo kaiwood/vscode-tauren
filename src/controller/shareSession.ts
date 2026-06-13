@@ -2,7 +2,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { PiClient } from '../pi/clientTypes';
+import type { AgentClient } from '../agent/clientTypes';
 import { exportSessionHtml } from '../sessions/sessionClientActions';
 import { getUseTaurenShareViewerSetting } from '../settings/taurenSettings';
 
@@ -14,7 +14,7 @@ export type SharedSessionLinks = {
 const PI_SHARE_VIEWER_URL = 'https://pi.dev/session/';
 const TAUREN_SHARE_VIEWER_URL = 'https://kaiwood.github.io/vscode-tauren/share/';
 
-export async function shareSessionWithGh(client: PiClient): Promise<SharedSessionLinks> {
+export async function shareSessionWithGh(client: AgentClient): Promise<SharedSessionLinks> {
   assertGhConfigured();
 
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'tauren-share-'));

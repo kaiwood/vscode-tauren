@@ -1,7 +1,7 @@
 import type { SessionDiffSnapshot } from '../diff/types';
 import type { ExtensionUi } from '../extensionUi/types';
 import type { TaurenChatSessionMetaSnapshot } from '../metadata/types';
-import type { PiClientFactory } from '../pi/clientTypes';
+import type { AgentClientFactory } from '../agent/clientTypes';
 import type { SettingValue, TaurenSettingId } from '../settings/settingsRegistry';
 import type {
   WebviewCustomUiTheme,
@@ -16,7 +16,7 @@ export type SessionListProgressOptions = {
 };
 
 export type TaurenChatControllerOptions = {
-  createClient: PiClientFactory;
+  createClient: AgentClientFactory;
   postState: (message: WebviewStateMessage) => void;
   showNotification: (message: string, notifyType: string) => void;
   showToast?: (message: string, kind?: 'success' | 'warning' | 'error') => void;

@@ -11,14 +11,14 @@ import type {
 import { createWebviewMessageSyncPlan, type PostedWebviewChatSync, type WebviewMessageSyncPlan } from './webviewProtocol/messagePatch';
 import { StatePublisher } from './controller/statePublisher';
 import type { KwardMemoryAction } from './kward/memoryActions';
-import type { PiClient } from './pi/clientTypes';
+import type { AgentClient } from './agent/clientTypes';
 import type { TaurenChatControllerOptions } from './controller/types';
 import type {
   PiImageContent,
   PiOAuthLoginCallbacks,
-  PiPromptStreamingBehavior,
-  PiEvent
+  PiPromptStreamingBehavior
 } from './pi/types';
+import type { AgentEvent } from './agent/types';
 import { formatPromptForPi as formatPromptForPiMessage } from './prompt/formatting';
 import { PromptContextStore } from './prompt/contextStore';
 import type { PiPromptContextAttachment, PiPromptContextInput } from './prompt/types';
@@ -32,8 +32,8 @@ import { getErrorMessage } from './controller/errors';
 import { parseLocalSlashCommand, parseSlashCommand } from './controller/slashCommandParsing';
 import { LocalSlashCommandController } from './controller/localSlashCommandController';
 import { SessionHistoryController } from './sessions/sessionHistoryController';
-import { PiClientManager } from './controller/piClientManager';
-import { PiEventHandler } from './controller/piEventHandler';
+import { AgentClientManager } from './controller/piClientManager';
+import { AgentEventHandler } from './controller/piEventHandler';
 import { SessionViewController } from './sessions/sessionViewController';
 import { getSessionFile } from './sessions/sessionFormatting';
 import { SettingsViewController } from './settings/settingsViewController';
@@ -67,12 +67,12 @@ export class TaurenChatController {
   private readonly settingsView: SettingsViewController;
   private pendingComposerText: { text: string; revision: number; mode?: 'replace' | 'append' } | undefined;
   private composerTextRevision = 0;
-  private readonly clientManager: PiClientManager;
+  private readonly clientManager: AgentClientManager;
   private readonly sessionHistory: SessionHistoryController;
   private abortRequested = false;
   private abortNoticeAdded = false;
   private readonly sessionDiffController: SessionDiffController;
-  private readonly piEventHandler: PiEventHandler;
+  private readonly piEventHandler: AgentEventHandler;
   private readonly readyScriptState = new ReadyScriptState();
   private readonly session = new ChatSession();
   private readonly statePublisher: StatePublisher<WebviewStateMessage>;
@@ -127,17 +127,17 @@ export class TaurenChatController {
       startNewSession: (sessionOptions) => this.startNewSession(sessionOptions)
     });
 
-    this.clientManager = new PiClientManager({
+    this.clientManager = new AgentClientManager({
       createClient: options.createClient,
       getCwd: () => this.getPiStartupCwd(),
       getCurrentSessionFile: () => this.sessionView.currentSessionFile,
       getResumeLastSession: () => this.options.resumeLastSession,
       getSessionGeneration: () => this.session.generation,
       extensionUi: options.extensionUi,
-      onEvent: (event) => this.handlePiEvent(event),
+      onEvent: (event) => this.handleAgentEvent(event),
       onError: (message) => this.handleClientError(message)
     });
-    this.piEventHandler = new PiEventHandler({
+    this.piEventHandler = new AgentEventHandler({
       session: this.session,
       postState: () => this.postState(),
       scheduleState: () => this.statePublisher.schedule(),
@@ -1402,11 +1402,11 @@ export class TaurenChatController {
     return true;
   }
 
-  private getExistingClient(): PiClient | undefined {
+  private getExistingClient(): AgentClient | undefined {
     return this.clientManager.getExistingClient();
   }
 
-  private getClientForMetadataRefresh(): PiClient | undefined {
+  private getClientForMetadataRefresh(): AgentClient | undefined {
     if (!this.ensureWorkspaceReadyForClient()) {
       this.sessionHistory.setLoading(false);
       return undefined;
@@ -1415,7 +1415,7 @@ export class TaurenChatController {
     return this.getClient();
   }
 
-  private getClient(): PiClient {
+  private getClient(): AgentClient {
     const state = this.getPiStartupCwdState();
 
     if (state.status !== 'ready') {
@@ -1476,7 +1476,7 @@ export class TaurenChatController {
     this.postState();
   }
 
-  private handlePiEvent(event: PiEvent): void {
+  private handleAgentEvent(event: AgentEvent): void {
     if (event.type === 'kward_ui_question') {
       const request = isKwardQuestionEventRequest(event.request) ? event.request : undefined;
       if (request) {

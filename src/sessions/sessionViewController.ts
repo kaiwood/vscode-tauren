@@ -8,7 +8,7 @@ import type {
   WebviewTreeItem
 } from '../webviewProtocol/types';
 import type { TaurenChatControllerOptions } from '../controller/types';
-import type { PiClient } from '../pi/clientTypes';
+import type { AgentClient } from '../agent/clientTypes';
 import { getErrorMessage } from '../controller/errors';
 import {
   cloneSessionWithClient,
@@ -57,7 +57,7 @@ type SessionViewControllerOptions = Pick<
   initialSessionFile?: string;
   applySessionFile: (sessionFile: string | undefined) => void;
   adoptReplacedSession: (options?: { fallbackSessionFile?: string; refreshSessions?: boolean }) => Promise<void>;
-  getClient: () => PiClient;
+  getClient: () => AgentClient;
   handleCompactCurrentSession: () => Promise<void>;
   isBusy: () => boolean;
   postState: () => void;

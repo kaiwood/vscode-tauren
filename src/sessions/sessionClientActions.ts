@@ -1,7 +1,7 @@
 import type { ExtensionUi } from '../extensionUi/types';
-import type { PiClientFactory, PiClient } from '../pi/clientTypes';
+import type { AgentClientFactory, AgentClient } from '../agent/clientTypes';
 import { applyTaurenExportSkinToFile } from '../export/taurenExportSkin';
-import type { PiClientOptions, PiCloneResult, PiCompactResult, PiExportHtmlResult } from '../pi/types';
+import type { AgentClientOptions, AgentCloneResult, AgentCompactResult, AgentExportHtmlResult } from '../agent/types';
 import { getUseTaurenShareViewerSetting } from '../settings/taurenSettings';
 import { formatCompactionTitle, formatForkMessageLabel, formatForkMessages } from './sessionFormatting';
 
@@ -12,7 +12,7 @@ export type SessionClientActionUi = {
 };
 
 export type BackgroundSessionClientOptions = {
-  createClient: PiClientFactory;
+  createClient: AgentClientFactory;
   getCwd?: () => string | undefined;
   onError: (message: string) => void;
 };
@@ -23,7 +23,7 @@ export type ForkSessionResult =
   | { status: 'cancelled' }
   | { status: 'forked'; text: string };
 
-export async function forkSession(client: PiClient, options: { select?: ExtensionUi['select'] }): Promise<ForkSessionResult> {
+export async function forkSession(client: AgentClient, options: { select?: ExtensionUi['select'] }): Promise<ForkSessionResult> {
   const select = options.select;
 
   if (!select) {
@@ -61,19 +61,19 @@ export async function forkSession(client: PiClient, options: { select?: Extensio
   };
 }
 
-export async function cloneSession(client: PiClient): Promise<PiCloneResult> {
+export async function cloneSession(client: AgentClient): Promise<AgentCloneResult> {
   return await client.clone();
 }
 
-export async function compactSession(client: PiClient, customInstructions?: string): Promise<PiCompactResult> {
+export async function compactSession(client: AgentClient, customInstructions?: string): Promise<AgentCompactResult> {
   return await client.compact(customInstructions);
 }
 
 export async function exportSessionHtml(
-  client: PiClient,
+  client: AgentClient,
   outputPath?: string,
   options: { useTaurenExportSkin?: boolean } = {}
-): Promise<PiExportHtmlResult> {
+): Promise<AgentExportHtmlResult> {
   const result = await client.exportHtml(outputPath);
   const shouldApplyTaurenSkin = options.useTaurenExportSkin ?? getUseTaurenShareViewerSetting();
 
@@ -84,7 +84,7 @@ export async function exportSessionHtml(
   return result;
 }
 
-export async function forkSessionWithClient(client: PiClient, options: SessionClientActionUi): Promise<void> {
+export async function forkSessionWithClient(client: AgentClient, options: SessionClientActionUi): Promise<void> {
   const result = await forkSession(client, { select: options.extensionUi?.select });
 
   if (result.status === 'unavailable') {
@@ -102,7 +102,7 @@ export async function forkSessionWithClient(client: PiClient, options: SessionCl
   }
 }
 
-export async function cloneSessionWithClient(client: PiClient, options: SessionClientActionUi): Promise<void> {
+export async function cloneSessionWithClient(client: AgentClient, options: SessionClientActionUi): Promise<void> {
   const result = await cloneSession(client);
 
   if (!result.cancelled) {
@@ -110,12 +110,12 @@ export async function cloneSessionWithClient(client: PiClient, options: SessionC
   }
 }
 
-export async function compactSessionWithClient(client: PiClient, options: SessionClientActionUi): Promise<void> {
+export async function compactSessionWithClient(client: AgentClient, options: SessionClientActionUi): Promise<void> {
   const result = await compactSession(client);
   options.showToast?.(`${formatCompactionTitle(result.tokensBefore)}.`);
 }
 
-export async function exportSessionWithClient(client: PiClient, options: SessionClientActionUi): Promise<void> {
+export async function exportSessionWithClient(client: AgentClient, options: SessionClientActionUi): Promise<void> {
   const result = await exportSessionHtml(client);
   const path = typeof result.path === 'string' && result.path ? result.path : 'HTML file';
   options.showToast?.(`Exported session to ${path}.`);
@@ -124,9 +124,9 @@ export async function exportSessionWithClient(client: PiClient, options: Session
 export async function withSessionClient<T>(
   sessionPath: string,
   options: BackgroundSessionClientOptions,
-  action: (client: PiClient) => Promise<T>
+  action: (client: AgentClient) => Promise<T>
 ): Promise<T> {
-  const clientOptions: PiClientOptions = { cwd: options.getCwd?.(), sessionFile: sessionPath };
+  const clientOptions: AgentClientOptions = { cwd: options.getCwd?.(), sessionFile: sessionPath };
   const client = options.createClient(clientOptions);
   const disposables = [
     { dispose: client.onError(options.onError) }

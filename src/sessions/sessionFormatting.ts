@@ -1,5 +1,5 @@
 import type { WebviewSessionItem } from '../webviewProtocol/types';
-import type { PiForkMessage, PiSessionState, PiSessionStats } from '../pi/types';
+import type { AgentForkMessage, AgentSessionState, AgentSessionStats } from '../agent/types';
 import { formatContextUsage, formatInteger } from '../metadata/sessionMetadata';
 
 export type ForkMessageOption = {
@@ -44,7 +44,7 @@ export function getSessionDisplayName(session: WebviewSessionItem | undefined, f
   return fileName || 'session';
 }
 
-export function formatForkMessages(messages: PiForkMessage[] | undefined): ForkMessageOption[] {
+export function formatForkMessages(messages: AgentForkMessage[] | undefined): ForkMessageOption[] {
   if (!Array.isArray(messages)) {
     return [];
   }
@@ -73,7 +73,7 @@ export function formatCompactionSystemMessage(summary: string, tokensBefore: num
   return `${formatCompactionTitle(tokensBefore)}.${summary ? `\n\n${summary}` : ''}`;
 }
 
-export function formatSessionInfo(state: PiSessionState, stats: PiSessionStats): string {
+export function formatSessionInfo(state: AgentSessionState, stats: AgentSessionStats): string {
   const lines = ['Session'];
   const sessionName = state.sessionName ?? stats.sessionName;
   const sessionId = state.sessionId ?? stats.sessionId;

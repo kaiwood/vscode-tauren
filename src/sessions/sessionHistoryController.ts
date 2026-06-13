@@ -1,9 +1,9 @@
 import type { ChatSession } from '../chat/chatSession';
-import type { PiClient } from '../pi/clientTypes';
-import type { PiSessionState, PiSessionStats } from '../pi/types';
+import type { AgentClient } from '../agent/clientTypes';
+import type { AgentSessionState, AgentSessionStats } from '../agent/types';
 import { isStaleKwardSessionRequestError } from '../controller/errors';
 import { formatAgentMessages } from '../controller/transcriptFormatting';
-import type { PiEventHandler } from '../controller/piEventHandler';
+import type { AgentEventHandler } from '../controller/piEventHandler';
 import { getSessionFile } from './sessionFormatting';
 import type { SessionViewController } from './sessionViewController';
 
@@ -11,8 +11,8 @@ export type SessionHistoryControllerOptions = {
   initialSessionFile?: string;
   session: ChatSession;
   sessionView: SessionViewController;
-  piEventHandler: PiEventHandler;
-  getClient: () => PiClient;
+  piEventHandler: AgentEventHandler;
+  getClient: () => AgentClient;
   invalidateMetadata: () => void;
   resetSessionMeta: () => void;
   refreshSessionDiffStats: () => void;
@@ -55,8 +55,8 @@ export class SessionHistoryController {
     this.loading = true;
     this.options.resetSessionMeta();
 
-    let messagesResult: Awaited<ReturnType<PiClient['getMessages']>>;
-    let stateResult: Awaited<ReturnType<PiClient['getState']>> | undefined;
+    let messagesResult: Awaited<ReturnType<AgentClient['getMessages']>>;
+    let stateResult: Awaited<ReturnType<AgentClient['getState']>> | undefined;
 
     try {
       [messagesResult, stateResult] = await Promise.all([
@@ -92,7 +92,7 @@ export class SessionHistoryController {
   }
 
   public async restoreInitialSessionHistory(
-    client: Pick<PiClient, 'getMessages'>,
+    client: Pick<AgentClient, 'getMessages'>,
     _sessionGeneration: number,
     isCurrent: () => boolean
   ): Promise<void> {
@@ -100,7 +100,7 @@ export class SessionHistoryController {
       return;
     }
 
-    let result: Awaited<ReturnType<PiClient['getMessages']>>;
+    let result: Awaited<ReturnType<AgentClient['getMessages']>>;
 
     try {
       result = await client.getMessages();
@@ -136,14 +136,14 @@ export class SessionHistoryController {
     this.options.postState();
   }
 
-  public applySessionStateIdentity(state: PiSessionState): { sessionFileChanged: boolean; sessionNameChanged: boolean } {
+  public applySessionStateIdentity(state: AgentSessionState): { sessionFileChanged: boolean; sessionNameChanged: boolean } {
     return {
       sessionFileChanged: this.applyCurrentSessionFile(getSessionFile(state)),
       sessionNameChanged: this.applyCurrentSessionName(state.sessionName)
     };
   }
 
-  public applySessionStatsIdentity(stats: PiSessionStats): { sessionFileChanged: boolean; sessionNameChanged: boolean } {
+  public applySessionStatsIdentity(stats: AgentSessionStats): { sessionFileChanged: boolean; sessionNameChanged: boolean } {
     const statsSessionFile = getSessionFile(stats);
 
     return {

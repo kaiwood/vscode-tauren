@@ -1,29 +1,29 @@
-import type { PiClientFactory, PiClient } from '../pi/clientTypes';
+import type { AgentClientFactory, AgentClient } from '../agent/clientTypes';
 import type { ExtensionUi } from '../extensionUi/types';
-import type { PiClientOptions, PiEvent } from '../pi/types';
+import type { AgentClientOptions, AgentEvent } from '../agent/types';
 
 type DisposableLike = {
   dispose(): void;
 };
 
-export type PiClientManagerOptions = {
-  createClient: PiClientFactory;
+export type AgentClientManagerOptions = {
+  createClient: AgentClientFactory;
   getCwd?: () => string | undefined;
   getCurrentSessionFile: () => string | undefined;
   getResumeLastSession?: () => boolean | undefined;
   getSessionGeneration: () => number;
   extensionUi?: ExtensionUi;
-  onEvent: (event: PiEvent) => void;
+  onEvent: (event: AgentEvent) => void;
   onError: (message: string) => void;
 };
 
-export class PiClientManager {
-  private client: PiClient | undefined;
+export class AgentClientManager {
+  private client: AgentClient | undefined;
   private nextSessionFile: string | undefined;
   private nextResumeLastSession: boolean | undefined;
   private readonly disposables: DisposableLike[] = [];
 
-  public constructor(private readonly options: PiClientManagerOptions) {}
+  public constructor(private readonly options: AgentClientManagerOptions) {}
 
   public setNextSessionFile(sessionFile: string | undefined): void {
     this.nextSessionFile = sessionFile;
@@ -33,7 +33,7 @@ export class PiClientManager {
     this.nextResumeLastSession = resumeLastSession;
   }
 
-  public getExistingClient(): PiClient | undefined {
+  public getExistingClient(): AgentClient | undefined {
     if (!this.client?.isRunning()) {
       return undefined;
     }
@@ -41,7 +41,7 @@ export class PiClientManager {
     return this.client;
   }
 
-  public getClient(): PiClient {
+  public getClient(): AgentClient {
     if (this.client) {
       return this.client;
     }
@@ -51,7 +51,7 @@ export class PiClientManager {
     this.nextSessionFile = undefined;
     this.nextResumeLastSession = undefined;
 
-    const clientOptions: PiClientOptions = { cwd: this.options.getCwd?.() };
+    const clientOptions: AgentClientOptions = { cwd: this.options.getCwd?.() };
 
     if (this.options.extensionUi) {
       clientOptions.extensionUi = this.options.extensionUi;

@@ -1,5 +1,5 @@
 import type { WebviewModelOption, WebviewSlashCommand, WebviewStartupResourceSection } from '../webviewProtocol/types';
-import type { PiCommand, PiMessagesResult, PiModel, PiSessionState, PiSessionStats, PiStartupResources } from '../pi/types';
+import type { AgentCommand, AgentMessagesResult, AgentModel, AgentSessionState, AgentSessionStats, AgentStartupResources } from '../agent/types';
 import { isStaleKwardSessionRequestError } from '../controller/errors';
 import type {
   TaurenChatContextUsage,
@@ -22,12 +22,12 @@ export type SessionMetadataStateOptions = {
 };
 
 export type SessionMetadataClient = {
-  getMessages(): Promise<PiMessagesResult>;
-  getState(): Promise<PiSessionState>;
-  getSessionStats(): Promise<PiSessionStats>;
-  getAvailableModels(): Promise<{ models?: PiModel[] }>;
-  getCommands(): Promise<{ commands?: PiCommand[] }>;
-  getStartupResources?(): Promise<PiStartupResources>;
+  getMessages(): Promise<AgentMessagesResult>;
+  getState(): Promise<AgentSessionState>;
+  getSessionStats(): Promise<AgentSessionStats>;
+  getAvailableModels(): Promise<{ models?: AgentModel[] }>;
+  getCommands(): Promise<{ commands?: AgentCommand[] }>;
+  getStartupResources?(): Promise<AgentStartupResources>;
 };
 
 export type SessionMetadataRefreshControllerOptions = {
@@ -39,8 +39,8 @@ export type SessionMetadataRefreshControllerOptions = {
     sessionGeneration: number,
     isCurrent: () => boolean
   ) => Promise<void>;
-  applySessionState: (state: PiSessionState) => { sessionFileChanged: boolean; sessionNameChanged: boolean };
-  applySessionStatsIdentity: (stats: PiSessionStats) => { sessionFileChanged: boolean; sessionNameChanged: boolean };
+  applySessionState: (state: AgentSessionState) => { sessionFileChanged: boolean; sessionNameChanged: boolean };
+  applySessionStatsIdentity: (stats: AgentSessionStats) => { sessionFileChanged: boolean; sessionNameChanged: boolean };
   refreshSessions: () => void;
   postState: () => void;
   onMetadataStartError: (message: string) => void;
@@ -253,7 +253,7 @@ export class SessionMetadataRefreshController {
     }
   }
 
-  private applySessionStats(stats: PiSessionStats): void {
+  private applySessionStats(stats: AgentSessionStats): void {
     const { sessionFileChanged, sessionNameChanged } = this.options.applySessionStatsIdentity(stats);
 
     if (sessionFileChanged) {
@@ -412,7 +412,7 @@ export class SessionMetadataState {
     return this.slashCommands;
   }
 
-  public applyModelState(state: PiSessionState): boolean {
+  public applyModelState(state: AgentSessionState): boolean {
     const modelChanged = this.applyModelMeta(getModelMeta(state), { notify: false });
     const runtimeChanged = this.applyPiSettings(getPiSettingsMeta(state));
     const personaLabelChanged = this.applyActivePersonaLabel(state.activePersonaLabel);
@@ -425,23 +425,23 @@ export class SessionMetadataState {
     return false;
   }
 
-  public applyModelSelection(model: PiModel, thinkingLevel: string): boolean {
+  public applyModelSelection(model: AgentModel, thinkingLevel: string): boolean {
     return this.applyModelMeta(getModelMeta({ model, thinkingLevel }));
   }
 
-  public applySessionStats(stats: PiSessionStats): boolean {
+  public applySessionStats(stats: AgentSessionStats): boolean {
     return this.applyContextUsage(formatContextUsage(stats));
   }
 
-  public applyAvailableModels(models: PiModel[] | undefined): boolean {
+  public applyAvailableModels(models: AgentModel[] | undefined): boolean {
     return this.applyModelOptions(formatModelOptions(models));
   }
 
-  public applyAvailableCommands(commands: PiCommand[] | undefined): boolean {
+  public applyAvailableCommands(commands: AgentCommand[] | undefined): boolean {
     return this.applySlashCommands(formatSlashCommands(commands));
   }
 
-  public applyStartupResources(resources: PiStartupResources | undefined): boolean {
+  public applyStartupResources(resources: AgentStartupResources | undefined): boolean {
     return this.setStartupResources(formatStartupResources(resources));
   }
 
@@ -619,7 +619,7 @@ export class SessionMetadataState {
   }
 }
 
-export function formatContextUsage(stats: PiSessionStats): TaurenChatContextUsage {
+export function formatContextUsage(stats: AgentSessionStats): TaurenChatContextUsage {
   const usage = stats.contextUsage;
 
   if (!usage || typeof usage.contextWindow !== 'number') {
@@ -641,7 +641,7 @@ export function formatContextUsage(stats: PiSessionStats): TaurenChatContextUsag
   return { label, title, level: getContextUsageLevel(derivedPercent) };
 }
 
-export function formatContextStatusTooltip(stats: PiSessionStats): string {
+export function formatContextStatusTooltip(stats: AgentSessionStats): string {
   const lines: string[] = [];
   const tokens = stats.tokens;
   const tokenParts: string[] = [];
@@ -716,7 +716,7 @@ function getContextUsageLevel(percent: number): string {
   return 'low';
 }
 
-function getPiSettingsMeta(state: PiSessionState): PiRuntimeSettingsMeta {
+function getPiSettingsMeta(state: AgentSessionState): PiRuntimeSettingsMeta {
   const currentModelValue = state.model?.provider && state.model?.id
     ? `${state.model.provider}/${state.model.id}`
     : state.defaultProvider && state.defaultModel
@@ -772,7 +772,7 @@ function arePiSettingsEqual(left: PiRuntimeSettingsMeta, right: PiRuntimeSetting
   return true;
 }
 
-function getModelMeta(state: PiSessionState): TaurenChatModelMeta {
+function getModelMeta(state: AgentSessionState): TaurenChatModelMeta {
   const model = state.model;
   const id = typeof model?.id === 'string' ? model.id : '';
   const provider = typeof model?.provider === 'string' ? model.provider : '';
@@ -790,7 +790,7 @@ function getModelMeta(state: PiSessionState): TaurenChatModelMeta {
   return { label: id, provider, id, reasoning, thinkingLevel };
 }
 
-function formatModelOptions(models: PiModel[] | undefined): WebviewModelOption[] {
+function formatModelOptions(models: AgentModel[] | undefined): WebviewModelOption[] {
   if (!Array.isArray(models)) {
     return [];
   }
@@ -812,7 +812,7 @@ function formatModelOptions(models: PiModel[] | undefined): WebviewModelOption[]
   });
 }
 
-function formatSlashCommands(commands: PiCommand[] | undefined): WebviewSlashCommand[] {
+function formatSlashCommands(commands: AgentCommand[] | undefined): WebviewSlashCommand[] {
   if (!Array.isArray(commands)) {
     return [];
   }
@@ -869,7 +869,7 @@ function areModelOptionsEqual(left: WebviewModelOption[], right: WebviewModelOpt
     });
 }
 
-function formatStartupResources(resources: PiStartupResources | undefined): WebviewStartupResourceSection[] {
+function formatStartupResources(resources: AgentStartupResources | undefined): WebviewStartupResourceSection[] {
   if (!Array.isArray(resources?.sections)) {
     return [];
   }

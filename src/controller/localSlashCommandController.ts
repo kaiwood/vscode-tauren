@@ -1,7 +1,7 @@
 import type { ChatSession } from '../chat/chatSession';
 import type { ExtensionUi } from '../extensionUi/types';
-import type { PiClient } from '../pi/clientTypes';
-import type { PiModel, PiSessionState, PiSessionStats } from '../pi/types';
+import type { AgentClient } from '../agent/clientTypes';
+import type { AgentModel, AgentSessionState, AgentSessionStats } from '../agent/types';
 import { SessionMetadataState } from '../metadata/sessionMetadata';
 import type { WebviewSettingsSection } from '../webviewProtocol/types';
 import { isSupportedBuiltinSlashCommand } from '../commands/slashCommands';
@@ -29,7 +29,7 @@ export type LocalSlashCommandControllerOptions = {
   showNotification: (message: string, notifyType: string) => void;
   showToast?: (message: string, kind?: 'success' | 'warning' | 'error') => void;
   writeClipboard?: (text: string) => PromiseLike<void> | Promise<void> | void;
-  getClient: () => PiClient;
+  getClient: () => AgentClient;
   postState: () => void;
   refreshSessionMeta: (options?: { startClient?: boolean; force?: boolean }) => Promise<void>;
   refreshSlashCommands: (options?: { startClient?: boolean; force?: boolean }) => Promise<void>;
@@ -239,7 +239,7 @@ export class LocalSlashCommandController {
     }
   }
 
-  private applySelectedModel(model: PiModel, provider: string, modelId: string): void {
+  private applySelectedModel(model: AgentModel, provider: string, modelId: string): void {
     const current = this.options.sessionMetadata.getWebviewState().model;
     this.options.sessionMetadata.applyModelSelection({
       provider: model.provider ?? provider,
@@ -341,7 +341,7 @@ export class LocalSlashCommandController {
 
   private async handleSessionSlashCommand(): Promise<void> {
     const client = this.options.getClient();
-    const [state, stats]: [PiSessionState, PiSessionStats] = await Promise.all([
+    const [state, stats]: [AgentSessionState, AgentSessionStats] = await Promise.all([
       client.getState(),
       client.getSessionStats()
     ]);

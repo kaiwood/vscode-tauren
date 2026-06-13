@@ -7,7 +7,7 @@ import {
   type ActivityRemoveAction,
   type ActivityUpdateAction
 } from '../pi/eventMapper';
-import type { PiEvent } from '../pi/types';
+import type { AgentEvent } from '../agent/types';
 import { isAbortMessage, isMessageUpdateStart } from './errors';
 import { getRecordString, isRecord } from './typeGuards';
 
@@ -19,14 +19,14 @@ type LiveToolCall = {
 
 const bashUpdateThrottleMs = 500;
 
-export type PiEventHandlerOptions = {
+export type AgentEventHandlerOptions = {
   session: ChatSession;
   postState: () => void;
   scheduleState: () => void;
   isActiveSession?: () => boolean;
   refreshSessionDiffStats: () => void;
   refreshContextUsage: () => void;
-  addToolExecution: (event: PiEvent) => void;
+  addToolExecution: (event: AgentEvent) => void;
   armQueuedReadyScriptRun: () => void;
   runReadyScriptAfterAgentEnd: () => void;
   refreshMetadataAfterAgentEnd: () => void;
@@ -35,7 +35,7 @@ export type PiEventHandlerOptions = {
   resetAbortState: () => void;
 };
 
-export class PiEventHandler {
+export class AgentEventHandler {
   private assistantStreamId = 0;
   private agentActive = false;
   private autoRetryActive = false;
@@ -47,7 +47,7 @@ export class PiEventHandler {
   private lastBashUpdatePostAt = 0;
   private readonly liveToolCallsById = new Map<string, LiveToolCall>();
 
-  public constructor(private readonly options: PiEventHandlerOptions) {}
+  public constructor(private readonly options: AgentEventHandlerOptions) {}
 
   public reset(): void {
     this.clearReadyScriptTimer();
@@ -71,7 +71,7 @@ export class PiEventHandler {
     this.clearBashUpdatePostTimer();
   }
 
-  public handleEvent(event: PiEvent): void {
+  public handleEvent(event: AgentEvent): void {
     switch (event.type) {
       case 'agent_start':
         this.clearReadyScriptTimer();
@@ -197,7 +197,7 @@ export class PiEventHandler {
     }
   }
 
-  private handleCustomMessageEnd(event: PiEvent): boolean {
+  private handleCustomMessageEnd(event: AgentEvent): boolean {
     const message = isRecord(event.message) ? event.message : undefined;
 
     if (!message || message.role !== 'custom') {
@@ -236,7 +236,7 @@ export class PiEventHandler {
     return false;
   }
 
-  private handleMessageUpdate(event: PiEvent): void {
+  private handleMessageUpdate(event: AgentEvent): void {
     this.rememberLiveToolCall(event);
 
     const action = mapMessageUpdate(event, this.getMessageUpdateStreamId(event), {
@@ -297,7 +297,7 @@ export class PiEventHandler {
     }
   }
 
-  private handleToolExecutionUpdate(event: PiEvent): void {
+  private handleToolExecutionUpdate(event: AgentEvent): void {
     const enrichedEvent = this.enrichLiveToolExecutionEvent(event);
 
     if (!this.isBashToolExecutionEvent(enrichedEvent)) {
@@ -392,7 +392,7 @@ export class PiEventHandler {
       || this.waitingForAutoRetryStart;
   }
 
-  private applyPiActivity(event: PiEvent, options: { omitBody?: boolean } = {}): void {
+  private applyPiActivity(event: AgentEvent, options: { omitBody?: boolean } = {}): void {
     if (!this.options.session.isBusy && event.type !== 'agent_start') {
       return;
     }
@@ -429,7 +429,7 @@ export class PiEventHandler {
     );
   }
 
-  private rememberLiveToolCall(event: PiEvent): void {
+  private rememberLiveToolCall(event: AgentEvent): void {
     const assistantMessageEvent = event.assistantMessageEvent;
 
     if (!isRecord(assistantMessageEvent) || assistantMessageEvent.type !== 'toolcall_end') {
@@ -452,11 +452,11 @@ export class PiEventHandler {
     });
   }
 
-  private isBashToolExecutionEvent(event: PiEvent): boolean {
+  private isBashToolExecutionEvent(event: AgentEvent): boolean {
     return event.type === 'tool_execution_update' && getRecordString(event, 'toolName') === 'bash';
   }
 
-  private enrichLiveToolExecutionEvent(event: PiEvent): PiEvent {
+  private enrichLiveToolExecutionEvent(event: AgentEvent): AgentEvent {
     if (
       event.type !== 'tool_execution_start'
       && event.type !== 'tool_execution_update'
@@ -479,7 +479,7 @@ export class PiEventHandler {
     };
   }
 
-  private getMessageUpdateStreamId(event: PiEvent): number {
+  private getMessageUpdateStreamId(event: AgentEvent): number {
     if (isMessageUpdateStart(event)) {
       this.assistantStreamId += 1;
     }
