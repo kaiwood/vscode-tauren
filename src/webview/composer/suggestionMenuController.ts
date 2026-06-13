@@ -1,5 +1,6 @@
 import {
   webviewHiddenLocalSlashCommandNames,
+  webviewKwardMemoryCommandOptions,
   webviewLocalSlashCommands
 } from '../constants';
 import type { FileSuggestion, SlashCommand, WebviewState } from '../types';
@@ -11,7 +12,8 @@ import {
 } from './fileSuggestions';
 
 type PostMessage = (message: unknown) => void;
-type SuggestionKind = 'slash' | 'file';
+type SuggestionKind = 'slash' | 'file' | 'memory';
+type MemorySuggestion = { command: string; description: string; insertText?: string };
 
 export type SuggestionMenuControllerOptions = {
   getState: () => WebviewState;
@@ -33,6 +35,8 @@ export class SuggestionMenuController {
   private dismissedSlashQuery: string | undefined;
   private slashCommandsRefreshRequested = false;
   private kind: SuggestionKind | undefined;
+  private memoryItems: MemorySuggestion[] = [];
+  private memoryQuery = '';
   private fileItems: FileSuggestion[] = [];
   private filePrefix = '';
   private fileRequestId = 0;
@@ -56,6 +60,8 @@ export class SuggestionMenuController {
     this.activeIndex = 0;
     this.slashQuery = '';
     this.kind = undefined;
+    this.memoryItems = [];
+    this.memoryQuery = '';
     this.fileItems = [];
     this.filePrefix = '';
     this.fileLoading = false;
@@ -98,14 +104,20 @@ export class SuggestionMenuController {
     }
 
     const state = this.options.getState();
+    const memoryQuery = this.getMemoryCommandQuery();
 
-    if (!this.shouldShowSlashMenu()) {
+    if (!this.shouldShowSlashMenu() && memoryQuery === undefined) {
       this.close();
       return;
     }
 
     this.options.closeModelMenu();
     this.options.cancelSessionNameEdit();
+
+    if (memoryQuery !== undefined) {
+      this.syncMemoryMenu(memoryQuery);
+      return;
+    }
     if (
       state.slashCommands.length === 0
       && !state.slashCommandsRefreshing
@@ -123,6 +135,8 @@ export class SuggestionMenuController {
 
     if (this.kind !== 'slash' || query !== this.slashQuery) {
       this.kind = 'slash';
+      this.memoryItems = [];
+      this.memoryQuery = '';
       this.fileItems = [];
       this.fileLoading = false;
       this.slashQuery = query;
@@ -236,6 +250,16 @@ export class SuggestionMenuController {
       return;
     }
 
+    if (this.kind === 'memory') {
+      const command = this.memoryItems[index];
+
+      if (command) {
+        this.acceptMemoryCommand(command);
+      }
+
+      return;
+    }
+
     const command = this.slashItems[index];
 
     if (command) {
@@ -255,6 +279,8 @@ export class SuggestionMenuController {
     if (this.kind !== 'file' || prefix !== this.filePrefix) {
       this.kind = 'file';
       this.slashItems = [];
+      this.memoryItems = [];
+      this.memoryQuery = '';
       this.fileItems = [];
       this.filePrefix = prefix;
       this.fileLoading = true;
@@ -289,6 +315,29 @@ export class SuggestionMenuController {
     const beforeCursor = this.options.textarea.value.slice(0, cursor);
     return beforeCursor.startsWith('/')
       && !Array.from(beforeCursor).some((character) => character.trim().length === 0);
+  }
+
+  private getMemoryCommandQuery(): string | undefined {
+    const state = this.options.getState();
+
+    if (state.busy || state.settings.values['tauren.backend'] !== 'kward' || document.activeElement !== this.options.textarea) {
+      return undefined;
+    }
+
+    const cursor = this.options.textarea.selectionStart;
+
+    if (cursor !== this.options.textarea.selectionEnd) {
+      return undefined;
+    }
+
+    const beforeCursor = this.options.textarea.value.slice(0, cursor);
+    const match = beforeCursor.match(/^\/memory(?:\s+(.*))?$/i);
+
+    if (!match) {
+      return undefined;
+    }
+
+    return (match[1] ?? '').toLowerCase();
   }
 
   private getSlashCommandQuery(): string {
@@ -349,6 +398,51 @@ export class SuggestionMenuController {
     return commands;
   }
 
+  private syncMemoryMenu(query: string): void {
+    if (this.kind !== 'memory' || query !== this.memoryQuery) {
+      this.kind = 'memory';
+      this.slashItems = [];
+      this.fileItems = [];
+      this.fileLoading = false;
+      this.memoryQuery = query;
+      this.activeIndex = 0;
+      this.disablePointerHover();
+      this.options.slashMenuElement?.scrollTo({ top: 0 });
+    }
+
+    this.memoryItems = this.getFilteredMemoryCommands(query);
+    this.activeIndex = Math.min(this.activeIndex, Math.max(0, this.memoryItems.length - 1));
+    this.renderMemoryMenu(query);
+    this.openMenu();
+  }
+
+  private getFilteredMemoryCommands(query: string): MemorySuggestion[] {
+    const normalizedQuery = query.trim().toLowerCase();
+    const scored = [];
+
+    for (const option of webviewKwardMemoryCommandOptions) {
+      const command = option.command.toLowerCase();
+      const description = option.description.toLowerCase();
+      const commandPrefix = command.startsWith(normalizedQuery);
+      const commandMatch = command.includes(normalizedQuery);
+      const descriptionMatch = description.includes(normalizedQuery);
+
+      if (!commandMatch && !descriptionMatch) {
+        continue;
+      }
+
+      scored.push({
+        option,
+        score: commandPrefix ? 0 : commandMatch ? 1 : 2
+      });
+    }
+
+    return scored
+      .sort((left, right) => left.score - right.score || left.option.command.localeCompare(right.option.command))
+      .slice(0, 8)
+      .map((item) => item.option);
+  }
+
   private renderSlashMenu(query: string): void {
     const slashMenuElement = this.options.slashMenuElement;
 
@@ -371,6 +465,27 @@ export class SuggestionMenuController {
 
     for (let index = 0; index < this.slashItems.length; index += 1) {
       slashMenuElement.append(this.createSlashMenuItemElement(this.slashItems[index], index));
+    }
+
+    this.syncActiveDescendant();
+  }
+
+  private renderMemoryMenu(query: string): void {
+    const slashMenuElement = this.options.slashMenuElement;
+
+    if (!slashMenuElement) {
+      return;
+    }
+
+    slashMenuElement.replaceChildren();
+
+    if (this.memoryItems.length === 0) {
+      slashMenuElement.append(createSlashMenuEmptyElement(query ? 'No matching memory commands' : 'No memory commands available'));
+      return;
+    }
+
+    for (let index = 0; index < this.memoryItems.length; index += 1) {
+      slashMenuElement.append(this.createMemorySuggestionItemElement(this.memoryItems[index], index));
     }
 
     this.syncActiveDescendant();
@@ -436,6 +551,27 @@ export class SuggestionMenuController {
     return item;
   }
 
+  private createMemorySuggestionItemElement(command: MemorySuggestion, index: number): HTMLElement {
+    const item = this.createSuggestionBaseElement(index);
+
+    const label = document.createElement('span');
+    label.className = 'composer__slash-label';
+    label.textContent = '/memory ' + command.command;
+    item.append(label);
+
+    const source = document.createElement('span');
+    source.className = 'composer__slash-source';
+    source.textContent = 'memory';
+    item.append(source);
+
+    const description = document.createElement('span');
+    description.className = 'composer__slash-description';
+    description.textContent = command.description;
+    item.append(description);
+
+    return item;
+  }
+
   private createSlashMenuItemElement(command: SlashCommand, index: number): HTMLElement {
     const item = this.createSuggestionBaseElement(index);
 
@@ -469,7 +605,7 @@ export class SuggestionMenuController {
 
     this.open = true;
     this.options.slashMenuElement.setAttribute('open', '');
-    this.options.slashMenuElement.setAttribute('aria-label', this.kind === 'file' ? 'File suggestions' : 'Slash commands');
+    this.options.slashMenuElement.setAttribute('aria-label', this.kind === 'file' ? 'File suggestions' : this.kind === 'memory' ? 'Memory commands' : 'Slash commands');
     this.options.textarea.setAttribute('aria-expanded', 'true');
     this.syncActiveDescendant();
   }
@@ -485,6 +621,8 @@ export class SuggestionMenuController {
 
     if (this.kind === 'file') {
       this.renderFileMenu(this.filePrefix);
+    } else if (this.kind === 'memory') {
+      this.renderMemoryMenu(this.memoryQuery);
     } else {
       this.renderSlashMenu(this.getSlashCommandQuery());
     }
@@ -549,6 +687,16 @@ export class SuggestionMenuController {
       return;
     }
 
+    if (this.kind === 'memory') {
+      const command = this.memoryItems[this.activeIndex];
+
+      if (command) {
+        this.acceptMemoryCommand(command);
+      }
+
+      return;
+    }
+
     const command = this.slashItems[this.activeIndex];
 
     if (command) {
@@ -557,7 +705,7 @@ export class SuggestionMenuController {
   }
 
   private getActiveSuggestionCount(): number {
-    return this.kind === 'file' ? this.fileItems.length : this.slashItems.length;
+    return this.kind === 'file' ? this.fileItems.length : this.kind === 'memory' ? this.memoryItems.length : this.slashItems.length;
   }
 
   private acceptSlashCommand(command: SlashCommand): void {
@@ -565,6 +713,19 @@ export class SuggestionMenuController {
     const after = this.options.textarea.value.slice(cursor).trimStart();
     const value = '/' + command.name + ' ' + after;
     const nextCursor = command.name.length + 2;
+    this.options.textarea.value = value;
+    this.options.textarea.setSelectionRange(nextCursor, nextCursor);
+    this.close();
+    this.options.syncComposer({ preserveBottom: true });
+    this.options.focusPromptInput();
+  }
+
+  private acceptMemoryCommand(command: MemorySuggestion): void {
+    const cursor = this.options.textarea.selectionStart;
+    const after = this.options.textarea.value.slice(cursor).trimStart();
+    const insertText = command.insertText ?? command.command;
+    const value = '/memory ' + insertText + ' ' + after;
+    const nextCursor = insertText.length + 9;
     this.options.textarea.value = value;
     this.options.textarea.setSelectionRange(nextCursor, nextCursor);
     this.close();

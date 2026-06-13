@@ -1964,9 +1964,29 @@
   var localSlashCommands = localSlashCommandDefinitions.map(({ supported: _supported, hidden: _hidden, ...command }) => command);
   var localSlashMenuCommands = localSlashCommandDefinitions.filter((command) => command.supported && !command.hidden).map(({ supported: _supported, hidden: _hidden, ...command }) => command);
 
+  // src/kward/memoryCommandOptions.ts
+  var kwardMemoryCommandOptions = [
+    { command: "status", description: "Show memory and auto-summary status" },
+    { command: "enable", description: "Enable Kward memory" },
+    { command: "disable", description: "Disable memory prompt injection" },
+    { command: "auto-summary enable", description: "Learn soft memories after completed turns" },
+    { command: "auto-summary disable", description: "Disable automatic memory summarization" },
+    { command: "core <text>", description: "Add a global core memory", insertText: "core" },
+    { command: "add <text>", description: "Add a workspace soft memory", insertText: "add" },
+    { command: "list", description: "List active memory for this workspace" },
+    { command: "list --all", description: "List memory including inactive records" },
+    { command: "forget <id>", description: "Forget a core or soft memory", insertText: "forget" },
+    { command: "promote <id>", description: "Promote soft memory or workspace core memory", insertText: "promote" },
+    { command: "relax <id>", description: "Relax a global core memory into this workspace", insertText: "relax" },
+    { command: "inspect", description: "Inspect memory status, paths, and stored records" },
+    { command: "why", description: "Explain the latest memory retrieval" },
+    { command: "summarize", description: "Learn soft memories from this session" }
+  ];
+
   // src/webview/constants.ts
   var webviewHiddenLocalSlashCommandNames = hiddenLocalSlashCommandNames;
   var webviewLocalSlashCommands = localSlashMenuCommands.map((command) => ({ ...command }));
+  var webviewKwardMemoryCommandOptions = kwardMemoryCommandOptions.map((option) => ({ ...option }));
   var messagesBottomThreshold = 4;
   var maxTextareaHeight = 180;
   var minTextareaHeight = 22;
@@ -2657,6 +2677,8 @@
     dismissedSlashQuery;
     slashCommandsRefreshRequested = false;
     kind;
+    memoryItems = [];
+    memoryQuery = "";
     fileItems = [];
     filePrefix = "";
     fileRequestId = 0;
@@ -2675,6 +2697,8 @@
       this.activeIndex = 0;
       this.slashQuery = "";
       this.kind = void 0;
+      this.memoryItems = [];
+      this.memoryQuery = "";
       this.fileItems = [];
       this.filePrefix = "";
       this.fileLoading = false;
@@ -2709,12 +2733,17 @@
         return;
       }
       const state2 = this.options.getState();
-      if (!this.shouldShowSlashMenu()) {
+      const memoryQuery = this.getMemoryCommandQuery();
+      if (!this.shouldShowSlashMenu() && memoryQuery === void 0) {
         this.close();
         return;
       }
       this.options.closeModelMenu();
       this.options.cancelSessionNameEdit();
+      if (memoryQuery !== void 0) {
+        this.syncMemoryMenu(memoryQuery);
+        return;
+      }
       if (state2.slashCommands.length === 0 && !state2.slashCommandsRefreshing && !this.slashCommandsRefreshRequested) {
         this.slashCommandsRefreshRequested = true;
         this.options.postMessage({ type: "refreshSlashCommands" });
@@ -2726,6 +2755,8 @@
       }
       if (this.kind !== "slash" || query !== this.slashQuery) {
         this.kind = "slash";
+        this.memoryItems = [];
+        this.memoryQuery = "";
         this.fileItems = [];
         this.fileLoading = false;
         this.slashQuery = query;
@@ -2812,6 +2843,13 @@
         }
         return;
       }
+      if (this.kind === "memory") {
+        const command2 = this.memoryItems[index];
+        if (command2) {
+          this.acceptMemoryCommand(command2);
+        }
+        return;
+      }
       const command = this.slashItems[index];
       if (command) {
         this.acceptSlashCommand(command);
@@ -2827,6 +2865,8 @@
       if (this.kind !== "file" || prefix !== this.filePrefix) {
         this.kind = "file";
         this.slashItems = [];
+        this.memoryItems = [];
+        this.memoryQuery = "";
         this.fileItems = [];
         this.filePrefix = prefix;
         this.fileLoading = true;
@@ -2854,6 +2894,22 @@
       }
       const beforeCursor = this.options.textarea.value.slice(0, cursor);
       return beforeCursor.startsWith("/") && !Array.from(beforeCursor).some((character) => character.trim().length === 0);
+    }
+    getMemoryCommandQuery() {
+      const state2 = this.options.getState();
+      if (state2.busy || state2.settings.values["tauren.backend"] !== "kward" || document.activeElement !== this.options.textarea) {
+        return void 0;
+      }
+      const cursor = this.options.textarea.selectionStart;
+      if (cursor !== this.options.textarea.selectionEnd) {
+        return void 0;
+      }
+      const beforeCursor = this.options.textarea.value.slice(0, cursor);
+      const match = beforeCursor.match(/^\/memory(?:\s+(.*))?$/i);
+      if (!match) {
+        return void 0;
+      }
+      return (match[1] ?? "").toLowerCase();
     }
     getSlashCommandQuery() {
       return this.options.textarea.value.slice(1, this.options.textarea.selectionStart).toLowerCase();
@@ -2899,6 +2955,41 @@
       }
       return commands;
     }
+    syncMemoryMenu(query) {
+      if (this.kind !== "memory" || query !== this.memoryQuery) {
+        this.kind = "memory";
+        this.slashItems = [];
+        this.fileItems = [];
+        this.fileLoading = false;
+        this.memoryQuery = query;
+        this.activeIndex = 0;
+        this.disablePointerHover();
+        this.options.slashMenuElement?.scrollTo({ top: 0 });
+      }
+      this.memoryItems = this.getFilteredMemoryCommands(query);
+      this.activeIndex = Math.min(this.activeIndex, Math.max(0, this.memoryItems.length - 1));
+      this.renderMemoryMenu(query);
+      this.openMenu();
+    }
+    getFilteredMemoryCommands(query) {
+      const normalizedQuery = query.trim().toLowerCase();
+      const scored = [];
+      for (const option of webviewKwardMemoryCommandOptions) {
+        const command = option.command.toLowerCase();
+        const description = option.description.toLowerCase();
+        const commandPrefix = command.startsWith(normalizedQuery);
+        const commandMatch = command.includes(normalizedQuery);
+        const descriptionMatch = description.includes(normalizedQuery);
+        if (!commandMatch && !descriptionMatch) {
+          continue;
+        }
+        scored.push({
+          option,
+          score: commandPrefix ? 0 : commandMatch ? 1 : 2
+        });
+      }
+      return scored.sort((left, right) => left.score - right.score || left.option.command.localeCompare(right.option.command)).slice(0, 8).map((item) => item.option);
+    }
     renderSlashMenu(query) {
       const slashMenuElement2 = this.options.slashMenuElement;
       if (!slashMenuElement2) {
@@ -2916,6 +3007,21 @@
       }
       for (let index = 0; index < this.slashItems.length; index += 1) {
         slashMenuElement2.append(this.createSlashMenuItemElement(this.slashItems[index], index));
+      }
+      this.syncActiveDescendant();
+    }
+    renderMemoryMenu(query) {
+      const slashMenuElement2 = this.options.slashMenuElement;
+      if (!slashMenuElement2) {
+        return;
+      }
+      slashMenuElement2.replaceChildren();
+      if (this.memoryItems.length === 0) {
+        slashMenuElement2.append(createSlashMenuEmptyElement(query ? "No matching memory commands" : "No memory commands available"));
+        return;
+      }
+      for (let index = 0; index < this.memoryItems.length; index += 1) {
+        slashMenuElement2.append(this.createMemorySuggestionItemElement(this.memoryItems[index], index));
       }
       this.syncActiveDescendant();
     }
@@ -2966,6 +3072,22 @@
       }
       return item;
     }
+    createMemorySuggestionItemElement(command, index) {
+      const item = this.createSuggestionBaseElement(index);
+      const label = document.createElement("span");
+      label.className = "composer__slash-label";
+      label.textContent = "/memory " + command.command;
+      item.append(label);
+      const source = document.createElement("span");
+      source.className = "composer__slash-source";
+      source.textContent = "memory";
+      item.append(source);
+      const description = document.createElement("span");
+      description.className = "composer__slash-description";
+      description.textContent = command.description;
+      item.append(description);
+      return item;
+    }
     createSlashMenuItemElement(command, index) {
       const item = this.createSuggestionBaseElement(index);
       const label = document.createElement("span");
@@ -2993,7 +3115,7 @@
       }
       this.open = true;
       this.options.slashMenuElement.setAttribute("open", "");
-      this.options.slashMenuElement.setAttribute("aria-label", this.kind === "file" ? "File suggestions" : "Slash commands");
+      this.options.slashMenuElement.setAttribute("aria-label", this.kind === "file" ? "File suggestions" : this.kind === "memory" ? "Memory commands" : "Slash commands");
       this.options.textarea.setAttribute("aria-expanded", "true");
       this.syncActiveDescendant();
     }
@@ -3005,6 +3127,8 @@
       this.activeIndex = (this.activeIndex + delta + itemCount) % itemCount;
       if (this.kind === "file") {
         this.renderFileMenu(this.filePrefix);
+      } else if (this.kind === "memory") {
+        this.renderMemoryMenu(this.memoryQuery);
       } else {
         this.renderSlashMenu(this.getSlashCommandQuery());
       }
@@ -3054,19 +3178,38 @@
         }
         return;
       }
+      if (this.kind === "memory") {
+        const command2 = this.memoryItems[this.activeIndex];
+        if (command2) {
+          this.acceptMemoryCommand(command2);
+        }
+        return;
+      }
       const command = this.slashItems[this.activeIndex];
       if (command) {
         this.acceptSlashCommand(command);
       }
     }
     getActiveSuggestionCount() {
-      return this.kind === "file" ? this.fileItems.length : this.slashItems.length;
+      return this.kind === "file" ? this.fileItems.length : this.kind === "memory" ? this.memoryItems.length : this.slashItems.length;
     }
     acceptSlashCommand(command) {
       const cursor = this.options.textarea.selectionStart;
       const after = this.options.textarea.value.slice(cursor).trimStart();
       const value = "/" + command.name + " " + after;
       const nextCursor = command.name.length + 2;
+      this.options.textarea.value = value;
+      this.options.textarea.setSelectionRange(nextCursor, nextCursor);
+      this.close();
+      this.options.syncComposer({ preserveBottom: true });
+      this.options.focusPromptInput();
+    }
+    acceptMemoryCommand(command) {
+      const cursor = this.options.textarea.selectionStart;
+      const after = this.options.textarea.value.slice(cursor).trimStart();
+      const insertText = command.insertText ?? command.command;
+      const value = "/memory " + insertText + " " + after;
+      const nextCursor = insertText.length + 9;
       this.options.textarea.value = value;
       this.options.textarea.setSelectionRange(nextCursor, nextCursor);
       this.close();

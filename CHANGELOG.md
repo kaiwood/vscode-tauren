@@ -5,12 +5,14 @@
 ### Added
 
 - Added Kward memory management through `/memory ...` and VS Code command palette actions.
+- Added `/memory` Composer Suggestions for Kward memory options.
 - Added Kward-backed Session Tree support with tree labels, navigation, filtering, search, folding, and label timestamp display.
 - Added a `/restart` command that restarts open backend engines, reconnects persisted sessions, and refreshes session navigation.
 - Added an experimental configurable Kward JSON-RPC backend for Tauren sidebar chat.
 
 ### Changed
 
+- Changed Kward memory slash command results to appear in the Transcript.
 - Changed Login settings to derive authentication providers from the Pi runtime instead of Tauren-maintained built-in provider metadata.
 - Wired the experimental Kward backend to the expanded RPC parity contract for images, runtime metadata, commands, auth, fork, and session listing.
 - Show Kward's active persona label on new assistant transcript messages when provided by RPC runtime state.

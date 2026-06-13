@@ -148,14 +148,20 @@ export class LocalSlashCommandController {
   private async handleMemorySlashCommand(args: string): Promise<void> {
     try {
       const parsed = parseKwardMemorySlashArgs(args);
-      await runKwardMemoryAction({
+      const result = await runKwardMemoryAction({
         client: this.options.getClient(),
         action: parsed.action,
         args: parsed.args,
         showNotification: this.options.showNotification
       });
+
+      if (result) {
+        this.options.session.addSystemMessage(result);
+        this.options.postState();
+      }
     } catch (error) {
-      this.options.showNotification(getErrorMessage(error), 'warning');
+      this.options.session.addErrorMessage(getErrorMessage(error));
+      this.options.postState();
     }
   }
 

@@ -1570,6 +1570,53 @@ suite('TaurenChatController', () => {
     harness.controller.dispose();
   });
 
+  test('memory slash command writes status to the transcript', async () => {
+    const client = new FakePiClient({ memoryStatus: { enabled: true, autoSummary: false } });
+    const harness = createControllerHarness([client], { getTaurenSettingValues: () => ({ 'tauren.backend': 'kward' }) });
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/memory status' });
+
+    assert.deepStrictEqual(client.prompts, []);
+    assert.deepStrictEqual(lastState(harness).messages, [
+      { role: 'system', text: 'Kward memory enabled; auto-summary disabled.' }
+    ]);
+    harness.controller.dispose();
+  });
+
+  test('memory slash command writes list output to the transcript', async () => {
+    const client = new FakePiClient({
+      memoryList: {
+        globalCore: [{ id: 'core_001', text: 'Prefer small patches.', scope: 'global' }],
+        workspaceCore: [],
+        workspaceSoft: [{ id: 'soft_001', text: 'This workspace uses Minitest.', scope: 'workspace' }]
+      }
+    });
+    const harness = createControllerHarness([client], { getTaurenSettingValues: () => ({ 'tauren.backend': 'kward' }) });
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/memory list' });
+
+    assert.deepStrictEqual(client.prompts, []);
+    assert.deepStrictEqual(lastState(harness).messages, [
+      {
+        role: 'system',
+        text: 'Global Core Memories:\n- core_001 [global] Prefer small patches.\n\nWorkspace Core Memories:\n- none\n\nWorkspace Soft Memories:\n- soft_001 [workspace] This workspace uses Minitest.'
+      }
+    ]);
+    harness.controller.dispose();
+  });
+
+  test('memory slash command errors are written to the transcript', async () => {
+    const client = new FakePiClient({ memoryError: new Error('memory unavailable') });
+    const harness = createControllerHarness([client], { getTaurenSettingValues: () => ({ 'tauren.backend': 'kward' }) });
+
+    await harness.controller.handleWebviewMessage({ type: 'submit', text: '/memory status' });
+
+    assert.deepStrictEqual(lastState(harness).messages, [
+      { role: 'system', text: 'memory unavailable', error: true }
+    ]);
+    harness.controller.dispose();
+  });
+
   test('supported built-in slash commands route to Pi commands', async () => {
     const client = new FakePiClient();
     const harness = createControllerHarness([client]);
@@ -3404,6 +3451,13 @@ type FakePiClientOptions = {
   promptExpansions?: Record<string, string>;
   promptExpansionError?: unknown;
   answerQuestionError?: unknown;
+  memoryStatus?: { enabled: boolean; autoSummary: boolean };
+  memoryList?: {
+    globalCore: Array<{ id?: string; text?: string; scope?: string }>;
+    workspaceCore: Array<{ id?: string; text?: string; scope?: string }>;
+    workspaceSoft: Array<{ id?: string; text?: string; scope?: string }>;
+  };
+  memoryError?: unknown;
 };
 
 class FakeStateScheduler implements StatePublisherScheduler {
@@ -3495,6 +3549,13 @@ class FakePiClient implements PiClient {
   public setSessionNameResult: Promise<void> | undefined;
   public setSessionNameError: unknown;
   public treeItems: WebviewTreeItem[];
+  public memoryStatus: { enabled: boolean; autoSummary: boolean };
+  public memoryList: {
+    globalCore: Array<{ id?: string; text?: string; scope?: string }>;
+    workspaceCore: Array<{ id?: string; text?: string; scope?: string }>;
+    workspaceSoft: Array<{ id?: string; text?: string; scope?: string }>;
+  };
+  public memoryError: unknown;
   public treeCalls = 0;
   public navigatedTrees: Array<{ entryId: string; options?: { summarize?: boolean; customInstructions?: string } }> = [];
   private readonly eventListeners = new Set<(event: PiEvent) => void>();
@@ -3532,6 +3593,9 @@ class FakePiClient implements PiClient {
     this.promptExpansions = options.promptExpansions ?? {};
     this.promptExpansionError = options.promptExpansionError;
     this.answerQuestionError = options.answerQuestionError;
+    this.memoryStatus = options.memoryStatus ?? { enabled: false, autoSummary: false };
+    this.memoryList = options.memoryList ?? { globalCore: [], workspaceCore: [], workspaceSoft: [] };
+    this.memoryError = options.memoryError;
     this.setSessionNameResult = options.setSessionNameResult;
     this.setSessionNameError = options.setSessionNameError;
     this.treeItems = options.treeItems ?? [];
@@ -3707,6 +3771,103 @@ class FakePiClient implements PiClient {
     if (this.setSessionNameError) {
       throw this.setSessionNameError;
     }
+  }
+
+  public async getMemoryStatus(): Promise<{ enabled: boolean; autoSummary: boolean }> {
+    if (this.memoryError) {
+      throw this.memoryError;
+    }
+
+    return this.memoryStatus;
+  }
+
+  public async setMemoryEnabled(enabled: boolean): Promise<{ enabled: boolean; autoSummary: boolean }> {
+    if (this.memoryError) {
+      throw this.memoryError;
+    }
+
+    this.memoryStatus = { ...this.memoryStatus, enabled };
+    return this.memoryStatus;
+  }
+
+  public async setMemoryAutoSummary(autoSummary: boolean): Promise<{ enabled: boolean; autoSummary: boolean }> {
+    if (this.memoryError) {
+      throw this.memoryError;
+    }
+
+    this.memoryStatus = { ...this.memoryStatus, autoSummary };
+    return this.memoryStatus;
+  }
+
+  public async listMemory(): Promise<{
+    globalCore: Array<{ id?: string; text?: string; scope?: string }>;
+    workspaceCore: Array<{ id?: string; text?: string; scope?: string }>;
+    workspaceSoft: Array<{ id?: string; text?: string; scope?: string }>;
+  }> {
+    if (this.memoryError) {
+      throw this.memoryError;
+    }
+
+    return this.memoryList;
+  }
+
+  public async addMemory(text: string, options: { core?: boolean }): Promise<{ id: string; text: string; scope: string }> {
+    if (this.memoryError) {
+      throw this.memoryError;
+    }
+
+    return { id: options.core ? 'core_001' : 'soft_001', text, scope: 'workspace' };
+  }
+
+  public async forgetMemory(): Promise<void> {
+    if (this.memoryError) {
+      throw this.memoryError;
+    }
+  }
+
+  public async promoteMemory(id: string): Promise<{ id: string }> {
+    if (this.memoryError) {
+      throw this.memoryError;
+    }
+
+    return { id };
+  }
+
+  public async relaxMemory(id: string): Promise<{ id: string }> {
+    if (this.memoryError) {
+      throw this.memoryError;
+    }
+
+    return { id };
+  }
+
+  public async inspectMemory(): Promise<{
+    enabled: boolean;
+    autoSummary: boolean;
+    core: Array<{ id?: string; text?: string; scope?: string }>;
+    soft: Array<{ id?: string; text?: string; scope?: string }>;
+  }> {
+    if (this.memoryError) {
+      throw this.memoryError;
+    }
+
+    return { ...this.memoryStatus, core: this.memoryList.globalCore, soft: this.memoryList.workspaceSoft };
+  }
+
+  public async whyMemory(): Promise<{ message: string }> {
+    if (this.memoryError) {
+      throw this.memoryError;
+    }
+
+    return { message: 'No memory retrieval has run yet.' };
+  }
+
+  public async summarizeMemory(): Promise<{ memories: Array<{ id?: string; text?: string; scope?: string }> }> {
+    if (this.memoryError) {
+      throw this.memoryError;
+    }
+
+    return { memories: this.memoryList.workspaceSoft };
   }
 
   public async compact(): Promise<{}> {

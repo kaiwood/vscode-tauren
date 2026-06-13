@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { KwardClient } from './kwardClient';
-import type { KwardMemoryList, KwardMemoryRecord, KwardMemoryStatus, KwardMemoryWhy } from './types';
+import type { KwardMemoryInspect, KwardMemoryList, KwardMemoryRecord, KwardMemoryStatus, KwardMemoryWhy } from './types';
 
 export type KwardMemoryAction =
   | 'status'
@@ -24,53 +24,38 @@ type MemoryActionOptions = {
   showNotification: (message: string, notifyType: string) => void;
 };
 
-export async function runKwardMemoryAction(options: MemoryActionOptions): Promise<void> {
+export async function runKwardMemoryAction(options: MemoryActionOptions): Promise<string | undefined> {
   const client = requireKwardMemoryClient(options.client);
   const args = options.args?.trim() ?? '';
 
   switch (options.action) {
     case 'status':
-      options.showNotification(formatMemoryStatus(await client.getMemoryStatus()), 'info');
-      return;
+      return formatMemoryStatus(await client.getMemoryStatus());
     case 'enable':
-      options.showNotification(formatMemoryStatus(await client.setMemoryEnabled(true)), 'info');
-      return;
+      return formatMemoryStatus(await client.setMemoryEnabled(true));
     case 'disable':
-      options.showNotification(formatMemoryStatus(await client.setMemoryEnabled(false)), 'info');
-      return;
+      return formatMemoryStatus(await client.setMemoryEnabled(false));
     case 'auto-summary':
-      await setAutoSummary(client, args, options.showNotification);
-      return;
+      return setAutoSummary(client, args);
     case 'list':
-      await showMemoryList(await client.listMemory({ includeInactive: args.includes('--all') }));
-      return;
+      return formatMemoryList(await client.listMemory({ includeInactive: args.includes('--all') }));
     case 'add':
-      await addMemory(client, args, false, options.showNotification);
-      return;
+      return addMemory(client, args, false);
     case 'add-core':
-      await addMemory(client, args, true, options.showNotification);
-      return;
+      return addMemory(client, args, true);
     case 'forget':
-      await actOnMemoryId(client, args, 'forget', options.showNotification);
-      return;
+      return actOnMemoryId(client, args, 'forget');
     case 'promote':
-      await actOnMemoryId(client, args, 'promote', options.showNotification);
-      return;
+      return actOnMemoryId(client, args, 'promote');
     case 'relax':
-      await actOnMemoryId(client, args, 'relax', options.showNotification);
-      return;
-    case 'inspect': {
-      const result = await client.inspectMemory();
-      await showMemoryList({ globalCore: result.core, workspaceCore: [], workspaceSoft: result.soft });
-      return;
-    }
+      return actOnMemoryId(client, args, 'relax');
+    case 'inspect':
+      return formatMemoryInspect(await client.inspectMemory());
     case 'why':
-      options.showNotification(formatMemoryWhy(await client.whyMemory()), 'info');
-      return;
+      return formatMemoryWhy(await client.whyMemory());
     case 'summarize': {
       const result = await client.summarizeMemory();
-      options.showNotification(result.memories.length === 1 ? 'Learned 1 memory.' : `Learned ${result.memories.length} memories.`, 'info');
-      return;
+      return result.memories.length === 1 ? 'Learned 1 soft memory.' : `Learned ${result.memories.length} soft memories.`;
     }
   }
 }
@@ -112,7 +97,11 @@ export function parseKwardMemorySlashArgs(args: string): { action: KwardMemoryAc
 }
 
 export async function pickAndRunKwardMemoryAction(client: unknown, action: KwardMemoryAction, showNotification: (message: string, notifyType: string) => void): Promise<void> {
-  await runKwardMemoryAction({ client, action, showNotification });
+  const result = await runKwardMemoryAction({ client, action, showNotification });
+
+  if (result) {
+    showNotification(result, 'info');
+  }
 }
 
 type KwardMemoryClient = Pick<KwardClient,
@@ -130,24 +119,33 @@ type KwardMemoryClient = Pick<KwardClient,
 >;
 
 function requireKwardMemoryClient(client: unknown): KwardMemoryClient {
-  if (!(client instanceof KwardClient)) {
+  if (!(client instanceof KwardClient) && !isKwardMemoryClient(client)) {
     throw new Error('Kward memory is only available when the Kward backend is selected.');
   }
 
   return client;
 }
 
-async function setAutoSummary(client: KwardMemoryClient, args: string, showNotification: (message: string, notifyType: string) => void): Promise<void> {
+function isKwardMemoryClient(client: unknown): client is KwardMemoryClient {
+  return !!client
+    && typeof client === 'object'
+    && typeof (client as Partial<KwardMemoryClient>).getMemoryStatus === 'function'
+    && typeof (client as Partial<KwardMemoryClient>).setMemoryEnabled === 'function'
+    && typeof (client as Partial<KwardMemoryClient>).listMemory === 'function'
+    && typeof (client as Partial<KwardMemoryClient>).addMemory === 'function';
+}
+
+async function setAutoSummary(client: KwardMemoryClient, args: string): Promise<string> {
   const normalized = args.toLowerCase();
   const enabled = normalized === 'enable' || normalized === 'on' || normalized === 'true'
     ? true
     : normalized === 'disable' || normalized === 'off' || normalized === 'false'
       ? false
       : (await client.getMemoryStatus()).autoSummary === false;
-  showNotification(formatMemoryStatus(await client.setMemoryAutoSummary(enabled)), 'info');
+  return formatMemoryStatus(await client.setMemoryAutoSummary(enabled));
 }
 
-async function addMemory(client: KwardMemoryClient, args: string, core: boolean, showNotification: (message: string, notifyType: string) => void): Promise<void> {
+async function addMemory(client: KwardMemoryClient, args: string, core: boolean): Promise<string | undefined> {
   const text = args || await vscode.window.showInputBox({
     title: core ? 'Add Kward core memory' : 'Add Kward soft memory',
     prompt: 'Memory text',
@@ -155,32 +153,30 @@ async function addMemory(client: KwardMemoryClient, args: string, core: boolean,
   });
 
   if (!text) {
-    return;
+    return undefined;
   }
 
   const memory = await client.addMemory(text, { core, scope: 'workspace' });
-  showNotification(`Saved ${core ? 'core' : 'soft'} memory${memory.id ? ` ${memory.id}` : ''}.`, 'info');
+  return `Added ${core ? 'core' : 'soft'} memory${memory.id ? ` ${memory.id}` : ''}.`;
 }
 
 async function actOnMemoryId(
   client: KwardMemoryClient,
   args: string,
-  action: 'forget' | 'promote' | 'relax',
-  showNotification: (message: string, notifyType: string) => void
-): Promise<void> {
+  action: 'forget' | 'promote' | 'relax'
+): Promise<string | undefined> {
   const id = args || await pickMemoryId(client, action);
   if (!id) {
-    return;
+    return undefined;
   }
 
   if (action === 'forget') {
     await client.forgetMemory(id);
-    showNotification(`Forgot memory ${id}.`, 'info');
-    return;
+    return `Forgot memory ${id}.`;
   }
 
   const memory = action === 'promote' ? await client.promoteMemory(id) : await client.relaxMemory(id);
-  showNotification(`${action === 'promote' ? 'Promoted' : 'Relaxed'} memory ${memory.id ?? id}.`, 'info');
+  return `${action === 'promote' ? 'Promoted' : 'Relaxed'} memory ${memory.id ?? id}.`;
 }
 
 async function pickMemoryId(client: KwardMemoryClient, action: string): Promise<string | undefined> {
@@ -197,23 +193,6 @@ async function pickMemoryId(client: KwardMemoryClient, action: string): Promise<
   return picked?.memory.id;
 }
 
-async function showMemoryList(list: KwardMemoryList): Promise<void> {
-  const memories = flattenMemoryList(list);
-  if (memories.length === 0) {
-    void vscode.window.showInformationMessage('No Kward memories found.');
-    return;
-  }
-
-  await vscode.window.showQuickPick(memories.map((memory) => ({
-    label: memory.id ?? '(unknown id)',
-    description: memory.scope,
-    detail: memory.text
-  })), {
-    title: 'Kward memories',
-    placeHolder: `${memories.length} memories`
-  });
-}
-
 function flattenMemoryList(list: KwardMemoryList): KwardMemoryRecord[] {
   return [
     ...list.globalCore.map((memory) => ({ ...memory, scope: memory.scope ?? 'global core' })),
@@ -226,6 +205,61 @@ function formatMemoryStatus(status: KwardMemoryStatus): string {
   return `Kward memory ${status.enabled ? 'enabled' : 'disabled'}; auto-summary ${status.autoSummary ? 'enabled' : 'disabled'}.`;
 }
 
+function formatMemoryList(list: KwardMemoryList): string {
+  return [
+    formatMemorySection('Global Core Memories', list.globalCore),
+    formatMemorySection('Workspace Core Memories', list.workspaceCore),
+    formatMemorySection('Workspace Soft Memories', list.workspaceSoft)
+  ].join('\n\n');
+}
+
+function formatMemoryInspect(inspect: KwardMemoryInspect): string {
+  const paths = inspect.paths
+    ? [
+      inspect.paths.core ? `- core: ${inspect.paths.core}` : undefined,
+      inspect.paths.soft ? `- soft: ${inspect.paths.soft}` : undefined,
+      inspect.paths.events ? `- events: ${inspect.paths.events}` : undefined
+    ].filter(Boolean).join('\n')
+    : '';
+
+  return [
+    formatMemoryStatus(inspect),
+    paths ? `Paths:\n${paths}` : undefined,
+    formatMemorySection('Core Memories', inspect.core),
+    formatMemorySection('Soft Memories', inspect.soft)
+  ].filter(Boolean).join('\n\n');
+}
+
+function formatMemorySection(title: string, records: KwardMemoryRecord[]): string {
+  const lines = [`${title}:`];
+
+  if (records.length === 0) {
+    lines.push('- none');
+    return lines.join('\n');
+  }
+
+  for (const record of records) {
+    const id = record.id ?? '(unknown id)';
+    const scope = record.scope ? ` [${record.scope}]` : '';
+    const text = record.text ?? '';
+    lines.push(`- ${id}${scope}${text ? ` ${text}` : ''}`);
+  }
+
+  return lines.join('\n');
+}
+
 function formatMemoryWhy(why: KwardMemoryWhy): string {
-  return why.explanation ?? why.message ?? 'No memory retrieval explanation is available yet.';
+  if (why.explanation) {
+    return why.explanation;
+  }
+
+  if (why.message) {
+    return why.message;
+  }
+
+  if (why.memories && why.memories.length > 0) {
+    return formatMemorySection('Retrieved Memories', why.memories);
+  }
+
+  return 'No memory retrieval explanation is available yet.';
 }
