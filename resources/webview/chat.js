@@ -5542,9 +5542,9 @@ ${after}`;
     {
       id: "login",
       label: "Login",
-      eyebrow: "Pi auth",
+      eyebrow: "Backend auth",
       title: "Login",
-      description: "Configure Pi runtime provider authentication. Credentials are stored in Pi auth.json."
+      description: "Configure runtime provider authentication for the selected backend."
     },
     {
       id: "appearance",
@@ -5563,16 +5563,16 @@ ${after}`;
     {
       id: "runtime",
       label: "Runtime",
-      eyebrow: "Pi engine",
+      eyebrow: "Agent runtime",
       title: "Runtime",
-      description: "Pi engine defaults and runtime behavior. Pi remains the source of truth."
+      description: "Backend defaults and runtime behavior. The selected backend remains the source of truth."
     },
     {
       id: "scopedModels",
       label: "Scoped Models",
-      eyebrow: "Pi engine",
+      eyebrow: "Agent runtime",
       title: "Scoped Models",
-      description: "Choose and order the models Tauren sends to Pi for model cycling."
+      description: "Choose and order the models Tauren sends to the selected backend for model cycling."
     },
     {
       id: "workspaceSafety",
