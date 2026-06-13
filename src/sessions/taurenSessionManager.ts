@@ -488,6 +488,7 @@ export class TaurenSessionManager {
 
     const id = `open-${++this.sessionSequence}`;
     const initialSessionFile = options.initial ? this.options.initialSessionFile : options.sessionFile;
+    const resumeLastSession = options.initial ? this.options.resumeLastSession : false;
     const customUiHost = this.createCustomUiHost(id);
     const extensionStatuses = new Map<string, string>();
     const extensionFooterHost = this.createExtensionFooterHost(id, extensionStatuses);
@@ -502,6 +503,7 @@ export class TaurenSessionManager {
         updateTaurenSetting: (settingId, value) => this.updateTaurenSetting(settingId, value),
         isActiveSession: () => this.activeSessionId === id,
         initialSessionFile,
+        resumeLastSession,
         initialSessionMeta: this.options.initialSessionMeta,
         renameOpenSession: (sessionPath, name) => this.renameOpenSessionFrom(id, sessionPath, name),
         reloadOpenSessions: () => this.reloadOpenSessionsFrom(id),

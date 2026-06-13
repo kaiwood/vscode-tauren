@@ -2458,7 +2458,7 @@ suite('TaurenChatController', () => {
     harness.controller.dispose();
   });
 
-  test('starting a new session clears the remembered session file', async () => {
+  test('starting a new session clears the remembered session file and disables backend auto-resume', async () => {
     const sessionFiles: Array<string | undefined> = [];
     const nextClient = new FakePiClient({
       stateResult: createDeferred<PiSessionState>().promise,
@@ -2474,7 +2474,7 @@ suite('TaurenChatController', () => {
     await flushPromises();
 
     assert.deepStrictEqual(sessionFiles, [undefined]);
-    assert.deepStrictEqual(harness.clientOptions, [{ cwd: '/workspace' }]);
+    assert.deepStrictEqual(harness.clientOptions, [{ cwd: '/workspace', resumeLastSession: false }]);
     harness.controller.dispose();
   });
 

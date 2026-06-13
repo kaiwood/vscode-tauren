@@ -39,6 +39,7 @@ export type TaurenChatControllerOptions = {
   useMessagePatches?: boolean;
   initialSessionMeta?: TaurenChatSessionMetaSnapshot;
   initialSessionFile?: string;
+  resumeLastSession?: boolean;
   onSessionMetaChange?: (metadata: TaurenChatSessionMetaSnapshot) => void;
   onSessionFileChange?: (sessionFile: string | undefined) => void;
   writeClipboard?: (text: string) => PromiseLike<void> | Promise<void> | void;

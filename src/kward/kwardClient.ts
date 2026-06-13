@@ -66,6 +66,7 @@ import type {
 export type KwardClientOptions = {
   cwd?: string;
   sessionFile?: string;
+  resumeLastSession?: boolean;
   kwardPath?: string;
   showNotification?: (message: string, notifyType: string) => void;
   extensionUi?: ExtensionUi;
@@ -674,9 +675,12 @@ export class KwardClient implements PiClient {
   }
 
   private async createSession(): Promise<KwardSession> {
+    const createParams = this.options.resumeLastSession === undefined
+      ? { workspaceRoot: this.options.cwd }
+      : { workspaceRoot: this.options.cwd, resumeLast: this.options.resumeLastSession };
     const result = this.options.sessionFile
       ? await this.request('sessions/resume', { path: this.options.sessionFile, workspaceRoot: this.options.cwd })
-      : await this.request('sessions/create', { workspaceRoot: this.options.cwd });
+      : await this.request('sessions/create', createParams);
     return normalizeSession(result);
   }
 

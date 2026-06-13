@@ -131,6 +131,7 @@ export class TaurenChatController {
       createClient: options.createClient,
       getCwd: () => this.getPiStartupCwd(),
       getCurrentSessionFile: () => this.sessionView.currentSessionFile,
+      getResumeLastSession: () => this.options.resumeLastSession,
       getSessionGeneration: () => this.session.generation,
       extensionUi: options.extensionUi,
       onEvent: (event) => this.handlePiEvent(event),
@@ -583,6 +584,7 @@ export class TaurenChatController {
     this.sessionView.startNewSession(options.lane ?? 'chat');
     this.sessionDiffController.reset(undefined);
     this.clientManager.setNextSessionFile(undefined);
+    this.clientManager.setNextResumeLastSession(false);
     this.sessionHistory.startNewSession();
     this.resetWebviewChatSync();
     this.resetReadyScriptArming();

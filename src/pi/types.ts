@@ -307,5 +307,6 @@ export type PiPromptStreamingBehavior = 'steer' | 'followUp';
 export type PiClientOptions = {
   cwd?: string;
   sessionFile?: string;
+  resumeLastSession?: boolean;
   extensionUi?: ExtensionUi;
 };

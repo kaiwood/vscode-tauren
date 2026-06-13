@@ -241,6 +241,42 @@ suite('KwardClient', () => {
     }
   });
 
+  test('passes resumeLast false when creating an explicit fresh session', async () => {
+    const child = new FakeChildProcess();
+    const client = new KwardClient({ cwd: '/workspace', resumeLastSession: false, kwardPath: createKwardPath() });
+    const spawned = require('node:child_process') as { spawn: unknown };
+    const originalSpawn = spawned.spawn;
+
+    try {
+      spawned.spawn = () => child;
+
+      const statePromise = client.getState();
+
+      await waitForWriteCount(child, 1);
+      assertWrittenRequest(child.writes[0], { method: 'initialize' });
+      respond(client, 1, { capabilities: {} });
+
+      await waitForWriteCount(child, 2);
+      assertWrittenRequest(child.writes[1], {
+        method: 'sessions/create',
+        params: { workspaceRoot: '/workspace', resumeLast: false }
+      });
+      respond(client, 2, { id: 'session-1', persistentId: 'persisted-1', path: '/sessions/new.jsonl' });
+
+      await waitForWriteCount(child, 3);
+      assertWrittenRequest(child.writes[2], {
+        method: 'runtime/state',
+        params: { sessionId: 'session-1' }
+      });
+      respond(client, 3, { sessionFile: '/sessions/new.jsonl' });
+
+      assert.strictEqual((await statePromise).sessionFile, '/sessions/new.jsonl');
+    } finally {
+      spawned.spawn = originalSpawn;
+      client.dispose();
+    }
+  });
+
   test('uses sessions/list ancestry as tree fallback when sessions/tree is unsupported', async () => {
     const child = new FakeChildProcess();
     const client = new KwardClient({ cwd: '/workspace', kwardPath: createKwardPath() });

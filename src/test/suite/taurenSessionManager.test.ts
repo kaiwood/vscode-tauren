@@ -16,6 +16,18 @@ import type {
 } from '../../pi/types';
 
 suite('TaurenSessionManager', () => {
+  test('new session action disables backend auto-resume', async () => {
+    const harness = createManagerHarness([new FakePiClient()]);
+
+    await harness.manager.handleWebviewMessage({ type: 'newSession' });
+    await flushPromises();
+
+    assert.strictEqual(harness.clientOptions.length, 1);
+    assert.strictEqual(harness.clientOptions[0].cwd, '/workspace');
+    assert.strictEqual(harness.clientOptions[0].resumeLastSession, false);
+    harness.manager.dispose();
+  });
+
   test('tracks background session live status and active persistence', async () => {
     const firstClient = new FakePiClient({
       state: {

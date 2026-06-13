@@ -31,6 +31,7 @@
 - Fixed Kward live reasoning blocks so separated reasoning phases no longer collapse into one transcript entry.
 - Fixed Kward RPC session switching to use active RPC session IDs and ignore stale old-session responses.
 - Fixed Kward startup session restore so concurrent metadata/history requests share one resumed RPC session.
+- Fixed explicit Kward new sessions so they bypass backend auto-resume and always create a fresh session.
 - Fixed empty unnamed Kward sessions so they refresh the Session List Lane when left and are not remembered for startup reconnection.
 - Fixed Kward Session List RPC loading to request the full backend list instead of the previous 100-session cap.
 - Fixed Kward session deletion when RPC capabilities list `sessions/delete` without a top-level supported flag.

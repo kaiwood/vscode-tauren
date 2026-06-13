@@ -10,6 +10,7 @@ export type PiClientManagerOptions = {
   createClient: PiClientFactory;
   getCwd?: () => string | undefined;
   getCurrentSessionFile: () => string | undefined;
+  getResumeLastSession?: () => boolean | undefined;
   getSessionGeneration: () => number;
   extensionUi?: ExtensionUi;
   onEvent: (event: PiEvent) => void;
@@ -19,12 +20,17 @@ export type PiClientManagerOptions = {
 export class PiClientManager {
   private client: PiClient | undefined;
   private nextSessionFile: string | undefined;
+  private nextResumeLastSession: boolean | undefined;
   private readonly disposables: DisposableLike[] = [];
 
   public constructor(private readonly options: PiClientManagerOptions) {}
 
   public setNextSessionFile(sessionFile: string | undefined): void {
     this.nextSessionFile = sessionFile;
+  }
+
+  public setNextResumeLastSession(resumeLastSession: boolean | undefined): void {
+    this.nextResumeLastSession = resumeLastSession;
   }
 
   public getExistingClient(): PiClient | undefined {
@@ -41,7 +47,9 @@ export class PiClientManager {
     }
 
     const sessionFile = this.nextSessionFile ?? this.options.getCurrentSessionFile();
+    const resumeLastSession = this.nextResumeLastSession ?? this.options.getResumeLastSession?.();
     this.nextSessionFile = undefined;
+    this.nextResumeLastSession = undefined;
 
     const clientOptions: PiClientOptions = { cwd: this.options.getCwd?.() };
 
@@ -51,6 +59,10 @@ export class PiClientManager {
 
     if (sessionFile) {
       clientOptions.sessionFile = sessionFile;
+    }
+
+    if (resumeLastSession !== undefined) {
+      clientOptions.resumeLastSession = resumeLastSession;
     }
 
     const client = this.options.createClient(clientOptions);
