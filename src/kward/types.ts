@@ -1,4 +1,4 @@
-import type { PiAgentMessage, PiAuthProvider, PiCommand, PiNavigateTreeResult, PiStartupResourceSection } from '../pi/types';
+import type { AgentAuthProvider, AgentCommand, AgentMessage, AgentNavigateTreeResult, AgentStartupResourceSection } from '../agent/types';
 
 export type KwardSession = {
   id?: string;
@@ -55,15 +55,15 @@ export type KwardOAuthLoginStart = {
 };
 
 export type KwardAuthProvidersResult = {
-  providers?: PiAuthProvider[];
+  providers?: AgentAuthProvider[];
 };
 
 export type KwardCommandsResult = {
-  commands?: PiCommand[];
+  commands?: AgentCommand[];
 };
 
 export type KwardStartupResourcesResult = {
-  sections?: PiStartupResourceSection[];
+  sections?: AgentStartupResourceSection[];
 };
 
 export type KwardQuestionOption = {
@@ -90,7 +90,7 @@ export type KwardQuestionRequest = {
 
 export type KwardTranscriptResult = {
   session?: KwardSession;
-  messages?: PiAgentMessage[];
+  messages?: AgentMessage[];
 };
 
 export type KwardCompactResult = {
@@ -117,7 +117,7 @@ export type KwardImportResult = {
   cancelled?: boolean;
 };
 
-export type KwardNavigateTreeResult = PiNavigateTreeResult & {
+export type KwardNavigateTreeResult = AgentNavigateTreeResult & {
   session?: KwardSession;
 };
 
