@@ -7,8 +7,8 @@ import {
 import type { SettingValue, TaurenSettingId } from './settings/settingsRegistry';
 import type { SessionListProgressOptions } from './controller/types';
 import type { WebviewLane, WebviewMessage, WebviewPerfEvent, WebviewScrollCommand, WebviewSessionItem, WebviewStateMessage } from './webviewProtocol/types';
-import { type PiClientFactory, type PiClient } from './pi/clientTypes';
-import type { PiClientOptions } from './pi/types';
+import { type AgentClientFactory, type AgentClient } from './agent/clientTypes';
+import type { AgentClientOptions } from './agent/types';
 import { PiSdkClient } from './sdk/piSdkClient';
 import { KwardClient } from './kward/kwardClient';
 import type { KwardMemoryAction } from './kward/memoryActions';
@@ -73,7 +73,8 @@ import {
 import { isRecord } from './shared/typeGuards';
 
 export const taurenChatViewType = 'tauren.chatView';
-export type { PiClient } from './pi/clientTypes';
+export type { AgentClient } from './agent/clientTypes';
+export type { AgentClient as PiClient } from './agent/clientTypes';
 
 const currentSessionFileStorageKey = 'tauren.currentSessionFile';
 const taurenSidebarFocusContextKey = 'tauren.sidebarFocus';
@@ -83,7 +84,7 @@ const contextUsagePollingIntervalMs = 2000;
 const sessionDiffStatsRefreshDelayMs = 250;
 const sessionMetadataCacheFileName = 'sessionMetadataCache.json';
 
-type ConfiguredPiClientDependencies = {
+type ConfiguredAgentClientDependencies = {
   extensionUi: ExtensionUi;
   showNotification: (message: string, notifyType: string) => void;
   getRejectEditWriteOutsideWorkspace: () => boolean;
@@ -101,10 +102,10 @@ function getSessionMetadataCacheFile(storageUri: vscode.Uri | undefined): string
   return storageUri ? path.join(storageUri.fsPath, sessionMetadataCacheFileName) : undefined;
 }
 
-function createConfiguredPiClient(
-  options: PiClientOptions,
-  dependencies: ConfiguredPiClientDependencies
-): PiClient {
+function createConfiguredAgentClient(
+  options: AgentClientOptions,
+  dependencies: ConfiguredAgentClientDependencies
+): AgentClient {
   if (getBackendSetting() === 'kward') {
     return new KwardClient({
       ...options,
@@ -160,7 +161,7 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
 
   public constructor(
     private readonly extensionUri: vscode.Uri,
-    createClient: PiClientFactory | undefined = undefined,
+    createClient: AgentClientFactory | undefined = undefined,
     private readonly workspaceState?: vscode.Memento,
     private readonly globalState?: vscode.Memento,
     private readonly workspaceCwdProvider: () => string | undefined = () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
@@ -181,7 +182,7 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
         placeHolder: placeholder
       })
     };
-    const configuredCreateClient = createClient ?? ((options: PiClientOptions) => createConfiguredPiClient(options, {
+    const configuredCreateClient = createClient ?? ((options: AgentClientOptions) => createConfiguredAgentClient(options, {
       extensionUi,
       showNotification: (message, notifyType) => this.showNotification(message, notifyType),
       getRejectEditWriteOutsideWorkspace: () => getRejectEditWriteOutsideWorkspaceSetting()
@@ -1227,7 +1228,7 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
       }
     }
 
-    const client = createConfiguredPiClient({ cwd: this.workspaceCwdProvider(), sessionFile: sessionPath }, {
+    const client = createConfiguredAgentClient({ cwd: this.workspaceCwdProvider(), sessionFile: sessionPath }, {
       extensionUi: {
         notify: (message, notifyType) => this.showNotification(message, notifyType),
         select: (title, options) => vscode.window.showQuickPick(options, { title, placeHolder: title }),
