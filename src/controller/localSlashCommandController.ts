@@ -16,6 +16,7 @@ import {
 } from '../sessions/sessionFormatting';
 import { cloneSession, compactSession, exportSessionHtml, forkSession } from '../sessions/sessionClientActions';
 import { formatTaurenHotkeys } from '../hotkeys/hotkeys';
+import { parseKwardMemorySlashArgs, runKwardMemoryAction } from '../kward/memoryActions';
 import { formatShareTranscriptMessage, shareSessionWithGh } from './shareSession';
 
 export type LocalSlashCommand = { name: string; args: string };
@@ -78,6 +79,9 @@ export class LocalSlashCommandController {
         case 'scoped-models':
           this.options.showSettings('scopedModels');
           return;
+        case 'memory':
+          await this.handleMemorySlashCommand(command.args);
+          return;
         case 'model':
           await this.handleModelSlashCommand(command.args);
           return;
@@ -138,6 +142,20 @@ export class LocalSlashCommandController {
     } catch (error) {
       this.options.session.addErrorMessage(getErrorMessage(error));
       this.options.postState();
+    }
+  }
+
+  private async handleMemorySlashCommand(args: string): Promise<void> {
+    try {
+      const parsed = parseKwardMemorySlashArgs(args);
+      await runKwardMemoryAction({
+        client: this.options.getClient(),
+        action: parsed.action,
+        args: parsed.args,
+        showNotification: this.options.showNotification
+      });
+    } catch (error) {
+      this.options.showNotification(getErrorMessage(error), 'warning');
     }
   }
 

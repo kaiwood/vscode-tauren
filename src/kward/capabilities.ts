@@ -60,6 +60,20 @@ export class KwardCapabilityResolver {
     return isRecord(input) && input.supported === true;
   }
 
+  public isMemorySupported(): boolean {
+    return this.isGroupSupported('memory');
+  }
+
+  public isMemoryMethodSupported(method: string): boolean {
+    const memory = this.getGroup('memory');
+    if (!isRecord(memory) || memory.supported !== true) {
+      return false;
+    }
+
+    const methods = memory.methods;
+    return !Array.isArray(methods) || methods.includes(method);
+  }
+
   public getQuestionNotificationMethod(): string {
     const extensionUi = this.getGroup('extensionUi');
     const question = isRecord(extensionUi) ? extensionUi.question : undefined;

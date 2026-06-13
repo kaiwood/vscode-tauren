@@ -120,3 +120,45 @@ export type KwardImportResult = {
 export type KwardNavigateTreeResult = PiNavigateTreeResult & {
   session?: KwardSession;
 };
+
+export type KwardMemoryRecord = {
+  id?: string;
+  text?: string;
+  scope?: string;
+  tags?: string[];
+  active?: boolean;
+  confidence?: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type KwardMemoryStatus = {
+  enabled: boolean;
+  autoSummary: boolean;
+  paths?: {
+    core?: string;
+    soft?: string;
+    events?: string;
+  };
+};
+
+export type KwardMemoryList = {
+  globalCore: KwardMemoryRecord[];
+  workspaceCore: KwardMemoryRecord[];
+  workspaceSoft: KwardMemoryRecord[];
+};
+
+export type KwardMemoryInspect = KwardMemoryStatus & {
+  core: KwardMemoryRecord[];
+  soft: KwardMemoryRecord[];
+};
+
+export type KwardMemoryWhy = {
+  message?: string;
+  explanation?: string;
+  memories?: KwardMemoryRecord[];
+};
+
+export type KwardMemorySummarize = {
+  memories: KwardMemoryRecord[];
+};

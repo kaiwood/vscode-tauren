@@ -44,6 +44,12 @@ import type {
   KwardCompactResult,
   KwardImportResult,
   KwardInitializeResult,
+  KwardMemoryInspect,
+  KwardMemoryList,
+  KwardMemoryRecord,
+  KwardMemoryStatus,
+  KwardMemorySummarize,
+  KwardMemoryWhy,
   KwardModel,
   KwardNavigateTreeResult,
   KwardOAuthLoginStart,
@@ -523,6 +529,71 @@ export class KwardClient implements PiClient {
     await this.request(this.capabilityResolver.getQuestionAnswerMethod(), { sessionId, questionRequestId, answers });
   }
 
+  public async getMemoryStatus(): Promise<KwardMemoryStatus> {
+    return normalizeMemoryStatus(await this.requestMemory('memory/status'));
+  }
+
+  public async setMemoryEnabled(enabled: boolean): Promise<KwardMemoryStatus> {
+    const result = await this.requestMemory(enabled ? 'memory/enable' : 'memory/disable');
+    return { ...(await this.getMemoryStatus()), ...normalizeMemoryStatus(result) };
+  }
+
+  public async setMemoryAutoSummary(autoSummary: boolean): Promise<KwardMemoryStatus> {
+    const result = await this.requestMemory(autoSummary ? 'memory/autoSummary/enable' : 'memory/autoSummary/disable');
+    return { ...(await this.getMemoryStatus()), ...normalizeMemoryStatus(result) };
+  }
+
+  public async listMemory(options: { includeInactive?: boolean } = {}): Promise<KwardMemoryList> {
+    return normalizeMemoryList(await this.requestMemory('memory/list', {
+      workspaceRoot: this.options.cwd,
+      ...(options.includeInactive !== undefined ? { includeInactive: options.includeInactive } : {})
+    }));
+  }
+
+  public async addMemory(text: string, options: { core?: boolean; scope?: string; tags?: string[] } = {}): Promise<KwardMemoryRecord> {
+    const trimmedText = text.trim();
+    if (!trimmedText) {
+      throw new Error('Memory text cannot be empty.');
+    }
+
+    const result = await this.requestMemory(options.core ? 'memory/addCore' : 'memory/add', {
+      text: trimmedText,
+      scope: options.scope ?? 'workspace',
+      ...(options.tags && options.tags.length > 0 ? { tags: options.tags } : {})
+    });
+    return normalizeMemoryResult(result);
+  }
+
+  public async forgetMemory(id: string): Promise<boolean> {
+    const result = await this.requestMemory('memory/forget', { id: requireNonEmptyMemoryId(id) });
+    return isRecord(result) ? result.forgotten !== false : true;
+  }
+
+  public async promoteMemory(id: string): Promise<KwardMemoryRecord> {
+    return normalizeMemoryResult(await this.requestMemory('memory/promote', { id: requireNonEmptyMemoryId(id) }));
+  }
+
+  public async relaxMemory(id: string): Promise<KwardMemoryRecord> {
+    return normalizeMemoryResult(await this.requestMemory('memory/relax', {
+      id: requireNonEmptyMemoryId(id),
+      workspaceRoot: this.options.cwd
+    }));
+  }
+
+  public async inspectMemory(): Promise<KwardMemoryInspect> {
+    return normalizeMemoryInspect(await this.requestMemory('memory/inspect'));
+  }
+
+  public async whyMemory(): Promise<KwardMemoryWhy> {
+    const session = await this.ensureSession();
+    return normalizeMemoryWhy(await this.requestMemory('memory/why', { sessionId: requiredString(session.id, 'Kward session id') }));
+  }
+
+  public async summarizeMemory(): Promise<KwardMemorySummarize> {
+    const session = await this.ensureSession();
+    return normalizeMemorySummarize(await this.requestMemory('memory/summarize', { sessionId: requiredString(session.id, 'Kward session id') }));
+  }
+
   public dispose(): void {
     this.disposed = true;
     this.transport?.dispose();
@@ -655,6 +726,13 @@ export class KwardClient implements PiClient {
 
       throw error;
     }
+  }
+
+  private async requestMemory(method: string, params?: unknown): Promise<unknown> {
+    await this.ensureInitialized();
+    this.requireCapability('memory', this.capabilityResolver.isMemorySupported(), 'Kward backend does not support memory yet.');
+    this.requireCapability(method, this.capabilityResolver.isMemoryMethodSupported(method), `Kward backend does not support ${method} yet.`);
+    return this.request(method, params);
   }
 
   private request(method: string, params?: unknown): Promise<unknown> {
@@ -1385,6 +1463,89 @@ function normalizeFooterUpdate(value: unknown): { sessionId?: string; text: stri
     sessionId: getString(value, 'sessionId'),
     text
   };
+}
+
+function normalizeMemoryStatus(value: unknown): KwardMemoryStatus {
+  const record = isRecord(value) ? value : {};
+  const paths = isRecord(record.paths) ? record.paths : undefined;
+  return {
+    enabled: getBoolean(record, 'enabled') ?? false,
+    autoSummary: getBoolean(record, 'autoSummary') ?? false,
+    ...(paths ? {
+      paths: {
+        core: getString(paths, 'core'),
+        soft: getString(paths, 'soft'),
+        events: getString(paths, 'events')
+      }
+    } : {})
+  };
+}
+
+function normalizeMemoryList(value: unknown): KwardMemoryList {
+  const record = isRecord(value) ? value : {};
+  return {
+    globalCore: normalizeMemoryRecords(record.global_core),
+    workspaceCore: normalizeMemoryRecords(record.workspace_core),
+    workspaceSoft: normalizeMemoryRecords(record.workspace_soft)
+  };
+}
+
+function normalizeMemoryInspect(value: unknown): KwardMemoryInspect {
+  const record = isRecord(value) ? value : {};
+  return {
+    ...normalizeMemoryStatus(record),
+    core: normalizeMemoryRecords(record.core),
+    soft: normalizeMemoryRecords(record.soft)
+  };
+}
+
+function normalizeMemoryWhy(value: unknown): KwardMemoryWhy {
+  const record = isRecord(value) ? value : {};
+  return {
+    message: getString(record, 'message'),
+    explanation: getString(record, 'explanation'),
+    memories: normalizeMemoryRecords(record.memories)
+  };
+}
+
+function normalizeMemorySummarize(value: unknown): KwardMemorySummarize {
+  const record = isRecord(value) ? value : {};
+  return { memories: normalizeMemoryRecords(record.memories) };
+}
+
+function normalizeMemoryResult(value: unknown): KwardMemoryRecord {
+  const record = isRecord(value) && isRecord(value.memory) ? value.memory : value;
+  return normalizeMemoryRecord(record) ?? {};
+}
+
+function normalizeMemoryRecords(value: unknown): KwardMemoryRecord[] {
+  return Array.isArray(value) ? value.map(normalizeMemoryRecord).filter(isDefined) : [];
+}
+
+function normalizeMemoryRecord(value: unknown): KwardMemoryRecord | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  return {
+    id: getString(value, 'id'),
+    text: getString(value, 'text'),
+    scope: getString(value, 'scope'),
+    tags: getStringArray(value.tags),
+    active: getBoolean(value, 'active'),
+    confidence: getNumber(value, 'confidence'),
+    createdAt: getString(value, 'createdAt') ?? getString(value, 'created_at'),
+    updatedAt: getString(value, 'updatedAt') ?? getString(value, 'updated_at')
+  };
+}
+
+function requireNonEmptyMemoryId(id: string): string {
+  const trimmedId = id.trim();
+  if (!trimmedId) {
+    throw new Error('Memory id cannot be empty.');
+  }
+
+  return trimmedId;
 }
 
 function isDefined<T>(value: T | undefined): value is T {

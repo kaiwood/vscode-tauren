@@ -11,6 +11,7 @@ import { type PiClientFactory, type PiClient } from './pi/clientTypes';
 import type { PiClientOptions } from './pi/types';
 import { PiSdkClient } from './sdk/piSdkClient';
 import { KwardClient } from './kward/kwardClient';
+import type { KwardMemoryAction } from './kward/memoryActions';
 import { listKwardSessions } from './kward/sessionList';
 import type { CustomUiHostMessage } from './extensionUi/customUiHost';
 import type { ExtensionEditorHostMessage, ExtensionUi } from './extensionUi/types';
@@ -534,6 +535,10 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
 
   public scrollPane(options?: unknown): void {
     this.postPaneScroll(parseScrollCommand(options));
+  }
+
+  public async runMemoryAction(action: KwardMemoryAction): Promise<void> {
+    await this.controller.runMemoryAction(action);
   }
 
   public async toggleSettings(): Promise<void> {

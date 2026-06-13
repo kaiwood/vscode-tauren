@@ -168,6 +168,47 @@ suite('KwardClient', () => {
     }
   });
 
+  test('memory methods are capability-gated and send workspace-scoped RPC payloads', async () => {
+    const child = new FakeChildProcess();
+    const client = new KwardClient({ cwd: '/workspace', kwardPath: createKwardPath() });
+    const spawned = require('node:child_process') as { spawn: unknown };
+    const originalSpawn = spawned.spawn;
+
+    try {
+      spawned.spawn = () => child;
+
+      const addPromise = client.addMemory('Use small patches.');
+
+      await waitForWriteCount(child, 1);
+      assertWrittenRequest(child.writes[0], { method: 'initialize' });
+      respond(client, 1, { capabilities: { memory: { supported: true, methods: ['memory/add'] } } });
+
+      await waitForWriteCount(child, 2);
+      assertWrittenRequest(child.writes[1], {
+        method: 'memory/add',
+        params: {
+          text: 'Use small patches.',
+          scope: 'workspace'
+        }
+      });
+      respond(client, 2, { memory: { id: 'soft_001', text: 'Use small patches.', scope: 'workspace' } });
+
+      assert.deepStrictEqual(await addPromise, {
+        id: 'soft_001',
+        text: 'Use small patches.',
+        scope: 'workspace',
+        tags: undefined,
+        active: undefined,
+        confidence: undefined,
+        createdAt: undefined,
+        updatedAt: undefined
+      });
+    } finally {
+      spawned.spawn = originalSpawn;
+      client.dispose();
+    }
+  });
+
   test('answerQuestion initializes and sends ui/answerQuestion without requiring an existing session', async () => {
     const child = new FakeChildProcess();
     const client = new KwardClient({ kwardPath: createKwardPath() });

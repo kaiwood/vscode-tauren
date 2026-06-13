@@ -10,6 +10,7 @@ import type {
 } from './webviewProtocol/types';
 import { createWebviewMessageSyncPlan, type PostedWebviewChatSync, type WebviewMessageSyncPlan } from './webviewProtocol/messagePatch';
 import { StatePublisher } from './controller/statePublisher';
+import type { KwardMemoryAction } from './kward/memoryActions';
 import type { PiClient } from './pi/clientTypes';
 import type { TaurenChatControllerOptions } from './controller/types';
 import type {
@@ -485,6 +486,10 @@ export class TaurenChatController {
       this.session.failActivePrompt(getErrorMessage(error));
       this.postState();
     }
+  }
+
+  public async runMemoryAction(action: KwardMemoryAction): Promise<void> {
+    await this.slashCommandController.handle({ name: 'memory', args: action });
   }
 
   public async runLocalSlashCommand(name: string, args = ''): Promise<void> {

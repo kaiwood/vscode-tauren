@@ -1940,6 +1940,7 @@
     { name: "new", description: "Start a new session", source: "builtin", supported: true },
     { name: "settings", description: "Open Tauren settings", source: "builtin", supported: true },
     { name: "scoped-models", description: "Configure scoped model cycling", source: "builtin", supported: true },
+    { name: "memory", description: "Manage Kward memory", source: "builtin", supported: true },
     { name: "import", description: "Import and resume a JSONL session", source: "builtin", supported: true },
     { name: "share", description: "Share session as a secret GitHub gist", source: "builtin", supported: true },
     { name: "changelog", description: "Show Pi and Tauren changelogs", source: "builtin", supported: true },

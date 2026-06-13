@@ -140,6 +140,71 @@
         "icon": "$(gear)"
       },
       {
+        "command": "tauren.memory.status",
+        "title": "Memory: Show Status",
+        "category": "Tauren"
+      },
+      {
+        "command": "tauren.memory.enable",
+        "title": "Memory: Enable",
+        "category": "Tauren"
+      },
+      {
+        "command": "tauren.memory.disable",
+        "title": "Memory: Disable",
+        "category": "Tauren"
+      },
+      {
+        "command": "tauren.memory.toggleAutoSummary",
+        "title": "Memory: Toggle Auto Summary",
+        "category": "Tauren"
+      },
+      {
+        "command": "tauren.memory.list",
+        "title": "Memory: List",
+        "category": "Tauren"
+      },
+      {
+        "command": "tauren.memory.add",
+        "title": "Memory: Add Soft Memory",
+        "category": "Tauren"
+      },
+      {
+        "command": "tauren.memory.addCore",
+        "title": "Memory: Add Core Memory",
+        "category": "Tauren"
+      },
+      {
+        "command": "tauren.memory.forget",
+        "title": "Memory: Forget",
+        "category": "Tauren"
+      },
+      {
+        "command": "tauren.memory.promote",
+        "title": "Memory: Promote",
+        "category": "Tauren"
+      },
+      {
+        "command": "tauren.memory.relax",
+        "title": "Memory: Relax",
+        "category": "Tauren"
+      },
+      {
+        "command": "tauren.memory.inspect",
+        "title": "Memory: Inspect",
+        "category": "Tauren"
+      },
+      {
+        "command": "tauren.memory.why",
+        "title": "Memory: Explain Retrieval",
+        "category": "Tauren"
+      },
+      {
+        "command": "tauren.memory.summarize",
+        "title": "Memory: Summarize Session",
+        "category": "Tauren"
+      },
+      {
         "command": "tauren.toggleHelp",
         "title": "Toggle Help",
         "category": "Tauren",
