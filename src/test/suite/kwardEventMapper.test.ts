@@ -130,7 +130,7 @@ suite('Kward event mapper', () => {
     assert.deepStrictEqual(
       mapKwardTurnEvent({ type: 'modelRetry', payload: { provider: 'Codex', model: 'fake-model', attempt: 2, maxAttempts: 3, delaySeconds: 1, error: '503' } }),
       {
-        type: 'kward_model_retry',
+        type: 'model_retry',
         provider: 'Codex',
         model: 'fake-model',
         attempt: 2,
@@ -143,7 +143,7 @@ suite('Kward event mapper', () => {
     assert.deepStrictEqual(
       mapKwardTurnEvent({ type: 'turnSteered', payload: { input: 'steer me', createdAt: '2026-06-12T00:00:00Z' } }),
       {
-        type: 'kward_turn_steered',
+        type: 'turn_steered',
         input: 'steer me',
         createdAt: '2026-06-12T00:00:00Z'
       }
@@ -151,12 +151,12 @@ suite('Kward event mapper', () => {
 
     assert.deepStrictEqual(
       mapKwardTurnEvent({ type: 'turnCancelRequested', turnId: 'turn-1' }),
-      { type: 'kward_turn_cancel_requested', turnId: 'turn-1' }
+      { type: 'turn_cancel_requested', turnId: 'turn-1' }
     );
 
     assert.deepStrictEqual(
       mapKwardTurnEvent({ type: 'answer', payload: { content: 'Final answer' } }),
-      { type: 'kward_answer', content: 'Final answer' }
+      { type: 'answer', content: 'Final answer' }
     );
   });
 

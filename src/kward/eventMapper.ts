@@ -99,22 +99,22 @@ export function mapKwardTurnEventToAgentEvent(event: KwardTurnEvent): AgentEvent
       };
     case 'modelRetry':
       return {
-        type: 'kward_model_retry',
+        type: 'model_retry',
         ...payload
       };
     case 'turnSteered':
       return {
-        type: 'kward_turn_steered',
+        type: 'turn_steered',
         ...payload
       };
     case 'turnCancelRequested':
       return {
-        type: 'kward_turn_cancel_requested',
+        type: 'turn_cancel_requested',
         ...(turnId ? { turnId } : {})
       };
     case 'answer':
       return {
-        type: 'kward_answer',
+        type: 'answer',
         ...payload
       };
     case 'toolCall':
