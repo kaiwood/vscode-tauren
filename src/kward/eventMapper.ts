@@ -1,4 +1,4 @@
-import type { PiEvent } from '../pi/types';
+import type { AgentEvent } from '../agent/types';
 import { isRecord } from '../shared/typeGuards';
 import type { KwardTurnEvent } from './types';
 
@@ -11,8 +11,8 @@ export class KwardTurnEventNormalizer {
     this.reasoningBlockSequence = 0;
   }
 
-  public map(event: KwardTurnEvent): PiEvent[] {
-    const events: PiEvent[] = [];
+  public map(event: KwardTurnEvent): AgentEvent[] {
+    const events: AgentEvent[] = [];
 
     if (event.type === 'turnStarted') {
       this.reset();
@@ -30,7 +30,7 @@ export class KwardTurnEventNormalizer {
 
     this.finishReasoning(events);
 
-    const mapped = mapKwardTurnEvent(event);
+    const mapped = mapKwardTurnEventToAgentEvent(event);
     if (mapped) {
       events.push(mapped);
     }
@@ -52,7 +52,7 @@ export class KwardTurnEventNormalizer {
     return this.activeReasoningContentIndex;
   }
 
-  private finishReasoning(events: PiEvent[]): void {
+  private finishReasoning(events: AgentEvent[]): void {
     if (this.activeReasoningContentIndex === undefined) {
       return;
     }
@@ -62,7 +62,7 @@ export class KwardTurnEventNormalizer {
   }
 }
 
-export function mapKwardTurnEvent(event: KwardTurnEvent): PiEvent | undefined {
+export function mapKwardTurnEventToAgentEvent(event: KwardTurnEvent): AgentEvent | undefined {
   const payload = isRecord(event.payload) ? event.payload : {};
   const turnId = typeof event.turnId === 'string' ? event.turnId : undefined;
 
@@ -146,7 +146,9 @@ export function mapKwardTurnEvent(event: KwardTurnEvent): PiEvent | undefined {
   }
 }
 
-function createThinkingEvent(type: 'thinking_start' | 'thinking_delta' | 'thinking_end', contentIndex: number, delta?: string): PiEvent {
+export const mapKwardTurnEvent = mapKwardTurnEventToAgentEvent;
+
+function createThinkingEvent(type: 'thinking_start' | 'thinking_delta' | 'thinking_end', contentIndex: number, delta?: string): AgentEvent {
   return {
     type: 'message_update',
     assistantMessageEvent: {
@@ -157,7 +159,7 @@ function createThinkingEvent(type: 'thinking_start' | 'thinking_delta' | 'thinki
   };
 }
 
-function mapKwardToolEvent(payload: Record<string, unknown>, type: 'tool_execution_start' | 'tool_execution_end'): PiEvent {
+function mapKwardToolEvent(payload: Record<string, unknown>, type: 'tool_execution_start' | 'tool_execution_end'): AgentEvent {
   const toolCall = isRecord(payload.toolCall) ? payload.toolCall : undefined;
   const tool = isRecord(payload.tool) ? payload.tool : undefined;
   const toolCallId = getString(payload, 'toolCallId') ?? getString(toolCall, 'id') ?? getString(toolCall, 'tool_call_id') ?? getString(toolCall, 'callId');

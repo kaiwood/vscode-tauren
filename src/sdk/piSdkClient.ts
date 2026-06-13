@@ -33,7 +33,7 @@ import type { AgentSessionRuntime, SessionManager, SettingsManager } from '@eare
 import type { PiSettingId, SettingValue } from '../settings/settingsRegistry';
 import { createSdkExtensionUiContext } from './extensionUiBridge';
 import { PiSdkRenderer } from './piSdkRendering';
-import { mapSdkExtensionErrorToPiEvent, mapSdkSessionEventToPiEvent } from './piSdkEventMapper';
+import { mapSdkExtensionErrorToAgentEvent, mapSdkSessionEventToAgentEvent } from './piSdkEventMapper';
 import { flattenPiSessionTree, type FlattenableSessionTreeNode } from '../sessions/piSessionTree';
 import { loadPiSdk, type PiSdkLoader, type PiSdkModule } from './piSdkLoader';
 import { assertPiStartupCwd } from '../workspace/cwdSafety';
@@ -830,7 +830,7 @@ export class PiSdkClient implements PiClient {
         }
       },
       onError: (error) => {
-        this.emitEvent(mapSdkExtensionErrorToPiEvent(error));
+        this.emitEvent(mapSdkExtensionErrorToAgentEvent(error));
       }
     });
 
@@ -840,7 +840,7 @@ export class PiSdkClient implements PiClient {
         this.promptSawAgentStart = true;
       }
 
-      this.emitEvent(this.renderer.enrichEvent(runtime, mapSdkSessionEventToPiEvent(event)));
+      this.emitEvent(this.renderer.enrichEvent(runtime, mapSdkSessionEventToAgentEvent(event)));
     });
   }
 

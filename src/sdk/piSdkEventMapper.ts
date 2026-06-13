@@ -1,11 +1,13 @@
 import type { AgentSessionEvent, ExtensionError } from '@earendil-works/pi-coding-agent';
-import type { PiEvent } from '../pi/types';
+import type { AgentEvent } from '../agent/types';
 
-export function mapSdkSessionEventToPiEvent(event: AgentSessionEvent): PiEvent {
-  return event as unknown as PiEvent;
+export function mapSdkSessionEventToAgentEvent(event: AgentSessionEvent): AgentEvent {
+  return event as unknown as AgentEvent;
 }
 
-export function mapSdkExtensionErrorToPiEvent(error: ExtensionError): PiEvent {
+export const mapSdkSessionEventToPiEvent = mapSdkSessionEventToAgentEvent;
+
+export function mapSdkExtensionErrorToAgentEvent(error: ExtensionError): AgentEvent {
   return {
     type: 'extension_error',
     extensionPath: error.extensionPath,
@@ -13,3 +15,5 @@ export function mapSdkExtensionErrorToPiEvent(error: ExtensionError): PiEvent {
     error: error.error
   };
 }
+
+export const mapSdkExtensionErrorToPiEvent = mapSdkExtensionErrorToAgentEvent;
