@@ -3,7 +3,7 @@ import type { AgentClient } from '../agent/clientTypes';
 import type { AgentSessionState, AgentSessionStats } from '../agent/types';
 import { isStaleKwardSessionRequestError } from '../controller/errors';
 import { formatAgentMessages } from '../controller/transcriptFormatting';
-import type { AgentEventHandler } from '../controller/piEventHandler';
+import type { AgentRuntimeEventHandler } from '../controller/piEventHandler';
 import { getSessionFile } from './sessionFormatting';
 import type { SessionViewController } from './sessionViewController';
 
@@ -11,7 +11,7 @@ export type SessionHistoryControllerOptions = {
   initialSessionFile?: string;
   session: ChatSession;
   sessionView: SessionViewController;
-  piEventHandler: AgentEventHandler;
+  piEventHandler: AgentRuntimeEventHandler;
   getClient: () => AgentClient;
   invalidateMetadata: () => void;
   resetSessionMeta: () => void;

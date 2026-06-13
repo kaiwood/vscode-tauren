@@ -1,3 +1,30 @@
+import type { PiEvent } from '../pi/types';
+
+export type AgentQuestionOption = {
+  label: string;
+  description: string;
+};
+
+export type AgentQuestion = {
+  question: string;
+  header: string;
+  options: AgentQuestionOption[];
+};
+
+export type AgentQuestionRequest = {
+  sessionId: string;
+  questionRequestId: string;
+  questions: AgentQuestion[];
+};
+
+export type AgentQuestionRequestEvent = {
+  type: 'question_request';
+  request: AgentQuestionRequest;
+};
+
+export type AgentRuntimeEvent = PiEvent;
+export type AgentEvent = AgentRuntimeEvent | AgentQuestionRequestEvent;
+
 export type {
   AgentEndPiEvent as AgentEndEvent,
   AgentStartPiEvent as AgentStartEvent,
@@ -22,7 +49,6 @@ export type {
   PiCloneResult as AgentCloneResult,
   PiCommand as AgentCommand,
   PiCompactResult as AgentCompactResult,
-  PiEvent as AgentEvent,
   PiEventBase as AgentEventBase,
   PiExportHtmlResult as AgentExportHtmlResult,
   PiForkMessage as AgentForkMessage,

@@ -793,7 +793,7 @@ export class KwardClient implements PiClient {
     if (notification.method === this.capabilityResolver.getQuestionNotificationMethod()) {
       const request = normalizeQuestionRequest(notification.params);
       if (request && this.isCurrentRpcSession(request.sessionId)) {
-        this.emitEvent({ type: 'kward_ui_question', request });
+        this.emitEvent({ type: 'question_request', request });
       }
       return;
     }

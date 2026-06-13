@@ -7,7 +7,7 @@ import {
   type ActivityRemoveAction,
   type ActivityUpdateAction
 } from '../pi/eventMapper';
-import type { AgentEvent } from '../agent/types';
+import type { AgentRuntimeEvent } from '../agent/types';
 import { isAbortMessage, isMessageUpdateStart } from './errors';
 import { getRecordString, isRecord } from './typeGuards';
 
@@ -19,14 +19,14 @@ type LiveToolCall = {
 
 const bashUpdateThrottleMs = 500;
 
-export type AgentEventHandlerOptions = {
+export type AgentRuntimeEventHandlerOptions = {
   session: ChatSession;
   postState: () => void;
   scheduleState: () => void;
   isActiveSession?: () => boolean;
   refreshSessionDiffStats: () => void;
   refreshContextUsage: () => void;
-  addToolExecution: (event: AgentEvent) => void;
+  addToolExecution: (event: AgentRuntimeEvent) => void;
   armQueuedReadyScriptRun: () => void;
   runReadyScriptAfterAgentEnd: () => void;
   refreshMetadataAfterAgentEnd: () => void;
@@ -35,7 +35,7 @@ export type AgentEventHandlerOptions = {
   resetAbortState: () => void;
 };
 
-export class AgentEventHandler {
+export class AgentRuntimeEventHandler {
   private assistantStreamId = 0;
   private agentActive = false;
   private autoRetryActive = false;
@@ -47,7 +47,7 @@ export class AgentEventHandler {
   private lastBashUpdatePostAt = 0;
   private readonly liveToolCallsById = new Map<string, LiveToolCall>();
 
-  public constructor(private readonly options: AgentEventHandlerOptions) {}
+  public constructor(private readonly options: AgentRuntimeEventHandlerOptions) {}
 
   public reset(): void {
     this.clearReadyScriptTimer();
@@ -71,7 +71,7 @@ export class AgentEventHandler {
     this.clearBashUpdatePostTimer();
   }
 
-  public handleEvent(event: AgentEvent): void {
+  public handleEvent(event: AgentRuntimeEvent): void {
     switch (event.type) {
       case 'agent_start':
         this.clearReadyScriptTimer();
@@ -197,7 +197,7 @@ export class AgentEventHandler {
     }
   }
 
-  private handleCustomMessageEnd(event: AgentEvent): boolean {
+  private handleCustomMessageEnd(event: AgentRuntimeEvent): boolean {
     const message = isRecord(event.message) ? event.message : undefined;
 
     if (!message || message.role !== 'custom') {
@@ -236,7 +236,7 @@ export class AgentEventHandler {
     return false;
   }
 
-  private handleMessageUpdate(event: AgentEvent): void {
+  private handleMessageUpdate(event: AgentRuntimeEvent): void {
     this.rememberLiveToolCall(event);
 
     const action = mapMessageUpdate(event, this.getMessageUpdateStreamId(event), {
@@ -297,7 +297,7 @@ export class AgentEventHandler {
     }
   }
 
-  private handleToolExecutionUpdate(event: AgentEvent): void {
+  private handleToolExecutionUpdate(event: AgentRuntimeEvent): void {
     const enrichedEvent = this.enrichLiveToolExecutionEvent(event);
 
     if (!this.isBashToolExecutionEvent(enrichedEvent)) {
@@ -392,7 +392,7 @@ export class AgentEventHandler {
       || this.waitingForAutoRetryStart;
   }
 
-  private applyPiActivity(event: AgentEvent, options: { omitBody?: boolean } = {}): void {
+  private applyPiActivity(event: AgentRuntimeEvent, options: { omitBody?: boolean } = {}): void {
     if (!this.options.session.isBusy && event.type !== 'agent_start') {
       return;
     }
@@ -429,7 +429,7 @@ export class AgentEventHandler {
     );
   }
 
-  private rememberLiveToolCall(event: AgentEvent): void {
+  private rememberLiveToolCall(event: AgentRuntimeEvent): void {
     const assistantMessageEvent = event.assistantMessageEvent;
 
     if (!isRecord(assistantMessageEvent) || assistantMessageEvent.type !== 'toolcall_end') {
@@ -452,11 +452,11 @@ export class AgentEventHandler {
     });
   }
 
-  private isBashToolExecutionEvent(event: AgentEvent): boolean {
+  private isBashToolExecutionEvent(event: AgentRuntimeEvent): boolean {
     return event.type === 'tool_execution_update' && getRecordString(event, 'toolName') === 'bash';
   }
 
-  private enrichLiveToolExecutionEvent(event: AgentEvent): AgentEvent {
+  private enrichLiveToolExecutionEvent(event: AgentRuntimeEvent): AgentRuntimeEvent {
     if (
       event.type !== 'tool_execution_start'
       && event.type !== 'tool_execution_update'
@@ -479,7 +479,7 @@ export class AgentEventHandler {
     };
   }
 
-  private getMessageUpdateStreamId(event: AgentEvent): number {
+  private getMessageUpdateStreamId(event: AgentRuntimeEvent): number {
     if (isMessageUpdateStart(event)) {
       this.assistantStreamId += 1;
     }

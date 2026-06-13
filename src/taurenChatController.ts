@@ -33,7 +33,7 @@ import { parseLocalSlashCommand, parseSlashCommand } from './controller/slashCom
 import { LocalSlashCommandController } from './controller/localSlashCommandController';
 import { SessionHistoryController } from './sessions/sessionHistoryController';
 import { AgentClientManager } from './controller/piClientManager';
-import { AgentEventHandler } from './controller/piEventHandler';
+import { AgentRuntimeEventHandler } from './controller/piEventHandler';
 import { SessionViewController } from './sessions/sessionViewController';
 import { getSessionFile } from './sessions/sessionFormatting';
 import { SettingsViewController } from './settings/settingsViewController';
@@ -72,7 +72,7 @@ export class TaurenChatController {
   private abortRequested = false;
   private abortNoticeAdded = false;
   private readonly sessionDiffController: SessionDiffController;
-  private readonly piEventHandler: AgentEventHandler;
+  private readonly piEventHandler: AgentRuntimeEventHandler;
   private readonly readyScriptState = new ReadyScriptState();
   private readonly session = new ChatSession();
   private readonly statePublisher: StatePublisher<WebviewStateMessage>;
@@ -137,7 +137,7 @@ export class TaurenChatController {
       onEvent: (event) => this.handleAgentEvent(event),
       onError: (message) => this.handleClientError(message)
     });
-    this.piEventHandler = new AgentEventHandler({
+    this.piEventHandler = new AgentRuntimeEventHandler({
       session: this.session,
       postState: () => this.postState(),
       scheduleState: () => this.statePublisher.schedule(),
@@ -1477,8 +1477,8 @@ export class TaurenChatController {
   }
 
   private handleAgentEvent(event: AgentEvent): void {
-    if (event.type === 'kward_ui_question') {
-      const request = isKwardQuestionEventRequest(event.request) ? event.request : undefined;
+    if (event.type === 'question_request') {
+      const request = isAgentQuestionEventRequest(event.request) ? event.request : undefined;
       if (request) {
         this.pendingKwardQuestion = request;
         this.postState();
@@ -1507,7 +1507,7 @@ export class TaurenChatController {
   }
 }
 
-function isKwardQuestionEventRequest(value: unknown): value is WebviewKwardQuestionRequest {
+function isAgentQuestionEventRequest(value: unknown): value is WebviewKwardQuestionRequest {
   return isRecord(value)
     && typeof value.sessionId === 'string'
     && typeof value.questionRequestId === 'string'

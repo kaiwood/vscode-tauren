@@ -3147,7 +3147,7 @@ suite('TaurenChatController', () => {
     await harness.controller.handleWebviewMessage({ type: 'refreshSlashCommands' });
     await harness.controller.handleWebviewMessage({ type: 'submit', text: '/plan fix bug' });
     client.emit({
-      type: 'kward_ui_question',
+      type: 'question_request',
       request: {
         sessionId: 'session-1',
         questionRequestId: 'question-1',
@@ -3184,7 +3184,7 @@ suite('TaurenChatController', () => {
 
     await harness.controller.handleWebviewMessage({ type: 'ready' });
     client.emit({
-      type: 'kward_ui_question',
+      type: 'question_request',
       request: {
         sessionId: 'session-1',
         questionRequestId: 'question-1',
@@ -3221,7 +3221,7 @@ suite('TaurenChatController', () => {
 
     await harness.controller.handleWebviewMessage({ type: 'ready' });
     client.emit({
-      type: 'kward_ui_question',
+      type: 'question_request',
       request: {
         sessionId: 'session-1',
         questionRequestId: 'question-1',
@@ -3274,7 +3274,7 @@ suite('TaurenChatController', () => {
 
     await harness.controller.handleWebviewMessage({ type: 'ready' });
     client.emit({
-      type: 'kward_ui_question',
+      type: 'question_request',
       request: {
         sessionId: 'session-1',
         questionRequestId: 'question-1',
