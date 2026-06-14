@@ -71,10 +71,7 @@ Pi remains the source of truth for those values. Tauren may show cached metadata
 
 Tauren defaults to the bundled Pi SDK backend. The **Runtime → Backend** setting can also select the experimental local Kward JSON-RPC backend.
 
-When Backend is **Kward**, set **Runtime → Kward path** to either:
-
-- a Kward source checkout directory, such as `/Users/kwood/Repositories/github.com/kaiwood/kward`; Tauren launches it with `bundle exec ruby lib/main.rb rpc` from that directory, or
-- a Kward executable file; Tauren launches it with `rpc` as the argument.
+When Backend is **Kward**, Tauren launches the global `kward rpc` command by default. Set **Runtime → Kward path** only when you want to use a specific Kward executable; Tauren launches that executable with `rpc` as the argument.
 
 Kward is treated as a trusted local backend. It can read and write local files, run shell commands, update credentials, and perform other runtime actions available to Kward. Use it only with workspaces and Kward builds you trust.
 

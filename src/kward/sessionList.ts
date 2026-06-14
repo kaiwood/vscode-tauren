@@ -9,8 +9,6 @@ import { isRecord } from '../shared/typeGuards';
 import { KwardCapabilityResolver } from './capabilities';
 import { KwardRpcTransport } from './rpcTransport';
 
-const defaultKwardPath = '/Users/kwood/Repositories/github.com/kaiwood/kward';
-
 export async function listKwardSessions(options: {
   cwd?: string;
   currentSessionFile?: string;
@@ -44,7 +42,7 @@ async function listKwardSessionsViaRpc(options: {
     return undefined;
   }
 
-  const transport = new KwardRpcTransport({ cwd: resolveKwardPath(options.kwardPath) });
+  const transport = new KwardRpcTransport({ kwardPath: resolveKwardPath(options.kwardPath) });
   try {
     const initializeResult = await transport.request('initialize');
     const capabilities = isRecord(initializeResult) && isRecord(initializeResult.capabilities) ? initializeResult.capabilities : {};
@@ -117,9 +115,8 @@ function getKwardConfigDir(): string {
   return configPath ? resolve(configPath, '..') : join(homedir(), '.kward');
 }
 
-function resolveKwardPath(kwardPath: string | undefined): string {
-  const path = kwardPath || defaultKwardPath;
-  return path.startsWith('~') ? join(homedir(), path.slice(1)) : path;
+function resolveKwardPath(kwardPath: string | undefined): string | undefined {
+  return kwardPath?.startsWith('~') ? join(homedir(), kwardPath.slice(1)) : kwardPath;
 }
 
 function safeCwd(cwd: string): string {

@@ -23,7 +23,7 @@ export type KwardJsonRpcNotification = {
 };
 
 export type KwardRpcTransportOptions = {
-  cwd: string;
+  kwardPath?: string;
   onNotification?: (notification: KwardJsonRpcNotification) => void;
   onError?: (message: string) => void;
   onExit?: (message: string) => void;
@@ -58,7 +58,7 @@ export class KwardRpcTransport {
       throw new Error('Kward RPC transport disposed.');
     }
 
-    const launch = resolveKwardLaunch(this.options.cwd);
+    const launch = resolveKwardLaunch(this.options.kwardPath);
     const child = spawn(launch.command, launch.args, {
       cwd: launch.cwd,
       stdio: ['pipe', 'pipe', 'pipe']

@@ -72,7 +72,6 @@ export type KwardClientOptions = {
   extensionUi?: ExtensionUi;
 };
 
-const defaultKwardPath = '/Users/kwood/Repositories/github.com/kaiwood/kward';
 const supportedKwardProtocolVersion = 1;
 const authLoginPollIntervalMs = 1000;
 const authLoginTimeoutSeconds = 120;
@@ -694,7 +693,7 @@ export class KwardClient implements PiClient {
 
     const kwardPath = this.resolveKwardPath();
     const transport = new KwardRpcTransport({
-      cwd: kwardPath,
+      kwardPath,
       onNotification: (notification) => this.handleNotification(notification),
       onError: (message) => this.emitError(message),
       onExit: (message) => this.emitError(message)
@@ -763,7 +762,7 @@ export class KwardClient implements PiClient {
     if (!this.transport) {
       const kwardPath = this.resolveKwardPath();
       this.transport = new KwardRpcTransport({
-        cwd: kwardPath,
+        kwardPath,
         onNotification: (notification) => this.handleNotification(notification),
         onError: (message) => this.emitError(message),
         onExit: (message) => this.emitError(message)
@@ -773,12 +772,21 @@ export class KwardClient implements PiClient {
     return this.transport.request(method, params);
   }
 
-  private resolveKwardPath(): string {
-    const kwardPath = this.options.kwardPath || defaultKwardPath;
-    const expanded = kwardPath.startsWith('~') ? path.join(os.homedir(), kwardPath.slice(1)) : kwardPath;
+  private resolveKwardPath(): string | undefined {
+    const kwardPath = this.options.kwardPath;
+    if (!kwardPath) {
+      return undefined;
+    }
 
-    if (!fs.existsSync(expanded)) {
-      throw new Error(`Kward path does not exist: ${expanded}`);
+    const expanded = kwardPath.startsWith('~') ? path.join(os.homedir(), kwardPath.slice(1)) : kwardPath;
+    const stats = fs.existsSync(expanded) ? fs.statSync(expanded) : undefined;
+
+    if (!stats) {
+      throw new Error(`Kward binary path does not exist: ${expanded}`);
+    }
+
+    if (!stats.isFile()) {
+      throw new Error(`Kward path must point to an executable file: ${expanded}`);
     }
 
     return expanded;

@@ -13,6 +13,7 @@
 ### Changed
 
 - Clarified backend-neutral Runtime and Login settings copy while keeping Pi-specific extension settings explicit.
+- Changed Kward backend launch to use the global `kward rpc` command by default; `tauren.kward.path` now points only to a Kward executable.
 - Changed Kward memory slash command results to appear in the Transcript.
 - Changed Login settings to derive authentication providers from the Pi runtime instead of Tauren-maintained built-in provider metadata.
 - Wired the experimental Kward backend to the expanded RPC parity contract for images, runtime metadata, commands, auth, fork, and session listing.
@@ -48,8 +49,6 @@
 - Warn when Kward reports an unexpected RPC protocol version during initialization.
 - Capability-gated Kward RPC session listing before falling back to local session files.
 - Extracted Kward RPC launch resolution in preparation for additional Kward launch modes.
-- Allowed Kward path to point at an executable file launched directly with `rpc`.
-- Clarified Kward path setting copy for source-directory and executable launch modes.
 - Filtered Pi-owned settings from the Kward Settings view unless Kward reports current values for them.
 - Added an empty state for Kward Settings sections with no Kward-supported settings.
 - Added coverage for Kward-specific Settings filtering.

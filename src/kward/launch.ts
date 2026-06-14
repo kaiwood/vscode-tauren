@@ -1,4 +1,3 @@
-import { statSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 export type KwardLaunchCommand = {
@@ -7,26 +6,10 @@ export type KwardLaunchCommand = {
   cwd: string;
 };
 
-export function resolveKwardLaunch(path: string): KwardLaunchCommand {
-  if (isFile(path)) {
-    return {
-      command: path,
-      args: ['rpc'],
-      cwd: dirname(path)
-    };
-  }
-
+export function resolveKwardLaunch(kwardPath?: string): KwardLaunchCommand {
   return {
-    command: 'bundle',
-    args: ['exec', 'ruby', 'lib/main.rb', 'rpc'],
-    cwd: path
+    command: kwardPath || 'kward',
+    args: ['rpc'],
+    cwd: kwardPath ? dirname(kwardPath) : process.cwd()
   };
-}
-
-function isFile(path: string): boolean {
-  try {
-    return statSync(path).isFile();
-  } catch {
-    return false;
-  }
 }

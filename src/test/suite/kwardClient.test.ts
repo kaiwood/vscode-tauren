@@ -1011,8 +1011,9 @@ suite('KwardClient', () => {
 
 function createKwardPath(): string {
   const dir = fs.mkdtempSync(path.join(tmpdir(), 'tauren-kward-client-test-'));
-  fs.mkdirSync(path.join(dir, 'lib'), { recursive: true });
-  return dir;
+  const executable = path.join(dir, 'kward');
+  fs.writeFileSync(executable, '#!/usr/bin/env ruby\n');
+  return executable;
 }
 
 function assertWrittenRequest(chunk: Buffer, expected: { method: string; params?: unknown }): void {
