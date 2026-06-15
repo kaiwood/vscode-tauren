@@ -5891,6 +5891,17 @@ ${after}`;
       liveBehavior: "immediate"
     },
     {
+      id: "tauren.voice.inputDevice",
+      owner: "tauren",
+      section: "voice",
+      label: "Voice input device",
+      description: "Microphone or audio input source Tauren should record from.",
+      control: "text",
+      defaultValue: "default",
+      helper: "Use the device selector below to change this setting.",
+      liveBehavior: "immediate"
+    },
+    {
       id: "tauren.voice.transcriptAction",
       owner: "tauren",
       section: "voice",
@@ -8785,6 +8796,8 @@ ${after}`;
       const modelId = button.dataset.voiceModelId;
       if (action === "downloadBinary") {
         this.options.postMessage({ type: "voiceDownloadBinary" });
+      } else if (action === "refreshInputDevices") {
+        this.options.postMessage({ type: "voiceRefreshInputDevices" });
       } else if (action === "downloadModel") {
         this.options.postMessage({ type: "voiceDownloadModel", ...modelId ? { modelId } : {} });
       } else if (action === "deleteModel" && modelId) {
@@ -8908,7 +8921,9 @@ ${after}`;
     }
     appendVoiceCards(cards, state2) {
       for (const definition of getVisibleSettingsForSection("voice", state2)) {
-        cards.append(this.createSettingCard(definition, state2));
+        if (definition.id !== "tauren.voice.inputDevice") {
+          cards.append(this.createSettingCard(definition, state2));
+        }
       }
       const voice = state2.voice;
       if (!voice) {
@@ -8919,8 +8934,39 @@ ${after}`;
         cards.append(card);
         return;
       }
+      cards.append(this.createVoiceInputDeviceCard(voice));
       cards.append(this.createVoiceBinaryCard(voice));
       cards.append(this.createVoiceModelCard(voice));
+    }
+    createVoiceInputDeviceCard(voice) {
+      const card = document.createElement("article");
+      card.className = "settings-surface__card";
+      card.append(createTextElement("h4", "settings-surface__card-title", "Input device"));
+      card.append(createTextElement("p", "settings-surface__card-body", "Choose which microphone or audio source Tauren records from."));
+      const select = document.createElement("select");
+      select.className = "settings-surface__select";
+      select.dataset.settingId = "tauren.voice.inputDevice";
+      select.disabled = voice.recordingStatus === "recording" || voice.recordingStatus === "transcribing";
+      for (const device of voice.inputDevices.devices) {
+        const option = document.createElement("option");
+        option.value = device.id;
+        option.textContent = device.label;
+        option.selected = device.id === voice.inputDevices.selectedId;
+        select.append(option);
+      }
+      card.append(select);
+      const toolbar = document.createElement("div");
+      toolbar.className = "settings-surface__auth-toolbar";
+      const refreshButton = this.createVoiceButton(voice.inputDevices.status === "refreshing" ? "Refreshing\u2026" : "Refresh devices", "refreshInputDevices");
+      refreshButton.disabled = voice.inputDevices.status === "refreshing";
+      toolbar.append(refreshButton);
+      card.append(toolbar);
+      const statusLabel = voice.inputDevices.status === "ready" ? `${Math.max(voice.inputDevices.devices.length - 1, 0)} input device${voice.inputDevices.devices.length === 2 ? "" : "s"} detected.` : voice.inputDevices.status === "refreshing" ? "Looking for input devices\u2026" : "Click Refresh devices to detect available microphones.";
+      card.append(createTextElement("p", "settings-surface__card-helper", statusLabel));
+      if (voice.inputDevices.error) {
+        card.append(createTextElement("p", "settings-surface__card-error", voice.inputDevices.error));
+      }
+      return card;
     }
     createVoiceBinaryCard(voice) {
       const card = document.createElement("article");
@@ -9694,9 +9740,30 @@ ${after}`;
         ...typeof value.binary.helper === "string" ? { helper: value.binary.helper } : {},
         download: parseVoiceDownloadState(value.binary.download)
       },
+      inputDevices: parseVoiceInputDevicesState(value.inputDevices),
       recordingStatus,
       ...typeof value.error === "string" && value.error ? { error: value.error } : {}
     };
+  }
+  function parseVoiceInputDevicesState(value) {
+    if (!isRecord(value) || !Array.isArray(value.devices)) {
+      return {
+        selectedId: "default",
+        status: "idle",
+        devices: [{ id: "default", label: "Default microphone", isDefault: true }]
+      };
+    }
+    const status = value.status === "refreshing" || value.status === "ready" || value.status === "error" ? value.status : "idle";
+    const devices = value.devices.filter(isVoiceInputDevice);
+    return {
+      selectedId: typeof value.selectedId === "string" && value.selectedId ? value.selectedId : "default",
+      status,
+      devices: devices.length > 0 ? devices : [{ id: "default", label: "Default microphone", isDefault: true }],
+      ...typeof value.error === "string" && value.error ? { error: value.error } : {}
+    };
+  }
+  function isVoiceInputDevice(value) {
+    return isRecord(value) && typeof value.id === "string" && typeof value.label === "string";
   }
   function isVoiceModelOption(value) {
     return isRecord(value) && (value.id === "tiny.en" || value.id === "base.en" || value.id === "small.en") && typeof value.label === "string" && typeof value.description === "string" && typeof value.sizeBytes === "number" && typeof value.downloaded === "boolean";

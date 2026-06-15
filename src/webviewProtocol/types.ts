@@ -140,6 +140,7 @@ export type WebviewMessage =
   | { type: 'voiceDownloadBinary' }
   | { type: 'voiceDownloadModel'; modelId?: string }
   | { type: 'voiceDeleteModel'; modelId: string }
+  | { type: 'voiceRefreshInputDevices' }
   | { type: 'voiceStartRecording' }
   | { type: 'voiceStopRecording' }
   | { type: 'authLogin'; providerId: string; authType?: WebviewAuthType }

@@ -212,6 +212,8 @@ export class SettingsPaneController {
 
     if (action === 'downloadBinary') {
       this.options.postMessage({ type: 'voiceDownloadBinary' });
+    } else if (action === 'refreshInputDevices') {
+      this.options.postMessage({ type: 'voiceRefreshInputDevices' });
     } else if (action === 'downloadModel') {
       this.options.postMessage({ type: 'voiceDownloadModel', ...(modelId ? { modelId } : {}) });
     } else if (action === 'deleteModel' && modelId) {
@@ -364,7 +366,9 @@ export class SettingsPaneController {
 
   private appendVoiceCards(cards: HTMLElement, state: WebviewState): void {
     for (const definition of getVisibleSettingsForSection('voice', state)) {
-      cards.append(this.createSettingCard(definition, state));
+      if (definition.id !== 'tauren.voice.inputDevice') {
+        cards.append(this.createSettingCard(definition, state));
+      }
     }
 
     const voice = state.voice;
@@ -377,8 +381,51 @@ export class SettingsPaneController {
       return;
     }
 
+    cards.append(this.createVoiceInputDeviceCard(voice));
     cards.append(this.createVoiceBinaryCard(voice));
     cards.append(this.createVoiceModelCard(voice));
+  }
+
+  private createVoiceInputDeviceCard(voice: NonNullable<WebviewState['voice']>): HTMLElement {
+    const card = document.createElement('article');
+    card.className = 'settings-surface__card';
+    card.append(createTextElement('h4', 'settings-surface__card-title', 'Input device'));
+    card.append(createTextElement('p', 'settings-surface__card-body', 'Choose which microphone or audio source Tauren records from.'));
+
+    const select = document.createElement('select');
+    select.className = 'settings-surface__select';
+    select.dataset.settingId = 'tauren.voice.inputDevice';
+    select.disabled = voice.recordingStatus === 'recording' || voice.recordingStatus === 'transcribing';
+
+    for (const device of voice.inputDevices.devices) {
+      const option = document.createElement('option');
+      option.value = device.id;
+      option.textContent = device.label;
+      option.selected = device.id === voice.inputDevices.selectedId;
+      select.append(option);
+    }
+
+    card.append(select);
+
+    const toolbar = document.createElement('div');
+    toolbar.className = 'settings-surface__auth-toolbar';
+    const refreshButton = this.createVoiceButton(voice.inputDevices.status === 'refreshing' ? 'Refreshing…' : 'Refresh devices', 'refreshInputDevices');
+    refreshButton.disabled = voice.inputDevices.status === 'refreshing';
+    toolbar.append(refreshButton);
+    card.append(toolbar);
+
+    const statusLabel = voice.inputDevices.status === 'ready'
+      ? `${Math.max(voice.inputDevices.devices.length - 1, 0)} input device${voice.inputDevices.devices.length === 2 ? '' : 's'} detected.`
+      : voice.inputDevices.status === 'refreshing'
+        ? 'Looking for input devices…'
+        : 'Click Refresh devices to detect available microphones.';
+    card.append(createTextElement('p', 'settings-surface__card-helper', statusLabel));
+
+    if (voice.inputDevices.error) {
+      card.append(createTextElement('p', 'settings-surface__card-error', voice.inputDevices.error));
+    }
+
+    return card;
   }
 
   private createVoiceBinaryCard(voice: NonNullable<WebviewState['voice']>): HTMLElement {

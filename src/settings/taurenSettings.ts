@@ -72,6 +72,11 @@ export function getVoiceModelSetting(): VoiceModelId {
   return value === 'tiny.en' || value === 'small.en' ? value : 'base.en';
 }
 
+export function getVoiceInputDeviceSetting(): string {
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.inputDevice', 'default').trim();
+  return value || 'default';
+}
+
 export function getVoiceTranscriptActionSetting(): VoiceTranscriptAction {
   const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.transcriptAction', 'insert');
   return value === 'submit' ? 'submit' : 'insert';
@@ -157,6 +162,7 @@ export function getTaurenSettingValues(globalState?: vscode.Memento): Partial<Re
     'tauren.readyScriptEnabled': getReadyScriptEnabledSetting(),
     'tauren.voice.enabled': getVoiceEnabledSetting(),
     'tauren.voice.model': getVoiceModelSetting(),
+    'tauren.voice.inputDevice': getVoiceInputDeviceSetting(),
     'tauren.voice.transcriptAction': getVoiceTranscriptActionSetting()
   };
 }

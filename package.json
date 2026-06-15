@@ -525,6 +525,11 @@
           ],
           "description": "Local Whisper model Tauren should use for speech-to-text. Models are downloaded from the Voice settings pane."
         },
+        "tauren.voice.inputDevice": {
+          "type": "string",
+          "default": "default",
+          "description": "Microphone or audio input source Tauren should record from. Use Default, or select a detected device from the Voice settings pane."
+        },
         "tauren.voice.transcriptAction": {
           "type": "string",
           "default": "insert",

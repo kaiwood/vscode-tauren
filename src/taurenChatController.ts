@@ -321,6 +321,9 @@ export class TaurenChatController {
       case 'voiceDeleteModel':
         await this.options.voiceController?.deleteModel(message.modelId);
         return;
+      case 'voiceRefreshInputDevices':
+        await this.options.voiceController?.refreshInputDevices();
+        return;
       case 'voiceStartRecording':
         await this.options.voiceController?.startRecording();
         return;

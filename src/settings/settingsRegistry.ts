@@ -22,6 +22,7 @@ export type TaurenSettingId =
   | 'tauren.readyScriptEnabled'
   | 'tauren.voice.enabled'
   | 'tauren.voice.model'
+  | 'tauren.voice.inputDevice'
   | 'tauren.voice.transcriptAction';
 
 export type PiSettingId =
@@ -267,6 +268,17 @@ export const settingDefinitions = [
     options: voiceModelOptions,
     defaultValue: 'base.en',
     helper: 'Download the selected model below before using voice input.',
+    liveBehavior: 'immediate'
+  },
+  {
+    id: 'tauren.voice.inputDevice',
+    owner: 'tauren',
+    section: 'voice',
+    label: 'Voice input device',
+    description: 'Microphone or audio input source Tauren should record from.',
+    control: 'text',
+    defaultValue: 'default',
+    helper: 'Use the device selector below to change this setting.',
     liveBehavior: 'immediate'
   },
   {

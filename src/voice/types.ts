@@ -33,12 +33,26 @@ export type VoiceBinaryState = {
 
 export type VoiceRecordingStatus = 'idle' | 'recording' | 'transcribing' | 'error';
 
+export type VoiceInputDevice = {
+  id: string;
+  label: string;
+  isDefault?: boolean;
+};
+
+export type VoiceInputDevicesState = {
+  selectedId: string;
+  status: 'idle' | 'refreshing' | 'ready' | 'error';
+  devices: VoiceInputDevice[];
+  error?: string;
+};
+
 export type VoiceState = {
   enabled: boolean;
   selectedModelId: VoiceModelId;
   transcriptAction: VoiceTranscriptAction;
   models: VoiceModelOption[];
   binary: VoiceBinaryState;
+  inputDevices: VoiceInputDevicesState;
   recordingStatus: VoiceRecordingStatus;
   error?: string;
 };

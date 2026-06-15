@@ -276,9 +276,36 @@ function parseVoiceState(value: unknown): WebviewState['voice'] {
       ...(typeof value.binary.helper === 'string' ? { helper: value.binary.helper } : {}),
       download: parseVoiceDownloadState(value.binary.download)
     },
+    inputDevices: parseVoiceInputDevicesState(value.inputDevices),
     recordingStatus,
     ...(typeof value.error === 'string' && value.error ? { error: value.error } : {})
   };
+}
+
+function parseVoiceInputDevicesState(value: unknown): NonNullable<WebviewState['voice']>['inputDevices'] {
+  if (!isRecord(value) || !Array.isArray(value.devices)) {
+    return {
+      selectedId: 'default',
+      status: 'idle',
+      devices: [{ id: 'default', label: 'Default microphone', isDefault: true }]
+    };
+  }
+
+  const status = value.status === 'refreshing' || value.status === 'ready' || value.status === 'error' ? value.status : 'idle';
+  const devices = value.devices.filter(isVoiceInputDevice);
+
+  return {
+    selectedId: typeof value.selectedId === 'string' && value.selectedId ? value.selectedId : 'default',
+    status,
+    devices: devices.length > 0 ? devices : [{ id: 'default', label: 'Default microphone', isDefault: true }],
+    ...(typeof value.error === 'string' && value.error ? { error: value.error } : {})
+  };
+}
+
+function isVoiceInputDevice(value: unknown): value is NonNullable<WebviewState['voice']>['inputDevices']['devices'][number] {
+  return isRecord(value)
+    && typeof value.id === 'string'
+    && typeof value.label === 'string';
 }
 
 function isVoiceModelOption(value: unknown): value is NonNullable<WebviewState['voice']>['models'][number] {

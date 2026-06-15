@@ -81,6 +81,8 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
       return typeof value.modelId === 'string' && value.modelId
         ? { type: 'voiceDeleteModel', modelId: value.modelId }
         : { type: 'unknown' };
+    case 'voiceRefreshInputDevices':
+      return { type: 'voiceRefreshInputDevices' };
     case 'voiceStartRecording':
       return { type: 'voiceStartRecording' };
     case 'voiceStopRecording':
