@@ -488,7 +488,8 @@ export class ComposerController {
     }
 
     if (status === 'transcribing') {
-      this.showVoiceFeedback('Voice input is still transcribing.');
+      this.showVoiceFeedback('Stopping voice input…');
+      this.options.postMessage({ type: 'voiceStopRecording' });
       return;
     }
 
@@ -543,8 +544,8 @@ export class ComposerController {
     button.classList.toggle('composer__voice--listening', isListening);
     button.classList.toggle('composer__voice--recording', isRecording);
     button.classList.toggle('composer__voice--transcribing', isTranscribing);
-    button.disabled = isTranscribing;
-    button.setAttribute('aria-label', isRecording || isListening || isStarting ? 'Stop voice input' : 'Start voice input');
+    button.disabled = false;
+    button.setAttribute('aria-label', isRecording || isListening || isStarting || isTranscribing ? 'Stop voice input' : 'Start voice input');
 
     if (tooltip) {
       tooltip.textContent = isStarting
@@ -556,7 +557,7 @@ export class ComposerController {
         : voice?.recordingStatus === 'error' && voice.error
         ? voice.error
         : isTranscribing
-        ? 'Transcribing…'
+        ? 'Transcribing… click to stop'
         : isReady
         ? 'Start voice input'
         : 'Start voice input (setup required)';

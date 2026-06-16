@@ -55,6 +55,8 @@ export class VoiceController implements vscode.Disposable {
   private handsFreeActive = false;
   private handsFreeTranscribing = false;
   private restartHandsFreeAfterTranscription = false;
+  private activeTranscription: ChildProcess | undefined;
+  private cancelActiveTranscription = false;
   private recordingStatus: VoiceState['recordingStatus'] = 'idle';
   private audioLevel = 0;
   private lastError: string | undefined;
@@ -362,7 +364,19 @@ export class VoiceController implements vscode.Disposable {
       const runtime = this.handsFreeRuntime;
       this.handsFreeRuntime = undefined;
       await runtime.stop();
-      this.recordingStatus = wasTranscribing ? 'transcribing' : 'idle';
+      if (wasTranscribing && !options.restartAfterHandsFreeTranscription) {
+        await this.cancelTranscription();
+      }
+      this.recordingStatus = wasTranscribing && options.restartAfterHandsFreeTranscription ? 'transcribing' : 'idle';
+      this.audioLevel = 0;
+      this.options.onDidChangeState();
+      return;
+    }
+
+    if (this.handsFreeTranscribing) {
+      this.handsFreeActive = false;
+      await this.cancelTranscription();
+      this.recordingStatus = 'idle';
       this.audioLevel = 0;
       this.options.onDidChangeState();
       return;
@@ -518,8 +532,17 @@ export class VoiceController implements vscode.Disposable {
       let stderr = '';
       child.stdout.on('data', (chunk) => { stdout += String(chunk); });
       child.stderr.on('data', (chunk) => { stderr += String(chunk); });
+      this.activeTranscription = child;
       child.on('error', reject);
       child.on('close', (code) => {
+        if (this.activeTranscription === child) {
+          this.activeTranscription = undefined;
+        }
+        if (this.cancelActiveTranscription) {
+          this.cancelActiveTranscription = false;
+          resolve('');
+          return;
+        }
         if (code === 0) {
           resolve(cleanWhisperOutput(stdout));
         } else {
@@ -527,6 +550,16 @@ export class VoiceController implements vscode.Disposable {
         }
       });
     });
+  }
+
+  private async cancelTranscription(): Promise<void> {
+    const child = this.activeTranscription;
+    if (!child || child.exitCode !== null || child.killed) {
+      return;
+    }
+
+    this.cancelActiveTranscription = true;
+    await stopProcess(child).catch(() => undefined);
   }
 
   private async getReadinessError(): Promise<string | undefined> {
