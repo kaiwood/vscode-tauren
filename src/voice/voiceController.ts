@@ -319,6 +319,26 @@ export class VoiceController implements vscode.Disposable {
     this.options.onDidChangeState();
   }
 
+  public async handleConfigurationChange(event: vscode.ConfigurationChangeEvent): Promise<void> {
+    const affectsHandsFreeRuntime = event.affectsConfiguration('tauren.voice.inputDevice')
+      || event.affectsConfiguration('tauren.voice.handsFreeSensitivity')
+      || event.affectsConfiguration('tauren.voice.handsFreeSilenceSeconds')
+      || event.affectsConfiguration('tauren.voice.maxRecordingSeconds');
+    const affectsHandsFreeAvailability = event.affectsConfiguration('tauren.voice.enabled')
+      || event.affectsConfiguration('tauren.voice.mode');
+
+    if (!this.handsFreeRuntime || (!affectsHandsFreeRuntime && !affectsHandsFreeAvailability)) {
+      return;
+    }
+
+    const shouldRestart = getVoiceEnabledSetting() && getVoiceModeSetting() === 'handsFree' && affectsHandsFreeRuntime;
+    await this.stopRecording();
+
+    if (shouldRestart) {
+      await this.startRecording();
+    }
+  }
+
   public async stopRecording(options: { reason?: 'user' | 'maxDuration' } = {}): Promise<void> {
     if (this.handsFreeRuntime) {
       this.handsFreeActive = false;
