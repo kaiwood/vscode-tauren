@@ -3324,6 +3324,7 @@
     streamingBehavior = "steer";
     busySubmitHideTimeout;
     composerDragDepth = 0;
+    voiceStarting = false;
     textareaLayoutSignature = "";
     pasteBuffer = new ComposerPasteBuffer();
     addedDiffCounter;
@@ -3658,6 +3659,8 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
         this.options.postMessage({ type: "setSettingsSection", section: "voice" });
         return;
       }
+      this.voiceStarting = true;
+      this.syncVoiceButton();
       this.showVoiceFeedback("Starting recording\u2026");
       this.options.postMessage({ type: "voiceStartRecording" });
     }
@@ -3673,19 +3676,24 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
       const tooltip = button.querySelector(".composer__button-tooltip, .tauren-icon-action-tooltip");
       const enabled = voice?.enabled === true;
       const selectedModel = voice?.models.find((model) => model.id === voice.selectedModelId);
+      if (voice?.recordingStatus === "listening" || voice?.recordingStatus === "recording" || voice?.recordingStatus === "transcribing" || voice?.recordingStatus === "error") {
+        this.voiceStarting = false;
+      }
+      const isStarting = enabled && this.voiceStarting;
       const isListening = enabled && voice?.recordingStatus === "listening";
       const isRecording = enabled && voice?.recordingStatus === "recording";
       const isTranscribing = voice?.recordingStatus === "transcribing";
       const isReady = Boolean(voice && voice.binary.status === "downloaded" && selectedModel?.downloaded);
       button.hidden = !enabled;
       button.style.display = enabled ? "" : "none";
+      button.classList.toggle("composer__voice--starting", isStarting);
       button.classList.toggle("composer__voice--listening", isListening);
       button.classList.toggle("composer__voice--recording", isRecording);
       button.classList.toggle("composer__voice--transcribing", isTranscribing);
       button.disabled = isTranscribing;
-      button.setAttribute("aria-label", isRecording || isListening ? "Stop voice input" : "Start voice input");
+      button.setAttribute("aria-label", isRecording || isListening || isStarting ? "Stop voice input" : "Start voice input");
       if (tooltip) {
-        tooltip.textContent = isRecording ? "Stop voice input" : isListening ? "Listening\u2026 click to stop" : voice?.recordingStatus === "error" && voice.error ? voice.error : isTranscribing ? "Transcribing\u2026" : isReady ? "Start voice input" : "Start voice input (setup required)";
+        tooltip.textContent = isStarting ? "Starting voice input\u2026" : isRecording ? "Stop voice input" : isListening ? "Listening\u2026 click to stop" : voice?.recordingStatus === "error" && voice.error ? voice.error : isTranscribing ? "Transcribing\u2026" : isReady ? "Start voice input" : "Start voice input (setup required)";
       }
     }
     toggleStreamingBehavior() {

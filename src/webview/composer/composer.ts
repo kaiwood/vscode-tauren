@@ -60,6 +60,7 @@ export class ComposerController {
   private streamingBehavior: WebviewStreamingBehavior = 'steer';
   private busySubmitHideTimeout: ReturnType<typeof setTimeout> | undefined;
   private composerDragDepth = 0;
+  private voiceStarting = false;
   private textareaLayoutSignature = '';
   private readonly pasteBuffer = new ComposerPasteBuffer();
   private readonly addedDiffCounter: ReturnType<typeof createDiffCounter>;
@@ -505,6 +506,8 @@ export class ComposerController {
       return;
     }
 
+    this.voiceStarting = true;
+    this.syncVoiceButton();
     this.showVoiceFeedback('Starting recording…');
     this.options.postMessage({ type: 'voiceStartRecording' });
   }
@@ -522,6 +525,11 @@ export class ComposerController {
     const tooltip = button.querySelector<HTMLElement>('.composer__button-tooltip, .tauren-icon-action-tooltip');
     const enabled = voice?.enabled === true;
     const selectedModel = voice?.models.find((model) => model.id === voice.selectedModelId);
+    if (voice?.recordingStatus === 'listening' || voice?.recordingStatus === 'recording' || voice?.recordingStatus === 'transcribing' || voice?.recordingStatus === 'error') {
+      this.voiceStarting = false;
+    }
+
+    const isStarting = enabled && this.voiceStarting;
     const isListening = enabled && voice?.recordingStatus === 'listening';
     const isRecording = enabled && voice?.recordingStatus === 'recording';
     const isTranscribing = voice?.recordingStatus === 'transcribing';
@@ -529,14 +537,17 @@ export class ComposerController {
 
     button.hidden = !enabled;
     button.style.display = enabled ? '' : 'none';
+    button.classList.toggle('composer__voice--starting', isStarting);
     button.classList.toggle('composer__voice--listening', isListening);
     button.classList.toggle('composer__voice--recording', isRecording);
     button.classList.toggle('composer__voice--transcribing', isTranscribing);
     button.disabled = isTranscribing;
-    button.setAttribute('aria-label', isRecording || isListening ? 'Stop voice input' : 'Start voice input');
+    button.setAttribute('aria-label', isRecording || isListening || isStarting ? 'Stop voice input' : 'Start voice input');
 
     if (tooltip) {
-      tooltip.textContent = isRecording
+      tooltip.textContent = isStarting
+        ? 'Starting voice input…'
+        : isRecording
         ? 'Stop voice input'
         : isListening
         ? 'Listening… click to stop'

@@ -735,8 +735,10 @@ export const composerStyles = /* css */ `    .tauren-view--has-extension-status 
     }
 
     .composer__voice::before {
-      background: conic-gradient(from 0deg, transparent 0deg, transparent 42deg, #35f080 74deg, #a6ffbf 96deg, transparent 132deg, transparent 360deg);
-      filter: drop-shadow(0 0 5px color-mix(in srgb, #35f080 76%, transparent));
+      background:
+        radial-gradient(circle at 50% 0, #a6ffbf 0 2px, #35f080 3px, transparent 4px),
+        radial-gradient(circle, transparent 58%, color-mix(in srgb, #35f080 72%, transparent) 60%, transparent 66%);
+      filter: drop-shadow(0 0 4px color-mix(in srgb, #35f080 62%, transparent));
       z-index: -2;
     }
 
@@ -747,6 +749,7 @@ export const composerStyles = /* css */ `    .tauren-view--has-extension-status 
     }
 
     .composer__voice:hover:not(:disabled),
+    .composer__voice--starting:not(:disabled),
     .composer__voice--listening:not(:disabled),
     .composer__voice--recording:not(:disabled),
     .composer__voice--transcribing {
@@ -754,6 +757,7 @@ export const composerStyles = /* css */ `    .tauren-view--has-extension-status 
       background: var(--vscode-foreground);
     }
 
+    .composer__voice--starting::before,
     .composer__voice--listening::before,
     .composer__voice--recording::before,
     .composer__voice--transcribing::before {
@@ -761,8 +765,13 @@ export const composerStyles = /* css */ `    .tauren-view--has-extension-status 
       animation: composer-voice-led-orbit 900ms linear infinite;
     }
 
+    .composer__voice--starting::before {
+      opacity: 0.8;
+      animation-duration: 1100ms;
+    }
+
     .composer__voice--listening::before {
-      opacity: 0.7;
+      opacity: 0.6;
       animation-duration: 1800ms;
     }
 
