@@ -71,12 +71,14 @@ import {
 } from './settings/taurenSettings';
 import { isRecord } from './shared/typeGuards';
 import { VoiceController } from './voice/voiceController';
+import type { VoiceInputDevice } from './voice/types';
 
 export const taurenChatViewType = 'tauren.chatView';
 export type { AgentClient } from './agent/clientTypes';
 export type { AgentClient as PiClient } from './agent/clientTypes';
 
 const currentSessionFileStorageKey = 'tauren.currentSessionFile';
+const voiceInputDevicesStorageKey = 'tauren.voice.inputDevices';
 const taurenSidebarFocusContextKey = 'tauren.sidebarFocus';
 const taurenBusyContextKey = 'tauren.busy';
 const taurenBackendContextKey = 'tauren.backend';
@@ -193,6 +195,8 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
           this.controller.appendTextToComposer(text);
         }
       },
+      getCachedInputDevices: () => this.readCachedVoiceInputDevices(),
+      setCachedInputDevices: (devices) => this.writeCachedVoiceInputDevices(devices),
       showNotification: (message, notifyType) => this.showNotification(message, notifyType),
       showToast: (message, kind) => this.showToast(message, kind)
     });
@@ -983,6 +987,26 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
     if (pending) {
       clearTimeout(pending.timeout);
     }
+  }
+
+  private readCachedVoiceInputDevices(): VoiceInputDevice[] | undefined {
+    const cached = this.globalState?.get<unknown>(voiceInputDevicesStorageKey);
+    if (!isRecord(cached) || cached.platform !== process.platform || !Array.isArray(cached.devices)) {
+      return undefined;
+    }
+
+    return cached.devices.filter((device): device is VoiceInputDevice => isRecord(device)
+      && typeof device.id === 'string'
+      && typeof device.label === 'string'
+      && (device.isDefault === undefined || typeof device.isDefault === 'boolean'));
+  }
+
+  private async writeCachedVoiceInputDevices(devices: VoiceInputDevice[]): Promise<void> {
+    await this.globalState?.update(voiceInputDevicesStorageKey, {
+      platform: process.platform,
+      refreshedAt: Date.now(),
+      devices
+    });
   }
 
   private postVoiceState(): void {

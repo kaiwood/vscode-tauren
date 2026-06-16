@@ -20,6 +20,8 @@ export type VoiceControllerOptions = {
   storageUri: vscode.Uri | undefined;
   onDidChangeState: () => void;
   onTranscript: (text: string, action: VoiceTranscriptAction) => Promise<void> | void;
+  getCachedInputDevices?: () => VoiceInputDevice[] | undefined;
+  setCachedInputDevices?: (devices: VoiceInputDevice[]) => Promise<void> | void;
   showNotification: (message: string, notifyType: string) => void;
   showToast?: (message: string, kind?: 'success' | 'warning' | 'error') => void;
 };
@@ -42,7 +44,13 @@ export class VoiceController implements vscode.Disposable {
   private recordingStatus: VoiceState['recordingStatus'] = 'idle';
   private lastError: string | undefined;
 
-  public constructor(private readonly options: VoiceControllerOptions) {}
+  public constructor(private readonly options: VoiceControllerOptions) {
+    const cachedDevices = normalizeInputDevices(options.getCachedInputDevices?.());
+    if (cachedDevices.length > 0) {
+      this.inputDevices = cachedDevices;
+      this.inputDevicesStatus = 'ready';
+    }
+  }
 
   public dispose(): void {
     void this.stopRecorderProcess();
@@ -197,6 +205,7 @@ export class VoiceController implements vscode.Disposable {
     try {
       this.inputDevices = await listInputDevices();
       this.inputDevicesStatus = 'ready';
+      await this.options.setCachedInputDevices?.(this.inputDevices);
     } catch (error) {
       this.inputDevices = [{ id: 'default', label: 'Default microphone', isDefault: true }];
       this.inputDevicesStatus = 'error';
@@ -492,6 +501,18 @@ function getSystemWhisperInstallHint(): string {
   return process.platform === 'darwin'
     ? 'On macOS, install it with Homebrew: brew install whisper-cpp.'
     : 'Install whisper.cpp and ensure whisper-cli is available on PATH.';
+}
+
+function normalizeInputDevices(value: VoiceInputDevice[] | undefined): VoiceInputDevice[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const devices = value.filter((device) => typeof device.id === 'string' && device.id && typeof device.label === 'string' && device.label);
+  if (!devices.some((device) => device.id === 'default')) {
+    devices.unshift({ id: 'default', label: 'Default microphone', isDefault: true });
+  }
+  return devices;
 }
 
 function getFfmpegRecordingCommand(audioFile: string, inputDeviceId: string): { executable: string; args: string[] } {
