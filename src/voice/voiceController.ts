@@ -46,6 +46,8 @@ export class VoiceController implements vscode.Disposable {
   private activeRecording: ActiveRecording | undefined;
   private handsFreeRuntime: HandsFreeRuntime | undefined;
   private handsFreeActive = false;
+  private handsFreeTranscribing = false;
+  private restartHandsFreeAfterTranscription = false;
   private recordingStatus: VoiceState['recordingStatus'] = 'idle';
   private audioLevel = 0;
   private lastError: string | undefined;
@@ -332,20 +334,22 @@ export class VoiceController implements vscode.Disposable {
     }
 
     const shouldRestart = getVoiceEnabledSetting() && getVoiceModeSetting() === 'handsFree' && affectsHandsFreeRuntime;
-    await this.stopRecording();
+    await this.stopRecording({ restartAfterHandsFreeTranscription: shouldRestart });
 
-    if (shouldRestart) {
+    if (shouldRestart && !this.handsFreeTranscribing) {
       await this.startRecording();
     }
   }
 
-  public async stopRecording(options: { reason?: 'user' | 'maxDuration' } = {}): Promise<void> {
+  public async stopRecording(options: { reason?: 'user' | 'maxDuration'; restartAfterHandsFreeTranscription?: boolean } = {}): Promise<void> {
     if (this.handsFreeRuntime) {
+      const wasTranscribing = this.handsFreeTranscribing;
       this.handsFreeActive = false;
+      this.restartHandsFreeAfterTranscription = wasTranscribing && options.restartAfterHandsFreeTranscription === true;
       const runtime = this.handsFreeRuntime;
       this.handsFreeRuntime = undefined;
       await runtime.stop();
-      this.recordingStatus = 'idle';
+      this.recordingStatus = wasTranscribing ? 'transcribing' : 'idle';
       this.audioLevel = 0;
       this.options.onDidChangeState();
       return;
@@ -429,7 +433,9 @@ export class VoiceController implements vscode.Disposable {
   }
 
   private async transcribeHandsFreeUtterance(audioFile: string): Promise<void> {
+    this.handsFreeTranscribing = true;
     this.recordingStatus = 'transcribing';
+    this.audioLevel = 0;
     this.options.onDidChangeState();
 
     try {
@@ -444,8 +450,21 @@ export class VoiceController implements vscode.Disposable {
       this.options.showNotification(`Voice transcription failed: ${this.lastError}`, 'warning');
     } finally {
       await fs.rm(audioFile, { force: true }).catch(() => undefined);
+      const shouldRestart = this.restartHandsFreeAfterTranscription
+        && getVoiceEnabledSetting()
+        && getVoiceModeSetting() === 'handsFree';
+      this.handsFreeTranscribing = false;
+      this.restartHandsFreeAfterTranscription = false;
+
       if (this.handsFreeActive) {
         this.recordingStatus = 'listening';
+        this.options.onDidChangeState();
+      } else if (shouldRestart) {
+        this.recordingStatus = 'idle';
+        this.options.onDidChangeState();
+        await this.startRecording();
+      } else {
+        this.recordingStatus = 'idle';
         this.options.onDidChangeState();
       }
     }
