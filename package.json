@@ -569,6 +569,38 @@
           ],
           "description": "Language Tauren passes to whisper.cpp for speech-to-text. English-only models always use English."
         },
+        "tauren.voice.activationMode": {
+          "type": "string",
+          "default": "toggle",
+          "enum": [
+            "toggle",
+            "hold"
+          ],
+          "enumDescriptions": [
+            "Click once to start recording, click again to stop.",
+            "Record only while the microphone button is held."
+          ],
+          "description": "Choose how the microphone button controls voice recording."
+        },
+        "tauren.voice.maxRecordingSeconds": {
+          "type": "string",
+          "default": "60",
+          "enum": [
+            "0",
+            "15",
+            "30",
+            "60",
+            "120"
+          ],
+          "enumDescriptions": [
+            "Do not stop automatically.",
+            "Stop after 15 seconds.",
+            "Stop after 30 seconds.",
+            "Stop after 1 minute.",
+            "Stop after 2 minutes."
+          ],
+          "description": "Maximum voice recording length before Tauren stops recording automatically."
+        },
         "tauren.voice.transcriptAction": {
           "type": "string",
           "default": "insert",

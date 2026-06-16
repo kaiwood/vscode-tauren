@@ -24,6 +24,8 @@ export type TaurenSettingId =
   | 'tauren.voice.model'
   | 'tauren.voice.inputDevice'
   | 'tauren.voice.language'
+  | 'tauren.voice.activationMode'
+  | 'tauren.voice.maxRecordingSeconds'
   | 'tauren.voice.transcriptAction';
 
 export type PiSettingId =
@@ -124,6 +126,19 @@ const voiceLanguageOptions = [
   { value: 'ja', label: 'Japanese' },
   { value: 'ko', label: 'Korean' },
   { value: 'zh', label: 'Chinese' }
+] as const satisfies readonly SettingOption[];
+
+const voiceActivationModeOptions = [
+  { value: 'toggle', label: 'Click to toggle' },
+  { value: 'hold', label: 'Hold to talk' }
+] as const satisfies readonly SettingOption[];
+
+const voiceMaxRecordingSecondsOptions = [
+  { value: '0', label: 'No limit' },
+  { value: '15', label: '15 seconds' },
+  { value: '30', label: '30 seconds' },
+  { value: '60', label: '1 minute' },
+  { value: '120', label: '2 minutes' }
 ] as const satisfies readonly SettingOption[];
 
 const voiceTranscriptActionOptions = [
@@ -310,6 +325,29 @@ export const settingDefinitions = [
     options: voiceLanguageOptions,
     defaultValue: 'auto',
     helper: 'English-only models always use English. Choose a multilingual model for auto-detect or non-English input.',
+    liveBehavior: 'immediate'
+  },
+  {
+    id: 'tauren.voice.activationMode',
+    owner: 'tauren',
+    section: 'voice',
+    label: 'Microphone action',
+    description: 'Choose whether the microphone button toggles recording or records only while held.',
+    control: 'select',
+    options: voiceActivationModeOptions,
+    defaultValue: 'toggle',
+    liveBehavior: 'immediate'
+  },
+  {
+    id: 'tauren.voice.maxRecordingSeconds',
+    owner: 'tauren',
+    section: 'voice',
+    label: 'Maximum recording length',
+    description: 'Stop recording automatically after this duration.',
+    control: 'select',
+    options: voiceMaxRecordingSecondsOptions,
+    defaultValue: '60',
+    helper: 'Use this as a safety stop for long or forgotten recordings.',
     liveBehavior: 'immediate'
   },
   {

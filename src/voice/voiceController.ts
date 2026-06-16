@@ -8,7 +8,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import * as vscode from 'vscode';
 import { defaultVoiceModelId, getVoiceBinaryAsset, getVoiceModelAsset, voiceModelAssets } from './voiceAssetCatalog';
 import type { VoiceAssetDownloadState, VoiceInputDevice, VoiceLanguage, VoiceModelId, VoiceState, VoiceTranscriptAction } from './types';
-import { getVoiceEnabledSetting, getVoiceInputDeviceSetting, getVoiceLanguageSetting, getVoiceModelSetting, getVoiceTranscriptActionSetting } from '../settings/taurenSettings';
+import { getVoiceActivationModeSetting, getVoiceEnabledSetting, getVoiceInputDeviceSetting, getVoiceLanguageSetting, getVoiceMaxRecordingSecondsSetting, getVoiceModelSetting, getVoiceTranscriptActionSetting } from '../settings/taurenSettings';
 import { getErrorMessage } from '../controller/errors';
 
 const voiceStorageDirectoryName = 'voice';
@@ -31,6 +31,7 @@ type ActiveRecording = {
   audioFile: string;
   stderr: string;
   stopping: boolean;
+  maxDurationTimer?: NodeJS.Timeout;
 };
 
 export class VoiceController implements vscode.Disposable {
@@ -75,6 +76,8 @@ export class VoiceController implements vscode.Disposable {
       enabled: getVoiceEnabledSetting(),
       selectedModelId,
       transcriptAction: getVoiceTranscriptActionSetting(),
+      activationMode: getVoiceActivationModeSetting(),
+      maxRecordingSeconds: getVoiceMaxRecordingSecondsSetting(),
       language,
       effectiveLanguage,
       languageForced: effectiveLanguage !== language,
@@ -287,18 +290,28 @@ export class VoiceController implements vscode.Disposable {
       void fs.rm(recording.audioFile, { force: true }).catch(() => undefined);
     });
 
+    const maxRecordingSeconds = getVoiceMaxRecordingSecondsSetting();
+    if (maxRecordingSeconds > 0) {
+      recording.maxDurationTimer = setTimeout(() => {
+        void this.stopRecording({ reason: 'maxDuration' });
+      }, maxRecordingSeconds * 1000);
+    }
+
     this.activeRecording = recording;
     this.recordingStatus = 'recording';
     this.options.onDidChangeState();
   }
 
-  public async stopRecording(): Promise<void> {
+  public async stopRecording(options: { reason?: 'user' | 'maxDuration' } = {}): Promise<void> {
     const recording = this.activeRecording;
     if (!recording) {
       return;
     }
 
     recording.stopping = true;
+    if (recording.maxDurationTimer) {
+      clearTimeout(recording.maxDurationTimer);
+    }
     this.activeRecording = undefined;
     this.recordingStatus = 'transcribing';
     this.options.onDidChangeState();
@@ -312,6 +325,10 @@ export class VoiceController implements vscode.Disposable {
       this.recordingStatus = 'idle';
       this.lastError = undefined;
       this.options.onDidChangeState();
+
+      if (options.reason === 'maxDuration') {
+        this.options.showToast?.('Voice recording reached the maximum length.', 'warning');
+      }
 
       if (transcript.trim()) {
         const action = getVoiceTranscriptActionSetting();
@@ -393,6 +410,9 @@ export class VoiceController implements vscode.Disposable {
     }
 
     recording.stopping = true;
+    if (recording.maxDurationTimer) {
+      clearTimeout(recording.maxDurationTimer);
+    }
     this.activeRecording = undefined;
     await stopProcess(recording.process).catch(() => undefined);
     await fs.rm(recording.audioFile, { force: true }).catch(() => undefined);

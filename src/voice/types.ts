@@ -1,5 +1,7 @@
 export type VoiceTranscriptAction = 'insert' | 'submit';
 
+export type VoiceActivationMode = 'toggle' | 'hold';
+
 export type VoiceModelId = 'tiny.en' | 'base.en' | 'small.en' | 'tiny' | 'base' | 'small';
 
 export type VoiceLanguage = 'auto' | 'en' | 'de' | 'fr' | 'es' | 'it' | 'pt' | 'nl' | 'pl' | 'ja' | 'ko' | 'zh';
@@ -52,6 +54,8 @@ export type VoiceState = {
   enabled: boolean;
   selectedModelId: VoiceModelId;
   transcriptAction: VoiceTranscriptAction;
+  activationMode: VoiceActivationMode;
+  maxRecordingSeconds: number;
   language: VoiceLanguage;
   effectiveLanguage: VoiceLanguage;
   languageForced: boolean;

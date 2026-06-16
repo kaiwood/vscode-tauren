@@ -259,6 +259,8 @@ function parseVoiceState(value: unknown): WebviewState['voice'] {
   const language = parseVoiceLanguage(value.language);
   const effectiveLanguage = parseVoiceLanguage(value.effectiveLanguage);
   const languageForced = Boolean(value.languageForced);
+  const activationMode = value.activationMode === 'hold' ? 'hold' : 'toggle';
+  const maxRecordingSeconds = typeof value.maxRecordingSeconds === 'number' ? value.maxRecordingSeconds : 60;
   const recordingStatus = value.recordingStatus === 'recording' || value.recordingStatus === 'transcribing' || value.recordingStatus === 'error'
     ? value.recordingStatus
     : 'idle';
@@ -267,6 +269,8 @@ function parseVoiceState(value: unknown): WebviewState['voice'] {
     enabled: Boolean(value.enabled),
     selectedModelId,
     transcriptAction,
+    activationMode,
+    maxRecordingSeconds,
     language,
     effectiveLanguage,
     languageForced,

@@ -109,7 +109,11 @@ export class ComposerController {
       this.options.postMessage({ type: 'selectPromptImages' });
       this.options.focusPromptInput();
     });
-    this.options.voiceButton.addEventListener('click', () => this.toggleVoiceRecording());
+    this.options.voiceButton.addEventListener('click', () => this.handleVoiceButtonClick());
+    this.options.voiceButton.addEventListener('pointerdown', (event) => this.handleVoicePointerDown(event));
+    this.options.voiceButton.addEventListener('pointerup', () => this.handleVoicePointerUp());
+    this.options.voiceButton.addEventListener('pointercancel', () => this.handleVoicePointerUp());
+    this.options.voiceButton.addEventListener('lostpointercapture', () => this.handleVoicePointerUp());
 
     for (const button of this.options.streamingBehaviorButtonElements) {
       button.addEventListener('click', () => this.selectStreamingBehavior(button));
@@ -441,6 +445,35 @@ export class ComposerController {
     this.suggestionMenu.sync();
   }
 
+  private handleVoiceButtonClick(): void {
+    if (this.options.getState().voice?.activationMode === 'hold') {
+      return;
+    }
+
+    this.toggleVoiceRecording();
+  }
+
+  private handleVoicePointerDown(event: PointerEvent): void {
+    if (this.options.getState().voice?.activationMode !== 'hold' || event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    this.options.voiceButton.setPointerCapture(event.pointerId);
+    this.startVoiceRecording();
+  }
+
+  private handleVoicePointerUp(): void {
+    if (this.options.getState().voice?.activationMode !== 'hold') {
+      return;
+    }
+
+    if (this.options.getState().voice?.recordingStatus === 'recording') {
+      this.showVoiceFeedback('Stopping recording…');
+      this.options.postMessage({ type: 'voiceStopRecording' });
+    }
+  }
+
   private toggleVoiceRecording(): void {
     const voice = this.options.getState().voice;
     const status = voice?.recordingStatus;
@@ -456,6 +489,11 @@ export class ComposerController {
       return;
     }
 
+    this.startVoiceRecording();
+  }
+
+  private startVoiceRecording(): void {
+    const voice = this.options.getState().voice;
     const selectedModel = voice?.models.find((model) => model.id === voice.selectedModelId);
     const isReady = Boolean(voice?.enabled && voice.binary.status === 'downloaded' && selectedModel?.downloaded);
 

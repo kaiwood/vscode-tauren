@@ -3346,7 +3346,11 @@
         this.options.postMessage({ type: "selectPromptImages" });
         this.options.focusPromptInput();
       });
-      this.options.voiceButton.addEventListener("click", () => this.toggleVoiceRecording());
+      this.options.voiceButton.addEventListener("click", () => this.handleVoiceButtonClick());
+      this.options.voiceButton.addEventListener("pointerdown", (event) => this.handleVoicePointerDown(event));
+      this.options.voiceButton.addEventListener("pointerup", () => this.handleVoicePointerUp());
+      this.options.voiceButton.addEventListener("pointercancel", () => this.handleVoicePointerUp());
+      this.options.voiceButton.addEventListener("lostpointercapture", () => this.handleVoicePointerUp());
       for (const button of this.options.streamingBehaviorButtonElements) {
         button.addEventListener("click", () => this.selectStreamingBehavior(button));
       }
@@ -3606,6 +3610,29 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
     syncSlashMenu() {
       this.suggestionMenu.sync();
     }
+    handleVoiceButtonClick() {
+      if (this.options.getState().voice?.activationMode === "hold") {
+        return;
+      }
+      this.toggleVoiceRecording();
+    }
+    handleVoicePointerDown(event) {
+      if (this.options.getState().voice?.activationMode !== "hold" || event.button !== 0) {
+        return;
+      }
+      event.preventDefault();
+      this.options.voiceButton.setPointerCapture(event.pointerId);
+      this.startVoiceRecording();
+    }
+    handleVoicePointerUp() {
+      if (this.options.getState().voice?.activationMode !== "hold") {
+        return;
+      }
+      if (this.options.getState().voice?.recordingStatus === "recording") {
+        this.showVoiceFeedback("Stopping recording\u2026");
+        this.options.postMessage({ type: "voiceStopRecording" });
+      }
+    }
     toggleVoiceRecording() {
       const voice = this.options.getState().voice;
       const status = voice?.recordingStatus;
@@ -3618,6 +3645,10 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
         this.showVoiceFeedback("Voice input is still transcribing.");
         return;
       }
+      this.startVoiceRecording();
+    }
+    startVoiceRecording() {
+      const voice = this.options.getState().voice;
       const selectedModel = voice?.models.find((model) => model.id === voice.selectedModelId);
       const isReady = Boolean(voice?.enabled && voice.binary.status === "downloaded" && selectedModel?.downloaded);
       if (!isReady) {
@@ -5755,6 +5786,17 @@ ${after}`;
     { value: "ko", label: "Korean" },
     { value: "zh", label: "Chinese" }
   ];
+  var voiceActivationModeOptions = [
+    { value: "toggle", label: "Click to toggle" },
+    { value: "hold", label: "Hold to talk" }
+  ];
+  var voiceMaxRecordingSecondsOptions = [
+    { value: "0", label: "No limit" },
+    { value: "15", label: "15 seconds" },
+    { value: "30", label: "30 seconds" },
+    { value: "60", label: "1 minute" },
+    { value: "120", label: "2 minutes" }
+  ];
   var voiceTranscriptActionOptions = [
     { value: "insert", label: "Insert into Chat Input" },
     { value: "submit", label: "Submit automatically" }
@@ -5937,6 +5979,29 @@ ${after}`;
       options: voiceLanguageOptions,
       defaultValue: "auto",
       helper: "English-only models always use English. Choose a multilingual model for auto-detect or non-English input.",
+      liveBehavior: "immediate"
+    },
+    {
+      id: "tauren.voice.activationMode",
+      owner: "tauren",
+      section: "voice",
+      label: "Microphone action",
+      description: "Choose whether the microphone button toggles recording or records only while held.",
+      control: "select",
+      options: voiceActivationModeOptions,
+      defaultValue: "toggle",
+      liveBehavior: "immediate"
+    },
+    {
+      id: "tauren.voice.maxRecordingSeconds",
+      owner: "tauren",
+      section: "voice",
+      label: "Maximum recording length",
+      description: "Stop recording automatically after this duration.",
+      control: "select",
+      options: voiceMaxRecordingSecondsOptions,
+      defaultValue: "60",
+      helper: "Use this as a safety stop for long or forgotten recordings.",
       liveBehavior: "immediate"
     },
     {
@@ -9771,11 +9836,15 @@ ${after}`;
     const language = parseVoiceLanguage(value.language);
     const effectiveLanguage = parseVoiceLanguage(value.effectiveLanguage);
     const languageForced = Boolean(value.languageForced);
+    const activationMode = value.activationMode === "hold" ? "hold" : "toggle";
+    const maxRecordingSeconds = typeof value.maxRecordingSeconds === "number" ? value.maxRecordingSeconds : 60;
     const recordingStatus = value.recordingStatus === "recording" || value.recordingStatus === "transcribing" || value.recordingStatus === "error" ? value.recordingStatus : "idle";
     return {
       enabled: Boolean(value.enabled),
       selectedModelId,
       transcriptAction,
+      activationMode,
+      maxRecordingSeconds,
       language,
       effectiveLanguage,
       languageForced,

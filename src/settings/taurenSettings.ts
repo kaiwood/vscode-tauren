@@ -84,6 +84,17 @@ export function getVoiceLanguageSetting(): VoiceLanguage {
     : 'auto';
 }
 
+export function getVoiceActivationModeSetting(): 'toggle' | 'hold' {
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.activationMode', 'toggle');
+  return value === 'hold' ? 'hold' : 'toggle';
+}
+
+export function getVoiceMaxRecordingSecondsSetting(): number {
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.maxRecordingSeconds', '60');
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
 export function getVoiceTranscriptActionSetting(): VoiceTranscriptAction {
   const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.transcriptAction', 'insert');
   return value === 'submit' ? 'submit' : 'insert';
@@ -171,6 +182,8 @@ export function getTaurenSettingValues(globalState?: vscode.Memento): Partial<Re
     'tauren.voice.model': getVoiceModelSetting(),
     'tauren.voice.inputDevice': getVoiceInputDeviceSetting(),
     'tauren.voice.language': getVoiceLanguageSetting(),
+    'tauren.voice.activationMode': getVoiceActivationModeSetting(),
+    'tauren.voice.maxRecordingSeconds': String(getVoiceMaxRecordingSecondsSetting()),
     'tauren.voice.transcriptAction': getVoiceTranscriptActionSetting()
   };
 }
