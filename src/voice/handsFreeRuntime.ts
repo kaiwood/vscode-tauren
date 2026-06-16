@@ -13,9 +13,9 @@ const frameBytes = sampleRate * channels * bytesPerSample * frameMs / 1000;
 const preRollMs = 500;
 const preRollFrameCount = Math.ceil(preRollMs / frameMs);
 const speechStartThresholdDbfsBySensitivity: Record<VoiceHandsFreeSensitivity, number> = {
-  low: -28,
-  normal: -35,
-  high: -42
+  low: -35,
+  normal: -45,
+  high: -52
 };
 const speechStopThresholdOffsetDb = 6;
 const minSpeechMs = 300;
