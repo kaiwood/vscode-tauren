@@ -27,6 +27,8 @@ export type TaurenSettingId =
   | 'tauren.voice.mode'
   | 'tauren.voice.activationMode'
   | 'tauren.voice.maxRecordingSeconds'
+  | 'tauren.voice.handsFreeSensitivity'
+  | 'tauren.voice.handsFreeSilenceSeconds'
   | 'tauren.voice.transcriptAction';
 
 export type PiSettingId =
@@ -145,6 +147,19 @@ const voiceMaxRecordingSecondsOptions = [
   { value: '30', label: '30 seconds' },
   { value: '60', label: '1 minute' },
   { value: '120', label: '2 minutes' }
+] as const satisfies readonly SettingOption[];
+
+const voiceHandsFreeSensitivityOptions = [
+  { value: 'low', label: 'Low' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'high', label: 'High' }
+] as const satisfies readonly SettingOption[];
+
+const voiceHandsFreeSilenceSecondsOptions = [
+  { value: '0.8', label: '0.8 seconds' },
+  { value: '1.2', label: '1.2 seconds' },
+  { value: '1.5', label: '1.5 seconds' },
+  { value: '2', label: '2 seconds' }
 ] as const satisfies readonly SettingOption[];
 
 const voiceTranscriptActionOptions = [
@@ -366,6 +381,29 @@ export const settingDefinitions = [
     options: voiceMaxRecordingSecondsOptions,
     defaultValue: '60',
     helper: 'Use this as a safety stop for long or forgotten recordings.',
+    liveBehavior: 'immediate'
+  },
+  {
+    id: 'tauren.voice.handsFreeSensitivity',
+    owner: 'tauren',
+    section: 'voice',
+    label: 'Hands-free sensitivity',
+    description: 'Choose how readily hands-free listening treats microphone input as speech.',
+    control: 'select',
+    options: voiceHandsFreeSensitivityOptions,
+    defaultValue: 'normal',
+    helper: 'Use Low in noisy rooms, High for quieter speech.',
+    liveBehavior: 'immediate'
+  },
+  {
+    id: 'tauren.voice.handsFreeSilenceSeconds',
+    owner: 'tauren',
+    section: 'voice',
+    label: 'Hands-free silence stop',
+    description: 'Silence duration after speech before Tauren finalizes and transcribes the utterance.',
+    control: 'select',
+    options: voiceHandsFreeSilenceSecondsOptions,
+    defaultValue: '1.2',
     liveBehavior: 'immediate'
   },
   {

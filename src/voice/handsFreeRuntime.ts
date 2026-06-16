@@ -1,6 +1,7 @@
 import * as path from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { calculatePcm16Dbfs, isSpeechLevel } from './audioLevel';
+import type { VoiceHandsFreeSensitivity } from './types';
 import { getFfmpegPcmStreamCommand } from './voiceInputDevices';
 import { writePcm16Wav } from './wavWriter';
 
@@ -11,8 +12,11 @@ const frameMs = 30;
 const frameBytes = sampleRate * channels * bytesPerSample * frameMs / 1000;
 const preRollMs = 500;
 const preRollFrameCount = Math.ceil(preRollMs / frameMs);
-const speechThresholdDbfs = -35;
-const silenceAfterSpeechMs = 1200;
+const speechThresholdDbfsBySensitivity: Record<VoiceHandsFreeSensitivity, number> = {
+  low: -28,
+  normal: -35,
+  high: -42
+};
 const minSpeechMs = 300;
 const minUtteranceMs = 450;
 
@@ -21,6 +25,8 @@ type HandsFreePhase = 'listening' | 'recording' | 'stopping' | 'stopped';
 type HandsFreeRuntimeOptions = {
   inputDeviceId: string;
   tempDirectory: string;
+  sensitivity: VoiceHandsFreeSensitivity;
+  silenceSeconds: number;
   maxUtteranceSeconds: number;
   onStatus: (status: 'listening' | 'recording') => void;
   onUtterance: (audioFile: string) => Promise<void> | void;
@@ -89,7 +95,7 @@ export class HandsFreeRuntime {
   }
 
   private async handleFrame(frame: Buffer): Promise<void> {
-    const speech = isSpeechLevel(calculatePcm16Dbfs(frame), speechThresholdDbfs);
+    const speech = isSpeechLevel(calculatePcm16Dbfs(frame), speechThresholdDbfsBySensitivity[this.options.sensitivity]);
 
     if (this.phase === 'listening') {
       this.pushPreRoll(frame);
@@ -115,7 +121,7 @@ export class HandsFreeRuntime {
 
     const maxUtteranceMs = this.options.maxUtteranceSeconds * 1000;
     const reachedMaxUtterance = maxUtteranceMs > 0 && this.utteranceMs >= maxUtteranceMs;
-    const reachedSilence = this.speechMs >= minSpeechMs && this.silenceMs >= silenceAfterSpeechMs;
+    const reachedSilence = this.speechMs >= minSpeechMs && this.silenceMs >= this.options.silenceSeconds * 1000;
 
     if (reachedSilence || reachedMaxUtterance) {
       await this.finishUtterance();

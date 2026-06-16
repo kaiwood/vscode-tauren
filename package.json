@@ -612,7 +612,39 @@
             "Stop after 1 minute.",
             "Stop after 2 minutes."
           ],
-          "description": "Maximum voice recording length before Tauren stops recording automatically."
+          "description": "Maximum voice recording length before Tauren stops recording automatically. In hands-free mode, this limits each utterance."
+        },
+        "tauren.voice.handsFreeSensitivity": {
+          "type": "string",
+          "default": "normal",
+          "enum": [
+            "low",
+            "normal",
+            "high"
+          ],
+          "enumDescriptions": [
+            "Require louder speech; better for noisy rooms.",
+            "Balanced speech detection.",
+            "Detect quieter speech; may react more often to background noise."
+          ],
+          "description": "How readily hands-free listening treats microphone input as speech."
+        },
+        "tauren.voice.handsFreeSilenceSeconds": {
+          "type": "string",
+          "default": "1.2",
+          "enum": [
+            "0.8",
+            "1.2",
+            "1.5",
+            "2"
+          ],
+          "enumDescriptions": [
+            "Stop quickly after 0.8 seconds of silence.",
+            "Stop after 1.2 seconds of silence.",
+            "Stop after 1.5 seconds of silence.",
+            "Allow longer pauses; stop after 2 seconds of silence."
+          ],
+          "description": "Silence duration after speech before hands-free listening finalizes and transcribes the utterance."
         },
         "tauren.voice.transcriptAction": {
           "type": "string",

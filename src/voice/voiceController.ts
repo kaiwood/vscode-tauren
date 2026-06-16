@@ -10,7 +10,7 @@ import { defaultVoiceModelId, getVoiceBinaryAsset, getVoiceModelAsset, voiceMode
 import { HandsFreeRuntime } from './handsFreeRuntime';
 import { getFfmpegRecordingCommand, listInputDevices } from './voiceInputDevices';
 import type { VoiceAssetDownloadState, VoiceInputDevice, VoiceLanguage, VoiceModelId, VoiceState, VoiceTranscriptAction } from './types';
-import { getVoiceActivationModeSetting, getVoiceEnabledSetting, getVoiceInputDeviceSetting, getVoiceLanguageSetting, getVoiceMaxRecordingSecondsSetting, getVoiceModeSetting, getVoiceModelSetting, getVoiceTranscriptActionSetting } from '../settings/taurenSettings';
+import { getVoiceActivationModeSetting, getVoiceEnabledSetting, getVoiceHandsFreeSensitivitySetting, getVoiceHandsFreeSilenceSecondsSetting, getVoiceInputDeviceSetting, getVoiceLanguageSetting, getVoiceMaxRecordingSecondsSetting, getVoiceModeSetting, getVoiceModelSetting, getVoiceTranscriptActionSetting } from '../settings/taurenSettings';
 import { getErrorMessage } from '../controller/errors';
 
 const voiceStorageDirectoryName = 'voice';
@@ -85,6 +85,8 @@ export class VoiceController implements vscode.Disposable {
       mode: getVoiceModeSetting(),
       activationMode: getVoiceActivationModeSetting(),
       maxRecordingSeconds: getVoiceMaxRecordingSecondsSetting(),
+      handsFreeSensitivity: getVoiceHandsFreeSensitivitySetting(),
+      handsFreeSilenceSeconds: getVoiceHandsFreeSilenceSecondsSetting(),
       language,
       effectiveLanguage,
       languageForced: effectiveLanguage !== language,
@@ -377,6 +379,8 @@ export class VoiceController implements vscode.Disposable {
     this.handsFreeRuntime = new HandsFreeRuntime({
       inputDeviceId: getVoiceInputDeviceSetting(),
       tempDirectory: os.tmpdir(),
+      sensitivity: getVoiceHandsFreeSensitivitySetting(),
+      silenceSeconds: getVoiceHandsFreeSilenceSecondsSetting(),
       maxUtteranceSeconds: getVoiceMaxRecordingSecondsSetting(),
       getShouldContinue: () => this.handsFreeActive,
       onStatus: (status) => {

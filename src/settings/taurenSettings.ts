@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { parseWebviewCustomUiTheme } from '../webviewProtocol/values';
 import type { WebviewCustomUiTheme } from '../webviewProtocol/types';
-import type { VoiceLanguage, VoiceModelId, VoiceTranscriptAction } from '../voice/types';
+import type { VoiceHandsFreeSensitivity, VoiceLanguage, VoiceModelId, VoiceTranscriptAction } from '../voice/types';
 import { settingDefinitions, type SettingValue, type TaurenBackend, type TaurenSettingId } from './settingsRegistry';
 
 export const welcomeDismissedStorageKey = 'tauren.welcomeDismissed';
@@ -100,6 +100,17 @@ export function getVoiceMaxRecordingSecondsSetting(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
+export function getVoiceHandsFreeSensitivitySetting(): VoiceHandsFreeSensitivity {
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.handsFreeSensitivity', 'normal');
+  return value === 'low' || value === 'high' ? value : 'normal';
+}
+
+export function getVoiceHandsFreeSilenceSecondsSetting(): number {
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.handsFreeSilenceSeconds', '1.2');
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1.2;
+}
+
 export function getVoiceTranscriptActionSetting(): VoiceTranscriptAction {
   const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.transcriptAction', 'insert');
   return value === 'submit' ? 'submit' : 'insert';
@@ -190,6 +201,8 @@ export function getTaurenSettingValues(globalState?: vscode.Memento): Partial<Re
     'tauren.voice.mode': getVoiceModeSetting(),
     'tauren.voice.activationMode': getVoiceActivationModeSetting(),
     'tauren.voice.maxRecordingSeconds': String(getVoiceMaxRecordingSecondsSetting()),
+    'tauren.voice.handsFreeSensitivity': getVoiceHandsFreeSensitivitySetting(),
+    'tauren.voice.handsFreeSilenceSeconds': String(getVoiceHandsFreeSilenceSecondsSetting()),
     'tauren.voice.transcriptAction': getVoiceTranscriptActionSetting()
   };
 }

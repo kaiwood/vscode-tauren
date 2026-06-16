@@ -4,6 +4,8 @@ export type VoiceMode = 'pushToTalk' | 'handsFree';
 
 export type VoiceActivationMode = 'toggle' | 'hold';
 
+export type VoiceHandsFreeSensitivity = 'low' | 'normal' | 'high';
+
 export type VoiceModelId = 'tiny.en' | 'base.en' | 'small.en' | 'tiny' | 'base' | 'small';
 
 export type VoiceLanguage = 'auto' | 'en' | 'de' | 'fr' | 'es' | 'it' | 'pt' | 'nl' | 'pl' | 'ja' | 'ko' | 'zh';
@@ -59,6 +61,8 @@ export type VoiceState = {
   mode: VoiceMode;
   activationMode: VoiceActivationMode;
   maxRecordingSeconds: number;
+  handsFreeSensitivity: VoiceHandsFreeSensitivity;
+  handsFreeSilenceSeconds: number;
   language: VoiceLanguage;
   effectiveLanguage: VoiceLanguage;
   languageForced: boolean;

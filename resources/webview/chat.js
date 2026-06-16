@@ -5813,6 +5813,17 @@ ${after}`;
     { value: "60", label: "1 minute" },
     { value: "120", label: "2 minutes" }
   ];
+  var voiceHandsFreeSensitivityOptions = [
+    { value: "low", label: "Low" },
+    { value: "normal", label: "Normal" },
+    { value: "high", label: "High" }
+  ];
+  var voiceHandsFreeSilenceSecondsOptions = [
+    { value: "0.8", label: "0.8 seconds" },
+    { value: "1.2", label: "1.2 seconds" },
+    { value: "1.5", label: "1.5 seconds" },
+    { value: "2", label: "2 seconds" }
+  ];
   var voiceTranscriptActionOptions = [
     { value: "insert", label: "Insert into Chat Input" },
     { value: "submit", label: "Submit automatically" }
@@ -6030,6 +6041,29 @@ ${after}`;
       options: voiceMaxRecordingSecondsOptions,
       defaultValue: "60",
       helper: "Use this as a safety stop for long or forgotten recordings.",
+      liveBehavior: "immediate"
+    },
+    {
+      id: "tauren.voice.handsFreeSensitivity",
+      owner: "tauren",
+      section: "voice",
+      label: "Hands-free sensitivity",
+      description: "Choose how readily hands-free listening treats microphone input as speech.",
+      control: "select",
+      options: voiceHandsFreeSensitivityOptions,
+      defaultValue: "normal",
+      helper: "Use Low in noisy rooms, High for quieter speech.",
+      liveBehavior: "immediate"
+    },
+    {
+      id: "tauren.voice.handsFreeSilenceSeconds",
+      owner: "tauren",
+      section: "voice",
+      label: "Hands-free silence stop",
+      description: "Silence duration after speech before Tauren finalizes and transcribes the utterance.",
+      control: "select",
+      options: voiceHandsFreeSilenceSecondsOptions,
+      defaultValue: "1.2",
       liveBehavior: "immediate"
     },
     {
@@ -9867,6 +9901,8 @@ ${after}`;
     const mode = value.mode === "handsFree" ? "handsFree" : "pushToTalk";
     const activationMode = value.activationMode === "hold" ? "hold" : "toggle";
     const maxRecordingSeconds = typeof value.maxRecordingSeconds === "number" ? value.maxRecordingSeconds : 60;
+    const handsFreeSensitivity = value.handsFreeSensitivity === "low" || value.handsFreeSensitivity === "high" ? value.handsFreeSensitivity : "normal";
+    const handsFreeSilenceSeconds = typeof value.handsFreeSilenceSeconds === "number" ? value.handsFreeSilenceSeconds : 1.2;
     const recordingStatus = value.recordingStatus === "listening" || value.recordingStatus === "recording" || value.recordingStatus === "transcribing" || value.recordingStatus === "error" ? value.recordingStatus : "idle";
     return {
       enabled: Boolean(value.enabled),
@@ -9875,6 +9911,8 @@ ${after}`;
       mode,
       activationMode,
       maxRecordingSeconds,
+      handsFreeSensitivity,
+      handsFreeSilenceSeconds,
       language,
       effectiveLanguage,
       languageForced,
