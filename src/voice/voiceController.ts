@@ -36,6 +36,13 @@ type ActiveRecording = {
   maxDurationTimer?: NodeJS.Timeout;
 };
 
+type TranscriptionContext = {
+  modelId: VoiceModelId;
+  modelPath: string;
+  language: VoiceLanguage;
+  transcriptAction: VoiceTranscriptAction;
+};
+
 export class VoiceController implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   private readonly modelDownloads = new Map<VoiceModelId, VoiceAssetDownloadState>();
@@ -375,7 +382,8 @@ export class VoiceController implements vscode.Disposable {
       if (!(await fileExists(recording.audioFile))) {
         throw new Error(getFfmpegErrorMessage(recording.stderr, recording.process.exitCode));
       }
-      const transcript = await this.transcribe(recording.audioFile);
+      const context = this.createTranscriptionContext();
+      const transcript = await this.transcribe(recording.audioFile, context);
       this.recordingStatus = 'idle';
       this.lastError = undefined;
       this.options.onDidChangeState();
@@ -385,8 +393,7 @@ export class VoiceController implements vscode.Disposable {
       }
 
       if (transcript.trim()) {
-        const action = getVoiceTranscriptActionSetting();
-        await this.options.onTranscript(transcript.trim(), action);
+        await this.options.onTranscript(transcript.trim(), context.transcriptAction);
       } else {
         this.options.showNotification('No speech was detected.', 'warning');
       }
@@ -439,10 +446,11 @@ export class VoiceController implements vscode.Disposable {
     this.options.onDidChangeState();
 
     try {
-      const transcript = await this.transcribe(audioFile);
+      const context = this.createTranscriptionContext();
+      const transcript = await this.transcribe(audioFile, context);
       this.lastError = undefined;
       if (transcript.trim()) {
-        await this.options.onTranscript(transcript.trim(), getVoiceTranscriptActionSetting());
+        await this.options.onTranscript(transcript.trim(), context.transcriptAction);
       }
     } catch (error) {
       this.lastError = getErrorMessage(error);
@@ -470,16 +478,27 @@ export class VoiceController implements vscode.Disposable {
     }
   }
 
-  private async transcribe(audioFile: string): Promise<string> {
+  private createTranscriptionContext(): TranscriptionContext {
+    const modelId = getVoiceModelSetting();
+    return {
+      modelId,
+      modelPath: this.getModelPath(modelId),
+      language: getEffectiveVoiceLanguage(modelId, getVoiceLanguageSetting()),
+      transcriptAction: getVoiceTranscriptActionSetting()
+    };
+  }
+
+  private async transcribe(audioFile: string, context: TranscriptionContext): Promise<string> {
     const executable = await this.resolveWhisperExecutable();
     if (!executable) {
       throw new Error(`Install whisper.cpp before using voice input. ${getSystemWhisperInstallHint()}`);
     }
 
-    const selectedModelId = getVoiceModelSetting();
-    const model = this.getModelPath(selectedModelId);
-    const language = getEffectiveVoiceLanguage(selectedModelId, getVoiceLanguageSetting());
-    const args = ['-m', model, '-f', audioFile, '-nt', '-l', language];
+    if (!(await fileExists(context.modelPath))) {
+      throw new Error(`Voice model ${context.modelId} is no longer available. Download it again before using voice input.`);
+    }
+
+    const args = ['-m', context.modelPath, '-f', audioFile, '-nt', '-l', context.language];
 
     return new Promise((resolve, reject) => {
       const child = spawn(executable, args, { stdio: ['ignore', 'pipe', 'pipe'] });
