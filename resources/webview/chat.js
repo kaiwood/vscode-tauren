@@ -3645,7 +3645,8 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
         return;
       }
       if (status === "transcribing") {
-        this.showVoiceFeedback("Voice input is still transcribing.");
+        this.showVoiceFeedback("Stopping voice input\u2026");
+        this.options.postMessage({ type: "voiceStopRecording" });
         return;
       }
       this.startVoiceRecording();
@@ -3692,10 +3693,10 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
       button.classList.toggle("composer__voice--listening", isListening);
       button.classList.toggle("composer__voice--recording", isRecording);
       button.classList.toggle("composer__voice--transcribing", isTranscribing);
-      button.disabled = isTranscribing;
-      button.setAttribute("aria-label", isRecording || isListening || isStarting ? "Stop voice input" : "Start voice input");
+      button.disabled = false;
+      button.setAttribute("aria-label", isRecording || isListening || isStarting || isTranscribing ? "Stop voice input" : "Start voice input");
       if (tooltip) {
-        tooltip.textContent = isStarting ? "Starting voice input\u2026" : isRecording ? "Stop voice input" : isListening ? "Listening\u2026 click to stop" : voice?.recordingStatus === "error" && voice.error ? voice.error : isTranscribing ? "Transcribing\u2026" : isReady ? "Start voice input" : "Start voice input (setup required)";
+        tooltip.textContent = isStarting ? "Starting voice input\u2026" : isRecording ? "Stop voice input" : isListening ? "Listening\u2026 click to stop" : voice?.recordingStatus === "error" && voice.error ? voice.error : isTranscribing ? "Transcribing\u2026 click to stop" : isReady ? "Start voice input" : "Start voice input (setup required)";
       }
     }
     toggleStreamingBehavior() {
