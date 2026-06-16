@@ -23,12 +23,15 @@ const minUtteranceMs = 450;
 
 type HandsFreePhase = 'listening' | 'recording' | 'stopping' | 'stopped';
 
-type HandsFreeRuntimeOptions = {
-  inputDeviceId: string;
-  tempDirectory: string;
+export type HandsFreeRuntimeSettings = {
   sensitivity: VoiceHandsFreeSensitivity;
   silenceSeconds: number;
   maxUtteranceSeconds: number;
+};
+
+type HandsFreeRuntimeOptions = HandsFreeRuntimeSettings & {
+  inputDeviceId: string;
+  tempDirectory: string;
   onStatus: (status: 'listening' | 'recording') => void;
   onAudioLevel: (level: number) => void;
   onUtterance: (audioFile: string) => Promise<void> | void;
@@ -49,8 +52,19 @@ export class HandsFreeRuntime {
   private sequence = 0;
   private handlingUtterance = false;
   private lastAudioLevelUpdate = 0;
+  private settings: HandsFreeRuntimeSettings;
 
-  public constructor(private readonly options: HandsFreeRuntimeOptions) {}
+  public constructor(private readonly options: HandsFreeRuntimeOptions) {
+    this.settings = {
+      sensitivity: options.sensitivity,
+      silenceSeconds: options.silenceSeconds,
+      maxUtteranceSeconds: options.maxUtteranceSeconds
+    };
+  }
+
+  public updateSettings(settings: HandsFreeRuntimeSettings): void {
+    this.settings = settings;
+  }
 
   public start(): void {
     if (this.process) {
@@ -100,7 +114,7 @@ export class HandsFreeRuntime {
   private async handleFrame(frame: Buffer): Promise<void> {
     const dbfs = calculatePcm16Dbfs(frame);
     this.postAudioLevel(dbfs);
-    const startThreshold = speechStartThresholdDbfsBySensitivity[this.options.sensitivity];
+    const startThreshold = speechStartThresholdDbfsBySensitivity[this.settings.sensitivity];
     const stopThreshold = startThreshold - speechStopThresholdOffsetDb;
 
     if (this.phase === 'listening') {
@@ -125,9 +139,9 @@ export class HandsFreeRuntime {
       this.silenceMs += frameMs;
     }
 
-    const maxUtteranceMs = this.options.maxUtteranceSeconds * 1000;
+    const maxUtteranceMs = this.settings.maxUtteranceSeconds * 1000;
     const reachedMaxUtterance = maxUtteranceMs > 0 && this.utteranceMs >= maxUtteranceMs;
-    const reachedSilence = this.speechMs >= minSpeechMs && this.silenceMs >= this.options.silenceSeconds * 1000;
+    const reachedSilence = this.speechMs >= minSpeechMs && this.silenceMs >= this.settings.silenceSeconds * 1000;
 
     if (reachedSilence || reachedMaxUtterance) {
       await this.finishUtterance();

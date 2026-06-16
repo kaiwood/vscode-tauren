@@ -329,18 +329,24 @@ export class VoiceController implements vscode.Disposable {
   }
 
   public async handleConfigurationChange(event: vscode.ConfigurationChangeEvent): Promise<void> {
-    const affectsHandsFreeRuntime = event.affectsConfiguration('tauren.voice.inputDevice')
-      || event.affectsConfiguration('tauren.voice.handsFreeSensitivity')
+    const affectsInputDevice = event.affectsConfiguration('tauren.voice.inputDevice');
+    const affectsHandsFreeRuntimeSettings = event.affectsConfiguration('tauren.voice.handsFreeSensitivity')
       || event.affectsConfiguration('tauren.voice.handsFreeSilenceSeconds')
       || event.affectsConfiguration('tauren.voice.maxRecordingSeconds');
     const affectsHandsFreeAvailability = event.affectsConfiguration('tauren.voice.enabled')
       || event.affectsConfiguration('tauren.voice.mode');
 
-    if (!this.handsFreeRuntime || (!affectsHandsFreeRuntime && !affectsHandsFreeAvailability)) {
+    if (!this.handsFreeRuntime || (!affectsInputDevice && !affectsHandsFreeRuntimeSettings && !affectsHandsFreeAvailability)) {
       return;
     }
 
-    const shouldRestart = getVoiceEnabledSetting() && getVoiceModeSetting() === 'handsFree' && affectsHandsFreeRuntime;
+    if (affectsHandsFreeRuntimeSettings && !affectsInputDevice && !affectsHandsFreeAvailability) {
+      this.handsFreeRuntime.updateSettings(this.createHandsFreeRuntimeSettings());
+      this.options.onDidChangeState();
+      return;
+    }
+
+    const shouldRestart = getVoiceEnabledSetting() && getVoiceModeSetting() === 'handsFree' && affectsInputDevice;
     await this.stopRecording({ restartAfterHandsFreeTranscription: shouldRestart });
 
     if (shouldRestart && !this.handsFreeTranscribing) {
@@ -413,9 +419,7 @@ export class VoiceController implements vscode.Disposable {
     this.handsFreeRuntime = new HandsFreeRuntime({
       inputDeviceId: getVoiceInputDeviceSetting(),
       tempDirectory: os.tmpdir(),
-      sensitivity: getVoiceHandsFreeSensitivitySetting(),
-      silenceSeconds: getVoiceHandsFreeSilenceSecondsSetting(),
-      maxUtteranceSeconds: getVoiceMaxRecordingSecondsSetting(),
+      ...this.createHandsFreeRuntimeSettings(),
       getShouldContinue: () => this.handsFreeActive,
       onStatus: (status) => {
         this.recordingStatus = status;
@@ -437,6 +441,14 @@ export class VoiceController implements vscode.Disposable {
       }
     });
     this.handsFreeRuntime.start();
+  }
+
+  private createHandsFreeRuntimeSettings() {
+    return {
+      sensitivity: getVoiceHandsFreeSensitivitySetting(),
+      silenceSeconds: getVoiceHandsFreeSilenceSecondsSetting(),
+      maxUtteranceSeconds: getVoiceMaxRecordingSecondsSetting()
+    };
   }
 
   private async transcribeHandsFreeUtterance(audioFile: string): Promise<void> {
