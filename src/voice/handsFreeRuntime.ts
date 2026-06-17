@@ -17,7 +17,12 @@ const speechStartThresholdDbfsBySensitivity: Record<VoiceHandsFreeSensitivity, n
   normal: -45,
   high: -52
 };
-const speechStopThresholdOffsetDb = 0;
+const speechOverNoiseFloorDbBySensitivity: Record<VoiceHandsFreeSensitivity, number> = {
+  low: 18,
+  normal: 12,
+  high: 8
+};
+const speechStopThresholdOffsetDb = 4;
 const minSpeechMs = 180;
 const minUtteranceMs = 450;
 
@@ -52,6 +57,7 @@ export class HandsFreeRuntime {
   private sequence = 0;
   private handlingUtterance = false;
   private lastAudioLevelUpdate = 0;
+  private noiseFloorDbfs = -60;
   private settings: HandsFreeRuntimeSettings;
 
   public constructor(private readonly options: HandsFreeRuntimeOptions) {
@@ -114,7 +120,8 @@ export class HandsFreeRuntime {
   private async handleFrame(frame: Buffer): Promise<void> {
     const dbfs = calculatePcm16Dbfs(frame);
     this.postAudioLevel(dbfs);
-    const startThreshold = speechStartThresholdDbfsBySensitivity[this.settings.sensitivity];
+    this.updateNoiseFloor(dbfs);
+    const startThreshold = this.getSpeechStartThreshold();
     const stopThreshold = startThreshold - speechStopThresholdOffsetDb;
 
     if (this.phase === 'listening') {
@@ -146,6 +153,20 @@ export class HandsFreeRuntime {
     if (reachedSilence || reachedMaxUtterance) {
       await this.finishUtterance();
     }
+  }
+
+  private updateNoiseFloor(dbfs: number): void {
+    if (!Number.isFinite(dbfs) || this.phase !== 'listening') {
+      return;
+    }
+
+    this.noiseFloorDbfs = Math.min(-20, this.noiseFloorDbfs * 0.96 + dbfs * 0.04);
+  }
+
+  private getSpeechStartThreshold(): number {
+    const fixedThreshold = speechStartThresholdDbfsBySensitivity[this.settings.sensitivity];
+    const noiseThreshold = this.noiseFloorDbfs + speechOverNoiseFloorDbBySensitivity[this.settings.sensitivity];
+    return Math.max(fixedThreshold, noiseThreshold);
   }
 
   private postAudioLevel(dbfs: number): void {
@@ -247,7 +268,7 @@ function normalizeAudioLevel(dbfs: number): number {
     return 0;
   }
 
-  const normalized = (dbfs + 60) / 40;
+  const normalized = (dbfs + 70) / 50;
   return Math.max(0, Math.min(1, normalized));
 }
 
