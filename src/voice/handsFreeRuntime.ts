@@ -17,8 +17,8 @@ const speechStartThresholdDbfsBySensitivity: Record<VoiceHandsFreeSensitivity, n
   normal: -45,
   high: -52
 };
-const speechStopThresholdOffsetDb = 6;
-const minSpeechMs = 300;
+const speechStopThresholdOffsetDb = 0;
+const minSpeechMs = 180;
 const minUtteranceMs = 450;
 
 type HandsFreePhase = 'listening' | 'recording' | 'stopping' | 'stopped';
