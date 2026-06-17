@@ -25,6 +25,7 @@ const speechOverNoiseFloorDbBySensitivity: Record<VoiceHandsFreeSensitivity, num
 const speechStopThresholdOffsetDb = 4;
 const minSpeechMs = 180;
 const minUtteranceMs = 450;
+const audioStartupTimeoutMs = 2500;
 
 type HandsFreePhase = 'listening' | 'recording' | 'stopping' | 'stopped';
 
@@ -58,6 +59,8 @@ export class HandsFreeRuntime {
   private handlingUtterance = false;
   private lastAudioLevelUpdate = 0;
   private noiseFloorDbfs = -75;
+  private receivedAudio = false;
+  private startupTimer: NodeJS.Timeout | undefined;
   private settings: HandsFreeRuntimeSettings;
 
   public constructor(private readonly options: HandsFreeRuntimeOptions) {
@@ -83,12 +86,18 @@ export class HandsFreeRuntime {
 
     const child = spawn(command.executable, command.args, { stdio: ['ignore', 'pipe', 'pipe'] });
     this.process = child;
+    this.startupTimer = setTimeout(() => {
+      if (!this.receivedAudio && this.phase !== 'stopping' && this.phase !== 'stopped') {
+        this.fail(new Error('Hands-free listening started, but no microphone audio was received. Check the selected input device.'));
+      }
+    }, audioStartupTimeoutMs);
 
     child.stdout?.on('data', (chunk: Buffer) => this.handleAudio(chunk));
     child.stderr?.on('data', (chunk) => { this.stderr += String(chunk); });
     child.on('error', (error) => this.fail(error));
     child.on('close', (code) => {
       const wasStopping = this.phase === 'stopping' || !this.options.getShouldContinue();
+      this.clearStartupTimer();
       this.process = undefined;
       this.phase = 'stopped';
 
@@ -100,6 +109,7 @@ export class HandsFreeRuntime {
 
   public async stop(): Promise<void> {
     this.phase = 'stopping';
+    this.clearStartupTimer();
     await this.stopProcess();
     this.resetAudioState();
   }
@@ -109,6 +119,8 @@ export class HandsFreeRuntime {
       return;
     }
 
+    this.receivedAudio = true;
+    this.clearStartupTimer();
     this.pending = Buffer.concat([this.pending, chunk]);
     while (this.pending.length >= frameBytes && !this.handlingUtterance) {
       const frame = this.pending.subarray(0, frameBytes);
@@ -233,13 +245,22 @@ export class HandsFreeRuntime {
     this.options.onAudioLevel(0);
   }
 
+  private clearStartupTimer(): void {
+    if (this.startupTimer) {
+      clearTimeout(this.startupTimer);
+      this.startupTimer = undefined;
+    }
+  }
+
   private fail(error: Error): void {
+    this.clearStartupTimer();
     if (this.phase === 'stopping' || this.phase === 'stopped') {
       return;
     }
 
     this.phase = 'stopped';
     this.process = undefined;
+    void this.stopProcess().catch(() => undefined);
     this.options.onError(error);
   }
 
