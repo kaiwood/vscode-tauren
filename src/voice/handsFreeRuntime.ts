@@ -13,14 +13,14 @@ const frameBytes = sampleRate * channels * bytesPerSample * frameMs / 1000;
 const preRollMs = 500;
 const preRollFrameCount = Math.ceil(preRollMs / frameMs);
 const speechStartThresholdDbfsBySensitivity: Record<VoiceHandsFreeSensitivity, number> = {
-  low: -35,
-  normal: -45,
-  high: -52
+  low: -45,
+  normal: -55,
+  high: -62
 };
 const speechOverNoiseFloorDbBySensitivity: Record<VoiceHandsFreeSensitivity, number> = {
-  low: 18,
-  normal: 12,
-  high: 8
+  low: 10,
+  normal: 6,
+  high: 3
 };
 const speechStopThresholdOffsetDb = 4;
 const minSpeechMs = 180;
@@ -57,7 +57,7 @@ export class HandsFreeRuntime {
   private sequence = 0;
   private handlingUtterance = false;
   private lastAudioLevelUpdate = 0;
-  private noiseFloorDbfs = -60;
+  private noiseFloorDbfs = -75;
   private settings: HandsFreeRuntimeSettings;
 
   public constructor(private readonly options: HandsFreeRuntimeOptions) {
@@ -268,7 +268,7 @@ function normalizeAudioLevel(dbfs: number): number {
     return 0;
   }
 
-  const normalized = (dbfs + 70) / 50;
+  const normalized = (dbfs + 80) / 55;
   return Math.max(0, Math.min(1, normalized));
 }
 
