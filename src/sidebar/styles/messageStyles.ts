@@ -105,6 +105,8 @@ export const messageStyles = /* css */ `    .tauren-transcript-search {
 
     .message {
       margin: 0 0 14px;
+      content-visibility: auto;
+      contain-intrinsic-size: auto 180px;
     }
 
     .message:last-child {
