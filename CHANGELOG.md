@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Lots of performance issues
+
 ## [1.7.1] - 2026-06-14
 
 ### Fixed
