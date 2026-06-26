@@ -276,7 +276,6 @@ export class SessionViewController {
       }
 
       this.applySessionList(sessions);
-      this.sessionsRefreshedAt = Date.now();
     } catch (error) {
       if (refreshId === this.sessionsRefreshSequence) {
         this.sessionsError = getErrorMessage(error);
@@ -706,6 +705,7 @@ export class SessionViewController {
   }
 
   private applySessionList(sessions: WebviewSessionItem[]): void {
+    this.sessionsRefreshedAt = Date.now();
     this.sessions = this.applyPendingSessionItemNames(this.mergeCurrentSessionFallback(sessions));
     this.sessionSearchIndex.setSessions(this.sessions);
     this.refreshSessionSearchState({ post: false });
