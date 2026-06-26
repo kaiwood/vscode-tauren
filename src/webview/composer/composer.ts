@@ -62,6 +62,7 @@ export class ComposerController {
   private busySubmitHideTimeout: ReturnType<typeof setTimeout> | undefined;
   private composerDragDepth = 0;
   private textareaLayoutSignature = '';
+  private promptContextBadgesSignature = '';
   private cachedMaxTextareaHeight = maxTextareaHeight;
   private readonly pasteBuffer = new ComposerPasteBuffer();
   private readonly addedDiffCounter: ReturnType<typeof createDiffCounter>;
@@ -234,6 +235,13 @@ export class ComposerController {
 
     const attachments = this.getPromptContextAttachments();
     const images = this.getPromptImageAttachments();
+    const nextSignature = this.getPromptContextBadgesSignature(attachments, images);
+
+    if (nextSignature === this.promptContextBadgesSignature) {
+      return;
+    }
+
+    this.promptContextBadgesSignature = nextSignature;
     const hasAttachments = attachments.length > 0 || images.length > 0;
     this.options.form.classList.toggle('composer--has-context', hasAttachments);
     this.options.contextBadgesElement.hidden = !hasAttachments;
@@ -767,6 +775,17 @@ export class ComposerController {
     this.options.textarea.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
 
     return Math.abs(previousHeight - nextHeight) > 0.5;
+  }
+
+  private getPromptContextBadgesSignature(attachments: readonly PromptContextAttachment[], images: readonly PromptImageAttachment[]): string {
+    const promptContextSignature = attachments
+      .map((attachment) => [attachment.id, attachment.source, attachment.label, attachment.title, attachment.xml?.length ?? 0].join('\u0000'))
+      .join('\u0000');
+    const promptImagesSignature = images
+      .map((attachment) => [attachment.id, attachment.label, attachment.title, attachment.mimeType, attachment.sizeBytes].join('\u0000'))
+      .join('\u0000');
+
+    return [promptContextSignature, promptImagesSignature].join('\u0001');
   }
 
   private getTextareaLayoutSignature(): string {

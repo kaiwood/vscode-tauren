@@ -3324,6 +3324,7 @@
     busySubmitHideTimeout;
     composerDragDepth = 0;
     textareaLayoutSignature = "";
+    promptContextBadgesSignature = "";
     cachedMaxTextareaHeight = maxTextareaHeight;
     pasteBuffer = new ComposerPasteBuffer();
     addedDiffCounter;
@@ -3443,6 +3444,11 @@
       }
       const attachments = this.getPromptContextAttachments();
       const images = this.getPromptImageAttachments();
+      const nextSignature = this.getPromptContextBadgesSignature(attachments, images);
+      if (nextSignature === this.promptContextBadgesSignature) {
+        return;
+      }
+      this.promptContextBadgesSignature = nextSignature;
       const hasAttachments = attachments.length > 0 || images.length > 0;
       this.options.form.classList.toggle("composer--has-context", hasAttachments);
       this.options.contextBadgesElement.hidden = !hasAttachments;
@@ -3858,6 +3864,11 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
       this.options.textarea.style.height = nextHeight + "px";
       this.options.textarea.style.overflowY = scrollHeight > maxHeight ? "auto" : "hidden";
       return Math.abs(previousHeight - nextHeight) > 0.5;
+    }
+    getPromptContextBadgesSignature(attachments, images) {
+      const promptContextSignature = attachments.map((attachment) => [attachment.id, attachment.source, attachment.label, attachment.title, attachment.xml?.length ?? 0].join("\0")).join("\0");
+      const promptImagesSignature = images.map((attachment) => [attachment.id, attachment.label, attachment.title, attachment.mimeType, attachment.sizeBytes].join("\0")).join("\0");
+      return [promptContextSignature, promptImagesSignature].join("");
     }
     getTextareaLayoutSignature() {
       const state2 = this.options.getState();
