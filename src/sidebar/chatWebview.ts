@@ -852,6 +852,8 @@ function parseWebviewPerfEvent(value: unknown): WebviewPerfEvent | undefined {
     ...(isNonNegativeFiniteNumber(value.messageCount) ? { messageCount: value.messageCount } : {}),
     ...(isNonNegativeFiniteNumber(value.sessionCount) ? { sessionCount: value.sessionCount } : {}),
     ...(isNonNegativeFiniteNumber(value.visibleItemCount) ? { visibleItemCount: value.visibleItemCount } : {}),
+    ...(isNonNegativeFiniteNumber(value.renderedMessageCount) ? { renderedMessageCount: value.renderedMessageCount } : {}),
+    ...(isNonNegativeFiniteNumber(value.collapsedMessageCount) ? { collapsedMessageCount: value.collapsedMessageCount } : {}),
     ...(typeof value.currentSessionFile === 'string' ? { currentSessionFile: value.currentSessionFile } : {}),
     ...(typeof value.sessionLoading === 'boolean' ? { sessionLoading: value.sessionLoading } : {}),
     ...(isNonNegativeFiniteNumber(value.textareaLength) ? { textareaLength: value.textareaLength } : {}),

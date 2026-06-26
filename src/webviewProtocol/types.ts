@@ -100,6 +100,8 @@ export type WebviewPerfEvent = {
   messageCount?: number;
   sessionCount?: number;
   visibleItemCount?: number;
+  renderedMessageCount?: number;
+  collapsedMessageCount?: number;
   currentSessionFile?: string;
   sessionLoading?: boolean;
   textareaLength?: number;

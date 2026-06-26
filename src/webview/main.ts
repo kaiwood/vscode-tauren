@@ -628,6 +628,8 @@ function measurePerfEvent(name: WebviewPerfEventName, measure: () => void): void
       lane: state.lane,
       messageCount: state.messages.length,
       sessionCount: state.sessions.length,
+      renderedMessageCount: messagesController.getRenderedMessageCount(),
+      collapsedMessageCount: messagesController.getCollapsedMessageCount(),
       currentSessionFile: state.currentSessionFile,
       sessionLoading: state.sessionLoading,
       textareaLength: textarea.value.length,
@@ -661,6 +663,8 @@ function measureRenderBoundary(name: 'transcript.render' | 'sessionList.render' 
       messageCount: state.messages.length,
       sessionCount: state.sessions.length,
       visibleItemCount: name === 'sessionList.render' ? sessionsController.getVisibleSessionCount() : undefined,
+      renderedMessageCount: messagesController.getRenderedMessageCount(),
+      collapsedMessageCount: messagesController.getCollapsedMessageCount(),
       currentSessionFile: state.currentSessionFile,
       sessionLoading: state.sessionLoading
     }

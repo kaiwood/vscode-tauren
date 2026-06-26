@@ -4751,7 +4751,7 @@ ${after}`;
       if (this.options.messagesContentElement.querySelector(".empty-state")) {
         this.options.messagesContentElement.replaceChildren();
       }
-      const renderPlan = this.getMessageRenderPlan(state2.messages.length);
+      const renderPlan = getMessageRenderPlan(state2.messages.length);
       const renderedIndexes = /* @__PURE__ */ new Set();
       const nodes = [];
       let previousMessageRole;
@@ -4966,24 +4966,11 @@ ${after}`;
         this.options.postMessage({ type: "openExternal", url: externalLink.href });
       }
     }
-    getMessageRenderPlan(messageCount) {
-      if (messageCount <= largeTranscriptCollapseThreshold) {
-        return Array.from({ length: messageCount }, (_, index) => ({ kind: "message", index }));
-      }
-      const headCount = Math.min(largeTranscriptHeadCount, messageCount);
-      const tailStart = Math.max(headCount, messageCount - largeTranscriptTailCount);
-      const collapsedCount = Math.max(0, tailStart - headCount);
-      const plan = [];
-      for (let index = 0; index < headCount; index += 1) {
-        plan.push({ kind: "message", index });
-      }
-      if (collapsedCount > 0) {
-        plan.push({ kind: "collapse", count: collapsedCount });
-      }
-      for (let index = tailStart; index < messageCount; index += 1) {
-        plan.push({ kind: "message", index });
-      }
-      return plan;
+    getRenderedMessageCount() {
+      return getMessageRenderPlan(this.options.getState().messages.length).filter((item) => item.kind === "message").length;
+    }
+    getCollapsedMessageCount() {
+      return getMessageRenderPlan(this.options.getState().messages.length).reduce((count, item) => item.kind === "collapse" ? count + item.count : count, 0);
     }
     getCollapsedTranscriptElement(count) {
       if (!this.collapsedTranscriptElement) {
@@ -5264,6 +5251,25 @@ ${after}`;
       const mimeType = typeof image.mimeType === "string" ? image.mimeType.toLowerCase() : "";
       return image.type === "image" && typeof image.data === "string" && Boolean(image.data) && (mimeType === "image/png" || mimeType === "image/jpeg" || mimeType === "image/gif" || mimeType === "image/webp");
     });
+  }
+  function getMessageRenderPlan(messageCount) {
+    if (messageCount <= largeTranscriptCollapseThreshold) {
+      return Array.from({ length: messageCount }, (_, index) => ({ kind: "message", index }));
+    }
+    const headCount = Math.min(largeTranscriptHeadCount, messageCount);
+    const tailStart = Math.max(headCount, messageCount - largeTranscriptTailCount);
+    const collapsedCount = Math.max(0, tailStart - headCount);
+    const plan = [];
+    for (let index = 0; index < headCount; index += 1) {
+      plan.push({ kind: "message", index });
+    }
+    if (collapsedCount > 0) {
+      plan.push({ kind: "collapse", count: collapsedCount });
+    }
+    for (let index = tailStart; index < messageCount; index += 1) {
+      plan.push({ kind: "message", index });
+    }
+    return plan;
   }
   function getActiveActivityIds(messages) {
     const ids = /* @__PURE__ */ new Set();
@@ -10348,6 +10354,8 @@ ${after}`;
         lane: state.lane,
         messageCount: state.messages.length,
         sessionCount: state.sessions.length,
+        renderedMessageCount: messagesController.getRenderedMessageCount(),
+        collapsedMessageCount: messagesController.getCollapsedMessageCount(),
         currentSessionFile: state.currentSessionFile,
         sessionLoading: state.sessionLoading,
         textareaLength: textarea.value.length,
@@ -10377,6 +10385,8 @@ ${after}`;
         messageCount: state.messages.length,
         sessionCount: state.sessions.length,
         visibleItemCount: name === "sessionList.render" ? sessionsController.getVisibleSessionCount() : void 0,
+        renderedMessageCount: messagesController.getRenderedMessageCount(),
+        collapsedMessageCount: messagesController.getCollapsedMessageCount(),
         currentSessionFile: state.currentSessionFile,
         sessionLoading: state.sessionLoading
       }

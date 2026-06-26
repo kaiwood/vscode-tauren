@@ -22,6 +22,8 @@ const largeTranscriptCollapseThreshold = 250;
 const largeTranscriptHeadCount = 20;
 const largeTranscriptTailCount = 180;
 
+type MessageRenderPlanItem = { kind: 'message'; index: number } | { kind: 'collapse'; count: number };
+
 type RenderedMessageView = {
   element: HTMLElement;
   message: ChatMessage;
@@ -69,7 +71,7 @@ export class MessageListController {
       this.options.messagesContentElement.replaceChildren();
     }
 
-    const renderPlan = this.getMessageRenderPlan(state.messages.length);
+    const renderPlan = getMessageRenderPlan(state.messages.length);
     const renderedIndexes = new Set<number>();
     const nodes: Node[] = [];
     let previousMessageRole: string | undefined;
@@ -349,29 +351,12 @@ export class MessageListController {
     }
   }
 
-  private getMessageRenderPlan(messageCount: number): Array<{ kind: 'message'; index: number } | { kind: 'collapse'; count: number }> {
-    if (messageCount <= largeTranscriptCollapseThreshold) {
-      return Array.from({ length: messageCount }, (_, index) => ({ kind: 'message', index }));
-    }
+  public getRenderedMessageCount(): number {
+    return getMessageRenderPlan(this.options.getState().messages.length).filter((item) => item.kind === 'message').length;
+  }
 
-    const headCount = Math.min(largeTranscriptHeadCount, messageCount);
-    const tailStart = Math.max(headCount, messageCount - largeTranscriptTailCount);
-    const collapsedCount = Math.max(0, tailStart - headCount);
-    const plan: Array<{ kind: 'message'; index: number } | { kind: 'collapse'; count: number }> = [];
-
-    for (let index = 0; index < headCount; index += 1) {
-      plan.push({ kind: 'message', index });
-    }
-
-    if (collapsedCount > 0) {
-      plan.push({ kind: 'collapse', count: collapsedCount });
-    }
-
-    for (let index = tailStart; index < messageCount; index += 1) {
-      plan.push({ kind: 'message', index });
-    }
-
-    return plan;
+  public getCollapsedMessageCount(): number {
+    return getMessageRenderPlan(this.options.getState().messages.length).reduce((count, item) => item.kind === 'collapse' ? count + item.count : count, 0);
   }
 
   private getCollapsedTranscriptElement(count: number): HTMLElement {
@@ -755,6 +740,31 @@ function hasRenderableImages(images: ChatImage[] | undefined): boolean {
       && Boolean(image.data)
       && (mimeType === 'image/png' || mimeType === 'image/jpeg' || mimeType === 'image/gif' || mimeType === 'image/webp');
   });
+}
+
+function getMessageRenderPlan(messageCount: number): MessageRenderPlanItem[] {
+  if (messageCount <= largeTranscriptCollapseThreshold) {
+    return Array.from({ length: messageCount }, (_, index) => ({ kind: 'message', index }));
+  }
+
+  const headCount = Math.min(largeTranscriptHeadCount, messageCount);
+  const tailStart = Math.max(headCount, messageCount - largeTranscriptTailCount);
+  const collapsedCount = Math.max(0, tailStart - headCount);
+  const plan: MessageRenderPlanItem[] = [];
+
+  for (let index = 0; index < headCount; index += 1) {
+    plan.push({ kind: 'message', index });
+  }
+
+  if (collapsedCount > 0) {
+    plan.push({ kind: 'collapse', count: collapsedCount });
+  }
+
+  for (let index = tailStart; index < messageCount; index += 1) {
+    plan.push({ kind: 'message', index });
+  }
+
+  return plan;
 }
 
 function getActiveActivityIds(messages: ChatMessage[]): Set<string> {

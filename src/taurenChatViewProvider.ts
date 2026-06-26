@@ -882,6 +882,8 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
       messageCount: event.messageCount,
       sessionCount: event.sessionCount,
       visibleItemCount: event.visibleItemCount,
+      renderedMessageCount: event.renderedMessageCount,
+      collapsedMessageCount: event.collapsedMessageCount,
       currentSessionFile: event.currentSessionFile,
       sessionLoading: event.sessionLoading,
       textareaLength: event.textareaLength,
