@@ -1289,6 +1289,7 @@ export class TaurenChatController {
   private isEmptyUnnamedKwardSession(): boolean {
     return this.getBackend() === 'kward'
       && this.session.isEmpty
+      && !this.sessionView.currentSessionFile
       && !this.sessionView.currentSessionName.trim();
   }
 
