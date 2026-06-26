@@ -9947,9 +9947,6 @@ ${after}`;
   var toastHideTimeout;
   var pendingRenderFrame;
   var pendingReturnToChatAfterRender = false;
-  var pendingRefreshSessionsAfterRender = false;
-  var pendingSessionRefreshFrame;
-  var sessionRefreshRequested = false;
   var hasReceivedHostState = false;
   var faceTransitionSuppressionFrame;
   var renderInstrumentationEnabled = document.body.dataset.taurenDevRenderInstrumentation === "true";
@@ -10144,9 +10141,6 @@ ${after}`;
     const hasComposerTextUpdate = nextState.composerTextRevision > 0;
     const hasComposerPasteUpdate = nextState.composerPaste !== void 0;
     state = nextState;
-    if (state.sessionsRefreshing) {
-      sessionRefreshRequested = false;
-    }
     if (isInitialHostState) {
       suppressFaceTransitionForNextRender();
     }
@@ -10180,8 +10174,7 @@ ${after}`;
       composerController.pasteToEditor(state.composerPaste.text);
     }
     scheduleRender({
-      returnToChatMain: wasSessionLane && state.lane === "chat" && state.chatFace !== "settings",
-      refreshSessionsAfterRender: state.lane === "sessions" && previousLane !== "sessions" && state.sessions.length > 0 && !state.sessionsRefreshing && !sessionRefreshRequested
+      returnToChatMain: wasSessionLane && state.lane === "chat" && state.chatFace !== "settings"
     });
     if (previousChatFace === "settings" && state.chatFace === "main" && state.lane === "chat") {
       requestAnimationFrame(() => focusPromptInput());
@@ -10274,35 +10267,17 @@ ${after}`;
   }
   function scheduleRender(options = {}) {
     pendingReturnToChatAfterRender ||= Boolean(options.returnToChatMain);
-    pendingRefreshSessionsAfterRender ||= Boolean(options.refreshSessionsAfterRender);
     if (pendingRenderFrame !== void 0) {
       return;
     }
     pendingRenderFrame = requestAnimationFrame(() => {
       pendingRenderFrame = void 0;
       const shouldHandleReturnToChat = pendingReturnToChatAfterRender;
-      const shouldRefreshSessions = pendingRefreshSessionsAfterRender;
       pendingReturnToChatAfterRender = false;
-      pendingRefreshSessionsAfterRender = false;
       renderWithInstrumentation();
-      if (shouldRefreshSessions) {
-        scheduleSessionsRefreshAfterNextPaint();
-      }
       if (shouldHandleReturnToChat && state.lane === "chat") {
         messagesController.restoreChatScrollAfterReturn();
         focusPromptInput();
-      }
-    });
-  }
-  function scheduleSessionsRefreshAfterNextPaint() {
-    if (pendingSessionRefreshFrame !== void 0) {
-      return;
-    }
-    pendingSessionRefreshFrame = requestAnimationFrame(() => {
-      pendingSessionRefreshFrame = void 0;
-      if (state.lane === "sessions" && !state.sessionsRefreshing && !sessionRefreshRequested) {
-        sessionRefreshRequested = true;
-        vscode.postMessage({ type: "refreshSessions" });
       }
     });
   }

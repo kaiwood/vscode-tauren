@@ -134,9 +134,6 @@ let toolsExpanded = false;
 let toastHideTimeout: ReturnType<typeof setTimeout> | undefined;
 let pendingRenderFrame: number | undefined;
 let pendingReturnToChatAfterRender = false;
-let pendingRefreshSessionsAfterRender = false;
-let pendingSessionRefreshFrame: number | undefined;
-let sessionRefreshRequested = false;
 let hasReceivedHostState = false;
 let faceTransitionSuppressionFrame: number | undefined;
 const renderInstrumentationEnabled = document.body.dataset.taurenDevRenderInstrumentation === 'true';
@@ -359,10 +356,6 @@ window.addEventListener('message', (event) => {
   const hasComposerPasteUpdate = nextState.composerPaste !== undefined;
   state = nextState;
 
-  if (state.sessionsRefreshing) {
-    sessionRefreshRequested = false;
-  }
-
   if (isInitialHostState) {
     suppressFaceTransitionForNextRender();
   }
@@ -410,12 +403,7 @@ window.addEventListener('message', (event) => {
   }
 
   scheduleRender({
-    returnToChatMain: wasSessionLane && state.lane === 'chat' && state.chatFace !== 'settings',
-    refreshSessionsAfterRender: state.lane === 'sessions'
-      && previousLane !== 'sessions'
-      && state.sessions.length > 0
-      && !state.sessionsRefreshing
-      && !sessionRefreshRequested
+    returnToChatMain: wasSessionLane && state.lane === 'chat' && state.chatFace !== 'settings'
   });
 
   if (previousChatFace === 'settings' && state.chatFace === 'main' && state.lane === 'chat') {
@@ -528,9 +516,8 @@ function createToastIcon(kind: 'success' | 'warning' | 'error'): HTMLElement {
   return icon;
 }
 
-function scheduleRender(options: { returnToChatMain?: boolean; refreshSessionsAfterRender?: boolean } = {}): void {
+function scheduleRender(options: { returnToChatMain?: boolean } = {}): void {
   pendingReturnToChatAfterRender ||= Boolean(options.returnToChatMain);
-  pendingRefreshSessionsAfterRender ||= Boolean(options.refreshSessionsAfterRender);
 
   if (pendingRenderFrame !== undefined) {
     return;
@@ -539,34 +526,13 @@ function scheduleRender(options: { returnToChatMain?: boolean; refreshSessionsAf
   pendingRenderFrame = requestAnimationFrame(() => {
     pendingRenderFrame = undefined;
     const shouldHandleReturnToChat = pendingReturnToChatAfterRender;
-    const shouldRefreshSessions = pendingRefreshSessionsAfterRender;
     pendingReturnToChatAfterRender = false;
-    pendingRefreshSessionsAfterRender = false;
 
     renderWithInstrumentation();
-
-    if (shouldRefreshSessions) {
-      scheduleSessionsRefreshAfterNextPaint();
-    }
 
     if (shouldHandleReturnToChat && state.lane === 'chat') {
       messagesController.restoreChatScrollAfterReturn();
       focusPromptInput();
-    }
-  });
-}
-
-function scheduleSessionsRefreshAfterNextPaint(): void {
-  if (pendingSessionRefreshFrame !== undefined) {
-    return;
-  }
-
-  pendingSessionRefreshFrame = requestAnimationFrame(() => {
-    pendingSessionRefreshFrame = undefined;
-
-    if (state.lane === 'sessions' && !state.sessionsRefreshing && !sessionRefreshRequested) {
-      sessionRefreshRequested = true;
-      vscode.postMessage({ type: 'refreshSessions' });
     }
   });
 }
