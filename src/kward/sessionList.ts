@@ -9,6 +9,9 @@ import { isRecord } from '../shared/typeGuards';
 import { KwardCapabilityResolver } from './capabilities';
 import { KwardRpcTransport } from './rpcTransport';
 
+const maxCachedKwardSessionItems = 5000;
+const kwardSessionItemCache = new Map<string, { size: number; mtimeMs: number; item: WebviewSessionItem | undefined }>();
+
 export async function listKwardSessions(options: {
   cwd?: string;
   currentSessionFile?: string;
@@ -125,56 +128,106 @@ function safeCwd(cwd: string): string {
 
 async function readKwardSessionItem(file: string): Promise<WebviewSessionItem | undefined> {
   try {
-    const [stats, content] = await Promise.all([stat(file), readFile(file, 'utf8')]);
-    const records = content.split('\n').filter(Boolean).map((line) => {
-      try {
-        return JSON.parse(line) as unknown;
-      } catch {
-        return undefined;
-      }
-    }).filter(isRecord);
-    const header = records.find((record) => record.type === 'session');
+    const stats = await stat(file);
+    const cached = kwardSessionItemCache.get(file);
 
-    if (!header) {
-      return undefined;
+    if (cached && cached.size === stats.size && cached.mtimeMs === stats.mtimeMs) {
+      return cached.item ? { ...cached.item } : undefined;
     }
 
-    const messages = records
-      .filter((record) => record.type === 'message' && isRecord(record.message))
-      .map((record) => record.message as Record<string, unknown>);
-    const latestInfo = records.filter((record) => record.type === 'session_info').at(-1);
-    const id = typeof header.id === 'string' ? header.id : file;
-    const cwd = typeof header.cwd === 'string' ? header.cwd : '';
-    const created = typeof header.timestamp === 'string' ? header.timestamp : stats.birthtime.toISOString();
-    const modified = stats.mtime.toISOString();
-    const name = isRecord(latestInfo) && typeof latestInfo.name === 'string' ? latestInfo.name : undefined;
-    const parentPath = typeof header.parentPath === 'string' ? header.parentPath : undefined;
-    const firstMessage = getFirstUserMessage(messages);
-
-    return {
-      path: file,
-      id,
-      cwd,
-      ...(name ? { name } : {}),
-      ...(parentPath ? { parentSessionPath: parentPath } : {}),
-      created,
-      modified,
-      messageCount: messages.length,
-      firstMessage,
-      depth: 0,
-      isLast: false,
-      ancestorContinues: [],
-      current: false,
-      metadataState: 'ready'
-    };
+    const item = await readKwardSessionItemUncached(file, stats);
+    rememberKwardSessionItem(file, stats.size, stats.mtimeMs, item);
+    return item;
   } catch {
     return undefined;
   }
 }
 
-function getFirstUserMessage(messages: Array<Record<string, unknown>>): string {
-  const firstUser = messages.find((message) => message.role === 'user');
-  const content = firstUser?.content;
+async function readKwardSessionItemUncached(file: string, stats: Awaited<ReturnType<typeof stat>>): Promise<WebviewSessionItem | undefined> {
+  const content = await readFile(file, 'utf8');
+  let header: Record<string, unknown> | undefined;
+  let latestInfo: Record<string, unknown> | undefined;
+  let firstMessage = '';
+  let messageCount = 0;
+
+  for (const line of content.split('\n')) {
+    if (!line) {
+      continue;
+    }
+
+    let record: unknown;
+    try {
+      record = JSON.parse(line) as unknown;
+    } catch {
+      continue;
+    }
+
+    if (!isRecord(record)) {
+      continue;
+    }
+
+    if (record.type === 'session' && !header) {
+      header = record;
+    } else if (record.type === 'session_info') {
+      latestInfo = record;
+    } else if (record.type === 'message' && isRecord(record.message)) {
+      messageCount += 1;
+      firstMessage ||= getUserMessageText(record.message);
+    }
+  }
+
+  if (!header) {
+    return undefined;
+  }
+
+  const id = typeof header.id === 'string' ? header.id : file;
+  const cwd = typeof header.cwd === 'string' ? header.cwd : '';
+  const created = typeof header.timestamp === 'string' ? header.timestamp : stats.birthtime.toISOString();
+  const modified = stats.mtime.toISOString();
+  const name = isRecord(latestInfo) && typeof latestInfo.name === 'string' ? latestInfo.name : undefined;
+  const parentPath = typeof header.parentPath === 'string' ? header.parentPath : undefined;
+
+  return {
+    path: file,
+    id,
+    cwd,
+    ...(name ? { name } : {}),
+    ...(parentPath ? { parentSessionPath: parentPath } : {}),
+    created,
+    modified,
+    messageCount,
+    firstMessage,
+    depth: 0,
+    isLast: false,
+    ancestorContinues: [],
+    current: false,
+    metadataState: 'ready'
+  };
+}
+
+function rememberKwardSessionItem(file: string, size: number, mtimeMs: number, item: WebviewSessionItem | undefined): void {
+  kwardSessionItemCache.set(file, {
+    size,
+    mtimeMs,
+    item: item ? { ...item } : undefined
+  });
+
+  if (kwardSessionItemCache.size <= maxCachedKwardSessionItems) {
+    return;
+  }
+
+  const oldestKey = kwardSessionItemCache.keys().next().value as string | undefined;
+  if (oldestKey) {
+    kwardSessionItemCache.delete(oldestKey);
+  }
+}
+
+function getUserMessageText(message: Record<string, unknown>): string {
+  if (message.role !== 'user') {
+    return '';
+  }
+
+  const content = message.content;
 
   if (typeof content === 'string') {
     return content;
