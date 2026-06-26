@@ -78,6 +78,7 @@ export class SessionViewController {
   private treeRefreshing = false;
   private treeError = '';
   private sessionsRefreshSequence = 0;
+  private sessionsRefreshPromise: Promise<void> | undefined;
   private treeRefreshSequence = 0;
   private readonly sessionSearchIndex = new SessionSearchIndex();
   private sessionSearchState: WebviewSessionSearchState | undefined;
@@ -225,7 +226,18 @@ export class SessionViewController {
     this.options.onSessionFileChange?.(undefined);
   }
 
-  public async refreshSessions(): Promise<void> {
+  public refreshSessions(): Promise<void> {
+    if (this.sessionsRefreshPromise) {
+      return this.sessionsRefreshPromise;
+    }
+
+    this.sessionsRefreshPromise = this.refreshSessionsNow().finally(() => {
+      this.sessionsRefreshPromise = undefined;
+    });
+    return this.sessionsRefreshPromise;
+  }
+
+  private async refreshSessionsNow(): Promise<void> {
     const refreshId = ++this.sessionsRefreshSequence;
     this.sessionsRefreshing = true;
     this.sessionsError = '';
