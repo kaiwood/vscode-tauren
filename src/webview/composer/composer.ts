@@ -33,6 +33,7 @@ export type ComposerControllerOptions = {
   textarea: HTMLTextAreaElement;
   submitButton: HTMLButtonElement;
   attachButton: HTMLButtonElement;
+  voiceButton: HTMLButtonElement;
   newSessionButton: HTMLButtonElement;
   busySubmitElement: HTMLElement | undefined;
   diffSummaryElement: HTMLElement;
@@ -61,6 +62,7 @@ export class ComposerController {
   private streamingBehavior: WebviewStreamingBehavior = 'steer';
   private busySubmitHideTimeout: ReturnType<typeof setTimeout> | undefined;
   private composerDragDepth = 0;
+  private voiceStarting = false;
   private textareaLayoutSignature = '';
   private promptContextBadgesSignature = '';
   private cachedMaxTextareaHeight = maxTextareaHeight;
@@ -112,6 +114,11 @@ export class ComposerController {
       this.options.postMessage({ type: 'selectPromptImages' });
       this.options.focusPromptInput();
     });
+    this.options.voiceButton.addEventListener('click', () => this.handleVoiceButtonClick());
+    this.options.voiceButton.addEventListener('pointerdown', (event) => this.handleVoicePointerDown(event));
+    this.options.voiceButton.addEventListener('pointerup', () => this.handleVoicePointerUp());
+    this.options.voiceButton.addEventListener('pointercancel', () => this.handleVoicePointerUp());
+    this.options.voiceButton.addEventListener('lostpointercapture', () => this.handleVoicePointerUp());
 
     for (const button of this.options.streamingBehaviorButtonElements) {
       button.addEventListener('click', () => this.selectStreamingBehavior(button));
@@ -445,6 +452,7 @@ export class ComposerController {
         });
       }
 
+      this.syncVoiceButton();
       this.syncSubmit();
       this.syncBusySubmitMode();
 
@@ -461,6 +469,124 @@ export class ComposerController {
 
   public syncSlashMenu(): void {
     this.suggestionMenu.sync();
+  }
+
+  private handleVoiceButtonClick(): void {
+    if (this.options.getState().voice?.mode === 'pushToTalk' && this.options.getState().voice?.activationMode === 'hold') {
+      return;
+    }
+
+    this.toggleVoiceRecording();
+  }
+
+  private handleVoicePointerDown(event: PointerEvent): void {
+    const voice = this.options.getState().voice;
+    if (voice?.mode !== 'pushToTalk' || voice.activationMode !== 'hold' || event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    this.options.voiceButton.setPointerCapture(event.pointerId);
+    this.startVoiceRecording();
+  }
+
+  private handleVoicePointerUp(): void {
+    const voice = this.options.getState().voice;
+    if (voice?.mode !== 'pushToTalk' || voice.activationMode !== 'hold') {
+      return;
+    }
+
+    if (this.options.getState().voice?.recordingStatus === 'recording') {
+      this.showVoiceFeedback('Stopping recording…');
+      this.options.postMessage({ type: 'voiceStopRecording' });
+    }
+  }
+
+  private toggleVoiceRecording(): void {
+    const voice = this.options.getState().voice;
+    const status = voice?.recordingStatus;
+
+    if (status === 'recording' || status === 'listening') {
+      this.showVoiceFeedback('Stopping recording…');
+      this.options.postMessage({ type: 'voiceStopRecording' });
+      return;
+    }
+
+    if (status === 'transcribing') {
+      this.showVoiceFeedback('Stopping voice input…');
+      this.options.postMessage({ type: 'voiceStopRecording' });
+      return;
+    }
+
+    this.startVoiceRecording();
+  }
+
+  private startVoiceRecording(): void {
+    const voice = this.options.getState().voice;
+    const selectedModel = voice?.models.find((model) => model.id === voice.selectedModelId);
+    const isReady = Boolean(voice?.enabled && voice.binary.status === 'downloaded' && selectedModel?.downloaded);
+
+    if (!isReady) {
+      this.options.postMessage({ type: 'showChatFace', chatFace: 'settings' });
+      this.options.postMessage({ type: 'setSettingsSection', section: 'voice' });
+      return;
+    }
+
+    this.voiceStarting = true;
+    this.syncVoiceButton();
+    this.showVoiceFeedback('Starting recording…');
+    this.options.postMessage({ type: 'voiceStartRecording' });
+  }
+
+  private showVoiceFeedback(message: string): void {
+    const tooltip = this.options.voiceButton.querySelector<HTMLElement>('.composer__button-tooltip, .tauren-icon-action-tooltip');
+    if (tooltip) {
+      tooltip.textContent = message;
+    }
+  }
+
+  private syncVoiceButton(): void {
+    const voice = this.options.getState().voice;
+    const button = this.options.voiceButton;
+    const tooltip = button.querySelector<HTMLElement>('.composer__button-tooltip, .tauren-icon-action-tooltip');
+    const enabled = voice?.enabled === true;
+    const selectedModel = voice?.models.find((model) => model.id === voice.selectedModelId);
+    if (voice?.recordingStatus === 'listening' || voice?.recordingStatus === 'recording' || voice?.recordingStatus === 'transcribing' || voice?.recordingStatus === 'error') {
+      this.voiceStarting = false;
+    }
+
+    const isStarting = enabled && this.voiceStarting;
+    const isListening = enabled && voice?.recordingStatus === 'listening';
+    const isRecording = enabled && voice?.recordingStatus === 'recording';
+    const isTranscribing = voice?.recordingStatus === 'transcribing';
+    const isReady = Boolean(voice && voice.binary.status === 'downloaded' && selectedModel?.downloaded);
+    const audioLevel = voice?.audioLevel ?? 0;
+
+    button.style.setProperty('--voice-level', audioLevel.toFixed(3));
+    button.hidden = !enabled;
+    button.style.display = enabled ? '' : 'none';
+    button.classList.toggle('composer__voice--starting', isStarting);
+    button.classList.toggle('composer__voice--listening', isListening);
+    button.classList.toggle('composer__voice--recording', isRecording);
+    button.classList.toggle('composer__voice--transcribing', isTranscribing);
+    button.disabled = false;
+    button.setAttribute('aria-label', isRecording || isListening || isStarting || isTranscribing ? 'Stop voice input' : 'Start voice input');
+
+    if (tooltip) {
+      tooltip.textContent = isStarting
+        ? 'Starting voice input…'
+        : isRecording
+        ? 'Stop voice input'
+        : isListening
+        ? 'Listening… click to stop'
+        : voice?.recordingStatus === 'error' && voice.error
+        ? voice.error
+        : isTranscribing
+        ? 'Transcribing… click to stop'
+        : isReady
+        ? 'Start voice input'
+        : 'Start voice input (setup required)';
+    }
   }
 
   public toggleStreamingBehavior(): void {

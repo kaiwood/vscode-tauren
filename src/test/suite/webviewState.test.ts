@@ -306,4 +306,32 @@ suite('Webview state helpers', () => {
     assert.strictEqual(parsed.welcomeDismissed, false);
     assert.deepStrictEqual(parsed.sessions, []);
   });
+
+  test('parses voice state with safe hands-free defaults', () => {
+    const parsed = parseWebviewStateMessage({
+      voice: {
+        enabled: true,
+        selectedModelId: 'base',
+        transcriptAction: 'submit',
+        mode: 'handsFree',
+        activationMode: 'hold',
+        maxRecordingSeconds: 120,
+        handsFreeSensitivity: 'high',
+        handsFreeSilenceSeconds: 1.5,
+        language: 'de',
+        effectiveLanguage: 'de',
+        languageForced: false,
+        models: [],
+        binary: { status: 'downloaded', label: 'whisper.cpp', download: { status: 'downloaded' } },
+        inputDevices: { selectedId: 'default', status: 'ready', devices: [{ id: 'default', label: 'Default microphone' }] },
+        recordingStatus: 'listening',
+        audioLevel: 2
+      }
+    });
+
+    assert.strictEqual(parsed.voice?.mode, 'handsFree');
+    assert.strictEqual(parsed.voice?.handsFreeSensitivity, 'high');
+    assert.strictEqual(parsed.voice?.handsFreeSilenceSeconds, 1.5);
+    assert.strictEqual(parsed.voice?.audioLevel, 1);
+  });
 });

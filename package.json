@@ -505,6 +505,160 @@
           "default": false,
           "description": "Collect Tauren performance diagnostics in the output channel and diagnostics view."
         },
+        "tauren.voice.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show the microphone control in the Tauren Chat Input and allow local speech-to-text."
+        },
+        "tauren.voice.model": {
+          "type": "string",
+          "default": "base.en",
+          "enum": [
+            "tiny.en",
+            "base.en",
+            "small.en",
+            "tiny",
+            "base",
+            "small"
+          ],
+          "enumDescriptions": [
+            "Fastest English Whisper model, about 75 MiB.",
+            "Balanced English Whisper model, about 142 MiB.",
+            "More accurate English Whisper model, about 466 MiB.",
+            "Fastest multilingual Whisper model, about 74 MiB.",
+            "Balanced multilingual Whisper model, about 141 MiB.",
+            "More accurate multilingual Whisper model, about 465 MiB."
+          ],
+          "description": "Local Whisper model Tauren should use for speech-to-text. Models are downloaded from the Voice settings pane."
+        },
+        "tauren.voice.inputDevice": {
+          "type": "string",
+          "default": "default",
+          "description": "Microphone or audio input source Tauren should record from. Use Default, or select a detected device from the Voice settings pane."
+        },
+        "tauren.voice.language": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "en",
+            "de",
+            "fr",
+            "es",
+            "it",
+            "pt",
+            "nl",
+            "pl",
+            "ja",
+            "ko",
+            "zh"
+          ],
+          "enumDescriptions": [
+            "Let whisper.cpp auto-detect the spoken language.",
+            "English",
+            "German",
+            "French",
+            "Spanish",
+            "Italian",
+            "Portuguese",
+            "Dutch",
+            "Polish",
+            "Japanese",
+            "Korean",
+            "Chinese"
+          ],
+          "description": "Language Tauren passes to whisper.cpp for speech-to-text. English-only models always use English."
+        },
+        "tauren.voice.mode": {
+          "type": "string",
+          "default": "pushToTalk",
+          "enum": [
+            "pushToTalk",
+            "handsFree"
+          ],
+          "enumDescriptions": [
+            "Record only when the microphone button is used.",
+            "Keep the selected microphone open locally and transcribe utterances after silence."
+          ],
+          "description": "Choose manual push-to-talk recording or explicit hands-free listening."
+        },
+        "tauren.voice.activationMode": {
+          "type": "string",
+          "default": "toggle",
+          "enum": [
+            "toggle",
+            "hold"
+          ],
+          "enumDescriptions": [
+            "Click once to start recording, click again to stop.",
+            "Record only while the microphone button is held."
+          ],
+          "description": "Choose how the microphone button controls voice recording."
+        },
+        "tauren.voice.maxRecordingSeconds": {
+          "type": "string",
+          "default": "60",
+          "enum": [
+            "0",
+            "15",
+            "30",
+            "60",
+            "120"
+          ],
+          "enumDescriptions": [
+            "Do not stop automatically.",
+            "Stop after 15 seconds.",
+            "Stop after 30 seconds.",
+            "Stop after 1 minute.",
+            "Stop after 2 minutes."
+          ],
+          "description": "Maximum voice recording length before Tauren stops recording automatically. In hands-free mode, this limits each utterance."
+        },
+        "tauren.voice.handsFreeSensitivity": {
+          "type": "string",
+          "default": "normal",
+          "enum": [
+            "low",
+            "normal",
+            "high"
+          ],
+          "enumDescriptions": [
+            "Require louder speech; better for noisy rooms.",
+            "Balanced speech detection.",
+            "Detect quieter speech; may react more often to background noise."
+          ],
+          "description": "How readily hands-free listening treats microphone input as speech."
+        },
+        "tauren.voice.handsFreeSilenceSeconds": {
+          "type": "string",
+          "default": "1.2",
+          "enum": [
+            "0.8",
+            "1.2",
+            "1.5",
+            "2"
+          ],
+          "enumDescriptions": [
+            "Stop quickly after 0.8 seconds of silence.",
+            "Stop after 1.2 seconds of silence.",
+            "Stop after 1.5 seconds of silence.",
+            "Allow longer pauses; stop after 2 seconds of silence."
+          ],
+          "description": "Silence duration after speech before hands-free listening finalizes and transcribes the utterance."
+        },
+        "tauren.voice.transcriptAction": {
+          "type": "string",
+          "default": "insert",
+          "enum": [
+            "insert",
+            "submit"
+          ],
+          "enumDescriptions": [
+            "Insert completed voice transcripts into the Chat Input for review.",
+            "Submit completed voice transcripts to Tauren automatically."
+          ],
+          "description": "Choose what Tauren does with completed voice transcripts."
+        },
         "tauren.customUiTheme": {
           "type": "string",
           "default": "default",

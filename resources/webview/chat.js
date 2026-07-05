@@ -1907,6 +1907,7 @@
       diffRemovedElement: queryRequired(".composer__diff-removed"),
       streamingBehaviorButtonElements: queryAll(".composer__mode-button"),
       attachButton: queryRequired(".composer__attach"),
+      voiceButton: queryRequired(".composer__voice"),
       newSessionButton: queryRequired(".composer__add"),
       contextElement: queryRequired(".composer__context"),
       contextValueElement: queryRequired(".composer__context-value"),
@@ -3323,6 +3324,7 @@
     streamingBehavior = "steer";
     busySubmitHideTimeout;
     composerDragDepth = 0;
+    voiceStarting = false;
     textareaLayoutSignature = "";
     promptContextBadgesSignature = "";
     cachedMaxTextareaHeight = maxTextareaHeight;
@@ -3347,6 +3349,11 @@
         this.options.postMessage({ type: "selectPromptImages" });
         this.options.focusPromptInput();
       });
+      this.options.voiceButton.addEventListener("click", () => this.handleVoiceButtonClick());
+      this.options.voiceButton.addEventListener("pointerdown", (event) => this.handleVoicePointerDown(event));
+      this.options.voiceButton.addEventListener("pointerup", () => this.handleVoicePointerUp());
+      this.options.voiceButton.addEventListener("pointercancel", () => this.handleVoicePointerUp());
+      this.options.voiceButton.addEventListener("lostpointercapture", () => this.handleVoicePointerUp());
       for (const button of this.options.streamingBehaviorButtonElements) {
         button.addEventListener("click", () => this.selectStreamingBehavior(button));
       }
@@ -3608,6 +3615,7 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
             shouldPreserveBottom = this.options.isMessagesAtBottom();
           });
         }
+        this.syncVoiceButton();
         this.syncSubmit();
         this.syncBusySubmitMode();
         let textareaHeightChanged = false;
@@ -3621,6 +3629,94 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
     }
     syncSlashMenu() {
       this.suggestionMenu.sync();
+    }
+    handleVoiceButtonClick() {
+      if (this.options.getState().voice?.mode === "pushToTalk" && this.options.getState().voice?.activationMode === "hold") {
+        return;
+      }
+      this.toggleVoiceRecording();
+    }
+    handleVoicePointerDown(event) {
+      const voice = this.options.getState().voice;
+      if (voice?.mode !== "pushToTalk" || voice.activationMode !== "hold" || event.button !== 0) {
+        return;
+      }
+      event.preventDefault();
+      this.options.voiceButton.setPointerCapture(event.pointerId);
+      this.startVoiceRecording();
+    }
+    handleVoicePointerUp() {
+      const voice = this.options.getState().voice;
+      if (voice?.mode !== "pushToTalk" || voice.activationMode !== "hold") {
+        return;
+      }
+      if (this.options.getState().voice?.recordingStatus === "recording") {
+        this.showVoiceFeedback("Stopping recording\u2026");
+        this.options.postMessage({ type: "voiceStopRecording" });
+      }
+    }
+    toggleVoiceRecording() {
+      const voice = this.options.getState().voice;
+      const status = voice?.recordingStatus;
+      if (status === "recording" || status === "listening") {
+        this.showVoiceFeedback("Stopping recording\u2026");
+        this.options.postMessage({ type: "voiceStopRecording" });
+        return;
+      }
+      if (status === "transcribing") {
+        this.showVoiceFeedback("Stopping voice input\u2026");
+        this.options.postMessage({ type: "voiceStopRecording" });
+        return;
+      }
+      this.startVoiceRecording();
+    }
+    startVoiceRecording() {
+      const voice = this.options.getState().voice;
+      const selectedModel = voice?.models.find((model) => model.id === voice.selectedModelId);
+      const isReady = Boolean(voice?.enabled && voice.binary.status === "downloaded" && selectedModel?.downloaded);
+      if (!isReady) {
+        this.options.postMessage({ type: "showChatFace", chatFace: "settings" });
+        this.options.postMessage({ type: "setSettingsSection", section: "voice" });
+        return;
+      }
+      this.voiceStarting = true;
+      this.syncVoiceButton();
+      this.showVoiceFeedback("Starting recording\u2026");
+      this.options.postMessage({ type: "voiceStartRecording" });
+    }
+    showVoiceFeedback(message) {
+      const tooltip = this.options.voiceButton.querySelector(".composer__button-tooltip, .tauren-icon-action-tooltip");
+      if (tooltip) {
+        tooltip.textContent = message;
+      }
+    }
+    syncVoiceButton() {
+      const voice = this.options.getState().voice;
+      const button = this.options.voiceButton;
+      const tooltip = button.querySelector(".composer__button-tooltip, .tauren-icon-action-tooltip");
+      const enabled = voice?.enabled === true;
+      const selectedModel = voice?.models.find((model) => model.id === voice.selectedModelId);
+      if (voice?.recordingStatus === "listening" || voice?.recordingStatus === "recording" || voice?.recordingStatus === "transcribing" || voice?.recordingStatus === "error") {
+        this.voiceStarting = false;
+      }
+      const isStarting = enabled && this.voiceStarting;
+      const isListening = enabled && voice?.recordingStatus === "listening";
+      const isRecording = enabled && voice?.recordingStatus === "recording";
+      const isTranscribing = voice?.recordingStatus === "transcribing";
+      const isReady = Boolean(voice && voice.binary.status === "downloaded" && selectedModel?.downloaded);
+      const audioLevel = voice?.audioLevel ?? 0;
+      button.style.setProperty("--voice-level", audioLevel.toFixed(3));
+      button.hidden = !enabled;
+      button.style.display = enabled ? "" : "none";
+      button.classList.toggle("composer__voice--starting", isStarting);
+      button.classList.toggle("composer__voice--listening", isListening);
+      button.classList.toggle("composer__voice--recording", isRecording);
+      button.classList.toggle("composer__voice--transcribing", isTranscribing);
+      button.disabled = false;
+      button.setAttribute("aria-label", isRecording || isListening || isStarting || isTranscribing ? "Stop voice input" : "Start voice input");
+      if (tooltip) {
+        tooltip.textContent = isStarting ? "Starting voice input\u2026" : isRecording ? "Stop voice input" : isListening ? "Listening\u2026 click to stop" : voice?.recordingStatus === "error" && voice.error ? voice.error : isTranscribing ? "Transcribing\u2026 click to stop" : isReady ? "Start voice input" : "Start voice input (setup required)";
+      }
     }
     toggleStreamingBehavior() {
       if (!this.options.getState().busy) {
@@ -5760,6 +5856,58 @@ ${after}`;
     { value: "amber", label: "Amber" },
     { value: "matrix", label: "Matrix" }
   ];
+  var voiceModelOptions = [
+    { value: "tiny.en", label: "Tiny English" },
+    { value: "base.en", label: "Base English" },
+    { value: "small.en", label: "Small English" },
+    { value: "tiny", label: "Tiny Multilingual" },
+    { value: "base", label: "Base Multilingual" },
+    { value: "small", label: "Small Multilingual" }
+  ];
+  var voiceLanguageOptions = [
+    { value: "auto", label: "Auto-detect" },
+    { value: "en", label: "English" },
+    { value: "de", label: "German" },
+    { value: "fr", label: "French" },
+    { value: "es", label: "Spanish" },
+    { value: "it", label: "Italian" },
+    { value: "pt", label: "Portuguese" },
+    { value: "nl", label: "Dutch" },
+    { value: "pl", label: "Polish" },
+    { value: "ja", label: "Japanese" },
+    { value: "ko", label: "Korean" },
+    { value: "zh", label: "Chinese" }
+  ];
+  var voiceModeOptions = [
+    { value: "pushToTalk", label: "Push to talk" },
+    { value: "handsFree", label: "Hands-free" }
+  ];
+  var voiceActivationModeOptions = [
+    { value: "toggle", label: "Click to toggle" },
+    { value: "hold", label: "Hold to talk" }
+  ];
+  var voiceMaxRecordingSecondsOptions = [
+    { value: "0", label: "No limit" },
+    { value: "15", label: "15 seconds" },
+    { value: "30", label: "30 seconds" },
+    { value: "60", label: "1 minute" },
+    { value: "120", label: "2 minutes" }
+  ];
+  var voiceHandsFreeSensitivityOptions = [
+    { value: "low", label: "Low" },
+    { value: "normal", label: "Normal" },
+    { value: "high", label: "High" }
+  ];
+  var voiceHandsFreeSilenceSecondsOptions = [
+    { value: "0.8", label: "0.8 seconds" },
+    { value: "1.2", label: "1.2 seconds" },
+    { value: "1.5", label: "1.5 seconds" },
+    { value: "2", label: "2 seconds" }
+  ];
+  var voiceTranscriptActionOptions = [
+    { value: "insert", label: "Insert into Chat Input" },
+    { value: "submit", label: "Submit automatically" }
+  ];
   var settingsSections = [
     {
       id: "login",
@@ -5795,6 +5943,13 @@ ${after}`;
       eyebrow: "Agent runtime",
       title: "Scoped Models",
       description: "Choose and order the models Tauren sends to the selected backend for model cycling."
+    },
+    {
+      id: "voice",
+      label: "Voice",
+      eyebrow: "Local STT",
+      title: "Voice",
+      description: "Download local whisper.cpp assets and configure Tauren voice input."
     },
     {
       id: "workspaceSafety",
@@ -5886,6 +6041,120 @@ ${after}`;
       control: "select",
       options: customUiThemeOptions,
       defaultValue: "default",
+      liveBehavior: "immediate"
+    },
+    {
+      id: "tauren.voice.enabled",
+      owner: "tauren",
+      section: "voice",
+      label: "Voice input",
+      description: "Show the microphone control in the Chat Input and allow local speech-to-text.",
+      control: "toggle",
+      defaultValue: false,
+      liveBehavior: "immediate"
+    },
+    {
+      id: "tauren.voice.model",
+      owner: "tauren",
+      section: "voice",
+      label: "Voice model",
+      description: "Local Whisper model Tauren should use for speech-to-text.",
+      control: "select",
+      options: voiceModelOptions,
+      defaultValue: "base.en",
+      helper: "Download the selected model below before using voice input.",
+      liveBehavior: "immediate"
+    },
+    {
+      id: "tauren.voice.inputDevice",
+      owner: "tauren",
+      section: "voice",
+      label: "Voice input device",
+      description: "Microphone or audio input source Tauren should record from.",
+      control: "text",
+      defaultValue: "default",
+      helper: "Use the device selector below to change this setting.",
+      liveBehavior: "immediate"
+    },
+    {
+      id: "tauren.voice.language",
+      owner: "tauren",
+      section: "voice",
+      label: "Voice language",
+      description: "Language Tauren should pass to whisper.cpp for speech-to-text.",
+      control: "select",
+      options: voiceLanguageOptions,
+      defaultValue: "auto",
+      helper: "English-only models always use English. Choose a multilingual model for auto-detect or non-English input.",
+      liveBehavior: "immediate"
+    },
+    {
+      id: "tauren.voice.mode",
+      owner: "tauren",
+      section: "voice",
+      label: "Voice mode",
+      description: "Choose manual recording or explicit hands-free listening.",
+      control: "select",
+      options: voiceModeOptions,
+      defaultValue: "pushToTalk",
+      helper: "Hands-free keeps the selected microphone open locally while enabled.",
+      liveBehavior: "immediate"
+    },
+    {
+      id: "tauren.voice.activationMode",
+      owner: "tauren",
+      section: "voice",
+      label: "Microphone action",
+      description: "Choose whether the microphone button toggles recording or records only while held.",
+      control: "select",
+      options: voiceActivationModeOptions,
+      defaultValue: "toggle",
+      liveBehavior: "immediate"
+    },
+    {
+      id: "tauren.voice.maxRecordingSeconds",
+      owner: "tauren",
+      section: "voice",
+      label: "Maximum recording length",
+      description: "Stop recording automatically after this duration.",
+      control: "select",
+      options: voiceMaxRecordingSecondsOptions,
+      defaultValue: "60",
+      helper: "Use this as a safety stop for long or forgotten recordings.",
+      liveBehavior: "immediate"
+    },
+    {
+      id: "tauren.voice.handsFreeSensitivity",
+      owner: "tauren",
+      section: "voice",
+      label: "Hands-free sensitivity",
+      description: "Choose how readily hands-free listening treats microphone input as speech.",
+      control: "select",
+      options: voiceHandsFreeSensitivityOptions,
+      defaultValue: "normal",
+      helper: "Use Low in noisy rooms, High for quieter speech.",
+      liveBehavior: "immediate"
+    },
+    {
+      id: "tauren.voice.handsFreeSilenceSeconds",
+      owner: "tauren",
+      section: "voice",
+      label: "Hands-free silence stop",
+      description: "Silence duration after speech before Tauren finalizes and transcribes the utterance.",
+      control: "select",
+      options: voiceHandsFreeSilenceSecondsOptions,
+      defaultValue: "1.2",
+      liveBehavior: "immediate"
+    },
+    {
+      id: "tauren.voice.transcriptAction",
+      owner: "tauren",
+      section: "voice",
+      label: "After transcription",
+      description: "Choose what Tauren does with completed voice transcripts.",
+      control: "select",
+      options: voiceTranscriptActionOptions,
+      defaultValue: "insert",
       liveBehavior: "immediate"
     },
     {
@@ -8633,6 +8902,11 @@ ${after}`;
           this.handleAuthAction(authButton);
           return;
         }
+        const voiceButton2 = target?.closest("[data-voice-action]") ?? null;
+        if (voiceButton2) {
+          this.handleVoiceAction(voiceButton2);
+          return;
+        }
         const scopedModelsButton = target?.closest("[data-scoped-model-action]") ?? null;
         if (scopedModelsButton) {
           this.handleScopedModelsAction(scopedModelsButton);
@@ -8762,6 +9036,19 @@ ${after}`;
       const value = target instanceof HTMLInputElement && target.type === "checkbox" ? target.checked : target.value;
       this.options.postMessage({ type: "updateSetting", settingId: definition.id, value });
     }
+    handleVoiceAction(button) {
+      const action = button.dataset.voiceAction;
+      const modelId = button.dataset.voiceModelId;
+      if (action === "downloadBinary") {
+        this.options.postMessage({ type: "voiceDownloadBinary" });
+      } else if (action === "refreshInputDevices") {
+        this.options.postMessage({ type: "voiceRefreshInputDevices" });
+      } else if (action === "downloadModel") {
+        this.options.postMessage({ type: "voiceDownloadModel", ...modelId ? { modelId } : {} });
+      } else if (action === "deleteModel" && modelId) {
+        this.options.postMessage({ type: "voiceDeleteModel", modelId });
+      }
+    }
     handleScopedModelsToggle(input) {
       const modelId = input.dataset.scopedModelId;
       if (!modelId) {
@@ -8859,6 +9146,8 @@ ${after}`;
       cards.className = "settings-surface__cards";
       if (section.id === "login") {
         this.appendAuthCards(cards, state2);
+      } else if (section.id === "voice") {
+        this.appendVoiceCards(cards, state2);
       } else {
         for (const definition of getVisibleSettingsForSection(section.id, state2)) {
           cards.append(this.createSettingCard(definition, state2));
@@ -8874,6 +9163,111 @@ ${after}`;
       if (state2.chatFace === "settings") {
         requestAnimationFrame(() => this.focusSectionButton(sectionId));
       }
+    }
+    appendVoiceCards(cards, state2) {
+      const voice = state2.voice;
+      if (!voice) {
+        const card = document.createElement("article");
+        card.className = "settings-surface__card";
+        card.append(createTextElement("h4", "settings-surface__card-title", "Voice assets"));
+        card.append(createTextElement("p", "settings-surface__card-body", "Voice state is not available yet."));
+        cards.append(card);
+        return;
+      }
+      for (const definition of getVisibleSettingsForSection("voice", state2)) {
+        if (definition.id !== "tauren.voice.inputDevice") {
+          cards.append(this.createSettingCard(definition, state2));
+        }
+      }
+      if (voice.languageForced) {
+        const card = document.createElement("article");
+        card.className = "settings-surface__card";
+        card.append(createTextElement("h4", "settings-surface__card-title", "Language forced to English"));
+        card.append(createTextElement("p", "settings-surface__card-helper", "The selected English-only Whisper model always uses English. Choose a multilingual model for auto-detect or non-English input."));
+        cards.append(card);
+      }
+      cards.append(this.createVoiceInputDeviceCard(voice));
+      cards.append(this.createVoiceBinaryCard(voice));
+      cards.append(this.createVoiceModelCard(voice));
+    }
+    createVoiceInputDeviceCard(voice) {
+      const card = document.createElement("article");
+      card.className = "settings-surface__card";
+      card.append(createTextElement("h4", "settings-surface__card-title", "Input device"));
+      card.append(createTextElement("p", "settings-surface__card-body", "Choose which microphone or audio source Tauren records from."));
+      const select = document.createElement("select");
+      select.className = "settings-surface__select";
+      select.dataset.settingId = "tauren.voice.inputDevice";
+      select.disabled = voice.recordingStatus === "recording" || voice.recordingStatus === "transcribing";
+      for (const device of voice.inputDevices.devices) {
+        const option = document.createElement("option");
+        option.value = device.id;
+        option.textContent = device.label;
+        option.selected = device.id === voice.inputDevices.selectedId;
+        select.append(option);
+      }
+      card.append(select);
+      const toolbar = document.createElement("div");
+      toolbar.className = "settings-surface__auth-toolbar";
+      const refreshButton = this.createVoiceButton(voice.inputDevices.status === "refreshing" ? "Refreshing\u2026" : "Refresh devices", "refreshInputDevices");
+      refreshButton.disabled = voice.inputDevices.status === "refreshing";
+      toolbar.append(refreshButton);
+      card.append(toolbar);
+      const statusLabel = voice.inputDevices.status === "ready" ? `${Math.max(voice.inputDevices.devices.length - 1, 0)} input device${voice.inputDevices.devices.length === 2 ? "" : "s"} detected.` : voice.inputDevices.status === "refreshing" ? "Looking for input devices\u2026" : "Click Refresh devices to detect available microphones.";
+      card.append(createTextElement("p", "settings-surface__card-helper", statusLabel));
+      if (voice.inputDevices.error) {
+        card.append(createTextElement("p", "settings-surface__card-error", voice.inputDevices.error));
+      }
+      return card;
+    }
+    createVoiceBinaryCard(voice) {
+      const card = document.createElement("article");
+      card.className = "settings-surface__card";
+      card.append(createTextElement("h4", "settings-surface__card-title", "whisper.cpp runtime"));
+      card.append(createTextElement("p", "settings-surface__card-body", voice.binary.source === "system" && voice.binary.path ? `${voice.binary.label}: ${voice.binary.path}` : voice.binary.label));
+      card.append(createTextElement("p", "settings-surface__card-helper", voice.binary.helper ?? getVoiceDownloadLabel(voice.binary.download)));
+      const button = this.createVoiceButton(voice.binary.status === "failed" ? "Retry runtime download" : "Download runtime", "downloadBinary");
+      button.disabled = voice.binary.status === "downloaded" || voice.binary.status === "downloading" || voice.binary.status === "unavailable";
+      card.append(button);
+      if (voice.binary.download.error) {
+        card.append(createTextElement("p", "settings-surface__card-error", voice.binary.download.error));
+      }
+      return card;
+    }
+    createVoiceModelCard(voice) {
+      const card = document.createElement("article");
+      card.className = "settings-surface__card";
+      card.append(createTextElement("h4", "settings-surface__card-title", "Downloaded models"));
+      for (const model of voice.models) {
+        const row = document.createElement("div");
+        row.className = "settings-surface__auth-toolbar";
+        row.append(createTextElement("span", "settings-surface__card-body", `${model.label} \xB7 ${formatVoiceBytes(model.sizeBytes)} \xB7 ${getVoiceDownloadLabel(model.download)}`));
+        const downloadButton = this.createVoiceButton(model.download.status === "failed" ? "Retry" : "Download", "downloadModel", model.id);
+        downloadButton.disabled = model.downloaded || model.download.status === "downloading";
+        row.append(downloadButton);
+        const deleteButton = this.createVoiceButton("Delete", "deleteModel", model.id);
+        deleteButton.disabled = !model.downloaded || model.id === voice.selectedModelId;
+        row.append(deleteButton);
+        card.append(row);
+        if (model.download.error) {
+          card.append(createTextElement("p", "settings-surface__card-error", model.download.error));
+        }
+      }
+      if (voice.error) {
+        card.append(createTextElement("p", "settings-surface__card-error", voice.error));
+      }
+      return card;
+    }
+    createVoiceButton(label, action, modelId) {
+      const button = document.createElement("button");
+      button.className = "settings-surface__button";
+      button.type = "button";
+      button.textContent = label;
+      button.dataset.voiceAction = action;
+      if (modelId) {
+        button.dataset.voiceModelId = modelId;
+      }
+      return button;
     }
     appendAuthCards(cards, state2) {
       const toolbar = document.createElement("div");
@@ -9281,8 +9675,33 @@ ${after}`;
     const values = getVisibleSettingsForSection(sectionId, state2).map((definition) => [definition.id, state2.settings.values[definition.id]]);
     const modelOptions = sectionId === "runtime" || sectionId === "scopedModels" ? state2.modelOptions.map((model) => `${model.provider}/${model.id}:${model.name}`).join("|") : "";
     const auth = sectionId === "login" ? state2.auth : void 0;
+    const voice = sectionId === "voice" ? state2.voice : void 0;
     const providerFilter = sectionId === "scopedModels" ? scopedModelsProviderFilter : void 0;
-    return JSON.stringify([sectionId, values, modelOptions, auth, state2.busy, state2.settings.errors, providerFilter]);
+    return JSON.stringify([sectionId, values, modelOptions, auth, voice, state2.busy, state2.settings.errors, providerFilter]);
+  }
+  function getVoiceDownloadLabel(download) {
+    if (download.status === "downloaded") {
+      return "Downloaded";
+    }
+    if (download.status === "downloading") {
+      if (download.totalBytes && download.receivedBytes !== void 0) {
+        return `Downloading ${Math.round(download.receivedBytes / download.totalBytes * 100)}% (${formatVoiceBytes(download.receivedBytes)} / ${formatVoiceBytes(download.totalBytes)})`;
+      }
+      return `Downloading ${formatVoiceBytes(download.receivedBytes ?? 0)}`;
+    }
+    if (download.status === "failed") {
+      return "Download failed";
+    }
+    if (download.status === "unavailable") {
+      return "Unavailable";
+    }
+    return "Not downloaded";
+  }
+  function formatVoiceBytes(value) {
+    if (value >= 1024 * 1024 * 1024) {
+      return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GiB`;
+    }
+    return `${Math.round(value / (1024 * 1024))} MiB`;
   }
   function createTextElement(tagName, className, text) {
     const element = document.createElement(tagName);
@@ -9391,6 +9810,7 @@ ${after}`;
     treeRefreshing: false,
     treeError: "",
     sessionLoading: false,
+    voice: void 0,
     perfEnabled: false
   };
   function createStartupResourcesCache() {
@@ -9545,8 +9965,98 @@ ${after}`;
       treeRefreshing: Boolean(record.treeRefreshing),
       treeError: typeof record.treeError === "string" ? record.treeError : "",
       sessionLoading: Boolean(record.sessionLoading),
+      voice: parseVoiceState(record.voice),
       perfEnabled: Boolean(record.perfEnabled)
     };
+  }
+  function parseVoiceState(value) {
+    if (!isRecord(value) || !Array.isArray(value.models) || !isRecord(value.binary)) {
+      return void 0;
+    }
+    const selectedModelId = parseVoiceModelId(value.selectedModelId);
+    const transcriptAction = value.transcriptAction === "submit" ? "submit" : "insert";
+    const language = parseVoiceLanguage(value.language);
+    const effectiveLanguage = parseVoiceLanguage(value.effectiveLanguage);
+    const languageForced = Boolean(value.languageForced);
+    const mode = value.mode === "handsFree" ? "handsFree" : "pushToTalk";
+    const activationMode = value.activationMode === "hold" ? "hold" : "toggle";
+    const maxRecordingSeconds = typeof value.maxRecordingSeconds === "number" ? value.maxRecordingSeconds : 60;
+    const handsFreeSensitivity = value.handsFreeSensitivity === "low" || value.handsFreeSensitivity === "high" ? value.handsFreeSensitivity : "normal";
+    const handsFreeSilenceSeconds = typeof value.handsFreeSilenceSeconds === "number" ? value.handsFreeSilenceSeconds : 1.2;
+    const audioLevel = typeof value.audioLevel === "number" ? Math.max(0, Math.min(1, value.audioLevel)) : 0;
+    const recordingStatus = value.recordingStatus === "listening" || value.recordingStatus === "recording" || value.recordingStatus === "transcribing" || value.recordingStatus === "error" ? value.recordingStatus : "idle";
+    return {
+      enabled: Boolean(value.enabled),
+      selectedModelId,
+      transcriptAction,
+      mode,
+      activationMode,
+      maxRecordingSeconds,
+      handsFreeSensitivity,
+      handsFreeSilenceSeconds,
+      language,
+      effectiveLanguage,
+      languageForced,
+      models: value.models.filter(isVoiceModelOption).map((model) => ({
+        ...model,
+        download: parseVoiceDownloadState(model.download)
+      })),
+      binary: {
+        status: parseVoiceDownloadStatus(value.binary.status),
+        label: typeof value.binary.label === "string" ? value.binary.label : "whisper.cpp",
+        ...typeof value.binary.path === "string" ? { path: value.binary.path } : {},
+        ...value.binary.source === "system" || value.binary.source === "downloaded" ? { source: value.binary.source } : {},
+        ...typeof value.binary.helper === "string" ? { helper: value.binary.helper } : {},
+        download: parseVoiceDownloadState(value.binary.download)
+      },
+      inputDevices: parseVoiceInputDevicesState(value.inputDevices),
+      recordingStatus,
+      audioLevel,
+      ...typeof value.error === "string" && value.error ? { error: value.error } : {}
+    };
+  }
+  function parseVoiceModelId(value) {
+    return value === "tiny.en" || value === "base.en" || value === "small.en" || value === "tiny" || value === "base" || value === "small" ? value : "base.en";
+  }
+  function parseVoiceLanguage(value) {
+    return value === "en" || value === "de" || value === "fr" || value === "es" || value === "it" || value === "pt" || value === "nl" || value === "pl" || value === "ja" || value === "ko" || value === "zh" ? value : "auto";
+  }
+  function parseVoiceInputDevicesState(value) {
+    if (!isRecord(value) || !Array.isArray(value.devices)) {
+      return {
+        selectedId: "default",
+        status: "idle",
+        devices: [{ id: "default", label: "Default microphone", isDefault: true }]
+      };
+    }
+    const status = value.status === "refreshing" || value.status === "ready" || value.status === "error" ? value.status : "idle";
+    const devices = value.devices.filter(isVoiceInputDevice);
+    return {
+      selectedId: typeof value.selectedId === "string" && value.selectedId ? value.selectedId : "default",
+      status,
+      devices: devices.length > 0 ? devices : [{ id: "default", label: "Default microphone", isDefault: true }],
+      ...typeof value.error === "string" && value.error ? { error: value.error } : {}
+    };
+  }
+  function isVoiceInputDevice(value) {
+    return isRecord(value) && typeof value.id === "string" && typeof value.label === "string";
+  }
+  function isVoiceModelOption(value) {
+    return isRecord(value) && (value.id === "tiny.en" || value.id === "base.en" || value.id === "small.en" || value.id === "tiny" || value.id === "base" || value.id === "small") && typeof value.label === "string" && typeof value.description === "string" && typeof value.sizeBytes === "number" && typeof value.downloaded === "boolean";
+  }
+  function parseVoiceDownloadState(value) {
+    if (!isRecord(value)) {
+      return { status: "idle" };
+    }
+    return {
+      status: parseVoiceDownloadStatus(value.status),
+      ...typeof value.receivedBytes === "number" ? { receivedBytes: value.receivedBytes } : {},
+      ...typeof value.totalBytes === "number" ? { totalBytes: value.totalBytes } : {},
+      ...typeof value.error === "string" ? { error: value.error } : {}
+    };
+  }
+  function parseVoiceDownloadStatus(value) {
+    return value === "downloading" || value === "downloaded" || value === "failed" || value === "unavailable" ? value : "idle";
   }
   function parseKwardQuestion(value) {
     if (!isRecord(value) || typeof value.sessionId !== "string" || typeof value.questionRequestId !== "string" || !Array.isArray(value.questions)) {
@@ -9907,6 +10417,7 @@ ${after}`;
     diffRemovedElement,
     streamingBehaviorButtonElements,
     attachButton,
+    voiceButton,
     newSessionButton,
     contextElement,
     contextValueElement,
@@ -10000,6 +10511,7 @@ ${after}`;
     textarea,
     submitButton,
     attachButton,
+    voiceButton,
     newSessionButton,
     busySubmitElement,
     diffSummaryElement,
@@ -10119,6 +10631,14 @@ ${after}`;
     if (event.data?.type === "optimisticNewSession") {
       applyOptimisticNewSessionTransition();
       focusPromptInput();
+      return;
+    }
+    if (event.data?.type === "voiceState") {
+      const voice = parseHostVoiceState(event.data.voice);
+      if (voice) {
+        state = { ...state, voice };
+        scheduleRender();
+      }
       return;
     }
     if (event.data?.type !== "state") {
@@ -10264,6 +10784,10 @@ ${after}`;
     icon.setAttribute("aria-hidden", "true");
     icon.textContent = kind === "warning" ? "\u26A0" : kind === "error" ? "\u2715" : "\u2713";
     return icon;
+  }
+  function parseHostVoiceState(value) {
+    const parsedState = parseWebviewStateMessage({ type: "state", voice: value }, state);
+    return parsedState.voice;
   }
   function scheduleRender(options = {}) {
     pendingReturnToChatAfterRender ||= Boolean(options.returnToChatMain);

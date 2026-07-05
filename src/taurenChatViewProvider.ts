@@ -70,12 +70,15 @@ import {
   welcomeDismissedStorageKey
 } from './settings/taurenSettings';
 import { isRecord } from './shared/typeGuards';
+import { VoiceController } from './voice/voiceController';
+import type { VoiceInputDevice } from './voice/types';
 
 export const taurenChatViewType = 'tauren.chatView';
 export type { AgentClient } from './agent/clientTypes';
 export type { AgentClient as PiClient } from './agent/clientTypes';
 
 const currentSessionFileStorageKey = 'tauren.currentSessionFile';
+const voiceInputDevicesStorageKey = 'tauren.voice.inputDevices';
 const taurenSidebarFocusContextKey = 'tauren.sidebarFocus';
 const taurenBusyContextKey = 'tauren.busy';
 const taurenBackendContextKey = 'tauren.backend';
@@ -153,6 +156,7 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
     isEnabled: () => this.debugPerformanceEnabled,
     writeLine: (line) => this.writePerfLine(line)
   });
+  private readonly voiceController: VoiceController;
   private cachedQuietStartup: boolean | undefined;
   private pendingLaneSwitch: PendingPerfBoundary | undefined;
   private pendingSessionSwitch: PendingPerfBoundary | undefined;
@@ -165,7 +169,8 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
     private readonly globalState?: vscode.Memento,
     private readonly workspaceCwdProvider: () => string | undefined = () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
     private readonly devRenderInstrumentation = false,
-    private readonly sessionMetadataStorageUri?: vscode.Uri
+    private readonly sessionMetadataStorageUri?: vscode.Uri,
+    private readonly voiceStorageUri?: vscode.Uri
   ) {
     this.cachedQuietStartup = this.workspaceState?.get<boolean>(quietStartupStorageKey);
 
@@ -181,6 +186,22 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
         placeHolder: placeholder
       })
     };
+    this.voiceController = new VoiceController({
+      storageUri: this.voiceStorageUri ?? this.sessionMetadataStorageUri,
+      onDidChangeState: () => this.postVoiceState(),
+      onTranscript: async (text, action) => {
+        if (action === 'submit') {
+          await this.controller.submitTextFromVoice(text);
+        } else {
+          this.controller.appendTextToComposer(text);
+        }
+      },
+      getCachedInputDevices: () => this.readCachedVoiceInputDevices(),
+      setCachedInputDevices: (devices) => this.writeCachedVoiceInputDevices(devices),
+      showNotification: (message, notifyType) => this.showNotification(message, notifyType),
+      showToast: (message, kind) => this.showToast(message, kind)
+    });
+
     const configuredCreateClient = createClient ?? ((options: AgentClientOptions) => createConfiguredAgentClient(options, {
       extensionUi,
       showNotification: (message, notifyType) => this.showNotification(message, notifyType),
@@ -242,7 +263,8 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
         sessionPath,
         displayName,
         readSessionDiffSnapshot(this.workspaceState, sessionPath)
-      )
+      ),
+      voiceController: this.voiceController
     });
 
     const initialWorkspaceState = getPiStartupCwdState(this.workspaceCwdProvider(), getRejectEditWriteOutsideWorkspaceSetting());
@@ -287,6 +309,19 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
 
         if (affectsTaurenSettings) {
           this.controller.postState();
+        }
+
+        if (event.affectsConfiguration('tauren.voice.enabled')
+          || event.affectsConfiguration('tauren.voice.model')
+          || event.affectsConfiguration('tauren.voice.inputDevice')
+          || event.affectsConfiguration('tauren.voice.language')
+          || event.affectsConfiguration('tauren.voice.mode')
+          || event.affectsConfiguration('tauren.voice.activationMode')
+          || event.affectsConfiguration('tauren.voice.maxRecordingSeconds')
+          || event.affectsConfiguration('tauren.voice.handsFreeSensitivity')
+          || event.affectsConfiguration('tauren.voice.handsFreeSilenceSeconds')
+          || event.affectsConfiguration('tauren.voice.transcriptAction')) {
+          void this.voiceController.handleConfigurationChange(event).finally(() => this.postVoiceState());
         }
 
         if (event.affectsConfiguration('tauren.rejectEditWriteOutsideWorkspace')) {
@@ -352,6 +387,7 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
     this.perfOutputChannel?.dispose();
     this.codeRenderer.dispose();
     this.sessionDiffViewer.dispose();
+    this.voiceController.dispose();
     this.controller.dispose();
   }
 
@@ -968,6 +1004,30 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
     }
   }
 
+  private readCachedVoiceInputDevices(): VoiceInputDevice[] | undefined {
+    const cached = this.globalState?.get<unknown>(voiceInputDevicesStorageKey);
+    if (!isRecord(cached) || cached.platform !== process.platform || !Array.isArray(cached.devices)) {
+      return undefined;
+    }
+
+    return cached.devices.filter((device): device is VoiceInputDevice => isRecord(device)
+      && typeof device.id === 'string'
+      && typeof device.label === 'string'
+      && (device.isDefault === undefined || typeof device.isDefault === 'boolean'));
+  }
+
+  private async writeCachedVoiceInputDevices(devices: VoiceInputDevice[]): Promise<void> {
+    await this.globalState?.update(voiceInputDevicesStorageKey, {
+      platform: process.platform,
+      refreshedAt: Date.now(),
+      devices
+    });
+  }
+
+  private postVoiceState(): void {
+    void this.webviewView?.webview.postMessage({ type: 'voiceState', voice: this.voiceController.getState() });
+  }
+
   private withProviderState(message: WebviewStateMessage): WebviewStateMessage {
     if (message.lane) {
       this.lastWebviewLane = message.lane;
@@ -980,6 +1040,7 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
       customUiTheme: getCustomUiThemeSetting(),
       allowRemoteImages: getAllowRemoteImagesSetting(),
       welcomeDismissed: this.isWelcomeDismissed(),
+      voice: this.voiceController.getState(),
       perfEnabled: this.debugPerformanceEnabled
     };
   }

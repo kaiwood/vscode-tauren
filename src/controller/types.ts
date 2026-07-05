@@ -9,6 +9,7 @@ import type {
   WebviewStateMessage
 } from '../webviewProtocol/types';
 import type { StatePublisherScheduler } from './statePublisher';
+import type { VoiceController } from '../voice/voiceController';
 
 export type SessionListProgressOptions = {
   onProgress?: (sessions: WebviewSessionItem[]) => void;
@@ -57,4 +58,5 @@ export type TaurenChatControllerOptions = {
   showSessionChanges?: (sessionPath: string, displayName: string) => Promise<void>;
   loadSessionDiffSnapshot?: (sessionFile: string) => SessionDiffSnapshot | undefined;
   saveSessionDiffSnapshot?: (sessionFile: string, snapshot: SessionDiffSnapshot) => void;
+  voiceController?: VoiceController;
 };

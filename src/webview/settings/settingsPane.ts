@@ -31,6 +31,13 @@ export class SettingsPaneController {
         return;
       }
 
+      const voiceButton = target?.closest<HTMLButtonElement>('[data-voice-action]') ?? null;
+
+      if (voiceButton) {
+        this.handleVoiceAction(voiceButton);
+        return;
+      }
+
       const scopedModelsButton = target?.closest<HTMLButtonElement>('[data-scoped-model-action]') ?? null;
 
       if (scopedModelsButton) {
@@ -199,6 +206,21 @@ export class SettingsPaneController {
     this.options.postMessage({ type: 'updateSetting', settingId: definition.id, value });
   }
 
+  private handleVoiceAction(button: HTMLButtonElement): void {
+    const action = button.dataset.voiceAction;
+    const modelId = button.dataset.voiceModelId;
+
+    if (action === 'downloadBinary') {
+      this.options.postMessage({ type: 'voiceDownloadBinary' });
+    } else if (action === 'refreshInputDevices') {
+      this.options.postMessage({ type: 'voiceRefreshInputDevices' });
+    } else if (action === 'downloadModel') {
+      this.options.postMessage({ type: 'voiceDownloadModel', ...(modelId ? { modelId } : {}) });
+    } else if (action === 'deleteModel' && modelId) {
+      this.options.postMessage({ type: 'voiceDeleteModel', modelId });
+    }
+  }
+
   private handleScopedModelsToggle(input: HTMLInputElement): void {
     const modelId = input.dataset.scopedModelId;
     if (!modelId) {
@@ -320,6 +342,8 @@ export class SettingsPaneController {
 
     if (section.id === 'login') {
       this.appendAuthCards(cards, state);
+    } else if (section.id === 'voice') {
+      this.appendVoiceCards(cards, state);
     } else {
       for (const definition of getVisibleSettingsForSection(section.id, state)) {
         cards.append(this.createSettingCard(definition, state));
@@ -338,6 +362,141 @@ export class SettingsPaneController {
     if (state.chatFace === 'settings') {
       requestAnimationFrame(() => this.focusSectionButton(sectionId));
     }
+  }
+
+  private appendVoiceCards(cards: HTMLElement, state: WebviewState): void {
+    const voice = state.voice;
+    if (!voice) {
+      const card = document.createElement('article');
+      card.className = 'settings-surface__card';
+      card.append(createTextElement('h4', 'settings-surface__card-title', 'Voice assets'));
+      card.append(createTextElement('p', 'settings-surface__card-body', 'Voice state is not available yet.'));
+      cards.append(card);
+      return;
+    }
+
+    for (const definition of getVisibleSettingsForSection('voice', state)) {
+      if (definition.id !== 'tauren.voice.inputDevice') {
+        cards.append(this.createSettingCard(definition, state));
+      }
+    }
+
+    if (voice.languageForced) {
+      const card = document.createElement('article');
+      card.className = 'settings-surface__card';
+      card.append(createTextElement('h4', 'settings-surface__card-title', 'Language forced to English'));
+      card.append(createTextElement('p', 'settings-surface__card-helper', 'The selected English-only Whisper model always uses English. Choose a multilingual model for auto-detect or non-English input.'));
+      cards.append(card);
+    }
+
+    cards.append(this.createVoiceInputDeviceCard(voice));
+    cards.append(this.createVoiceBinaryCard(voice));
+    cards.append(this.createVoiceModelCard(voice));
+  }
+
+  private createVoiceInputDeviceCard(voice: NonNullable<WebviewState['voice']>): HTMLElement {
+    const card = document.createElement('article');
+    card.className = 'settings-surface__card';
+    card.append(createTextElement('h4', 'settings-surface__card-title', 'Input device'));
+    card.append(createTextElement('p', 'settings-surface__card-body', 'Choose which microphone or audio source Tauren records from.'));
+
+    const select = document.createElement('select');
+    select.className = 'settings-surface__select';
+    select.dataset.settingId = 'tauren.voice.inputDevice';
+    select.disabled = voice.recordingStatus === 'recording' || voice.recordingStatus === 'transcribing';
+
+    for (const device of voice.inputDevices.devices) {
+      const option = document.createElement('option');
+      option.value = device.id;
+      option.textContent = device.label;
+      option.selected = device.id === voice.inputDevices.selectedId;
+      select.append(option);
+    }
+
+    card.append(select);
+
+    const toolbar = document.createElement('div');
+    toolbar.className = 'settings-surface__auth-toolbar';
+    const refreshButton = this.createVoiceButton(voice.inputDevices.status === 'refreshing' ? 'Refreshing…' : 'Refresh devices', 'refreshInputDevices');
+    refreshButton.disabled = voice.inputDevices.status === 'refreshing';
+    toolbar.append(refreshButton);
+    card.append(toolbar);
+
+    const statusLabel = voice.inputDevices.status === 'ready'
+      ? `${Math.max(voice.inputDevices.devices.length - 1, 0)} input device${voice.inputDevices.devices.length === 2 ? '' : 's'} detected.`
+      : voice.inputDevices.status === 'refreshing'
+        ? 'Looking for input devices…'
+        : 'Click Refresh devices to detect available microphones.';
+    card.append(createTextElement('p', 'settings-surface__card-helper', statusLabel));
+
+    if (voice.inputDevices.error) {
+      card.append(createTextElement('p', 'settings-surface__card-error', voice.inputDevices.error));
+    }
+
+    return card;
+  }
+
+  private createVoiceBinaryCard(voice: NonNullable<WebviewState['voice']>): HTMLElement {
+    const card = document.createElement('article');
+    card.className = 'settings-surface__card';
+    card.append(createTextElement('h4', 'settings-surface__card-title', 'whisper.cpp runtime'));
+    card.append(createTextElement('p', 'settings-surface__card-body', voice.binary.source === 'system' && voice.binary.path
+      ? `${voice.binary.label}: ${voice.binary.path}`
+      : voice.binary.label));
+    card.append(createTextElement('p', 'settings-surface__card-helper', voice.binary.helper ?? getVoiceDownloadLabel(voice.binary.download)));
+
+    const button = this.createVoiceButton(voice.binary.status === 'failed' ? 'Retry runtime download' : 'Download runtime', 'downloadBinary');
+    button.disabled = voice.binary.status === 'downloaded' || voice.binary.status === 'downloading' || voice.binary.status === 'unavailable';
+    card.append(button);
+
+    if (voice.binary.download.error) {
+      card.append(createTextElement('p', 'settings-surface__card-error', voice.binary.download.error));
+    }
+
+    return card;
+  }
+
+  private createVoiceModelCard(voice: NonNullable<WebviewState['voice']>): HTMLElement {
+    const card = document.createElement('article');
+    card.className = 'settings-surface__card';
+    card.append(createTextElement('h4', 'settings-surface__card-title', 'Downloaded models'));
+
+    for (const model of voice.models) {
+      const row = document.createElement('div');
+      row.className = 'settings-surface__auth-toolbar';
+      row.append(createTextElement('span', 'settings-surface__card-body', `${model.label} · ${formatVoiceBytes(model.sizeBytes)} · ${getVoiceDownloadLabel(model.download)}`));
+
+      const downloadButton = this.createVoiceButton(model.download.status === 'failed' ? 'Retry' : 'Download', 'downloadModel', model.id);
+      downloadButton.disabled = model.downloaded || model.download.status === 'downloading';
+      row.append(downloadButton);
+
+      const deleteButton = this.createVoiceButton('Delete', 'deleteModel', model.id);
+      deleteButton.disabled = !model.downloaded || model.id === voice.selectedModelId;
+      row.append(deleteButton);
+      card.append(row);
+
+      if (model.download.error) {
+        card.append(createTextElement('p', 'settings-surface__card-error', model.download.error));
+      }
+    }
+
+    if (voice.error) {
+      card.append(createTextElement('p', 'settings-surface__card-error', voice.error));
+    }
+
+    return card;
+  }
+
+  private createVoiceButton(label: string, action: string, modelId?: string): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.className = 'settings-surface__button';
+    button.type = 'button';
+    button.textContent = label;
+    button.dataset.voiceAction = action;
+    if (modelId) {
+      button.dataset.voiceModelId = modelId;
+    }
+    return button;
   }
 
   private appendAuthCards(cards: HTMLElement, state: WebviewState): void {
@@ -861,8 +1020,39 @@ function createSettingsSignature(sectionId: SettingsSection, state: WebviewState
     ? state.modelOptions.map((model) => `${model.provider}/${model.id}:${model.name}`).join('|')
     : '';
   const auth = sectionId === 'login' ? state.auth : undefined;
+  const voice = sectionId === 'voice' ? state.voice : undefined;
   const providerFilter = sectionId === 'scopedModels' ? scopedModelsProviderFilter : undefined;
-  return JSON.stringify([sectionId, values, modelOptions, auth, state.busy, state.settings.errors, providerFilter]);
+  return JSON.stringify([sectionId, values, modelOptions, auth, voice, state.busy, state.settings.errors, providerFilter]);
+}
+
+function getVoiceDownloadLabel(download: { status: string; receivedBytes?: number; totalBytes?: number }): string {
+  if (download.status === 'downloaded') {
+    return 'Downloaded';
+  }
+
+  if (download.status === 'downloading') {
+    if (download.totalBytes && download.receivedBytes !== undefined) {
+      return `Downloading ${Math.round((download.receivedBytes / download.totalBytes) * 100)}% (${formatVoiceBytes(download.receivedBytes)} / ${formatVoiceBytes(download.totalBytes)})`;
+    }
+    return `Downloading ${formatVoiceBytes(download.receivedBytes ?? 0)}`;
+  }
+
+  if (download.status === 'failed') {
+    return 'Download failed';
+  }
+
+  if (download.status === 'unavailable') {
+    return 'Unavailable';
+  }
+
+  return 'Not downloaded';
+}
+
+function formatVoiceBytes(value: number): string {
+  if (value >= 1024 * 1024 * 1024) {
+    return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GiB`;
+  }
+  return `${Math.round(value / (1024 * 1024))} MiB`;
 }
 
 function createTextElement(tagName: string, className: string, text: string): HTMLElement {

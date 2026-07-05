@@ -19,7 +19,17 @@ export type TaurenSettingId =
   | 'tauren.rejectEditWriteOutsideWorkspace'
   | 'tauren.debugPerformance'
   | 'tauren.readyScript'
-  | 'tauren.readyScriptEnabled';
+  | 'tauren.readyScriptEnabled'
+  | 'tauren.voice.enabled'
+  | 'tauren.voice.model'
+  | 'tauren.voice.inputDevice'
+  | 'tauren.voice.language'
+  | 'tauren.voice.mode'
+  | 'tauren.voice.activationMode'
+  | 'tauren.voice.maxRecordingSeconds'
+  | 'tauren.voice.handsFreeSensitivity'
+  | 'tauren.voice.handsFreeSilenceSeconds'
+  | 'tauren.voice.transcriptAction';
 
 export type PiSettingId =
   | 'defaultProvider'
@@ -37,7 +47,7 @@ export type PiSettingId =
   | 'enabledModels'
   | 'enableSkillCommands';
 
-export type TaurenSettingsSection = 'appearance' | 'login' | 'extensions' | 'runtime' | 'scopedModels' | 'workspaceSafety' | 'advanced';
+export type TaurenSettingsSection = 'appearance' | 'login' | 'extensions' | 'runtime' | 'scopedModels' | 'voice' | 'workspaceSafety' | 'advanced';
 export type SettingsOwner = 'tauren' | 'pi';
 export type SettingControl = 'toggle' | 'select' | 'text' | 'readonlyList' | 'scopedModels';
 export type SettingValue = boolean | string | string[];
@@ -97,6 +107,66 @@ const customUiThemeOptions = [
   { value: 'matrix', label: 'Matrix' }
 ] as const satisfies readonly SettingOption[];
 
+const voiceModelOptions = [
+  { value: 'tiny.en', label: 'Tiny English' },
+  { value: 'base.en', label: 'Base English' },
+  { value: 'small.en', label: 'Small English' },
+  { value: 'tiny', label: 'Tiny Multilingual' },
+  { value: 'base', label: 'Base Multilingual' },
+  { value: 'small', label: 'Small Multilingual' }
+] as const satisfies readonly SettingOption[];
+
+const voiceLanguageOptions = [
+  { value: 'auto', label: 'Auto-detect' },
+  { value: 'en', label: 'English' },
+  { value: 'de', label: 'German' },
+  { value: 'fr', label: 'French' },
+  { value: 'es', label: 'Spanish' },
+  { value: 'it', label: 'Italian' },
+  { value: 'pt', label: 'Portuguese' },
+  { value: 'nl', label: 'Dutch' },
+  { value: 'pl', label: 'Polish' },
+  { value: 'ja', label: 'Japanese' },
+  { value: 'ko', label: 'Korean' },
+  { value: 'zh', label: 'Chinese' }
+] as const satisfies readonly SettingOption[];
+
+const voiceModeOptions = [
+  { value: 'pushToTalk', label: 'Push to talk' },
+  { value: 'handsFree', label: 'Hands-free' }
+] as const satisfies readonly SettingOption[];
+
+const voiceActivationModeOptions = [
+  { value: 'toggle', label: 'Click to toggle' },
+  { value: 'hold', label: 'Hold to talk' }
+] as const satisfies readonly SettingOption[];
+
+const voiceMaxRecordingSecondsOptions = [
+  { value: '0', label: 'No limit' },
+  { value: '15', label: '15 seconds' },
+  { value: '30', label: '30 seconds' },
+  { value: '60', label: '1 minute' },
+  { value: '120', label: '2 minutes' }
+] as const satisfies readonly SettingOption[];
+
+const voiceHandsFreeSensitivityOptions = [
+  { value: 'low', label: 'Low' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'high', label: 'High' }
+] as const satisfies readonly SettingOption[];
+
+const voiceHandsFreeSilenceSecondsOptions = [
+  { value: '0.8', label: '0.8 seconds' },
+  { value: '1.2', label: '1.2 seconds' },
+  { value: '1.5', label: '1.5 seconds' },
+  { value: '2', label: '2 seconds' }
+] as const satisfies readonly SettingOption[];
+
+const voiceTranscriptActionOptions = [
+  { value: 'insert', label: 'Insert into Chat Input' },
+  { value: 'submit', label: 'Submit automatically' }
+] as const satisfies readonly SettingOption[];
+
 export const settingsSections = [
   {
     id: 'login',
@@ -132,6 +202,13 @@ export const settingsSections = [
     eyebrow: 'Agent runtime',
     title: 'Scoped Models',
     description: 'Choose and order the models Tauren sends to the selected backend for model cycling.'
+  },
+  {
+    id: 'voice',
+    label: 'Voice',
+    eyebrow: 'Local STT',
+    title: 'Voice',
+    description: 'Download local whisper.cpp assets and configure Tauren voice input.'
   },
   {
     id: 'workspaceSafety',
@@ -224,6 +301,120 @@ export const settingDefinitions = [
     control: 'select',
     options: customUiThemeOptions,
     defaultValue: 'default',
+    liveBehavior: 'immediate'
+  },
+  {
+    id: 'tauren.voice.enabled',
+    owner: 'tauren',
+    section: 'voice',
+    label: 'Voice input',
+    description: 'Show the microphone control in the Chat Input and allow local speech-to-text.',
+    control: 'toggle',
+    defaultValue: false,
+    liveBehavior: 'immediate'
+  },
+  {
+    id: 'tauren.voice.model',
+    owner: 'tauren',
+    section: 'voice',
+    label: 'Voice model',
+    description: 'Local Whisper model Tauren should use for speech-to-text.',
+    control: 'select',
+    options: voiceModelOptions,
+    defaultValue: 'base.en',
+    helper: 'Download the selected model below before using voice input.',
+    liveBehavior: 'immediate'
+  },
+  {
+    id: 'tauren.voice.inputDevice',
+    owner: 'tauren',
+    section: 'voice',
+    label: 'Voice input device',
+    description: 'Microphone or audio input source Tauren should record from.',
+    control: 'text',
+    defaultValue: 'default',
+    helper: 'Use the device selector below to change this setting.',
+    liveBehavior: 'immediate'
+  },
+  {
+    id: 'tauren.voice.language',
+    owner: 'tauren',
+    section: 'voice',
+    label: 'Voice language',
+    description: 'Language Tauren should pass to whisper.cpp for speech-to-text.',
+    control: 'select',
+    options: voiceLanguageOptions,
+    defaultValue: 'auto',
+    helper: 'English-only models always use English. Choose a multilingual model for auto-detect or non-English input.',
+    liveBehavior: 'immediate'
+  },
+  {
+    id: 'tauren.voice.mode',
+    owner: 'tauren',
+    section: 'voice',
+    label: 'Voice mode',
+    description: 'Choose manual recording or explicit hands-free listening.',
+    control: 'select',
+    options: voiceModeOptions,
+    defaultValue: 'pushToTalk',
+    helper: 'Hands-free keeps the selected microphone open locally while enabled.',
+    liveBehavior: 'immediate'
+  },
+  {
+    id: 'tauren.voice.activationMode',
+    owner: 'tauren',
+    section: 'voice',
+    label: 'Microphone action',
+    description: 'Choose whether the microphone button toggles recording or records only while held.',
+    control: 'select',
+    options: voiceActivationModeOptions,
+    defaultValue: 'toggle',
+    liveBehavior: 'immediate'
+  },
+  {
+    id: 'tauren.voice.maxRecordingSeconds',
+    owner: 'tauren',
+    section: 'voice',
+    label: 'Maximum recording length',
+    description: 'Stop recording automatically after this duration.',
+    control: 'select',
+    options: voiceMaxRecordingSecondsOptions,
+    defaultValue: '60',
+    helper: 'Use this as a safety stop for long or forgotten recordings.',
+    liveBehavior: 'immediate'
+  },
+  {
+    id: 'tauren.voice.handsFreeSensitivity',
+    owner: 'tauren',
+    section: 'voice',
+    label: 'Hands-free sensitivity',
+    description: 'Choose how readily hands-free listening treats microphone input as speech.',
+    control: 'select',
+    options: voiceHandsFreeSensitivityOptions,
+    defaultValue: 'normal',
+    helper: 'Use Low in noisy rooms, High for quieter speech.',
+    liveBehavior: 'immediate'
+  },
+  {
+    id: 'tauren.voice.handsFreeSilenceSeconds',
+    owner: 'tauren',
+    section: 'voice',
+    label: 'Hands-free silence stop',
+    description: 'Silence duration after speech before Tauren finalizes and transcribes the utterance.',
+    control: 'select',
+    options: voiceHandsFreeSilenceSecondsOptions,
+    defaultValue: '1.2',
+    liveBehavior: 'immediate'
+  },
+  {
+    id: 'tauren.voice.transcriptAction',
+    owner: 'tauren',
+    section: 'voice',
+    label: 'After transcription',
+    description: 'Choose what Tauren does with completed voice transcripts.',
+    control: 'select',
+    options: voiceTranscriptActionOptions,
+    defaultValue: 'insert',
     liveBehavior: 'immediate'
   },
   {

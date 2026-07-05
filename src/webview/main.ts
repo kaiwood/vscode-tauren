@@ -24,6 +24,7 @@ import {
   parseWebviewStateMessage,
   type ProvisionalExtensionUiSnapshot
 } from './state';
+import type { VoiceState } from '../voice/types';
 import type { WebviewPerfEventName, WebviewScrollCommand } from '../webviewProtocol/types';
 import {
   createKwardQuestionUiState,
@@ -91,6 +92,7 @@ const {
   diffRemovedElement,
   streamingBehaviorButtonElements,
   attachButton,
+  voiceButton,
   newSessionButton,
   contextElement,
   contextValueElement,
@@ -193,6 +195,7 @@ const composerController = new ComposerController({
   textarea,
   submitButton,
   attachButton,
+  voiceButton,
   newSessionButton,
   busySubmitElement,
   diffSummaryElement,
@@ -331,6 +334,15 @@ window.addEventListener('message', (event) => {
   if (event.data?.type === 'optimisticNewSession') {
     applyOptimisticNewSessionTransition();
     focusPromptInput();
+    return;
+  }
+
+  if (event.data?.type === 'voiceState') {
+    const voice = parseHostVoiceState(event.data.voice);
+    if (voice) {
+      state = { ...state, voice };
+      scheduleRender();
+    }
     return;
   }
 
@@ -514,6 +526,11 @@ function createToastIcon(kind: 'success' | 'warning' | 'error'): HTMLElement {
   icon.setAttribute('aria-hidden', 'true');
   icon.textContent = kind === 'warning' ? '⚠' : kind === 'error' ? '✕' : '✓';
   return icon;
+}
+
+function parseHostVoiceState(value: unknown): VoiceState | undefined {
+  const parsedState = parseWebviewStateMessage({ type: 'state', voice: value }, state);
+  return parsedState.voice;
 }
 
 function scheduleRender(options: { returnToChatMain?: boolean } = {}): void {

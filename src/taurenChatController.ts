@@ -312,6 +312,24 @@ export class TaurenChatController {
       case 'updateSetting':
         await this.updateSetting(message.settingId, message.value);
         return;
+      case 'voiceDownloadBinary':
+        await this.options.voiceController?.downloadBinary();
+        return;
+      case 'voiceDownloadModel':
+        await (message.modelId ? this.options.voiceController?.downloadModel(message.modelId) : this.options.voiceController?.downloadSelectedModel());
+        return;
+      case 'voiceDeleteModel':
+        await this.options.voiceController?.deleteModel(message.modelId);
+        return;
+      case 'voiceRefreshInputDevices':
+        await this.options.voiceController?.refreshInputDevices();
+        return;
+      case 'voiceStartRecording':
+        await this.options.voiceController?.startRecording();
+        return;
+      case 'voiceStopRecording':
+        await this.options.voiceController?.stopRecording();
+        return;
       case 'authLogin':
         await this.loginAuthProvider(message.providerId, message.authType);
         return;
@@ -709,6 +727,7 @@ export class TaurenChatController {
       sessionView: this.sessionView.getWebviewState(this.sessionHistory.isLoading),
       settingsView: this.settingsView.getWebviewState(),
       ...(hasAuthStatePayload(this.authState) ? { auth: this.authState } : {}),
+      ...(this.options.voiceController ? { voice: this.options.voiceController.getState() } : {}),
       ...(this.pendingKwardQuestion ? { kwardQuestion: this.pendingKwardQuestion } : {})
     });
 
@@ -1348,6 +1367,10 @@ export class TaurenChatController {
   public appendComposerText(text: string): void {
     this.setPendingComposerText(text, 'append');
     this.postState();
+  }
+
+  public async submitTextFromVoice(text: string): Promise<void> {
+    await this.handleSubmitMessage({ type: 'submit', text });
   }
 
   private setPendingComposerText(text: string, mode: 'replace' | 'append' = 'replace'): void {

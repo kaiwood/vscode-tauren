@@ -71,6 +71,22 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
         ? { type: 'unknown' }
         : { type: 'updateSetting', settingId: value.settingId, value: settingValue };
     }
+    case 'voiceDownloadBinary':
+      return { type: 'voiceDownloadBinary' };
+    case 'voiceDownloadModel':
+      return typeof value.modelId === 'string' && value.modelId
+        ? { type: 'voiceDownloadModel', modelId: value.modelId }
+        : { type: 'voiceDownloadModel' };
+    case 'voiceDeleteModel':
+      return typeof value.modelId === 'string' && value.modelId
+        ? { type: 'voiceDeleteModel', modelId: value.modelId }
+        : { type: 'unknown' };
+    case 'voiceRefreshInputDevices':
+      return { type: 'voiceRefreshInputDevices' };
+    case 'voiceStartRecording':
+      return { type: 'voiceStartRecording' };
+    case 'voiceStopRecording':
+      return { type: 'voiceStopRecording' };
     case 'authLogin': {
       if (typeof value.providerId !== 'string' || !value.providerId) {
         return { type: 'unknown' };
@@ -356,6 +372,7 @@ export function createWebviewStateMessage({
   settingsView,
   auth,
   kwardQuestion,
+  voice,
   perfEnabled = false,
   includeMessages = true,
   messagePatch
@@ -461,6 +478,10 @@ export function createWebviewStateMessage({
       ...(auth.progress ? { progress: { ...auth.progress } } : {}),
       ...(auth.error ? { error: auth.error } : {})
     };
+  }
+
+  if (voice) {
+    message.voice = cloneVoiceState(voice);
   }
 
   if (kwardQuestion) {
@@ -663,6 +684,13 @@ ${createInitialEmptyStateHtml(Boolean(options.welcomeDismissed), Boolean(options
           <select id="model-select" class="composer__select composer__model-select" aria-label="Model"></select>
         </div>
       </div>
+      <button class="composer__button composer__voice" type="button" aria-label="Start voice input" hidden>
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 19 19" fill="none">
+          <path d="M9.5 11.2C8.22 11.2 7.18 10.16 7.18 8.88V5.9C7.18 4.62 8.22 3.58 9.5 3.58C10.78 3.58 11.82 4.62 11.82 5.9V8.88C11.82 10.16 10.78 11.2 9.5 11.2Z" stroke="currentColor" stroke-width="1.25"/>
+          <path d="M5.2 8.65C5.2 11.02 7.12 12.95 9.5 12.95C11.88 12.95 13.8 11.02 13.8 8.65M9.5 12.95V15.45M7.35 15.45H11.65" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>
+        </svg>
+        <span class="tauren-icon-action-tooltip">Start voice input</span>
+      </button>
       <button class="composer__button composer__submit" type="submit" aria-label="Send message" disabled>
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none">
           <path class="composer__submit-play" d="M5.1 3.55C5.1 2.75 5.97 2.27 6.65 2.68L15.65 8.05C16.34 8.46 16.34 9.54 15.65 9.95L6.65 15.32C5.97 15.73 5.1 15.25 5.1 14.45Z" fill="currentColor"/>
@@ -721,6 +749,20 @@ function createInitialEmptyStateHtml(welcomeDismissed: boolean, quietStartup: bo
         </ul>
         <button class="empty-state__dismiss" type="button" data-dismiss-welcome>Don't show again</button>
       </div>`;
+}
+
+function cloneVoiceState(voice: NonNullable<CreateWebviewStateMessageOptions['voice']>): NonNullable<CreateWebviewStateMessageOptions['voice']> {
+  return {
+    ...voice,
+    models: voice.models.map((model) => ({
+      ...model,
+      download: { ...model.download }
+    })),
+    binary: {
+      ...voice.binary,
+      download: { ...voice.binary.download }
+    }
+  };
 }
 
 function cloneWebviewStartupResources(resources: NonNullable<CreateWebviewStateMessageOptions['startupResources']>): NonNullable<CreateWebviewStateMessageOptions['startupResources']> {

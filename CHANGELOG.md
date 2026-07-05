@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added local whisper.cpp voice input with downloadable Whisper models, microphone selection, push-to-talk, hold-to-talk, and explicit hands-free listening.
+
 ### Changed
 
 - Updated the bundled Pi SDK to 0.80.2 and surfaced Pi's post-compaction token estimate in Tauren compaction status text.

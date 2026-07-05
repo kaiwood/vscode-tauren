@@ -416,6 +416,8 @@ export const messageStyles = /* css */ `    .tauren-transcript-search {
     .tauren-toolbar__tree:focus-visible .tauren-icon-action-tooltip,
     .composer__submit:hover:not(:disabled) .tauren-icon-action-tooltip,
     .composer__submit:focus-visible:not(:disabled) .tauren-icon-action-tooltip,
+    .composer__voice:hover:not(:disabled) .tauren-icon-action-tooltip,
+    .composer__voice:focus-visible:not(:disabled) .tauren-icon-action-tooltip,
     .composer__diff-summary:hover .tauren-icon-action-tooltip,
     .composer__diff-summary:focus-visible .tauren-icon-action-tooltip,
     .composer__mode-button:hover .tauren-icon-action-tooltip,

@@ -39,6 +39,7 @@ export type WebviewDom = {
   diffRemovedElement: HTMLElement;
   streamingBehaviorButtonElements: HTMLButtonElement[];
   attachButton: HTMLButtonElement;
+  voiceButton: HTMLButtonElement;
   newSessionButton: HTMLButtonElement;
   contextElement: HTMLElement;
   contextValueElement: HTMLElement;
@@ -100,6 +101,7 @@ export function getWebviewDom(): WebviewDom {
     diffRemovedElement: queryRequired<HTMLElement>('.composer__diff-removed'),
     streamingBehaviorButtonElements: queryAll<HTMLButtonElement>('.composer__mode-button'),
     attachButton: queryRequired<HTMLButtonElement>('.composer__attach'),
+    voiceButton: queryRequired<HTMLButtonElement>('.composer__voice'),
     newSessionButton: queryRequired<HTMLButtonElement>('.composer__add'),
     contextElement: queryRequired<HTMLElement>('.composer__context'),
     contextValueElement: queryRequired<HTMLElement>('.composer__context-value'),

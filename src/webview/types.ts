@@ -21,6 +21,7 @@ import type {
   WebviewTreeItem,
   WebviewWorkspaceDiffStats
 } from '../webviewProtocol/types';
+import type { VoiceState } from '../voice/types';
 
 export type CustomUiTheme = WebviewCustomUiTheme;
 export type Lane = WebviewLane;
@@ -132,6 +133,7 @@ export type WebviewState = {
   treeRefreshing: boolean;
   treeError: string;
   sessionLoading: boolean;
+  voice?: VoiceState;
   perfEnabled: boolean;
 };
 

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { parseWebviewCustomUiTheme } from '../webviewProtocol/values';
 import type { WebviewCustomUiTheme } from '../webviewProtocol/types';
+import type { VoiceHandsFreeSensitivity, VoiceLanguage, VoiceModelId, VoiceTranscriptAction } from '../voice/types';
 import { settingDefinitions, type SettingValue, type TaurenBackend, type TaurenSettingId } from './settingsRegistry';
 
 export const welcomeDismissedStorageKey = 'tauren.welcomeDismissed';
@@ -60,6 +61,59 @@ export function getUseTaurenShareViewerSetting(): boolean {
 export function getCustomUiThemeSetting(): WebviewCustomUiTheme {
   const value = vscode.workspace.getConfiguration('tauren').get<string>('customUiTheme', 'default');
   return parseWebviewCustomUiTheme(value);
+}
+
+export function getVoiceEnabledSetting(): boolean {
+  return vscode.workspace.getConfiguration('tauren').get<boolean>('voice.enabled', false);
+}
+
+export function getVoiceModelSetting(): VoiceModelId {
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.model', 'base.en');
+  return value === 'tiny.en' || value === 'small.en' || value === 'tiny' || value === 'base' || value === 'small' ? value : 'base.en';
+}
+
+export function getVoiceInputDeviceSetting(): string {
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.inputDevice', 'default').trim();
+  return value || 'default';
+}
+
+export function getVoiceLanguageSetting(): VoiceLanguage {
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.language', 'auto');
+  return value === 'en' || value === 'de' || value === 'fr' || value === 'es' || value === 'it' || value === 'pt' || value === 'nl' || value === 'pl' || value === 'ja' || value === 'ko' || value === 'zh'
+    ? value
+    : 'auto';
+}
+
+export function getVoiceModeSetting(): 'pushToTalk' | 'handsFree' {
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.mode', 'pushToTalk');
+  return value === 'handsFree' ? 'handsFree' : 'pushToTalk';
+}
+
+export function getVoiceActivationModeSetting(): 'toggle' | 'hold' {
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.activationMode', 'toggle');
+  return value === 'hold' ? 'hold' : 'toggle';
+}
+
+export function getVoiceMaxRecordingSecondsSetting(): number {
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.maxRecordingSeconds', '60');
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+export function getVoiceHandsFreeSensitivitySetting(): VoiceHandsFreeSensitivity {
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.handsFreeSensitivity', 'normal');
+  return value === 'low' || value === 'high' ? value : 'normal';
+}
+
+export function getVoiceHandsFreeSilenceSecondsSetting(): number {
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.handsFreeSilenceSeconds', '1.2');
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1.2;
+}
+
+export function getVoiceTranscriptActionSetting(): VoiceTranscriptAction {
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.transcriptAction', 'insert');
+  return value === 'submit' ? 'submit' : 'insert';
 }
 
 function getBlockHttpsImagesSetting(): boolean {
@@ -139,7 +193,17 @@ export function getTaurenSettingValues(globalState?: vscode.Memento): Partial<Re
     'tauren.rejectEditWriteOutsideWorkspace': getRejectEditWriteOutsideWorkspaceSetting(),
     'tauren.debugPerformance': getDebugPerformanceSetting(),
     'tauren.readyScript': getReadyScriptSetting() ?? '',
-    'tauren.readyScriptEnabled': getReadyScriptEnabledSetting()
+    'tauren.readyScriptEnabled': getReadyScriptEnabledSetting(),
+    'tauren.voice.enabled': getVoiceEnabledSetting(),
+    'tauren.voice.model': getVoiceModelSetting(),
+    'tauren.voice.inputDevice': getVoiceInputDeviceSetting(),
+    'tauren.voice.language': getVoiceLanguageSetting(),
+    'tauren.voice.mode': getVoiceModeSetting(),
+    'tauren.voice.activationMode': getVoiceActivationModeSetting(),
+    'tauren.voice.maxRecordingSeconds': String(getVoiceMaxRecordingSecondsSetting()),
+    'tauren.voice.handsFreeSensitivity': getVoiceHandsFreeSensitivitySetting(),
+    'tauren.voice.handsFreeSilenceSeconds': String(getVoiceHandsFreeSilenceSecondsSetting()),
+    'tauren.voice.transcriptAction': getVoiceTranscriptActionSetting()
   };
 }
 

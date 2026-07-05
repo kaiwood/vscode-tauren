@@ -276,6 +276,11 @@ export class TaurenSessionManager {
     session.controller.appendComposerText(text);
   }
 
+  public async submitTextFromVoice(text: string): Promise<void> {
+    const session = this.isActiveComposerVisible() ? this.active() : this.createSession({ activate: true });
+    await session.controller.submitTextFromVoice(text);
+  }
+
   public postState(): void {
     this.postActiveState();
   }

@@ -131,7 +131,7 @@ export const composerStyles = /* css */ `    .tauren-view--has-extension-status 
       grid-row: 5;
       grid-column: 1;
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr) 36px;
+      grid-template-columns: auto minmax(0, 1fr) auto 36px;
       grid-template-rows: minmax(22px, auto) 36px;
       align-items: end;
       gap: 4px 8px;
@@ -694,6 +694,9 @@ export const composerStyles = /* css */ `    .tauren-view--has-extension-status 
       opacity: 0.46;
     }
 
+    .composer__button[hidden] {
+      display: none;
+    }
 
     .composer__button svg {
       display: block;
@@ -708,6 +711,90 @@ export const composerStyles = /* css */ `    .tauren-view--has-extension-status 
     .composer__add {
       width: 34px;
       height: 34px;
+    }
+
+    .composer__voice {
+      --voice-level: 0;
+      grid-column: 3;
+      justify-self: end;
+      width: 34px;
+      height: 34px;
+      color: var(--vscode-input-background);
+      background: color-mix(in srgb, var(--vscode-foreground) 82%, transparent);
+      isolation: isolate;
+    }
+
+    .composer__voice::before,
+    .composer__voice::after {
+      position: absolute;
+      inset: -3px;
+      border-radius: 999px;
+      content: '';
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 120ms ease;
+    }
+
+    .composer__voice::before {
+      background:
+        radial-gradient(circle at 50% 0, #a6ffbf 0 2px, #35f080 3px, transparent 4px),
+        radial-gradient(circle, transparent 58%, color-mix(in srgb, #35f080 calc(48% + var(--voice-level) * 34%), transparent) 60%, transparent 66%);
+      filter: drop-shadow(0 0 calc(3px + var(--voice-level) * 5px) color-mix(in srgb, #35f080 calc(44% + var(--voice-level) * 42%), transparent));
+      transform: scale(calc(1 + var(--voice-level) * 0.08));
+      z-index: -2;
+    }
+
+    .composer__voice::after {
+      inset: 1px;
+      background: inherit;
+      z-index: -1;
+    }
+
+    .composer__voice:hover:not(:disabled),
+    .composer__voice--starting:not(:disabled),
+    .composer__voice--listening:not(:disabled),
+    .composer__voice--recording:not(:disabled),
+    .composer__voice--transcribing {
+      color: var(--vscode-input-background);
+      background: var(--vscode-foreground);
+    }
+
+    .composer__voice--starting::before,
+    .composer__voice--listening::before,
+    .composer__voice--recording::before,
+    .composer__voice--transcribing::before {
+      opacity: 1;
+      animation: composer-voice-led-orbit 900ms linear infinite;
+    }
+
+    .composer__voice--starting::before {
+      opacity: 0.8;
+      animation-duration: 1100ms;
+    }
+
+    .composer__voice--listening::before {
+      opacity: calc(0.42 + var(--voice-level) * 0.42);
+      animation-duration: 1800ms;
+    }
+
+    .composer__voice--transcribing::before {
+      animation-duration: 650ms;
+    }
+
+    .composer__voice:disabled:not(.composer__voice--transcribing) {
+      color: color-mix(in srgb, var(--vscode-input-background) 72%, var(--vscode-foreground) 28%);
+      background: color-mix(in srgb, var(--vscode-foreground) 48%, transparent);
+    }
+
+    @keyframes composer-voice-led-orbit {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .composer__voice .tauren-icon-action-tooltip {
+      right: 0;
+      left: auto;
     }
 
     .composer__button-tooltip {
@@ -918,6 +1005,7 @@ export const composerStyles = /* css */ `    .tauren-view--has-extension-status 
 
 
     .composer__submit {
+      grid-column: 4;
       justify-self: end;
       width: 34px;
       height: 34px;

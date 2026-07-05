@@ -60,6 +60,7 @@ export const initialWebviewState: WebviewState = {
   treeRefreshing: false,
   treeError: '',
   sessionLoading: false,
+  voice: undefined,
   perfEnabled: false
 };
 
@@ -243,8 +244,124 @@ export function parseWebviewStateMessage(data: unknown, previousState?: WebviewS
     treeRefreshing: Boolean(record.treeRefreshing),
     treeError: typeof record.treeError === 'string' ? record.treeError : '',
     sessionLoading: Boolean(record.sessionLoading),
+    voice: parseVoiceState(record.voice),
     perfEnabled: Boolean(record.perfEnabled)
   };
+}
+
+function parseVoiceState(value: unknown): WebviewState['voice'] {
+  if (!isRecord(value) || !Array.isArray(value.models) || !isRecord(value.binary)) {
+    return undefined;
+  }
+
+  const selectedModelId = parseVoiceModelId(value.selectedModelId);
+  const transcriptAction = value.transcriptAction === 'submit' ? 'submit' : 'insert';
+  const language = parseVoiceLanguage(value.language);
+  const effectiveLanguage = parseVoiceLanguage(value.effectiveLanguage);
+  const languageForced = Boolean(value.languageForced);
+  const mode = value.mode === 'handsFree' ? 'handsFree' : 'pushToTalk';
+  const activationMode = value.activationMode === 'hold' ? 'hold' : 'toggle';
+  const maxRecordingSeconds = typeof value.maxRecordingSeconds === 'number' ? value.maxRecordingSeconds : 60;
+  const handsFreeSensitivity = value.handsFreeSensitivity === 'low' || value.handsFreeSensitivity === 'high' ? value.handsFreeSensitivity : 'normal';
+  const handsFreeSilenceSeconds = typeof value.handsFreeSilenceSeconds === 'number' ? value.handsFreeSilenceSeconds : 1.2;
+  const audioLevel = typeof value.audioLevel === 'number' ? Math.max(0, Math.min(1, value.audioLevel)) : 0;
+  const recordingStatus = value.recordingStatus === 'listening' || value.recordingStatus === 'recording' || value.recordingStatus === 'transcribing' || value.recordingStatus === 'error'
+    ? value.recordingStatus
+    : 'idle';
+
+  return {
+    enabled: Boolean(value.enabled),
+    selectedModelId,
+    transcriptAction,
+    mode,
+    activationMode,
+    maxRecordingSeconds,
+    handsFreeSensitivity,
+    handsFreeSilenceSeconds,
+    language,
+    effectiveLanguage,
+    languageForced,
+    models: value.models.filter(isVoiceModelOption).map((model) => ({
+      ...model,
+      download: parseVoiceDownloadState(model.download)
+    })),
+    binary: {
+      status: parseVoiceDownloadStatus(value.binary.status),
+      label: typeof value.binary.label === 'string' ? value.binary.label : 'whisper.cpp',
+      ...(typeof value.binary.path === 'string' ? { path: value.binary.path } : {}),
+      ...(value.binary.source === 'system' || value.binary.source === 'downloaded' ? { source: value.binary.source } : {}),
+      ...(typeof value.binary.helper === 'string' ? { helper: value.binary.helper } : {}),
+      download: parseVoiceDownloadState(value.binary.download)
+    },
+    inputDevices: parseVoiceInputDevicesState(value.inputDevices),
+    recordingStatus,
+    audioLevel,
+    ...(typeof value.error === 'string' && value.error ? { error: value.error } : {})
+  };
+}
+
+function parseVoiceModelId(value: unknown): NonNullable<WebviewState['voice']>['selectedModelId'] {
+  return value === 'tiny.en' || value === 'base.en' || value === 'small.en' || value === 'tiny' || value === 'base' || value === 'small'
+    ? value
+    : 'base.en';
+}
+
+function parseVoiceLanguage(value: unknown): NonNullable<WebviewState['voice']>['language'] {
+  return value === 'en' || value === 'de' || value === 'fr' || value === 'es' || value === 'it' || value === 'pt' || value === 'nl' || value === 'pl' || value === 'ja' || value === 'ko' || value === 'zh'
+    ? value
+    : 'auto';
+}
+
+function parseVoiceInputDevicesState(value: unknown): NonNullable<WebviewState['voice']>['inputDevices'] {
+  if (!isRecord(value) || !Array.isArray(value.devices)) {
+    return {
+      selectedId: 'default',
+      status: 'idle',
+      devices: [{ id: 'default', label: 'Default microphone', isDefault: true }]
+    };
+  }
+
+  const status = value.status === 'refreshing' || value.status === 'ready' || value.status === 'error' ? value.status : 'idle';
+  const devices = value.devices.filter(isVoiceInputDevice);
+
+  return {
+    selectedId: typeof value.selectedId === 'string' && value.selectedId ? value.selectedId : 'default',
+    status,
+    devices: devices.length > 0 ? devices : [{ id: 'default', label: 'Default microphone', isDefault: true }],
+    ...(typeof value.error === 'string' && value.error ? { error: value.error } : {})
+  };
+}
+
+function isVoiceInputDevice(value: unknown): value is NonNullable<WebviewState['voice']>['inputDevices']['devices'][number] {
+  return isRecord(value)
+    && typeof value.id === 'string'
+    && typeof value.label === 'string';
+}
+
+function isVoiceModelOption(value: unknown): value is NonNullable<WebviewState['voice']>['models'][number] {
+  return isRecord(value)
+    && (value.id === 'tiny.en' || value.id === 'base.en' || value.id === 'small.en' || value.id === 'tiny' || value.id === 'base' || value.id === 'small')
+    && typeof value.label === 'string'
+    && typeof value.description === 'string'
+    && typeof value.sizeBytes === 'number'
+    && typeof value.downloaded === 'boolean';
+}
+
+function parseVoiceDownloadState(value: unknown): NonNullable<WebviewState['voice']>['binary']['download'] {
+  if (!isRecord(value)) {
+    return { status: 'idle' };
+  }
+
+  return {
+    status: parseVoiceDownloadStatus(value.status),
+    ...(typeof value.receivedBytes === 'number' ? { receivedBytes: value.receivedBytes } : {}),
+    ...(typeof value.totalBytes === 'number' ? { totalBytes: value.totalBytes } : {}),
+    ...(typeof value.error === 'string' ? { error: value.error } : {})
+  };
+}
+
+function parseVoiceDownloadStatus(value: unknown): NonNullable<WebviewState['voice']>['binary']['status'] {
+  return value === 'downloading' || value === 'downloaded' || value === 'failed' || value === 'unavailable' ? value : 'idle';
 }
 
 function parseKwardQuestion(value: unknown): WebviewState['kwardQuestion'] {
