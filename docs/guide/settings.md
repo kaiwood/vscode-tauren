@@ -27,6 +27,7 @@ Tauren groups settings into practical sections:
 - **Extensions:** Pi extension widgets and status rendering.
 - **Runtime:** Pi provider, model, thinking, compaction, retry, steering, and follow-up behavior.
 - **Scoped Models:** model cycling configuration.
+- **Voice:** local whisper.cpp speech-to-text, microphone, and transcription behavior.
 - **Safety:** workspace and remote-content guardrails.
 - **Advanced:** diagnostics and ready-script behavior.
 
@@ -37,6 +38,7 @@ Tauren groups settings into practical sections:
 | [Custom UI theme](../reference/settings.md#appearance) | Tauren | Changes how Pi extension custom UI panels look in the sidebar. |
 | [Animations](../reference/settings.md#appearance) | Tauren | Controls sidebar motion and transitions. |
 | [Remote image blocking](../reference/settings.md#safety) | Tauren | Blocks remote HTTPS images in chat markdown by default. |
+| [Voice input](../reference/settings.md#voice) | Tauren | Enables local whisper.cpp speech-to-text in the Chat Lane Composer. |
 | [Output colors](../reference/settings.md#appearance) | Tauren | Enables ANSI and syntax colors in Tauren output boxes. |
 | Default provider | Pi | Chooses which provider the runtime uses by default. |
 | Default model | Pi | Chooses the model used for new prompts. |
@@ -55,6 +57,7 @@ Tauren-owned settings affect the VS Code extension host and webview. Examples:
 - `tauren.outputColors` — Appearance → Output colors
 - `tauren.animationsEnabled` — Appearance → Animations
 - `tauren.customUiTheme` — Appearance → Custom UI theme
+- `tauren.voice.enabled` — Voice → Voice input
 - `tauren.blockHttpsImages` — Safety → Block HTTPS images
 - `tauren.restrictFileReferencesToWorkspace` — Safety → Restrict file links
 - `tauren.rejectEditWriteOutsideWorkspace` — Safety → Reject external edits
@@ -76,6 +79,12 @@ When Backend is **Kward**, Tauren launches the global `kward rpc` command by def
 Kward is treated as a trusted local backend. It can read and write local files, run shell commands, update credentials, and perform other runtime actions available to Kward. Use it only with workspaces and Kward builds you trust.
 
 Kward reports supported runtime settings through RPC capabilities. Tauren hides unsupported Pi-owned settings while Backend is Kward, so some Settings sections may show only Tauren-owned controls or a Kward empty state.
+
+## Voice settings
+
+Voice settings control local speech-to-text in the Chat Lane Composer. Open **Settings → Voice** to enable the microphone control, download whisper.cpp assets and Whisper models, pick an input device, and choose whether completed transcripts are inserted for review or submitted automatically.
+
+Start with **Voice mode → Push to talk** and **After transcription → Insert into Chat Input**. See [Voice Input](./voice-input.md) for the full workflow.
 
 ## Safety settings
 

@@ -8,6 +8,7 @@ If you are new to Tauren, start with [Quick Start](../getting-started/quick-star
 - [Sessions](./sessions.md)
 - [Session Diffs](./session-diffs.md)
 - [Trace Origin](./trace-origin.md)
+- [Voice Input](./voice-input.md)
 - [Security, Privacy, and Trust](./security-privacy.md)
 - [Pi Extensions](./pi-extensions.md)
 

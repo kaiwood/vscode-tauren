@@ -5,6 +5,7 @@
 ### Added
 
 - Added local whisper.cpp voice input with downloadable Whisper models, microphone selection, push-to-talk, hold-to-talk, and explicit hands-free listening.
+- Added Voice Input documentation covering setup, push-to-talk, hands-free mode, local transcription behavior, and settings.
 
 ### Changed
 

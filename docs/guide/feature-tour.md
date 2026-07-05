@@ -13,6 +13,7 @@ Use this tour if you already know VS Code and agent tools such as Pi, Codex, Cla
 | Ask "where did this code come from?" | [Trace Origin](./trace-origin.md) | Connect selected code back to likely agent sessions. |
 | Review only `git diff` | [Session Diffs](./session-diffs.md) | See changes attributed to a Tauren session. |
 | Configure an external agent separately | [Settings](./settings.md) | Manage auth, runtime, safety, and extension UI from the sidebar. |
+| Dictate a prompt | [Voice Input](./voice-input.md) | Use local whisper.cpp speech-to-text from the Composer. |
 | Run terminal-only Pi plugins | [Pi Extensions](./pi-extensions.md) | Let Pi extension UI appear inside VS Code. |
 
 ## 1. Session-oriented workflow
@@ -167,7 +168,17 @@ You can paste or drop supported local raster images into the Composer. Tauren cu
 
 Deeper docs: [Tauren Sidebar](./sidebar.md#composer), [Adding Context](./context.md), [Settings reference](../reference/settings.md#safety).
 
-## 11. Diagnostics and performance tooling
+## 11. Voice input
+
+Tauren can turn speech into Chat Input text using local whisper.cpp transcription. Enable it from **Settings → Voice**, download the local assets and a Whisper model, then use the microphone control in the Composer.
+
+Use it when you want to dictate a longer prompt, talk through a debugging plan, or capture spoken notes while reading code. By default, completed transcripts are inserted into the Composer for review before you send them.
+
+> **Screenshot placeholder:** Composer with the microphone control active and a transcribed prompt inserted for review.
+
+Deeper docs: [Voice Input](./voice-input.md), [Settings](./settings.md), [Settings reference](../reference/settings.md#voice).
+
+## 12. Diagnostics and performance tooling
 
 Agent UI problems are often runtime, provider, extension, or rendering problems. Tauren provides a diagnostics surface so you have a first place to inspect startup errors, SDK diagnostics, extension failures, missing model metadata, and optional performance events.
 
@@ -184,4 +195,5 @@ Deeper docs: [Troubleshooting](./troubleshooting.md), [Commands](../reference/co
 3. Use Session Tree if the run becomes hard to scan.
 4. Review Session Diffs before editing around the result.
 5. Use Trace Origin later when code history is unclear.
-6. Check Diagnostics before assuming provider or extension failures are workspace bugs.
+6. Enable Voice Input if dictating prompts feels faster than typing them.
+7. Check Diagnostics before assuming provider or extension failures are workspace bugs.

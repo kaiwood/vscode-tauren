@@ -24,6 +24,23 @@ The **Settings pane** column shows where the same control appears inside Tauren:
 | `tauren.extensions.backgroundColorsEnabled` | Extensions → Enable background colors | `true` | Render background colors sent by Pi extension widgets. |
 | `tauren.extensions.monospaceFontEnabled` | Extensions → Use monospace font | `true` | Use the editor monospace font for Pi extension widgets and status. |
 
+## Voice
+
+| Setting | Settings pane | Default | Description |
+| --- | --- | --- | --- |
+| `tauren.voice.enabled` | Voice → Voice input | `false` | Show the microphone control in the Chat Input and allow local speech-to-text. |
+| `tauren.voice.model` | Voice → Voice model | `base.en` | Local Whisper model Tauren should use for speech-to-text. Options: `tiny.en`, `base.en`, `small.en`, `tiny`, `base`, `small`. |
+| `tauren.voice.inputDevice` | Voice → Voice input device | `default` | Microphone or audio input source Tauren should record from. Use the Voice settings pane to select a detected device. |
+| `tauren.voice.language` | Voice → Voice language | `auto` | Language Tauren passes to whisper.cpp. English-only models always use English. |
+| `tauren.voice.mode` | Voice → Voice mode | `pushToTalk` | Choose manual push-to-talk recording or explicit hands-free listening. Options: `pushToTalk`, `handsFree`. |
+| `tauren.voice.activationMode` | Voice → Microphone action | `toggle` | Choose whether the microphone button starts/stops recording or records only while held. Options: `toggle`, `hold`. |
+| `tauren.voice.maxRecordingSeconds` | Voice → Maximum recording length | `60` | Maximum voice recording length before Tauren stops recording automatically. Options: `0`, `15`, `30`, `60`, `120`. |
+| `tauren.voice.handsFreeSensitivity` | Voice → Hands-free sensitivity | `normal` | How readily hands-free listening treats microphone input as speech. Options: `low`, `normal`, `high`. |
+| `tauren.voice.handsFreeSilenceSeconds` | Voice → Hands-free silence stop | `1.2` | Silence duration after speech before hands-free listening finalizes and transcribes the utterance. Options: `0.8`, `1.2`, `1.5`, `2`. |
+| `tauren.voice.transcriptAction` | Voice → After transcription | `insert` | Choose whether completed voice transcripts are inserted into the Chat Input or submitted automatically. Options: `insert`, `submit`. |
+
+See [Voice Input](../guide/voice-input.md) for setup and workflows.
+
 ## Safety
 
 | Setting | Settings pane | Default | Description |
