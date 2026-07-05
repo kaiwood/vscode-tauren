@@ -1,5 +1,6 @@
 import { existsSync } from 'fs';
 import * as path from 'path';
+import { listKwardSessionCandidates } from '../kward/sessionList';
 import { parseSessionJsonlFileRecords } from '../pi/sessionJsonl';
 import { listPiSessionCandidates } from '../sessions/piSessionList';
 import { isRecord } from '../shared/typeGuards';
@@ -23,8 +24,10 @@ export type TraceOriginMatch = {
 };
 
 export type TraceOriginOptions = {
+  backend?: 'pi' | 'kward';
   cwd?: string;
   currentSessionFile?: string;
+  kwardPath?: string;
   sessionFiles?: string[];
 };
 
@@ -119,7 +122,14 @@ async function getSessionCandidates(options: TraceOriginOptions): Promise<Sessio
     return dedupeSessions(options.sessionFiles.map((sessionPath) => ({ path: sessionPath })));
   }
 
-  const sessions = await listPiSessionCandidates({ cwd: options.cwd, currentSessionFile: options.currentSessionFile });
+  const sessions = options.backend === 'kward'
+    ? await listKwardSessionCandidates({
+      cwd: options.cwd,
+      currentSessionFile: options.currentSessionFile,
+      kwardPath: options.kwardPath
+    })
+    : await listPiSessionCandidates({ cwd: options.cwd, currentSessionFile: options.currentSessionFile });
+
   return dedupeSessions(sessions.map((session) => ({
     path: session.path,
     id: session.id,

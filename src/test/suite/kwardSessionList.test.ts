@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
-import { listKwardSessions } from '../../kward/sessionList';
+import { listKwardSessionCandidates, listKwardSessions } from '../../kward/sessionList';
 
 type WrittenRequest = {
   id?: number;
@@ -161,6 +161,36 @@ suite('Kward session list', () => {
       assert.deepStrictEqual(sessions[1].ancestorContinues, [false]);
       assert.strictEqual(sessions[1].parentSessionPath, parentPath);
       assert.strictEqual(sessions[1].current, true);
+    } finally {
+      if (originalConfigPath === undefined) {
+        delete process.env.KWARD_CONFIG_PATH;
+      } else {
+        process.env.KWARD_CONFIG_PATH = originalConfigPath;
+      }
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('lists local session candidates for trace origin', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tauren-kward-session-candidates-'));
+    const originalConfigPath = process.env.KWARD_CONFIG_PATH;
+
+    try {
+      const cwd = join(dir, 'workspace');
+      const configPath = join(dir, '.kward', 'config.json');
+      const sessionDir = join(dir, '.kward', 'sessions', safeCwd(cwd));
+      await mkdir(sessionDir, { recursive: true });
+      process.env.KWARD_CONFIG_PATH = configPath;
+
+      const sessionPath = join(sessionDir, 'traceable.jsonl');
+      await writeFile(sessionPath, [
+        JSON.stringify({ type: 'session', id: 'traceable', timestamp: '2026-01-01T00:00:00.000Z', cwd }),
+        JSON.stringify({ type: 'message', message: { role: 'user', content: 'Trace this session' } })
+      ].join('\n') + '\n');
+
+      const candidates = await listKwardSessionCandidates({ cwd, kwardPath: join(dir, 'missing-kward-rpc') });
+
+      assert.deepStrictEqual(candidates, [{ path: sessionPath, id: 'traceable', cwd }]);
     } finally {
       if (originalConfigPath === undefined) {
         delete process.env.KWARD_CONFIG_PATH;

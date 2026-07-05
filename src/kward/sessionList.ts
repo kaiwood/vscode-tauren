@@ -36,6 +36,23 @@ export async function listKwardSessions(options: {
   return decorateSessions(sessions, options.currentSessionFile);
 }
 
+export async function listKwardSessionCandidates(options: {
+  cwd?: string;
+  currentSessionFile?: string;
+  kwardPath?: string;
+} = {}): Promise<Array<{ path: string; id?: string; cwd?: string }>> {
+  const sessions = await listKwardSessions(options);
+  const currentSession = options.currentSessionFile
+    ? [{ path: options.currentSessionFile }]
+    : [];
+
+  return [...currentSession, ...sessions.map((session) => ({
+    path: session.path,
+    id: session.id,
+    cwd: session.cwd
+  }))];
+}
+
 async function listKwardSessionsViaRpc(options: {
   cwd?: string;
   currentSessionFile?: string;

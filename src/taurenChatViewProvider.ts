@@ -789,9 +789,12 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
       },
       async () => {
         const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const backend = getBackendSetting();
         const match = await traceOrigin(createTraceOriginInputs(context, editor.document), {
+          backend,
           cwd,
-          currentSessionFile: readCurrentSessionFile(this.workspaceState)
+          currentSessionFile: readCurrentSessionFile(this.workspaceState),
+          ...(backend === 'kward' ? { kwardPath: getKwardPathSetting() } : {})
         });
 
         if (!match) {

@@ -9,6 +9,7 @@
 
 ### Changed
 
+- Made Trace Origin use Kward session history when the Kward backend is selected.
 - Updated the bundled Pi SDK to 0.80.2 and surfaced Pi's post-compaction token estimate in Tauren compaction status text.
 - Kept Kward RPC integration in sync with advertised notification names and steering-applied events.
 
