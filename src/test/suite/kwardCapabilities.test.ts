@@ -93,6 +93,41 @@ suite('KwardCapabilityResolver', () => {
     assert.strictEqual(resolver.getFooterNotificationMethod(), 'custom/footer');
   });
 
+  test('detects MCP discovery capabilities', () => {
+    const resolver = new KwardCapabilityResolver({
+      mcp: {
+        discovery: {
+          supported: true,
+          methods: ['tools/list', 'mcp/status'],
+          toolMetadata: true
+        }
+      }
+    });
+
+    assert.strictEqual(resolver.isMcpDiscoverySupported(), true);
+    assert.strictEqual(resolver.isMcpStatusSupported(), true);
+    assert.strictEqual(resolver.isMcpToolMetadataSupported(), true);
+
+    const unsupported = new KwardCapabilityResolver({
+      mcp: {
+        discovery: {
+          supported: false,
+          methods: ['mcp/status'],
+          toolMetadata: true
+        }
+      }
+    });
+
+    assert.strictEqual(unsupported.isMcpDiscoverySupported(), false);
+    assert.strictEqual(unsupported.isMcpStatusSupported(), false);
+    assert.strictEqual(unsupported.isMcpToolMetadataSupported(), false);
+
+    const missing = new KwardCapabilityResolver({});
+    assert.strictEqual(missing.isMcpDiscoverySupported(), false);
+    assert.strictEqual(missing.isMcpStatusSupported(), false);
+    assert.strictEqual(missing.isMcpToolMetadataSupported(), false);
+  });
+
   test('detects runtime settings, busy input modes, and attachment input', () => {
     const resolver = new KwardCapabilityResolver({
       runtimeSettings: {

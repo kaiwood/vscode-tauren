@@ -50,6 +50,7 @@ import type {
   KwardMemoryStatus,
   KwardMemorySummarize,
   KwardMemoryWhy,
+  KwardMcpServerStatus,
   KwardModel,
   KwardNavigateTreeResult,
   KwardOAuthLoginStart,
@@ -57,6 +58,9 @@ import type {
   KwardRuntimeSettingResult,
   KwardSession,
   KwardStartupResourcesResult,
+  KwardToolInfo,
+  KwardToolInventory,
+  KwardToolSource,
   KwardTranscriptResult,
   KwardTreeResult,
   KwardTurn,
@@ -205,6 +209,20 @@ export class KwardClient implements PiClient {
     const session = await this.ensureSession();
     const result = normalizeStartupResourcesResult(await this.requestForSession('resources/startup', session));
     return { sections: result.sections ?? [] };
+  }
+
+  public async getToolInventory(): Promise<KwardToolInventory> {
+    await this.ensureInitialized();
+    const session = await this.ensureSession();
+    const tools = normalizeToolsList(await this.requestForSession('tools/list', session));
+    if (!this.capabilityResolver.isMcpStatusSupported()) {
+      return { tools };
+    }
+
+    return {
+      tools,
+      mcpServers: normalizeMcpStatus(await this.request('mcp/status'))
+    };
   }
 
   public async getAuthProviders(): Promise<PiAuthProvidersResult> {
@@ -1166,6 +1184,96 @@ function normalizeStartupResourcesResult(value: unknown): KwardStartupResourcesR
       items: getStringArray(section.items) ?? []
     })).filter((section) => section.name)
   };
+}
+
+function normalizeToolsList(value: unknown): KwardToolInfo[] {
+  if (!isRecord(value) || !Array.isArray(value.tools)) {
+    return [];
+  }
+
+  return value.tools.map(normalizeToolInfo).filter(isDefined);
+}
+
+function normalizeToolInfo(value: unknown): KwardToolInfo | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const functionSchema = isRecord(value.function) ? value.function : {};
+  const name = getString(functionSchema, 'name');
+  if (!name) {
+    return undefined;
+  }
+
+  const metadata = isRecord(value.metadata) ? value.metadata : {};
+  const description = getString(functionSchema, 'description');
+  const inputSchema = functionSchema?.parameters;
+  const serverName = getString(metadata, 'serverName');
+  const remoteName = getString(metadata, 'remoteName');
+
+  return {
+    name,
+    ...(description ? { description } : {}),
+    ...(inputSchema !== undefined ? { inputSchema } : {}),
+    source: normalizeToolSource(getString(metadata, 'source')),
+    displayName: getString(metadata, 'displayName') ?? name,
+    ...(serverName ? { serverName } : {}),
+    ...(remoteName ? { remoteName } : {})
+  };
+}
+
+function normalizeToolSource(value: string | undefined): KwardToolSource {
+  switch (value) {
+    case 'builtin':
+    case 'mcp':
+    case 'web':
+    case 'skill':
+    case 'ui':
+      return value;
+    default:
+      return 'unknown';
+  }
+}
+
+function normalizeMcpStatus(value: unknown): KwardMcpServerStatus[] {
+  if (!isRecord(value) || !Array.isArray(value.servers)) {
+    return [];
+  }
+
+  return value.servers.map(normalizeMcpServerStatus).filter(isDefined);
+}
+
+function normalizeMcpServerStatus(value: unknown): KwardMcpServerStatus | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const name = getString(value, 'name');
+  if (!name) {
+    return undefined;
+  }
+
+  const transport = getString(value, 'transport');
+  const toolCount = getNumber(value, 'toolCount');
+  const error = getString(value, 'error');
+
+  return {
+    name,
+    ...(transport ? { transport } : {}),
+    status: normalizeMcpStatusValue(getString(value, 'status')),
+    ...(toolCount !== undefined ? { toolCount } : {}),
+    ...(error ? { error } : {})
+  };
+}
+
+function normalizeMcpStatusValue(value: string | undefined): KwardMcpServerStatus['status'] {
+  switch (value) {
+    case 'available':
+    case 'unavailable':
+      return value;
+    default:
+      return 'unknown';
+  }
 }
 
 function normalizeTurnEvent(value: unknown): KwardTurnEvent {

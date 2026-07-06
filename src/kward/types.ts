@@ -102,6 +102,56 @@ export type KwardCompactResult = {
 
 export type KwardCapabilities = Record<string, unknown>;
 
+export type KwardToolSource = 'builtin' | 'mcp' | 'web' | 'skill' | 'ui' | 'unknown';
+
+export type KwardToolMetadata = {
+  source?: string;
+  displayName?: string;
+  serverName?: string;
+  remoteName?: string;
+};
+
+export type KwardToolSchema = {
+  type?: string;
+  function?: {
+    name?: string;
+    description?: string;
+    parameters?: unknown;
+  };
+  metadata?: KwardToolMetadata;
+};
+
+export type KwardToolsListResult = {
+  tools?: KwardToolSchema[];
+};
+
+export type KwardToolInfo = {
+  name: string;
+  description?: string;
+  inputSchema?: unknown;
+  source: KwardToolSource;
+  displayName: string;
+  serverName?: string;
+  remoteName?: string;
+};
+
+export type KwardMcpServerStatus = {
+  name: string;
+  transport?: string;
+  status: 'available' | 'unavailable' | 'unknown';
+  toolCount?: number;
+  error?: string;
+};
+
+export type KwardMcpStatusResult = {
+  servers?: KwardMcpServerStatus[];
+};
+
+export type KwardToolInventory = {
+  tools: KwardToolInfo[];
+  mcpServers?: KwardMcpServerStatus[];
+};
+
 export type KwardInitializeResult = {
   protocolVersion?: number;
   serverName?: string;

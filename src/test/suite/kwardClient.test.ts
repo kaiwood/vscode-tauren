@@ -58,6 +58,144 @@ suite('KwardClient', () => {
     }
   });
 
+  test('returns Kward tool inventory with MCP status when discovery is supported', async () => {
+    const child = new FakeChildProcess();
+    const client = new KwardClient({ kwardPath: createKwardPath() });
+    const spawned = require('node:child_process') as { spawn: unknown };
+    const originalSpawn = spawned.spawn;
+
+    try {
+      spawned.spawn = () => child;
+
+      const inventoryPromise = client.getToolInventory();
+      await waitForWriteCount(child, 1);
+      assertWrittenRequest(child.writes[0], { method: 'initialize' });
+      respond(client, 1, {
+        capabilities: {
+          mcp: {
+            discovery: {
+              supported: true,
+              methods: ['tools/list', 'mcp/status'],
+              toolMetadata: true,
+              serverStatus: true
+            }
+          }
+        }
+      });
+
+      await waitForWriteCount(child, 2);
+      assertWrittenRequest(child.writes[1], { method: 'sessions/create', params: {} });
+      respond(client, 2, { id: 'session-1' });
+
+      await waitForWriteCount(child, 3);
+      assertWrittenRequest(child.writes[2], { method: 'tools/list', params: { sessionId: 'session-1' } });
+      respond(client, 3, {
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'read_file',
+              description: 'Read a file.',
+              parameters: { type: 'object' }
+            },
+            metadata: { source: 'builtin', displayName: 'read_file' }
+          },
+          {
+            type: 'function',
+            function: {
+              name: 'github__search_issues',
+              description: 'Search issues.',
+              parameters: { type: 'object', properties: { query: { type: 'string' } } }
+            },
+            metadata: {
+              source: 'mcp',
+              displayName: 'github.search_issues',
+              serverName: 'github',
+              remoteName: 'search_issues'
+            }
+          },
+          { type: 'function', function: { description: 'missing name' } },
+          { nope: true }
+        ]
+      });
+
+      await waitForWriteCount(child, 4);
+      assertWrittenRequest(child.writes[3], { method: 'mcp/status' });
+      respond(client, 4, {
+        servers: [
+          { name: 'github', transport: 'stdio', status: 'available', toolCount: 1 },
+          { name: 'linear', transport: 'stdio', status: 'unavailable', toolCount: 0, error: 'command not found' },
+          { transport: 'stdio', status: 'available' }
+        ]
+      });
+
+      assert.deepStrictEqual(await inventoryPromise, {
+        tools: [
+          {
+            name: 'read_file',
+            description: 'Read a file.',
+            inputSchema: { type: 'object' },
+            source: 'builtin',
+            displayName: 'read_file'
+          },
+          {
+            name: 'github__search_issues',
+            description: 'Search issues.',
+            inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+            source: 'mcp',
+            displayName: 'github.search_issues',
+            serverName: 'github',
+            remoteName: 'search_issues'
+          }
+        ],
+        mcpServers: [
+          { name: 'github', transport: 'stdio', status: 'available', toolCount: 1 },
+          { name: 'linear', transport: 'stdio', status: 'unavailable', toolCount: 0, error: 'command not found' }
+        ]
+      });
+    } finally {
+      spawned.spawn = originalSpawn;
+      client.dispose();
+    }
+  });
+
+  test('returns Kward tool inventory without MCP status for older capabilities', async () => {
+    const child = new FakeChildProcess();
+    const client = new KwardClient({ kwardPath: createKwardPath() });
+    const spawned = require('node:child_process') as { spawn: unknown };
+    const originalSpawn = spawned.spawn;
+
+    try {
+      spawned.spawn = () => child;
+
+      const inventoryPromise = client.getToolInventory();
+      await waitForWriteCount(child, 1);
+      respond(client, 1, { capabilities: {} });
+
+      await waitForWriteCount(child, 2);
+      respond(client, 2, { id: 'session-1' });
+
+      await waitForWriteCount(child, 3);
+      assertWrittenRequest(child.writes[2], { method: 'tools/list', params: { sessionId: 'session-1' } });
+      respond(client, 3, {
+        tools: [
+          {
+            function: { name: 'mystery_tool' },
+            metadata: { source: 'unexpected' }
+          }
+        ]
+      });
+
+      assert.deepStrictEqual(await inventoryPromise, {
+        tools: [{ name: 'mystery_tool', source: 'unknown', displayName: 'mystery_tool' }]
+      });
+      assert.strictEqual(child.writes.length, 3);
+    } finally {
+      spawned.spawn = originalSpawn;
+      client.dispose();
+    }
+  });
+
   test('warns when Kward initializes with a different RPC protocol version', async () => {
     const child = new FakeChildProcess();
     const notifications: Array<{ message: string; notifyType: string }> = [];

@@ -64,6 +64,25 @@ export class KwardCapabilityResolver {
     return this.isGroupSupported('memory');
   }
 
+  public isMcpDiscoverySupported(): boolean {
+    const mcp = this.getGroup('mcp');
+    const discovery = isRecord(mcp) ? mcp.discovery : undefined;
+    return isRecord(discovery) && discovery.supported === true;
+  }
+
+  public isMcpStatusSupported(): boolean {
+    const mcp = this.getGroup('mcp');
+    const discovery = isRecord(mcp) ? mcp.discovery : undefined;
+    const methods = isRecord(discovery) ? discovery.methods : undefined;
+    return isRecord(discovery) && discovery.supported === true && Array.isArray(methods) && methods.includes('mcp/status');
+  }
+
+  public isMcpToolMetadataSupported(): boolean {
+    const mcp = this.getGroup('mcp');
+    const discovery = isRecord(mcp) ? mcp.discovery : undefined;
+    return isRecord(discovery) && discovery.supported === true && discovery.toolMetadata === true;
+  }
+
   public isMemoryMethodSupported(method: string): boolean {
     const memory = this.getGroup('memory');
     if (!isRecord(memory) || memory.supported !== true) {
