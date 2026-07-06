@@ -61,6 +61,12 @@ Pi runtime events are mapped into Tauren UI actions. Important event expectation
 - `agent_end` means the session is idle.
 - assistant text streams through `message_update` text deltas.
 
+## Kward MCP discovery
+
+When the Kward backend is selected, Tauren consumes Kward RPC `tools/list` and `mcp/status` for MCP/tool discovery. Kward owns MCP configuration and execution; Tauren only displays discovered tools and server status through Kward-only commands such as `/mcp` and `/tools`.
+
+These commands are not exposed when Pi is the active backend.
+
 ## Extension UI bridge
 
 Pi extensions call Pi UI APIs. Tauren maps those calls into sidebar surfaces through the extension UI bridge.

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added Kward-only MCP and tool discovery via `/mcp` and `/tools`, including MCP server status and MCP tool labels.
+
 ## [1.8.0] - 2026-07-05
 
 ### Added
