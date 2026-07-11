@@ -876,7 +876,7 @@ suite('TaurenChatController', () => {
     assert.strictEqual(lastState(harness).currentSessionFile, '');
     assert.deepStrictEqual(lastState(harness).messages, []);
     assert.deepStrictEqual(sessionFiles, [undefined]);
-    assert.deepStrictEqual(harness.clientOptions, [{ cwd: '/workspace' }]);
+    assert.deepStrictEqual(harness.clientOptions, [{ cwd: '/workspace', resumeLastSession: false }]);
     harness.controller.dispose();
   });
 

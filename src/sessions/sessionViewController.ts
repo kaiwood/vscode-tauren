@@ -154,7 +154,7 @@ export class SessionViewController {
     this.options.postState();
     this.scheduleSessionSearchIndexing();
 
-    if (!hasCachedSessions) {
+    if (!hasCachedSessions || this.options.shouldRefreshSessionsOnShow?.()) {
       void this.refreshSessions('showSessions');
     }
   }
