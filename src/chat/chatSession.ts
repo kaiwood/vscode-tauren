@@ -78,6 +78,7 @@ export type ChatSnapshotOptions = {
 type ChatMessageMeta = {
   id: string;
   revision: number;
+  snapshot?: ChatSnapshotMessage;
 };
 
 export type SubmittedPrompt = {
@@ -117,7 +118,7 @@ export class ChatSession {
 
   public webviewSnapshot(options: ChatSnapshotOptions = {}): ChatSnapshotState {
     return {
-      messages: this.getVisibleTranscript(options).map((message) => cloneSnapshotMessage(message, this.ensureMessageMeta(message))),
+      messages: this.getVisibleTranscript(options).map((message) => this.getSnapshotMessage(message)),
       busy: this.busy
     };
   }
@@ -468,12 +469,20 @@ export class ChatSession {
     return meta;
   }
 
+  private getSnapshotMessage(message: ChatMessage): ChatSnapshotMessage {
+    const meta = this.ensureMessageMeta(message);
+    meta.snapshot ??= cloneSnapshotMessage(message, meta);
+    return meta.snapshot;
+  }
+
   private touchMessage(message: ChatMessage | undefined): void {
     if (!message) {
       return;
     }
 
-    this.ensureMessageMeta(message).revision += 1;
+    const meta = this.ensureMessageMeta(message);
+    meta.revision += 1;
+    meta.snapshot = undefined;
   }
 
   private nextActivityId(): string {

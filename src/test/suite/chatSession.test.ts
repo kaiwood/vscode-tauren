@@ -54,9 +54,14 @@ suite('ChatSession', () => {
 
     session.beginSubmit('hello');
     const first = session.webviewSnapshot();
+    const unchanged = session.webviewSnapshot();
     session.appendAssistantDelta('Hi');
     const second = session.webviewSnapshot();
 
+    assert.strictEqual(unchanged.messages[0], first.messages[0]);
+    assert.strictEqual(unchanged.messages[1], first.messages[1]);
+    assert.strictEqual(second.messages[0], first.messages[0]);
+    assert.notStrictEqual(second.messages[1], first.messages[1]);
     assert.strictEqual(first.messages[0].id, second.messages[0].id);
     assert.strictEqual(first.messages[1].id, second.messages[1].id);
     assert.strictEqual(first.messages[0].revision, second.messages[0].revision);
