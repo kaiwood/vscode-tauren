@@ -5,8 +5,6 @@ export function mapSdkSessionEventToAgentEvent(event: AgentSessionEvent): AgentE
   return event as unknown as AgentEvent;
 }
 
-export const mapSdkSessionEventToPiEvent = mapSdkSessionEventToAgentEvent;
-
 export function mapSdkExtensionErrorToAgentEvent(error: ExtensionError): AgentEvent {
   return {
     type: 'extension_error',
@@ -15,5 +13,3 @@ export function mapSdkExtensionErrorToAgentEvent(error: ExtensionError): AgentEv
     error: error.error
   };
 }
-
-export const mapSdkExtensionErrorToPiEvent = mapSdkExtensionErrorToAgentEvent;

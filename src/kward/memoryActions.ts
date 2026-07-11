@@ -95,14 +95,6 @@ export function parseKwardMemorySlashArgs(args: string): { action: KwardMemoryAc
   }
 }
 
-export async function pickAndRunKwardMemoryAction(client: unknown, action: KwardMemoryAction, showNotification: (message: string, notifyType: string) => void): Promise<void> {
-  const result = await runKwardMemoryAction({ client, action, showNotification });
-
-  if (result) {
-    showNotification(result, 'info');
-  }
-}
-
 function requireAgentMemoryClient(client: unknown): AgentMemoryClient {
   if (!isAgentMemoryClient(client)) {
     throw new Error('Memory is only available when the selected backend supports it.');

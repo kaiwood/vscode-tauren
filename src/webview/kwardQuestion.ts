@@ -77,7 +77,7 @@ export function getKwardQuestionNextProgressFocusIndex(request: KwardQuestionReq
   return moduloIndex(currentIndex, delta, stepCount);
 }
 
-export function getKwardQuestionChoiceCount(request: KwardQuestionRequest, questionIndex: number): number {
+function getKwardQuestionChoiceCount(request: KwardQuestionRequest, questionIndex: number): number {
   return (request.questions[questionIndex]?.options.length ?? 0) + 1;
 }
 

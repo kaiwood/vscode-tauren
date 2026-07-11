@@ -61,7 +61,7 @@ export const voiceModelAssets = [
 
 const whisperRelease = 'v1.8.6';
 
-export const voiceBinaryAssets = [
+const voiceBinaryAssets = [
   {
     platform: 'win32',
     arch: 'x64',

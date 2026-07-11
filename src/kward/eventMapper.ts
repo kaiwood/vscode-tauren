@@ -62,7 +62,7 @@ export class KwardTurnEventNormalizer {
   }
 }
 
-export function mapKwardTurnEventToAgentEvent(event: KwardTurnEvent): AgentEvent | undefined {
+function mapKwardTurnEventToAgentEvent(event: KwardTurnEvent): AgentEvent | undefined {
   const payload = isRecord(event.payload) ? event.payload : {};
   const turnId = typeof event.turnId === 'string' ? event.turnId : undefined;
 
