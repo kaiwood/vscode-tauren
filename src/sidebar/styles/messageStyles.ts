@@ -290,21 +290,17 @@ export const messageStyles = /* css */ `    .tauren-transcript-search {
 
     .tauren-stream-word {
       display: inline-block;
-      animation: tauren-stream-word-in 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
-      will-change: opacity, filter, transform;
+      animation: tauren-stream-word-in 120ms ease-out both;
+      will-change: opacity;
     }
 
     @keyframes tauren-stream-word-in {
       from {
         opacity: 0;
-        filter: blur(2.5px);
-        transform: translateY(2px);
       }
 
       to {
         opacity: 1;
-        filter: blur(0);
-        transform: translateY(0);
       }
     }
 

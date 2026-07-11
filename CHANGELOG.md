@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Made streamed agent messages become readable faster by shortening their fade-in effect.
+
 ## [1.9.0] - 2026-07-11
 
 ### Added

@@ -465,7 +465,7 @@ function appendAnimatedText(fragment: DocumentFragment, text: string, initialWor
     span.textContent = token;
 
     if (wordIndex > 0) {
-      span.style.animationDelay = Math.min(wordIndex * 16, 120) + 'ms';
+      span.style.animationDelay = Math.min(wordIndex * 8, 40) + 'ms';
     }
 
     fragment.append(span);
