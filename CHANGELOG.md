@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- Reduced repeated filesystem scanning while typing `@` file completions.
 - Restored stable transcript rendering by removing browser content skipping from message elements.
 
 ## [1.8.0] - 2026-07-05

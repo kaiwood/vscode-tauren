@@ -28,6 +28,18 @@ suite('@ file suggestion provider', () => {
     assert.strictEqual(directory.value, '@"two words/"');
   });
 
+  test('reuses a recent workspace walk while the query changes', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tauren-file-suggestions-'));
+    await fs.writeFile(path.join(cwd, 'alpha.ts'), '');
+
+    await getAtFileSuggestions({ cwd, prefix: '@a' });
+    await fs.writeFile(path.join(cwd, 'later.ts'), '');
+
+    const cachedSuggestions = await getAtFileSuggestions({ cwd, prefix: '@later' });
+
+    assert.deepStrictEqual(cachedSuggestions, []);
+  });
+
   test('does not browse traversal paths outside cwd', async () => {
     const parent = await fs.mkdtemp(path.join(os.tmpdir(), 'tauren-file-suggestions-parent-'));
     const cwd = path.join(parent, 'workspace');

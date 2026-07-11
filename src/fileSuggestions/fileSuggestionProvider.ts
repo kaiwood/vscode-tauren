@@ -5,7 +5,10 @@ import type { WebviewFileSuggestion } from '../webviewProtocol/types';
 
 const maxWalkEntries = 3000;
 const maxSuggestions = 20;
+const walkCacheLifetimeMs = 1500;
+const maxCachedWalks = 4;
 const excludedDirectoryNames = new Set(['.git', 'node_modules']);
+const walkCache = new Map<string, { promise: Promise<WalkEntry[]>; expiresAt: number }>();
 
 export async function getAtFileSuggestions(options: { cwd: string | undefined; prefix: string }): Promise<WebviewFileSuggestion[]> {
   const cwd = options.cwd?.trim();
@@ -23,8 +26,8 @@ export async function getAtFileSuggestions(options: { cwd: string | undefined; p
 
   const baseDir = scoped?.baseDir ?? cwd;
   const query = scoped?.query ?? parsed.rawPrefix;
-  const entries = await walkDirectory(baseDir, maxWalkEntries);
-  const normalizedQuery = toDisplayPath(query);
+  const entries = await getCachedDirectoryWalk(baseDir);
+  const normalizedQuery = toDisplayPath(query).toLowerCase();
   const scoredEntries = entries
     .map((entry) => ({
       ...entry,
@@ -147,12 +150,43 @@ function scopedPathForDisplay(displayBase: string, relativePath: string): string
   return `${toDisplayPath(displayBase)}${normalizedRelativePath}`;
 }
 
+function getCachedDirectoryWalk(baseDir: string): Promise<WalkEntry[]> {
+  const cacheKey = path.resolve(baseDir);
+  const now = Date.now();
+
+  for (const [key, cached] of walkCache) {
+    if (cached.expiresAt <= now) {
+      walkCache.delete(key);
+    }
+  }
+
+  const cached = walkCache.get(cacheKey);
+  if (cached) {
+    return cached.promise;
+  }
+
+  const promise = walkDirectory(baseDir, maxWalkEntries);
+  walkCache.set(cacheKey, { promise, expiresAt: now + walkCacheLifetimeMs });
+
+  while (walkCache.size > maxCachedWalks) {
+    const oldestKey = walkCache.keys().next().value as string | undefined;
+    if (oldestKey === undefined) {
+      break;
+    }
+    walkCache.delete(oldestKey);
+  }
+
+  return promise;
+}
+
 async function walkDirectory(baseDir: string, maxEntries: number): Promise<WalkEntry[]> {
   const results: WalkEntry[] = [];
   const queue = [''];
+  let queueIndex = 0;
 
-  while (queue.length > 0 && results.length < maxEntries) {
-    const relativeDir = queue.shift() ?? '';
+  while (queueIndex < queue.length && results.length < maxEntries) {
+    const relativeDir = queue[queueIndex] ?? '';
+    queueIndex += 1;
     const absoluteDir = path.join(baseDir, relativeDir);
     let entries;
 
@@ -186,11 +220,10 @@ async function walkDirectory(baseDir: string, maxEntries: number): Promise<WalkE
   return results;
 }
 
-function scoreEntry(filePath: string, query: string, isDirectory: boolean): number {
+function scoreEntry(filePath: string, lowerQuery: string, isDirectory: boolean): number {
   const normalizedPath = toDisplayPath(filePath);
   const fileName = path.basename(normalizedPath.endsWith('/') ? normalizedPath.slice(0, -1) : normalizedPath);
   const lowerFileName = fileName.toLowerCase();
-  const lowerQuery = query.toLowerCase();
   const lowerPath = normalizedPath.toLowerCase();
   let score = 0;
 
