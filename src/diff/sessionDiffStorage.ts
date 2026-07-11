@@ -5,6 +5,8 @@ import { isRecord } from '../shared/typeGuards';
 
 const sessionDiffSnapshotsStorageKey = 'tauren.sessionDiffSnapshots';
 const maxSessionDiffSnapshots = 50;
+const maxSnapshotFileBytes = 1 * 1024 * 1024;
+const maxSnapshotFilesBytes = 5 * 1024 * 1024;
 
 type StoredSessionDiffSnapshot = {
   snapshot: SessionDiffSnapshot;
@@ -128,10 +130,33 @@ function formatStoredSessionDiffSnapshots(
   const formatted: Record<string, SessionDiffSnapshot & { updatedAt: number }> = {};
 
   for (const [sessionFile, stored] of Object.entries(snapshots)) {
-    formatted[sessionFile] = { ...stored.snapshot, updatedAt: stored.updatedAt };
+    const files = limitSnapshotFiles(stored.snapshot.files);
+    formatted[sessionFile] = {
+      ...(stored.snapshot.stats ? { stats: stored.snapshot.stats } : {}),
+      ...(files.length > 0 ? { files } : {}),
+      updatedAt: stored.updatedAt
+    };
   }
 
   return formatted;
+}
+
+function limitSnapshotFiles(files: SessionDiffSnapshot['files']): NonNullable<SessionDiffSnapshot['files']> {
+  const limited: NonNullable<SessionDiffSnapshot['files']> = [];
+  let totalBytes = 0;
+
+  for (const file of files ?? []) {
+    const fileBytes = Buffer.byteLength(file.originalContent, 'utf8');
+
+    if (fileBytes > maxSnapshotFileBytes || totalBytes + fileBytes > maxSnapshotFilesBytes) {
+      continue;
+    }
+
+    limited.push(file);
+    totalBytes += fileBytes;
+  }
+
+  return limited;
 }
 
 function getNextSnapshotUpdatedAt(snapshots: Record<string, StoredSessionDiffSnapshot>): number {

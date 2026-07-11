@@ -57,6 +57,23 @@ suite('SessionDiffStorage', () => {
     });
   });
 
+  test('does not persist oversized file baselines', () => {
+    const workspaceState = new FakeMemento();
+
+    writeSessionDiffSnapshot(workspaceState, '/sessions/large.jsonl', {
+      stats: { addedLines: 1, removedLines: 0 },
+      files: [
+        { path: 'small.ts', originalContent: 'small\n' },
+        { path: 'large.ts', originalContent: 'x'.repeat(1 * 1024 * 1024 + 1) }
+      ]
+    });
+
+    assert.deepStrictEqual(readSessionDiffSnapshot(workspaceState, '/sessions/large.jsonl'), {
+      stats: { addedLines: 1, removedLines: 0 },
+      files: [{ path: 'small.ts', originalContent: 'small\n' }]
+    });
+  });
+
   test('drops malformed snapshots when writing', () => {
     const workspaceState = new FakeMemento({
       [sessionDiffSnapshotsStorageKey]: {
