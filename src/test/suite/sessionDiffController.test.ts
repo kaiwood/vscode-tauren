@@ -1,4 +1,7 @@
 import * as assert from 'assert';
+import * as fs from 'fs/promises';
+import * as os from 'os';
+import * as path from 'path';
 import { SessionDiffController } from '../../diff/sessionDiffController';
 import type { SessionDiffSnapshot, SessionDiffStats } from '../../diff/types';
 
@@ -51,6 +54,28 @@ suite('SessionDiffController', () => {
     assert.deepStrictEqual(controller.getStats(), { addedLines: 3, removedLines: 1 });
     assert.deepStrictEqual(savedSnapshots, [{ sessionFile, snapshot: { stats: { addedLines: 3, removedLines: 1 } } }]);
     assert.strictEqual(postStateCount, 1);
+  });
+
+  test('records a workspace file baseline only once', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tauren-session-diff-controller-'));
+    const filePath = path.join(cwd, 'new-file.ts');
+    const savedSnapshots: SessionDiffSnapshot[] = [];
+    await fs.writeFile(filePath, 'const value = 1;\n');
+
+    const controller = new SessionDiffController({
+      initialSessionFile: '/tmp/tauren-session.jsonl',
+      getSessionGeneration: () => 0,
+      getCwd: () => cwd,
+      postState: () => undefined,
+      saveSnapshot: (_sessionFile, snapshot) => savedSnapshots.push(snapshot),
+      restoreStatsFromSessionFile: async () => undefined
+    });
+
+    await controller.recordWorkspaceFileChange(filePath);
+    await controller.recordWorkspaceFileChange(filePath);
+
+    assert.strictEqual(savedSnapshots.length, 1);
+    assert.deepStrictEqual(savedSnapshots[0].files, [{ path: 'new-file.ts', originalContent: '' }]);
   });
 
   test('ignores stale in-flight refresh after switching session files', async () => {

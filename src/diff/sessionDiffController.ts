@@ -1,5 +1,5 @@
 import { normalizeDiffLineCount } from './lineCount';
-import { createTrackedSessionFile, emptySessionDiffStats, parseSessionDiffStatsFromFile, SessionDiffTracker } from './sessionDiffTracker';
+import { createTrackedSessionFile, emptySessionDiffStats, getTrackedSessionPath, parseSessionDiffStatsFromFile, SessionDiffTracker } from './sessionDiffTracker';
 import type {
   SessionDiffControllerOptions,
   SessionDiffSnapshot,
@@ -12,6 +12,7 @@ export class SessionDiffController {
   private stats = emptySessionDiffStats();
   private refreshInFlight: RefreshInFlight | undefined;
   private refreshToken = 0;
+  private readonly pendingTrackedPaths = new Set<string>();
   private readonly tracker: SessionDiffTracker;
 
   public constructor(private readonly options: SessionDiffControllerOptions) {
@@ -94,13 +95,26 @@ export class SessionDiffController {
       return;
     }
 
-    const trackedFile = await createTrackedSessionFile(this.options.getCwd?.(), absolutePath);
+    const cwd = this.options.getCwd?.();
+    const trackedPath = getTrackedSessionPath(cwd, absolutePath);
 
-    if (!trackedFile || !this.tracker.addTrackedFile(trackedFile)) {
+    if (!trackedPath || this.tracker.hasTrackedFile(trackedPath) || this.pendingTrackedPaths.has(trackedPath)) {
       return;
     }
 
-    this.saveSnapshot();
+    this.pendingTrackedPaths.add(trackedPath);
+
+    try {
+      const trackedFile = await createTrackedSessionFile(cwd, absolutePath);
+
+      if (!trackedFile || !this.tracker.addTrackedFile(trackedFile)) {
+        return;
+      }
+
+      this.saveSnapshot();
+    } finally {
+      this.pendingTrackedPaths.delete(trackedPath);
+    }
   }
 
   private applyStats(stats: SessionDiffStats): void {

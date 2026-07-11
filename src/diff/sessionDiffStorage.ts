@@ -17,8 +17,7 @@ export function createSessionDiffStatsFileWatcher(onChange: (uri?: vscode.Uri) =
     watcher,
     watcher.onDidChange((uri) => onChange(uri)),
     watcher.onDidCreate((uri) => onChange(uri)),
-    watcher.onDidDelete((uri) => onChange(uri)),
-    vscode.workspace.onDidSaveTextDocument((document) => onChange(document.uri))
+    watcher.onDidDelete((uri) => onChange(uri))
   ];
 
   return new vscode.Disposable(() => {

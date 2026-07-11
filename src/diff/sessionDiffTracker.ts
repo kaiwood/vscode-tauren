@@ -59,8 +59,12 @@ export class SessionDiffTracker {
     }
   }
 
+  public hasTrackedFile(filePath: string): boolean {
+    return this.trackedFiles.has(filePath);
+  }
+
   public addTrackedFile(file: SessionDiffTrackedFile): boolean {
-    if (this.trackedFiles.has(file.path)) {
+    if (this.hasTrackedFile(file.path)) {
       return false;
     }
 
@@ -137,14 +141,15 @@ export async function parseSessionBestEffortFileDiffsFromFile(
 }
 
 export async function createTrackedSessionFile(cwd: string | undefined, absolutePath: string): Promise<SessionDiffTrackedFile | undefined> {
-  if (!cwd) {
+  const pathInCwd = getTrackedSessionPath(cwd, absolutePath);
+
+  if (!cwd || !pathInCwd) {
     return undefined;
   }
 
-  const pathInCwd = getPathWithinCwd(cwd, absolutePath);
   const resolvedPath = pathInCwd ? resolvePathWithinCwd(cwd, pathInCwd) : undefined;
 
-  if (!pathInCwd || !resolvedPath || shouldSkipTrackedSessionPath(pathInCwd) || !await isRegularFile(resolvedPath)) {
+  if (!resolvedPath || !await isRegularFile(resolvedPath)) {
     return undefined;
   }
 
@@ -152,6 +157,15 @@ export async function createTrackedSessionFile(cwd: string | undefined, absolute
     path: pathInCwd,
     originalContent: await readGitFileContent(cwd, pathInCwd) ?? ''
   };
+}
+
+export function getTrackedSessionPath(cwd: string | undefined, absolutePath: string): string | undefined {
+  if (!cwd) {
+    return undefined;
+  }
+
+  const pathInCwd = getPathWithinCwd(cwd, absolutePath);
+  return pathInCwd && !shouldSkipTrackedSessionPath(pathInCwd) ? pathInCwd : undefined;
 }
 
 export function shouldSkipTrackedSessionPath(filePath: string): boolean {
