@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-07-11
+
 ### Added
 
 - Added Pi extension autocomplete providers to the composer, including stacked delegation and provider-controlled completion application.
