@@ -25,3 +25,7 @@ out/**/*.map
 
 # SDK source dependency is bundled into out/sdk/piSdkBundle.mjs
 node_modules/@earendil-works/pi-coding-agent/**
+out/sdk/node_modules/**
+
+# Documentation/demo captures are not needed at runtime
+resources/*.gif
