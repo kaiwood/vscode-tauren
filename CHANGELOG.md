@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Restored the complete Tauren sidebar state after reopening a retained hidden view, including active extension UI.
+
 ## [1.9.1] - 2026-07-11
 
 ### Fixed
