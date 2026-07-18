@@ -1,6 +1,7 @@
 import type { ChatSnapshotMessage, ChatSnapshotState, ChatState } from '../chat/chatSession';
 import type { SettingId, SettingValue, TaurenSettingsSection } from '../settings/settingsRegistry';
 import type { VoiceState } from '../voice/types';
+import type { SessionListItem } from '../sessions/types';
 
 export type WebviewStreamingBehavior = 'steer' | 'followUp';
 export type WebviewComposerTextMode = 'replace' | 'append';
@@ -254,21 +255,7 @@ export type WebviewSettingsViewState = {
   settings?: WebviewSettingsState;
 };
 
-export type WebviewSessionItem = {
-  path: string;
-  id: string;
-  cwd: string;
-  name?: string;
-  parentSessionPath?: string;
-  created: string;
-  modified: string;
-  messageCount: number;
-  firstMessage: string;
-  metadataState?: 'loading' | 'ready';
-  depth: number;
-  isLast: boolean;
-  ancestorContinues: boolean[];
-  current: boolean;
+export type WebviewSessionItem = SessionListItem & {
   liveStatus?: 'idle' | 'running' | 'done' | 'error';
   customUiOpen?: boolean;
 };

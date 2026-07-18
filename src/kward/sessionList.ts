@@ -2,9 +2,9 @@ import { existsSync } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import type { WebviewSessionItem } from '../webviewProtocol/types';
 import type { SessionListProgressOptions } from '../controller/types';
-import type { RawSessionInfo, SessionTreeNode } from '../sessions/types';
+import { decorateSessionTree } from '../sessions/sessionTree';
+import type { SessionListItem } from '../sessions/types';
 import { mapWithConcurrency } from '../shared/mapWithConcurrency';
 import { isRecord } from '../shared/typeGuards';
 import { KwardCapabilityResolver } from './capabilities';
@@ -12,14 +12,14 @@ import { KwardRpcTransport } from './rpcTransport';
 
 const maxCachedKwardSessionItems = 5000;
 const maxConcurrentKwardSessionFileReads = 8;
-const kwardSessionItemCache = new Map<string, { size: number; mtimeMs: number; item: WebviewSessionItem | undefined }>();
+const kwardSessionItemCache = new Map<string, { size: number; mtimeMs: number; item: SessionListItem | undefined }>();
 
 export async function listKwardSessions(options: {
   cwd?: string;
   currentSessionFile?: string;
   kwardPath?: string;
   progress?: SessionListProgressOptions;
-} = {}): Promise<WebviewSessionItem[]> {
+} = {}): Promise<SessionListItem[]> {
   const rpcSessions = await listKwardSessionsViaRpc(options).catch(() => undefined);
   if (rpcSessions) {
     return decorateSessions(rpcSessions, options.currentSessionFile);
@@ -60,7 +60,7 @@ async function listKwardSessionsViaRpc(options: {
   cwd?: string;
   currentSessionFile?: string;
   kwardPath?: string;
-}): Promise<WebviewSessionItem[] | undefined> {
+}): Promise<SessionListItem[] | undefined> {
   if (!options.cwd) {
     return undefined;
   }
@@ -86,7 +86,7 @@ async function listKwardSessionsViaRpc(options: {
   }
 }
 
-function readKwardSessionItemFromRpc(value: unknown): WebviewSessionItem | undefined {
+function readKwardSessionItemFromRpc(value: unknown): SessionListItem | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
@@ -146,7 +146,7 @@ function safeCwd(cwd: string): string {
   return `--${resolve(cwd).replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`;
 }
 
-async function readKwardSessionItem(file: string): Promise<WebviewSessionItem | undefined> {
+async function readKwardSessionItem(file: string): Promise<SessionListItem | undefined> {
   try {
     const stats = await stat(file);
     const cached = kwardSessionItemCache.get(file);
@@ -163,7 +163,7 @@ async function readKwardSessionItem(file: string): Promise<WebviewSessionItem | 
   }
 }
 
-async function readKwardSessionItemUncached(file: string, stats: Awaited<ReturnType<typeof stat>>): Promise<WebviewSessionItem | undefined> {
+async function readKwardSessionItemUncached(file: string, stats: Awaited<ReturnType<typeof stat>>): Promise<SessionListItem | undefined> {
   const content = await readFile(file, 'utf8');
   let header: Record<string, unknown> | undefined;
   let latestInfo: Record<string, unknown> | undefined;
@@ -225,7 +225,7 @@ async function readKwardSessionItemUncached(file: string, stats: Awaited<ReturnT
   };
 }
 
-function rememberKwardSessionItem(file: string, size: number, mtimeMs: number, item: WebviewSessionItem | undefined): void {
+function rememberKwardSessionItem(file: string, size: number, mtimeMs: number, item: SessionListItem | undefined): void {
   kwardSessionItemCache.set(file, {
     size,
     mtimeMs,
@@ -280,15 +280,15 @@ function getBooleanArray(record: Record<string, unknown>, key: string): boolean[
   return Array.isArray(value) ? value.filter((entry): entry is boolean => typeof entry === 'boolean') : undefined;
 }
 
-function isKwardSessionItem(session: WebviewSessionItem | undefined): session is WebviewSessionItem {
+function isKwardSessionItem(session: SessionListItem | undefined): session is SessionListItem {
   return session !== undefined;
 }
 
-function isVisibleKwardSessionItem(session: WebviewSessionItem | undefined): session is WebviewSessionItem {
+function isVisibleKwardSessionItem(session: SessionListItem | undefined): session is SessionListItem {
   return isKwardSessionItem(session) && !isEmptyUnnamedKwardSessionItem(session);
 }
 
-function isEmptyUnnamedKwardSessionItem(session: WebviewSessionItem): boolean {
+function isEmptyUnnamedKwardSessionItem(session: SessionListItem): boolean {
   return isEmptyUnnamedKwardSessionFields(session.messageCount, session.name, session.firstMessage);
 }
 
@@ -298,82 +298,9 @@ function isEmptyUnnamedKwardSessionFields(messageCount: number | undefined, name
     && !firstMessage?.trim();
 }
 
-function decorateSessions(sessions: WebviewSessionItem[], currentSessionFile: string | undefined): WebviewSessionItem[] {
-  const currentPath = canonicalizePath(currentSessionFile);
-
-  return flattenSessionTree(buildSessionTree(sessions)).map((session) => ({
+function decorateSessions(sessions: SessionListItem[], currentSessionFile: string | undefined): SessionListItem[] {
+  return decorateSessionTree(sessions, currentSessionFile).map((session) => ({
     ...session,
-    current: currentPath !== undefined && canonicalizePath(session.path) === currentPath,
     metadataState: 'ready'
   }));
-}
-
-function buildSessionTree(sessions: RawSessionInfo[]): SessionTreeNode[] {
-  const byPath = new Map<string, SessionTreeNode>();
-
-  for (const session of sessions) {
-    byPath.set(canonicalizePath(session.path) ?? session.path, { session, children: [] });
-  }
-
-  const roots: SessionTreeNode[] = [];
-
-  for (const session of sessions) {
-    const sessionPath = canonicalizePath(session.path) ?? session.path;
-    const node = byPath.get(sessionPath);
-
-    if (!node) {
-      continue;
-    }
-
-    const parentPath = canonicalizePath(session.parentSessionPath);
-
-    if (parentPath && byPath.has(parentPath)) {
-      byPath.get(parentPath)?.children.push(node);
-    } else {
-      roots.push(node);
-    }
-  }
-
-  sortSessionTree(roots);
-  return roots;
-}
-
-function sortSessionTree(nodes: SessionTreeNode[]): void {
-  nodes.sort((left, right) => Date.parse(right.session.modified || '') - Date.parse(left.session.modified || ''));
-
-  for (const node of nodes) {
-    sortSessionTree(node.children);
-  }
-}
-
-function flattenSessionTree(roots: SessionTreeNode[]): Array<Omit<WebviewSessionItem, 'current'>> {
-  const result: Array<Omit<WebviewSessionItem, 'current'>> = [];
-
-  const walk = (
-    node: SessionTreeNode,
-    depth: number,
-    ancestorContinues: boolean[],
-    isLast: boolean
-  ): void => {
-    result.push({
-      ...node.session,
-      depth,
-      isLast,
-      ancestorContinues
-    });
-
-    node.children.forEach((child, index) => {
-      walk(child, depth + 1, [...ancestorContinues, depth > 0 ? !isLast : false], index === node.children.length - 1);
-    });
-  };
-
-  roots.forEach((root, index) => {
-    walk(root, 0, [], index === roots.length - 1);
-  });
-
-  return result;
-}
-
-function canonicalizePath(path: string | undefined): string | undefined {
-  return path ? resolve(path) : undefined;
 }

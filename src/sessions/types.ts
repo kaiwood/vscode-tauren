@@ -1,4 +1,4 @@
-export type PiSessionListItem = {
+export type SessionListItem = {
   path: string;
   id: string;
   cwd: string;
@@ -23,7 +23,7 @@ export type SessionListLoadMetrics = {
 };
 
 export type SessionListPreviousItem = Pick<
-  PiSessionListItem,
+  SessionListItem,
   'path' | 'id' | 'cwd' | 'name' | 'parentSessionPath' | 'created' | 'modified' | 'messageCount' | 'firstMessage'
 >;
 
@@ -33,7 +33,7 @@ export type ListPiSessionsOptions = {
   currentSessionFile?: string;
   env?: NodeJS.ProcessEnv;
   sessionMetadataCacheFile?: string;
-  onProgress?: (sessions: PiSessionListItem[]) => void;
+  onProgress?: (sessions: SessionListItem[]) => void;
   onMetrics?: (metrics: SessionListLoadMetrics) => void;
   previousSessions?: readonly SessionListPreviousItem[];
 };
@@ -46,12 +46,7 @@ export type PiSessionCandidate = {
   size: number;
 };
 
-export type RawSessionInfo = Omit<PiSessionListItem, 'depth' | 'isLast' | 'ancestorContinues' | 'current'>;
-
-export type SessionTreeNode = {
-  session: RawSessionInfo;
-  children: SessionTreeNode[];
-};
+export type RawSessionInfo = Omit<SessionListItem, 'depth' | 'isLast' | 'ancestorContinues' | 'current'>;
 
 export type PiSessionTreeItem = {
   entryId: string;

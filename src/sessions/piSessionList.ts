@@ -5,10 +5,11 @@ import { dirname, isAbsolute, join, resolve } from 'path';
 import { readSessionJsonlHeader } from '../pi/sessionJsonl';
 import { readSessionMetadataCache, writeSessionMetadataCache, type CachedSessionInfo } from './sessionMetadataCache';
 import { readSessionSummary } from './sessionSummaryParser';
-import type { ListPiSessionsOptions, PiSessionCandidate, PiSessionListItem, RawSessionInfo, SessionTreeNode } from './types';
+import type { ListPiSessionsOptions, PiSessionCandidate, RawSessionInfo, SessionListItem } from './types';
+import { decorateSessionTree } from './sessionTree';
 import { mapWithConcurrency } from '../shared/mapWithConcurrency';
 import { isRecord } from '../shared/typeGuards';
-export type { ListPiSessionsOptions, PiSessionCandidate, PiSessionListItem } from './types';
+export type { ListPiSessionsOptions, PiSessionCandidate, SessionListItem } from './types';
 
 const piSessionDirEnvName = 'PI_CODING_AGENT_SESSION_DIR';
 const maxConcurrentSessionFileReads = 8;
@@ -27,7 +28,7 @@ type SessionFileLoad = {
   stale?: CachedSessionInfo;
 };
 
-export async function listPiSessions(options: ListPiSessionsOptions = {}): Promise<PiSessionListItem[]> {
+export async function listPiSessions(options: ListPiSessionsOptions = {}): Promise<SessionListItem[]> {
   const env = options.env ?? process.env;
   const sessionDir = options.sessionDir
     ?? await resolveConfiguredSessionDir(options.cwd, options.currentSessionFile, env);
@@ -186,13 +187,8 @@ function createPreviousSessionCache(sessions: ListPiSessionsOptions['previousSes
 function decorateSessions(
   sessions: RawSessionInfo[],
   currentSessionFile: string | undefined
-): PiSessionListItem[] {
-  const currentPath = canonicalizePath(currentSessionFile);
-
-  return flattenSessionTree(buildSessionTree(sessions)).map((item) => ({
-    ...item,
-    current: currentPath !== undefined && canonicalizePath(item.path) === currentPath
-  }));
+): SessionListItem[] {
+  return decorateSessionTree(sessions, currentSessionFile);
 }
 
 async function resolveConfiguredSessionDir(
@@ -427,74 +423,4 @@ function rememberSessionInfo(filePath: string, stats: Stats, session: RawSession
   if (typeof oldestKey === 'string') {
     sessionInfoCache.delete(oldestKey);
   }
-}
-
-function buildSessionTree(sessions: RawSessionInfo[]): SessionTreeNode[] {
-  const byPath = new Map<string, SessionTreeNode>();
-
-  for (const session of sessions) {
-    byPath.set(canonicalizePath(session.path) ?? session.path, { session, children: [] });
-  }
-
-  const roots: SessionTreeNode[] = [];
-
-  for (const session of sessions) {
-    const sessionPath = canonicalizePath(session.path) ?? session.path;
-    const node = byPath.get(sessionPath);
-
-    if (!node) {
-      continue;
-    }
-
-    const parentPath = canonicalizePath(session.parentSessionPath);
-
-    if (parentPath && byPath.has(parentPath)) {
-      byPath.get(parentPath)?.children.push(node);
-    } else {
-      roots.push(node);
-    }
-  }
-
-  sortSessionTree(roots);
-  return roots;
-}
-
-function sortSessionTree(nodes: SessionTreeNode[]): void {
-  nodes.sort((left, right) => new Date(right.session.modified).getTime() - new Date(left.session.modified).getTime());
-
-  for (const node of nodes) {
-    sortSessionTree(node.children);
-  }
-}
-
-function flattenSessionTree(roots: SessionTreeNode[]): Array<Omit<PiSessionListItem, 'current'>> {
-  const result: Array<Omit<PiSessionListItem, 'current'>> = [];
-
-  const walk = (
-    node: SessionTreeNode,
-    depth: number,
-    ancestorContinues: boolean[],
-    isLast: boolean
-  ): void => {
-    result.push({
-      ...node.session,
-      depth,
-      isLast,
-      ancestorContinues
-    });
-
-    node.children.forEach((child, index) => {
-      walk(child, depth + 1, [...ancestorContinues, depth > 0 ? !isLast : false], index === node.children.length - 1);
-    });
-  };
-
-  roots.forEach((root, index) => {
-    walk(root, 0, [], index === roots.length - 1);
-  });
-
-  return result;
-}
-
-function canonicalizePath(path: string | undefined): string | undefined {
-  return path ? resolve(path) : undefined;
 }
