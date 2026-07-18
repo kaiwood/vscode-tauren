@@ -4,6 +4,7 @@ import type { LocalImageResolveResult, MarkdownRenderer } from '../types';
 import { isRecord } from '../../shared/typeGuards';
 
 export type RenderMarkdownOptions = {
+  animationsEnabled?: boolean;
   allowRemoteImages?: boolean;
 };
 

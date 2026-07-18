@@ -33,6 +33,7 @@ type RenderedMessageView = {
   imagesSignature: string;
   allowRemoteImages: boolean;
   outputColors: boolean;
+  animationsEnabled: boolean;
   copyable: boolean;
   hasBody: boolean;
 };
@@ -420,7 +421,8 @@ export class MessageListController {
       && existingView.bodyText === (message.text || '')
       && existingView.showRole === showRole
       && existingView.allowRemoteImages === state.allowRemoteImages
-      && existingView.outputColors === state.outputColors) {
+      && existingView.outputColors === state.outputColors
+      && existingView.animationsEnabled === state.animationsEnabled) {
       return existingView;
     }
 
@@ -431,6 +433,7 @@ export class MessageListController {
     if (existingView && canReuseMessageElement(existingView, message, showRole, imagesSignature, state.allowRemoteImages, copyable, hasBody)) {
       const renderOptions = {
         outputColors: state.outputColors,
+        animationsEnabled: state.animationsEnabled,
         allowRemoteImages: state.allowRemoteImages
       };
 
@@ -451,6 +454,7 @@ export class MessageListController {
       existingView.imagesSignature = imagesSignature;
       existingView.allowRemoteImages = state.allowRemoteImages;
       existingView.outputColors = state.outputColors;
+      existingView.animationsEnabled = state.animationsEnabled;
       existingView.copyable = copyable;
       existingView.hasBody = hasBody;
       return existingView;
@@ -463,6 +467,7 @@ export class MessageListController {
         index,
         {
           outputColors: state.outputColors,
+          animationsEnabled: state.animationsEnabled,
           allowRemoteImages: state.allowRemoteImages
         }
       ),
@@ -472,6 +477,7 @@ export class MessageListController {
       imagesSignature,
       allowRemoteImages: state.allowRemoteImages,
       outputColors: state.outputColors,
+      animationsEnabled: state.animationsEnabled,
       copyable,
       hasBody
     };
@@ -503,7 +509,7 @@ export class MessageListController {
         state.messages[index],
         showRole,
         index,
-        { outputColors: state.outputColors, allowRemoteImages: state.allowRemoteImages }
+        { outputColors: state.outputColors, animationsEnabled: state.animationsEnabled, allowRemoteImages: state.allowRemoteImages }
       ),
       message: state.messages[index],
       bodyText: state.messages[index].text || '',
@@ -511,6 +517,7 @@ export class MessageListController {
       imagesSignature: this.getImagesSignature(state.messages[index]),
       allowRemoteImages: state.allowRemoteImages,
       outputColors: state.outputColors,
+      animationsEnabled: state.animationsEnabled,
       copyable: canCopyAssistantMessage(state.messages[index]),
       hasBody: shouldRenderMessageBody(state.messages[index])
     };

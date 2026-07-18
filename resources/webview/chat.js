@@ -5378,7 +5378,7 @@ ${after}`;
     renderMessageAtIndex(index, message, showRole) {
       const state2 = this.options.getState();
       const existingView = this.renderedMessageViews[index];
-      if (existingView && existingView.message === message && existingView.bodyText === (message.text || "") && existingView.showRole === showRole && existingView.allowRemoteImages === state2.allowRemoteImages && existingView.outputColors === state2.outputColors) {
+      if (existingView && existingView.message === message && existingView.bodyText === (message.text || "") && existingView.showRole === showRole && existingView.allowRemoteImages === state2.allowRemoteImages && existingView.outputColors === state2.outputColors && existingView.animationsEnabled === state2.animationsEnabled) {
         return existingView;
       }
       const imagesSignature = this.getImagesSignature(message);
@@ -5387,6 +5387,7 @@ ${after}`;
       if (existingView && canReuseMessageElement(existingView, message, showRole, imagesSignature, state2.allowRemoteImages, copyable, hasBody)) {
         const renderOptions = {
           outputColors: state2.outputColors,
+          animationsEnabled: state2.animationsEnabled,
           allowRemoteImages: state2.allowRemoteImages
         };
         const bodyChanged = existingView.bodyText !== (message.text || "") || existingView.imagesSignature !== imagesSignature;
@@ -5404,6 +5405,7 @@ ${after}`;
         existingView.imagesSignature = imagesSignature;
         existingView.allowRemoteImages = state2.allowRemoteImages;
         existingView.outputColors = state2.outputColors;
+        existingView.animationsEnabled = state2.animationsEnabled;
         existingView.copyable = copyable;
         existingView.hasBody = hasBody;
         return existingView;
@@ -5415,6 +5417,7 @@ ${after}`;
           index,
           {
             outputColors: state2.outputColors,
+            animationsEnabled: state2.animationsEnabled,
             allowRemoteImages: state2.allowRemoteImages
           }
         ),
@@ -5424,6 +5427,7 @@ ${after}`;
         imagesSignature,
         allowRemoteImages: state2.allowRemoteImages,
         outputColors: state2.outputColors,
+        animationsEnabled: state2.animationsEnabled,
         copyable,
         hasBody
       };
@@ -5449,7 +5453,7 @@ ${after}`;
           state2.messages[index],
           showRole,
           index,
-          { outputColors: state2.outputColors, allowRemoteImages: state2.allowRemoteImages }
+          { outputColors: state2.outputColors, animationsEnabled: state2.animationsEnabled, allowRemoteImages: state2.allowRemoteImages }
         ),
         message: state2.messages[index],
         bodyText: state2.messages[index].text || "",
@@ -5457,6 +5461,7 @@ ${after}`;
         imagesSignature: this.getImagesSignature(state2.messages[index]),
         allowRemoteImages: state2.allowRemoteImages,
         outputColors: state2.outputColors,
+        animationsEnabled: state2.animationsEnabled,
         copyable: canCopyAssistantMessage2(state2.messages[index]),
         hasBody: shouldRenderMessageBody(state2.messages[index])
       };
