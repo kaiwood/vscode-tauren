@@ -5228,7 +5228,7 @@ ${after}`;
           view.element.remove();
         }
       }
-      this.options.messagesContentElement.replaceChildren(...nodes);
+      this.syncMessageNodes(nodes);
       this.renderedMessageViews.length = state2.messages.length;
       pruneActivityRenderState(getActiveActivityIds(state2.messages));
       pruneDisconnectedMessageRenderState();
@@ -5423,6 +5423,20 @@ ${after}`;
     }
     getCollapsedMessageCount() {
       return getMessageRenderPlan(this.options.getState().messages.length).reduce((count, item) => item.kind === "collapse" ? count + item.count : count, 0);
+    }
+    syncMessageNodes(nodes) {
+      let reference = this.options.messagesContentElement.firstChild;
+      for (const node of nodes) {
+        if (node !== reference) {
+          this.options.messagesContentElement.insertBefore(node, reference);
+        }
+        reference = node.nextSibling;
+      }
+      while (reference) {
+        const next = reference.nextSibling;
+        reference.remove();
+        reference = next;
+      }
     }
     getCollapsedTranscriptElement(count) {
       if (!this.collapsedTranscriptElement) {

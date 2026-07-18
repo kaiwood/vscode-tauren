@@ -104,7 +104,7 @@ export class MessageListController {
       }
     }
 
-    this.options.messagesContentElement.replaceChildren(...nodes);
+    this.syncMessageNodes(nodes);
     this.renderedMessageViews.length = state.messages.length;
     pruneActivityRenderState(getActiveActivityIds(state.messages));
     pruneDisconnectedMessageRenderState();
@@ -359,6 +359,24 @@ export class MessageListController {
 
   public getCollapsedMessageCount(): number {
     return getMessageRenderPlan(this.options.getState().messages.length).reduce((count, item) => item.kind === 'collapse' ? count + item.count : count, 0);
+  }
+
+  private syncMessageNodes(nodes: Node[]): void {
+    let reference = this.options.messagesContentElement.firstChild;
+
+    for (const node of nodes) {
+      if (node !== reference) {
+        this.options.messagesContentElement.insertBefore(node, reference);
+      }
+
+      reference = node.nextSibling;
+    }
+
+    while (reference) {
+      const next = reference.nextSibling;
+      reference.remove();
+      reference = next;
+    }
   }
 
   private getCollapsedTranscriptElement(count: number): HTMLElement {

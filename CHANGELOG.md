@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Kept unchanged transcript nodes connected while streaming so code highlighting and rendered message content remain stable.
 - Restored the complete Tauren sidebar state after reopening a retained hidden view, including active extension UI.
 - Kept standard Pi extension peer imports working while substantially reducing the packaged SDK dependency payload.
 - Excluded development documentation and analysis caches from the VSIX.
