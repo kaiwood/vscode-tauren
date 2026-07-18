@@ -210,6 +210,8 @@ export type WebviewMessage =
   | { type: 'extensionFooterDimensions'; columns: number; rows: number; cellWidthPx?: number; cellHeightPx?: number }
   | { type: 'extensionTerminalInput'; data: string }
   | { type: 'setToolsExpanded'; expanded: boolean }
+  | { type: 'extensionPromptAnswer'; id: string; value: string | boolean }
+  | { type: 'extensionPromptCancel'; id: string }
   | { type: 'extensionEditorSave'; id: string; text: string }
   | { type: 'extensionEditorCancel'; id: string }
   | { type: 'submit'; text: string; streamingBehavior?: WebviewStreamingBehavior }

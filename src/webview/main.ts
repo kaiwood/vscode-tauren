@@ -8,6 +8,7 @@ import { configureMarkdownImageRendering, handleMarkdownImageMessage } from './m
 import { ComposerController } from './composer/composer';
 import { CustomUiController } from './customUI/customUi';
 import { ExtensionEditorDialogController } from './extensionEditorDialog';
+import { ExtensionPromptController } from './extensionPrompt';
 import { eventTargetElement, getWebviewDom, parseCssPixelValue } from './dom';
 import { MessageListController } from './messages/messageList';
 import { TranscriptSearchController } from './messages/transcriptSearch';
@@ -118,7 +119,13 @@ busyStatusSpinnerElement.setAttribute('aria-hidden', 'true');
 const busyStatusTextElement = document.createElement('span');
 busyStatusElement.append(busyStatusSpinnerElement, busyStatusTextElement);
 messagesContentElement.replaceChildren(...Array.from(messagesElement.childNodes));
-messagesElement.append(messagesContentElement, busyStatusElement);
+const extensionPromptElement = document.createElement('article');
+extensionPromptElement.className = 'extension-prompt';
+extensionPromptElement.hidden = true;
+extensionPromptElement.inert = true;
+extensionPromptElement.setAttribute('aria-live', 'polite');
+extensionPromptElement.setAttribute('aria-label', 'Pi extension prompt');
+messagesElement.append(messagesContentElement, busyStatusElement, extensionPromptElement);
 
 const kwardQuestionElement = document.createElement('section');
 kwardQuestionElement.className = 'kward-question';
@@ -178,6 +185,12 @@ const messagesController = new MessageListController({
   messagesContentElement,
   busyStatusElement,
   busyStatusTextElement
+});
+
+const extensionPromptController = new ExtensionPromptController({
+  vscode,
+  element: extensionPromptElement,
+  onShow: () => messagesController.scheduleMessagesToBottom()
 });
 
 transcriptSearchController = new TranscriptSearchController({
@@ -258,6 +271,10 @@ messagesElement.addEventListener('click', (event) => messagesController.handleMe
 messagesElement.addEventListener('scroll', () => messagesController.handleMessagesScroll());
 
 window.addEventListener('message', (event) => {
+  if (extensionPromptController.handleHostMessage(event.data)) {
+    return;
+  }
+
   if (extensionEditorDialogController.handleHostMessage(event.data)) {
     return;
   }
@@ -431,6 +448,10 @@ window.addEventListener('click', (event) => {
 });
 
 window.addEventListener('keydown', (event) => {
+  if (extensionPromptController.handleGlobalKeydown(event)) {
+    return;
+  }
+
   if (extensionEditorDialogController.handleGlobalKeydown(event)) {
     return;
   }
@@ -1711,7 +1732,7 @@ function handleCustomUiClose(): void {
   }
 
   requestAnimationFrame(() => {
-    if (state.lane === 'chat' && !customUiController.isActive()) {
+    if (state.lane === 'chat' && !customUiController.isActive() && !extensionPromptController.isActive()) {
       textarea.focus({ preventScroll: true });
     }
   });
@@ -1719,6 +1740,10 @@ function handleCustomUiClose(): void {
 
 function focusPromptInput(): void {
   requestAnimationFrame(() => {
+    if (extensionPromptController.isActive()) {
+      return;
+    }
+
     if (customUiController.focusInput()) {
       return;
     }

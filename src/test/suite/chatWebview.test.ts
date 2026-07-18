@@ -377,6 +377,18 @@ suite('Chat webview helpers', () => {
       { type: 'setToolsExpanded', expanded: true }
     );
     assert.deepStrictEqual(
+      parseWebviewMessage({ type: 'extensionPromptAnswer', id: 'extension-prompt-1', value: 'Choice A' }),
+      { type: 'extensionPromptAnswer', id: 'extension-prompt-1', value: 'Choice A' }
+    );
+    assert.deepStrictEqual(
+      parseWebviewMessage({ type: 'extensionPromptAnswer', id: 'extension-prompt-2', value: true }),
+      { type: 'extensionPromptAnswer', id: 'extension-prompt-2', value: true }
+    );
+    assert.deepStrictEqual(
+      parseWebviewMessage({ type: 'extensionPromptCancel', id: 'extension-prompt-3' }),
+      { type: 'extensionPromptCancel', id: 'extension-prompt-3' }
+    );
+    assert.deepStrictEqual(
       parseWebviewMessage({ type: 'extensionEditorSave', id: 'extension-editor-1', text: '' }),
       { type: 'extensionEditorSave', id: 'extension-editor-1', text: '' }
     );
@@ -456,6 +468,9 @@ suite('Chat webview helpers', () => {
     assert.deepStrictEqual(parseWebviewMessage({ type: 'extensionEditorSave', id: '', text: 'x' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'extensionEditorSave', id: 'extension-editor-1', text: 42 }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'extensionEditorCancel', id: '' }), { type: 'unknown' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'extensionPromptAnswer', id: '', value: 'x' }), { type: 'unknown' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'extensionPromptAnswer', id: 'extension-prompt-1', value: 42 }), { type: 'unknown' });
+    assert.deepStrictEqual(parseWebviewMessage({ type: 'extensionPromptCancel', id: '' }), { type: 'unknown' });
     assert.deepStrictEqual(parseWebviewMessage({ type: 'submit', text: 'hello', streamingBehavior: 'later' }), { type: 'unknown' });
     assert.deepStrictEqual(
       parseWebviewMessage({ type: 'setModel', provider: 'openai' }),

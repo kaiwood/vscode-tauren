@@ -12,12 +12,12 @@ export function createSdkExtensionUiContext(ui?: ExtensionUi, options: SdkExtens
   const resolvedUi = ui ?? createCancellingExtensionUi(() => undefined);
 
   return {
-    select: (title, options, opts) => withDialogFallback(opts, undefined, () => resolvedUi.select(title, options)),
+    select: (title, options, opts) => withDialogFallback(opts, undefined, () => resolvedUi.select(title, options, opts)),
     confirm: async (title, message, opts) => {
-      const confirmed = await withDialogFallback(opts, false, () => resolvedUi.confirm(title, message));
+      const confirmed = await withDialogFallback(opts, false, () => resolvedUi.confirm(title, message, opts));
       return confirmed === true;
     },
-    input: (title, placeholder, opts) => withDialogFallback(opts, undefined, () => resolvedUi.input(title, placeholder)),
+    input: (title, placeholder, opts) => withDialogFallback(opts, undefined, () => resolvedUi.input(title, placeholder, opts)),
     notify(message, type = 'info') {
       resolvedUi.notify(message, type);
     },

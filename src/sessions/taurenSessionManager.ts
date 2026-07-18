@@ -2,8 +2,13 @@ import { TaurenChatController, type PiPromptImageAttachment } from '../taurenCha
 import { ExtensionCustomUiHost, type CustomUiHostMessage } from '../extensionUi/customUiHost';
 import { ExtensionFooterHost } from '../extensionUi/extensionFooterHost';
 import { ExtensionWidgetHost } from '../extensionUi/extensionWidgetHost';
-import type { TerminalInputHandler } from '@earendil-works/pi-coding-agent';
-import type { ExtensionEditorHostMessage, ExtensionUi } from '../extensionUi/types';
+import type { ExtensionUIDialogOptions, TerminalInputHandler } from '@earendil-works/pi-coding-agent';
+import type {
+  ExtensionEditorHostMessage,
+  ExtensionPromptHostMessage,
+  ExtensionPromptKind,
+  ExtensionUi
+} from '../extensionUi/types';
 import type { TaurenChatControllerOptions } from '../controller/types';
 import type { ThinkingLevelStepDirection } from '../controller/thinkingLevelSteps';
 import type { KwardMemoryAction } from '../kward/memoryActions';
@@ -24,6 +29,10 @@ export type TaurenSessionManagerOptions = TaurenChatControllerOptions & {
   extensionEditor?: {
     isAvailable(): boolean;
     postMessage(message: ExtensionEditorHostMessage): boolean;
+  };
+  extensionPrompt?: {
+    isAvailable(): boolean;
+    postMessage(message: ExtensionPromptHostMessage): boolean;
   };
 };
 
@@ -63,6 +72,16 @@ type PendingExtensionEditor = {
   resolve(value: string | undefined): void;
 };
 
+type PendingExtensionPrompt = {
+  id: string;
+  sessionId: string;
+  kind: ExtensionPromptKind;
+  resolve(value: string | boolean | undefined): void;
+  timeout?: ReturnType<typeof setTimeout>;
+  signal?: AbortSignal;
+  abortHandler?: () => void;
+};
+
 type OpenSession = {
   id: string;
   controller: TaurenChatController;
@@ -95,6 +114,8 @@ export class TaurenSessionManager {
   private composerPasteRevision = 0;
   private extensionEditorSequence = 0;
   private pendingExtensionEditor: PendingExtensionEditor | undefined;
+  private extensionPromptSequence = 0;
+  private pendingExtensionPrompt: PendingExtensionPrompt | undefined;
   private readonly extensionSettings: ExtensionSettings = {
     aboveWidgetsEnabled: true,
     belowWidgetsEnabled: true,
@@ -109,6 +130,7 @@ export class TaurenSessionManager {
   }
 
   public dispose(): void {
+    this.cancelPendingExtensionPrompt();
     this.cancelPendingExtensionEditor();
 
     for (const session of this.sessions.splice(0)) {
@@ -227,6 +249,16 @@ export class TaurenSessionManager {
       return;
     }
 
+    if (message.type === 'extensionPromptAnswer') {
+      this.resolvePendingExtensionPrompt(message.id, message.value);
+      return;
+    }
+
+    if (message.type === 'extensionPromptCancel') {
+      this.resolvePendingExtensionPrompt(message.id, undefined);
+      return;
+    }
+
     await this.active().controller.handleWebviewMessage(message);
   }
 
@@ -330,6 +362,11 @@ export class TaurenSessionManager {
   }
 
   public setCustomUiViewAttached(attached: boolean): void {
+    if (!attached) {
+      this.cancelPendingExtensionPrompt();
+      this.cancelPendingExtensionEditor();
+    }
+
     if (this.customUiViewAttached === attached) {
       return;
     }
@@ -506,6 +543,7 @@ export class TaurenSessionManager {
     const previousActive = this.activeSessionId ? this.active() : undefined;
 
     if (options.activate) {
+      this.cancelPendingExtensionPrompt();
       this.cancelPendingExtensionEditor();
     }
 
@@ -597,6 +635,10 @@ export class TaurenSessionManager {
       this.cancelPendingExtensionEditor();
     }
 
+    if (this.pendingExtensionPrompt && this.pendingExtensionPrompt.sessionId !== id) {
+      this.cancelPendingExtensionPrompt();
+    }
+
     this.activeSessionId = id;
     this.acknowledgeSessionStatusOnOpen(session);
     session.forceFullStatePost = true;
@@ -668,9 +710,24 @@ export class TaurenSessionManager {
     return {
       ...baseUi,
       notify: baseUi?.notify ?? ((message, notifyType) => this.options.showNotification(message, notifyType)),
-      select: baseUi?.select ?? (async () => undefined),
-      confirm: baseUi?.confirm ?? (async () => undefined),
-      input: baseUi?.input ?? (async () => undefined),
+      select: (title, options, dialogOptions) => this.openExtensionPromptForSession(
+        id,
+        { kind: 'select', title, options },
+        dialogOptions,
+        () => baseUi?.select(title, options, dialogOptions)
+      ).then((value) => typeof value === 'string' ? value : undefined),
+      confirm: (title, message, dialogOptions) => this.openExtensionPromptForSession(
+        id,
+        { kind: 'confirm', title, ...(message ? { message } : {}) },
+        dialogOptions,
+        () => baseUi?.confirm(title, message, dialogOptions)
+      ).then((value) => typeof value === 'boolean' ? value : undefined),
+      input: (title, placeholder, dialogOptions) => this.openExtensionPromptForSession(
+        id,
+        { kind: 'input', title, ...(placeholder ? { placeholder } : {}) },
+        dialogOptions,
+        () => baseUi?.input(title, placeholder, dialogOptions)
+      ).then((value) => typeof value === 'string' ? value : undefined),
       ...(customUiHost
         ? { custom: (factory, options) => customUiHost.custom(factory, options) }
         : baseUi?.custom
@@ -709,6 +766,119 @@ export class TaurenSessionManager {
       setEditorText: (text) => this.setEditorTextForSession(id, text),
       pasteToEditor: (text) => this.pasteToEditorForSession(id, text)
     };
+  }
+
+  private async openExtensionPromptForSession(
+    id: string,
+    request: {
+      kind: ExtensionPromptKind;
+      title: string;
+      message?: string;
+      placeholder?: string;
+      options?: string[];
+    },
+    dialogOptions: ExtensionUIDialogOptions | undefined,
+    fallback: () => string | boolean | undefined | PromiseLike<string | boolean | undefined> | undefined
+  ): Promise<string | boolean | undefined> {
+    const extensionPrompt = this.options.extensionPrompt;
+
+    if (dialogOptions?.signal?.aborted) {
+      return undefined;
+    }
+
+    const session = this.showSessionComposer(id);
+
+    if (!session || !extensionPrompt?.isAvailable()) {
+      return await fallback();
+    }
+
+    this.cancelPendingExtensionEditor();
+    this.cancelPendingExtensionPrompt();
+    const promptId = `extension-prompt-${++this.extensionPromptSequence}`;
+    let resolvePrompt: (value: string | boolean | undefined) => void = () => undefined;
+    const result = new Promise<string | boolean | undefined>((resolve) => {
+      resolvePrompt = resolve;
+    });
+    this.pendingExtensionPrompt = {
+      id: promptId,
+      sessionId: id,
+      kind: request.kind,
+      resolve: resolvePrompt
+    };
+    const posted = extensionPrompt.postMessage({
+      type: 'extensionPromptShow',
+      id: promptId,
+      ...request,
+      ...(request.options ? { options: request.options.slice() } : {})
+    });
+
+    if (!posted) {
+      this.resolvePendingExtensionPrompt(promptId, undefined);
+      return await fallback();
+    }
+
+    const pending = this.pendingExtensionPrompt;
+    if (pending?.id === promptId) {
+      if (dialogOptions?.timeout !== undefined) {
+        pending.timeout = setTimeout(
+          () => this.resolvePendingExtensionPrompt(promptId, undefined),
+          Math.max(0, dialogOptions.timeout)
+        );
+      }
+
+      if (dialogOptions?.signal) {
+        pending.signal = dialogOptions.signal;
+        pending.abortHandler = () => this.resolvePendingExtensionPrompt(promptId, undefined);
+        pending.signal.addEventListener('abort', pending.abortHandler, { once: true });
+        if (pending.signal.aborted) {
+          this.resolvePendingExtensionPrompt(promptId, undefined);
+        }
+      }
+    }
+
+    return await result;
+  }
+
+  private resolvePendingExtensionPrompt(id: string, value: string | boolean | undefined): void {
+    const pending = this.pendingExtensionPrompt;
+
+    if (!pending || pending.id !== id) {
+      return;
+    }
+
+    if (value !== undefined) {
+      const expectedType = pending.kind === 'confirm' ? 'boolean' : 'string';
+      if (typeof value !== expectedType) {
+        return;
+      }
+    }
+
+    this.pendingExtensionPrompt = undefined;
+    this.clearPendingExtensionPromptResources(pending);
+    this.options.extensionPrompt?.postMessage({ type: 'extensionPromptHide', id: pending.id });
+    pending.resolve(value);
+  }
+
+  private cancelPendingExtensionPrompt(): void {
+    const pending = this.pendingExtensionPrompt;
+
+    if (!pending) {
+      return;
+    }
+
+    this.pendingExtensionPrompt = undefined;
+    this.clearPendingExtensionPromptResources(pending);
+    this.options.extensionPrompt?.postMessage({ type: 'extensionPromptHide', id: pending.id });
+    pending.resolve(undefined);
+  }
+
+  private clearPendingExtensionPromptResources(pending: PendingExtensionPrompt): void {
+    if (pending.timeout) {
+      clearTimeout(pending.timeout);
+    }
+    if (pending.signal && pending.abortHandler) {
+      pending.signal.removeEventListener('abort', pending.abortHandler);
+    }
   }
 
   private registerTerminalInputHandler(id: string, handler: TerminalInputHandler): () => void {
@@ -776,6 +946,7 @@ export class TaurenSessionManager {
       return Promise.resolve(undefined);
     }
 
+    this.cancelPendingExtensionPrompt();
     const session = this.showSessionComposer(id);
     const extensionEditor = this.options.extensionEditor;
 

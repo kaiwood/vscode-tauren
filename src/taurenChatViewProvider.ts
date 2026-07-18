@@ -14,7 +14,7 @@ import { KwardClient } from './kward/kwardClient';
 import type { KwardMemoryAction } from './kward/memoryActions';
 import { listAgentSessions } from './sessions/agentSessionList';
 import type { CustomUiHostMessage } from './extensionUi/customUiHost';
-import type { ExtensionEditorHostMessage, ExtensionUi } from './extensionUi/types';
+import type { ExtensionEditorHostMessage, ExtensionPromptHostMessage, ExtensionUi } from './extensionUi/types';
 import { createSessionDiffStatsFileWatcher, readSessionDiffSnapshot, writeSessionDiffSnapshot } from './diff/sessionDiffStorage';
 import { SessionDiffViewer } from './diff/sessionDiffViewer';
 import { ShikiCodeRenderer } from './highlighting/shikiCodeRenderer';
@@ -252,6 +252,10 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
       extensionEditor: {
         isAvailable: () => Boolean(this.webviewReady && this.webviewView?.visible),
         postMessage: (message) => this.postExtensionEditorMessage(message)
+      },
+      extensionPrompt: {
+        isAvailable: () => Boolean(this.webviewReady && this.webviewView),
+        postMessage: (message) => this.postExtensionPromptMessage(message)
       },
       initialSessionMeta: readCachedSessionMeta(this.workspaceState),
       initialSessionFile,
@@ -1183,6 +1187,15 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
 
   private postExtensionEditorMessage(message: ExtensionEditorHostMessage): boolean {
     if (!this.webviewReady || !this.webviewView?.visible) {
+      return false;
+    }
+
+    void this.webviewView.webview.postMessage(message);
+    return true;
+  }
+
+  private postExtensionPromptMessage(message: ExtensionPromptHostMessage): boolean {
+    if (!this.webviewReady || !this.webviewView) {
       return false;
     }
 

@@ -324,6 +324,15 @@ export function parseWebviewMessage(value: unknown): WebviewMessage {
       return typeof value.expanded === 'boolean'
         ? { type: 'setToolsExpanded', expanded: value.expanded }
         : { type: 'unknown' };
+    case 'extensionPromptAnswer':
+      return typeof value.id === 'string' && value.id
+        && (typeof value.value === 'string' || typeof value.value === 'boolean')
+        ? { type: 'extensionPromptAnswer', id: value.id, value: value.value }
+        : { type: 'unknown' };
+    case 'extensionPromptCancel':
+      return typeof value.id === 'string' && value.id
+        ? { type: 'extensionPromptCancel', id: value.id }
+        : { type: 'unknown' };
     case 'extensionEditorSave':
       return typeof value.id === 'string' && value.id && typeof value.text === 'string'
         ? { type: 'extensionEditorSave', id: value.id, text: value.text }

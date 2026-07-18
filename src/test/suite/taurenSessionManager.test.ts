@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import { TaurenSessionManager, type TaurenSessionManagerOptions } from '../../sessions/taurenSessionManager';
 import type { CustomUiHostMessage } from '../../extensionUi/customUiHost';
-import type { ExtensionEditorHostMessage } from '../../extensionUi/types';
+import type { ExtensionEditorHostMessage, ExtensionPromptHostMessage } from '../../extensionUi/types';
 import type { WebviewSessionItem, WebviewStateMessage, WebviewTreeItem } from '../../webviewProtocol/types';
 import type { SettingValue, TaurenSettingId } from '../../settings/settingsRegistry';
 import type { PiClient } from '../../pi/clientTypes';
@@ -623,6 +623,79 @@ suite('TaurenSessionManager', () => {
 
     await harness.manager.handleWebviewMessage({ type: 'extensionEditorCancel', id: 'extension-editor-2' });
     assert.strictEqual(await cancelPromise, undefined);
+    harness.manager.dispose();
+  });
+
+  test('resolves Pi extension prompts through the active Transcript', async () => {
+    const harness = createManagerHarness([new FakePiClient()]);
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'hello' });
+    const extensionUi = harness.clientOptions[0].extensionUi;
+    assert.ok(extensionUi);
+
+    const selectPromise = extensionUi.select('Choose a path', ['Safe migration', 'Fast migration']);
+    assert.deepStrictEqual(harness.extensionPromptMessages.at(-1), {
+      type: 'extensionPromptShow',
+      id: 'extension-prompt-1',
+      kind: 'select',
+      title: 'Choose a path',
+      options: ['Safe migration', 'Fast migration']
+    });
+    await harness.manager.handleWebviewMessage({
+      type: 'extensionPromptAnswer',
+      id: 'extension-prompt-1',
+      value: 'Safe migration'
+    });
+    assert.strictEqual(await selectPromise, 'Safe migration');
+    assert.deepStrictEqual(harness.extensionPromptMessages.at(-1), {
+      type: 'extensionPromptHide',
+      id: 'extension-prompt-1'
+    });
+
+    const confirmPromise = extensionUi.confirm('Apply changes?', 'This will update three files.');
+    assert.deepStrictEqual(harness.extensionPromptMessages.at(-1), {
+      type: 'extensionPromptShow',
+      id: 'extension-prompt-2',
+      kind: 'confirm',
+      title: 'Apply changes?',
+      message: 'This will update three files.'
+    });
+    await harness.manager.handleWebviewMessage({
+      type: 'extensionPromptAnswer',
+      id: 'extension-prompt-2',
+      value: true
+    });
+    assert.strictEqual(await confirmPromise, true);
+
+    const inputPromise = extensionUi.input('Branch name', 'feature/inline-prompts');
+    assert.deepStrictEqual(harness.extensionPromptMessages.at(-1), {
+      type: 'extensionPromptShow',
+      id: 'extension-prompt-3',
+      kind: 'input',
+      title: 'Branch name',
+      placeholder: 'feature/inline-prompts'
+    });
+    await harness.manager.handleWebviewMessage({ type: 'extensionPromptCancel', id: 'extension-prompt-3' });
+    assert.strictEqual(await inputPromise, undefined);
+    harness.manager.dispose();
+  });
+
+  test('dismisses an inline Pi extension prompt when its signal aborts', async () => {
+    const harness = createManagerHarness([new FakePiClient()]);
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'hello' });
+    const extensionUi = harness.clientOptions[0].extensionUi;
+    assert.ok(extensionUi);
+    const controller = new AbortController();
+    const promptPromise = extensionUi.select('Choose quickly', ['A', 'B'], { signal: controller.signal });
+
+    controller.abort();
+
+    assert.strictEqual(await promptPromise, undefined);
+    assert.deepStrictEqual(harness.extensionPromptMessages.at(-1), {
+      type: 'extensionPromptHide',
+      id: 'extension-prompt-1'
+    });
     harness.manager.dispose();
   });
 
@@ -1289,6 +1362,7 @@ type ManagerHarness = {
   clientOptions: PiClientOptions[];
   customUiMessages: CustomUiHostMessage[];
   extensionEditorMessages: ExtensionEditorHostMessage[];
+  extensionPromptMessages: ExtensionPromptHostMessage[];
   taurenSettings: Partial<Record<TaurenSettingId, SettingValue>>;
   readonly createCalls: number;
 };
@@ -1311,6 +1385,7 @@ function createManagerHarness(
   const clientOptions: PiClientOptions[] = [];
   const customUiMessages: CustomUiHostMessage[] = [];
   const extensionEditorMessages: ExtensionEditorHostMessage[] = [];
+  const extensionPromptMessages: ExtensionPromptHostMessage[] = [];
   const taurenSettings: Partial<Record<TaurenSettingId, SettingValue>> = { ...(options.taurenSettings ?? {}) };
   const pendingClients = [...clients];
   let createCalls = 0;
@@ -1349,6 +1424,13 @@ function createManagerHarness(
         return true;
       }
     },
+    extensionPrompt: {
+      isAvailable: () => true,
+      postMessage: (message) => {
+        extensionPromptMessages.push(message);
+        return true;
+      }
+    },
     extensionUi: {
       notify: (message, type) => notifications.push({ message, type }),
       select: async () => undefined,
@@ -1364,6 +1446,7 @@ function createManagerHarness(
     clientOptions,
     customUiMessages,
     extensionEditorMessages,
+    extensionPromptMessages,
     taurenSettings,
     get createCalls(): number {
       return createCalls;

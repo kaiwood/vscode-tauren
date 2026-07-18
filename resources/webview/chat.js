@@ -4341,6 +4341,193 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
     return value.type === "extensionEditorHide" && typeof value.id === "string" && value.id.length > 0;
   }
 
+  // src/webview/extensionPrompt.ts
+  var ExtensionPromptController = class {
+    constructor(options) {
+      this.options = options;
+    }
+    options;
+    activeId;
+    handleHostMessage(message) {
+      if (!isExtensionPromptHostMessage(message)) {
+        return false;
+      }
+      if (message.type === "extensionPromptShow") {
+        this.show(message);
+        return true;
+      }
+      if (!this.activeId || message.id === this.activeId) {
+        this.hide();
+      }
+      return true;
+    }
+    handleGlobalKeydown(event) {
+      if (!this.isActive() || event.key !== "Escape") {
+        return false;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      this.cancel();
+      return true;
+    }
+    isActive() {
+      return Boolean(this.activeId) && !this.options.element.hidden;
+    }
+    show(message) {
+      this.activeId = message.id;
+      const header = document.createElement("header");
+      header.className = "extension-prompt__header";
+      const headingGroup = document.createElement("div");
+      headingGroup.className = "extension-prompt__heading-group";
+      const eyebrow = document.createElement("div");
+      eyebrow.className = "extension-prompt__eyebrow";
+      eyebrow.textContent = "Pi needs your input";
+      const title = document.createElement("h3");
+      title.className = "extension-prompt__title";
+      title.textContent = message.title || "Choose a response";
+      headingGroup.append(eyebrow, title);
+      const close = document.createElement("button");
+      close.type = "button";
+      close.className = "extension-prompt__close";
+      close.setAttribute("aria-label", "Cancel Pi prompt");
+      close.textContent = "\xD7";
+      close.addEventListener("click", () => this.cancel());
+      header.append(headingGroup, close);
+      const body = document.createElement("div");
+      body.className = "extension-prompt__body";
+      if (message.message) {
+        const detail = document.createElement("p");
+        detail.className = "extension-prompt__message";
+        detail.textContent = message.message;
+        body.append(detail);
+      }
+      if (message.kind === "select") {
+        body.append(this.createChoiceList(message.id, message.options ?? []));
+      } else if (message.kind === "confirm") {
+        body.append(this.createConfirmActions(message.id));
+      } else {
+        body.append(this.createInputForm(message.id, message.placeholder));
+      }
+      this.options.element.replaceChildren(header, body);
+      this.options.element.hidden = false;
+      this.options.element.inert = false;
+      this.options.onShow();
+      requestAnimationFrame(() => {
+        this.options.element.querySelector("button:not(.extension-prompt__close), input")?.focus({ preventScroll: true });
+      });
+    }
+    createChoiceList(id, choices) {
+      const list = document.createElement("div");
+      list.className = "extension-prompt__choices";
+      list.setAttribute("role", "list");
+      for (const choice of choices) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "extension-prompt__choice";
+        button.textContent = choice;
+        button.addEventListener("click", () => this.answer(id, choice));
+        button.addEventListener("keydown", (event) => this.moveChoiceFocus(event));
+        const item = document.createElement("div");
+        item.setAttribute("role", "listitem");
+        item.append(button);
+        list.append(item);
+      }
+      if (choices.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "extension-prompt__message";
+        empty.textContent = "No choices are available.";
+        list.append(empty);
+      }
+      return list;
+    }
+    createConfirmActions(id) {
+      const actions = document.createElement("div");
+      actions.className = "extension-prompt__actions";
+      const no = this.createActionButton("No", false, () => this.answer(id, false));
+      const yes = this.createActionButton("Yes", true, () => this.answer(id, true));
+      actions.append(no, yes);
+      return actions;
+    }
+    createInputForm(id, placeholder) {
+      const form2 = document.createElement("form");
+      form2.className = "extension-prompt__input-form";
+      const input = document.createElement("input");
+      input.className = "extension-prompt__input";
+      input.type = "text";
+      input.placeholder = placeholder ?? "";
+      input.setAttribute("aria-label", placeholder || "Response");
+      const actions = document.createElement("div");
+      actions.className = "extension-prompt__actions";
+      const cancel = this.createActionButton("Cancel", false, () => this.cancel());
+      const submit = this.createActionButton("Submit", true);
+      submit.type = "submit";
+      actions.append(cancel, submit);
+      form2.append(input, actions);
+      form2.addEventListener("submit", (event) => {
+        event.preventDefault();
+        this.answer(id, input.value);
+      });
+      return form2;
+    }
+    createActionButton(label, primary, onClick) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `extension-prompt__button${primary ? " extension-prompt__button--primary" : ""}`;
+      button.textContent = label;
+      if (onClick) {
+        button.addEventListener("click", onClick);
+      }
+      return button;
+    }
+    moveChoiceFocus(event) {
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
+        return;
+      }
+      const buttons = Array.from(this.options.element.querySelectorAll(".extension-prompt__choice"));
+      const currentIndex = buttons.indexOf(event.currentTarget);
+      if (currentIndex < 0 || buttons.length === 0) {
+        return;
+      }
+      event.preventDefault();
+      const delta = event.key === "ArrowDown" ? 1 : -1;
+      buttons[(currentIndex + delta + buttons.length) % buttons.length]?.focus();
+    }
+    answer(id, value) {
+      if (this.activeId !== id) {
+        return;
+      }
+      this.hide();
+      this.options.vscode.postMessage({ type: "extensionPromptAnswer", id, value });
+    }
+    cancel() {
+      if (!this.activeId) {
+        return;
+      }
+      const id = this.activeId;
+      this.hide();
+      this.options.vscode.postMessage({ type: "extensionPromptCancel", id });
+    }
+    hide() {
+      this.activeId = void 0;
+      this.options.element.hidden = true;
+      this.options.element.inert = true;
+      this.options.element.replaceChildren();
+    }
+  };
+  function isExtensionPromptHostMessage(message) {
+    if (!message || typeof message !== "object") {
+      return false;
+    }
+    const value = message;
+    if (value.type === "extensionPromptHide") {
+      return typeof value.id === "string" && value.id.length > 0;
+    }
+    if (value.type !== "extensionPromptShow" || typeof value.id !== "string" || !value.id || value.kind !== "select" && value.kind !== "confirm" && value.kind !== "input" || typeof value.title !== "string") {
+      return false;
+    }
+    return (value.message === void 0 || typeof value.message === "string") && (value.placeholder === void 0 || typeof value.placeholder === "string") && (value.options === void 0 || Array.isArray(value.options) && value.options.every((option) => typeof option === "string"));
+  }
+
   // src/shared/agentRuntimeLabels.ts
   function getAgentRuntimeLabel(backend) {
     return backend === "kward" ? "Kward" : "Pi engine";
@@ -10620,7 +10807,13 @@ ${after}`;
   var busyStatusTextElement = document.createElement("span");
   busyStatusElement.append(busyStatusSpinnerElement, busyStatusTextElement);
   messagesContentElement.replaceChildren(...Array.from(messagesElement.childNodes));
-  messagesElement.append(messagesContentElement, busyStatusElement);
+  var extensionPromptElement = document.createElement("article");
+  extensionPromptElement.className = "extension-prompt";
+  extensionPromptElement.hidden = true;
+  extensionPromptElement.inert = true;
+  extensionPromptElement.setAttribute("aria-live", "polite");
+  extensionPromptElement.setAttribute("aria-label", "Pi extension prompt");
+  messagesElement.append(messagesContentElement, busyStatusElement, extensionPromptElement);
   var kwardQuestionElement = document.createElement("section");
   kwardQuestionElement.className = "kward-question";
   kwardQuestionElement.hidden = true;
@@ -10674,6 +10867,11 @@ ${after}`;
     messagesContentElement,
     busyStatusElement,
     busyStatusTextElement
+  });
+  var extensionPromptController = new ExtensionPromptController({
+    vscode,
+    element: extensionPromptElement,
+    onShow: () => messagesController.scheduleMessagesToBottom()
   });
   transcriptSearchController = new TranscriptSearchController({
     messagesElement,
@@ -10747,6 +10945,9 @@ ${after}`;
   messagesElement.addEventListener("click", (event) => messagesController.handleMessageClick(event));
   messagesElement.addEventListener("scroll", () => messagesController.handleMessagesScroll());
   window.addEventListener("message", (event) => {
+    if (extensionPromptController.handleHostMessage(event.data)) {
+      return;
+    }
     if (extensionEditorDialogController.handleHostMessage(event.data)) {
       return;
     }
@@ -10885,6 +11086,9 @@ ${after}`;
     handleHelpWindowClick(target);
   });
   window.addEventListener("keydown", (event) => {
+    if (extensionPromptController.handleGlobalKeydown(event)) {
+      return;
+    }
     if (extensionEditorDialogController.handleGlobalKeydown(event)) {
       return;
     }
@@ -11912,13 +12116,16 @@ ${after}`;
       return;
     }
     requestAnimationFrame(() => {
-      if (state.lane === "chat" && !customUiController.isActive()) {
+      if (state.lane === "chat" && !customUiController.isActive() && !extensionPromptController.isActive()) {
         textarea.focus({ preventScroll: true });
       }
     });
   }
   function focusPromptInput() {
     requestAnimationFrame(() => {
+      if (extensionPromptController.isActive()) {
+        return;
+      }
       if (customUiController.focusInput()) {
         return;
       }

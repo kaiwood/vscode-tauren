@@ -1,4 +1,4 @@
-import type { ExtensionUIContext, ExtensionWidgetOptions, TerminalInputHandler } from '@earendil-works/pi-coding-agent';
+import type { ExtensionUIContext, ExtensionUIDialogOptions, ExtensionWidgetOptions, TerminalInputHandler } from '@earendil-works/pi-coding-agent';
 
 export type MaybePromise<T> = T | PromiseLike<T>;
 
@@ -24,11 +24,25 @@ export type ExtensionEditorHostMessage =
   | { type: 'extensionEditorShow'; id: string; title: string; prefill: string }
   | { type: 'extensionEditorHide'; id: string };
 
+export type ExtensionPromptKind = 'select' | 'confirm' | 'input';
+
+export type ExtensionPromptHostMessage =
+  | {
+    type: 'extensionPromptShow';
+    id: string;
+    kind: ExtensionPromptKind;
+    title: string;
+    message?: string;
+    placeholder?: string;
+    options?: string[];
+  }
+  | { type: 'extensionPromptHide'; id: string };
+
 export type ExtensionUi = {
   notify(message: string, notifyType: string): void;
-  select(title: string, options: string[]): MaybePromise<string | undefined>;
-  confirm(title: string, message: string | undefined): MaybePromise<boolean | undefined>;
-  input(title: string, placeholder: string | undefined): MaybePromise<string | undefined>;
+  select(title: string, options: string[], dialogOptions?: ExtensionUIDialogOptions): MaybePromise<string | undefined>;
+  confirm(title: string, message: string | undefined, dialogOptions?: ExtensionUIDialogOptions): MaybePromise<boolean | undefined>;
+  input(title: string, placeholder: string | undefined, dialogOptions?: ExtensionUIDialogOptions): MaybePromise<string | undefined>;
   editor?(title: string, prefill: string | undefined): MaybePromise<string | undefined>;
   custom?<T>(factory: ExtensionCustomUiFactory<T>, options?: ExtensionCustomUiOptions): MaybePromise<T | undefined>;
   setStatus?(key: string, text: string | undefined): void;

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Rendered Pi extension choices, confirmations, and text questions as inline Transcript Entries instead of native VS Code prompts.
+
 ### Fixed
 
 - Restored the complete Tauren sidebar state after reopening a retained hidden view, including active extension UI.

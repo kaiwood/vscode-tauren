@@ -9,6 +9,7 @@ import { activityStyles } from './styles/activityStyles';
 import { composerStyles } from './styles/composerStyles';
 import { customUiStyles } from './styles/customUiStyles';
 import { extensionEditorStyles } from './styles/extensionEditorStyles';
+import { extensionPromptStyles } from './styles/extensionPromptStyles';
 import { reducedMotionStyles } from './styles/reducedMotionStyles';
 
 export const chatWebviewStyles = [
@@ -23,5 +24,6 @@ export const chatWebviewStyles = [
   composerStyles,
   customUiStyles,
   extensionEditorStyles,
+  extensionPromptStyles,
   reducedMotionStyles,
 ].join('');
