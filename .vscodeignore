@@ -13,6 +13,9 @@ tsconfig.json
 AGENTS.md
 TODO.md
 plan/**
+docs/**
+.fallow/**
+.fallowrc.jsonc
 
 # Repository metadata and generated packages
 .git/**
