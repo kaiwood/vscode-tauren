@@ -54,6 +54,7 @@ export type ComposerControllerOptions = {
   closeSessionCommandMenu: () => void;
   isMessagesAtBottom: () => boolean;
   scrollMessagesToBottom: () => void;
+  followMessagesAfterSubmit: () => void;
   measurePerfEvent: MeasurePerfEvent;
 };
 
@@ -760,6 +761,7 @@ export class ComposerController {
     this.options.textarea.value = '';
     this.pasteBuffer.clear();
     this.syncComposer({ preserveBottom: true });
+    this.options.followMessagesAfterSubmit();
     this.options.focusPromptInput();
   }
 

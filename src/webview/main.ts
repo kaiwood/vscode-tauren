@@ -229,6 +229,7 @@ const composerController = new ComposerController({
   closeSessionCommandMenu: () => sessionsController.closeSessionCommandMenu(),
   isMessagesAtBottom: () => messagesController.isMessagesAtBottom(),
   scrollMessagesToBottom: () => messagesController.scrollMessagesToBottom(),
+  followMessagesAfterSubmit: () => messagesController.followMessagesAfterSubmit(),
   measurePerfEvent
 });
 

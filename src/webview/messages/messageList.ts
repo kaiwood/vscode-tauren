@@ -181,6 +181,11 @@ export class MessageListController {
     recordScrollMetrics(this.scrollFollowState, this.getScrollMetrics());
   }
 
+  public followMessagesAfterSubmit(): void {
+    this.scrollMessagesToBottom();
+    this.scheduleMessagesToBottom();
+  }
+
   public scheduleMessagesToBottom(): void {
     if (this.bottomScrollFrame !== undefined) {
       return;

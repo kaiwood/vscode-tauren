@@ -13,6 +13,7 @@
 - Removed per-word streaming fades so new assistant text remains readable and flows naturally.
 - Coalesced transcript follow scrolling and track late content resizing without pulling readers away from their position.
 - Limited active assistant Markdown refreshes to 30 frames per second while preserving immediate final output.
+- Restored transcript follow mode immediately after sending a prompt so the new user message remains visible above the composer.
 - Restored the complete Tauren sidebar state after reopening a retained hidden view, including active extension UI.
 - Kept standard Pi extension peer imports working while substantially reducing the packaged SDK dependency payload.
 - Excluded development documentation and analysis caches from the VSIX.

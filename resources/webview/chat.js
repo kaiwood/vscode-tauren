@@ -3925,6 +3925,7 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
       this.options.textarea.value = "";
       this.pasteBuffer.clear();
       this.syncComposer({ preserveBottom: true });
+      this.options.followMessagesAfterSubmit();
       this.options.focusPromptInput();
     }
     handleSubmitButtonClick(event) {
@@ -5196,6 +5197,10 @@ ${after}`;
       this.scrollFollowState.followOutput = true;
       this.options.messagesElement.scrollTop = this.options.messagesElement.scrollHeight;
       recordScrollMetrics(this.scrollFollowState, this.getScrollMetrics());
+    }
+    followMessagesAfterSubmit() {
+      this.scrollMessagesToBottom();
+      this.scheduleMessagesToBottom();
     }
     scheduleMessagesToBottom() {
       if (this.bottomScrollFrame !== void 0) {
@@ -10842,6 +10847,7 @@ ${after}`;
     closeSessionCommandMenu: () => sessionsController.closeSessionCommandMenu(),
     isMessagesAtBottom: () => messagesController.isMessagesAtBottom(),
     scrollMessagesToBottom: () => messagesController.scrollMessagesToBottom(),
+    followMessagesAfterSubmit: () => messagesController.followMessagesAfterSubmit(),
     measurePerfEvent
   });
   settingsController = new SettingsPaneController({
