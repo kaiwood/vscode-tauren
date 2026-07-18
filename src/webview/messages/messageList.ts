@@ -21,12 +21,14 @@ type PostMessage = (message: unknown) => void;
 const largeTranscriptCollapseThreshold = 250;
 const largeTranscriptHeadCount = 20;
 const largeTranscriptTailCount = 180;
+const streamingBodyRenderIntervalMs = 33;
 
 type MessageRenderPlanItem = { kind: 'message'; index: number } | { kind: 'collapse'; count: number };
 
 type RenderedMessageView = {
   element: HTMLElement;
   message: ChatMessage;
+  bodyText: string;
   showRole: boolean;
   imagesSignature: string;
   allowRemoteImages: boolean;
@@ -49,6 +51,8 @@ export class MessageListController {
   private readonly scrollFollowState: ScrollFollowState = createScrollFollowState();
   private savedChatScroll: { sessionKey: string; scrollTop: number; followOutput: boolean } | undefined;
   private bottomScrollFrame: number | undefined;
+  private streamingBodyRenderTimer: number | undefined;
+  private nextStreamingBodyRenderAt = 0;
   private readonly messagesResizeObserver: ResizeObserver;
   private collapsedTranscriptElement: HTMLElement | undefined;
 
@@ -413,6 +417,7 @@ export class MessageListController {
 
     if (existingView
       && existingView.message === message
+      && existingView.bodyText === (message.text || '')
       && existingView.showRole === showRole
       && existingView.allowRemoteImages === state.allowRemoteImages
       && existingView.outputColors === state.outputColors) {
@@ -429,8 +434,14 @@ export class MessageListController {
         allowRemoteImages: state.allowRemoteImages
       };
 
-      if ((existingView.message.text || '') !== (message.text || '') || existingView.imagesSignature !== imagesSignature) {
+      const bodyChanged = existingView.bodyText !== (message.text || '') || existingView.imagesSignature !== imagesSignature;
+
+      if (bodyChanged && this.shouldDeferStreamingBodyRender(existingView.message, message, index)) {
+        this.scheduleStreamingBodyRender();
+      } else if (bodyChanged) {
         updateMessageBodyElement(existingView.element, message, renderOptions);
+        existingView.bodyText = message.text || '';
+        this.recordStreamingBodyRender(existingView.message, message, index);
       }
 
       updateMessageActivitiesElement(existingView.element, message, index, renderOptions);
@@ -456,6 +467,7 @@ export class MessageListController {
         }
       ),
       message,
+      bodyText: message.text || '',
       showRole,
       imagesSignature,
       allowRemoteImages: state.allowRemoteImages,
@@ -494,6 +506,7 @@ export class MessageListController {
         { outputColors: state.outputColors, allowRemoteImages: state.allowRemoteImages }
       ),
       message: state.messages[index],
+      bodyText: state.messages[index].text || '',
       showRole,
       imagesSignature: this.getImagesSignature(state.messages[index]),
       allowRemoteImages: state.allowRemoteImages,
@@ -505,6 +518,50 @@ export class MessageListController {
     existingView.element.replaceWith(nextView.element);
     this.renderedMessageViews[index] = nextView;
     pruneDisconnectedMessageRenderState();
+  }
+
+  private shouldDeferStreamingBodyRender(previous: ChatMessage, next: ChatMessage, index: number): boolean {
+    return this.isStreamingAssistantAppend(previous, next, index)
+      && performance.now() < this.nextStreamingBodyRenderAt;
+  }
+
+  private scheduleStreamingBodyRender(): void {
+    if (this.streamingBodyRenderTimer !== undefined) {
+      return;
+    }
+
+    const delay = Math.max(0, this.nextStreamingBodyRenderAt - performance.now());
+    this.streamingBodyRenderTimer = window.setTimeout(() => {
+      this.streamingBodyRenderTimer = undefined;
+
+      if (this.options.getState().lane === 'chat') {
+        this.renderMessageList();
+        this.scheduleMessagesToBottom();
+      }
+    }, delay);
+  }
+
+  private recordStreamingBodyRender(previous: ChatMessage, next: ChatMessage, index: number): void {
+    if (this.isStreamingAssistantAppend(previous, next, index)) {
+      this.nextStreamingBodyRenderAt = performance.now() + streamingBodyRenderIntervalMs;
+    }
+  }
+
+  private isStreamingAssistantAppend(previous: ChatMessage, next: ChatMessage, index: number): boolean {
+    const state = this.options.getState();
+    const previousText = previous.text || '';
+    const nextText = next.text || '';
+
+    return state.busy
+      && index === state.messages.length - 1
+      && previous.role === 'assistant'
+      && next.role === 'assistant'
+      && !previous.error
+      && !next.error
+      && previous.variant !== 'thinking'
+      && next.variant !== 'thinking'
+      && nextText.length > previousText.length
+      && nextText.startsWith(previousText);
   }
 
   private getImagesSignature(message: ChatMessage): string {

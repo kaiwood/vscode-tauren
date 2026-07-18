@@ -5087,6 +5087,7 @@ ${after}`;
   var largeTranscriptCollapseThreshold = 250;
   var largeTranscriptHeadCount = 20;
   var largeTranscriptTailCount = 180;
+  var streamingBodyRenderIntervalMs = 33;
   var MessageListController = class {
     constructor(options) {
       this.options = options;
@@ -5098,6 +5099,8 @@ ${after}`;
     scrollFollowState = createScrollFollowState();
     savedChatScroll;
     bottomScrollFrame;
+    streamingBodyRenderTimer;
+    nextStreamingBodyRenderAt = 0;
     messagesResizeObserver;
     collapsedTranscriptElement;
     renderMessageList() {
@@ -5375,7 +5378,7 @@ ${after}`;
     renderMessageAtIndex(index, message, showRole) {
       const state2 = this.options.getState();
       const existingView = this.renderedMessageViews[index];
-      if (existingView && existingView.message === message && existingView.showRole === showRole && existingView.allowRemoteImages === state2.allowRemoteImages && existingView.outputColors === state2.outputColors) {
+      if (existingView && existingView.message === message && existingView.bodyText === (message.text || "") && existingView.showRole === showRole && existingView.allowRemoteImages === state2.allowRemoteImages && existingView.outputColors === state2.outputColors) {
         return existingView;
       }
       const imagesSignature = this.getImagesSignature(message);
@@ -5386,8 +5389,13 @@ ${after}`;
           outputColors: state2.outputColors,
           allowRemoteImages: state2.allowRemoteImages
         };
-        if ((existingView.message.text || "") !== (message.text || "") || existingView.imagesSignature !== imagesSignature) {
+        const bodyChanged = existingView.bodyText !== (message.text || "") || existingView.imagesSignature !== imagesSignature;
+        if (bodyChanged && this.shouldDeferStreamingBodyRender(existingView.message, message, index)) {
+          this.scheduleStreamingBodyRender();
+        } else if (bodyChanged) {
           updateMessageBodyElement(existingView.element, message, renderOptions);
+          existingView.bodyText = message.text || "";
+          this.recordStreamingBodyRender(existingView.message, message, index);
         }
         updateMessageActivitiesElement(existingView.element, message, index, renderOptions);
         pruneDisconnectedMessageRenderState();
@@ -5411,6 +5419,7 @@ ${after}`;
           }
         ),
         message,
+        bodyText: message.text || "",
         showRole,
         imagesSignature,
         allowRemoteImages: state2.allowRemoteImages,
@@ -5443,6 +5452,7 @@ ${after}`;
           { outputColors: state2.outputColors, allowRemoteImages: state2.allowRemoteImages }
         ),
         message: state2.messages[index],
+        bodyText: state2.messages[index].text || "",
         showRole,
         imagesSignature: this.getImagesSignature(state2.messages[index]),
         allowRemoteImages: state2.allowRemoteImages,
@@ -5453,6 +5463,33 @@ ${after}`;
       existingView.element.replaceWith(nextView.element);
       this.renderedMessageViews[index] = nextView;
       pruneDisconnectedMessageRenderState();
+    }
+    shouldDeferStreamingBodyRender(previous, next, index) {
+      return this.isStreamingAssistantAppend(previous, next, index) && performance.now() < this.nextStreamingBodyRenderAt;
+    }
+    scheduleStreamingBodyRender() {
+      if (this.streamingBodyRenderTimer !== void 0) {
+        return;
+      }
+      const delay = Math.max(0, this.nextStreamingBodyRenderAt - performance.now());
+      this.streamingBodyRenderTimer = window.setTimeout(() => {
+        this.streamingBodyRenderTimer = void 0;
+        if (this.options.getState().lane === "chat") {
+          this.renderMessageList();
+          this.scheduleMessagesToBottom();
+        }
+      }, delay);
+    }
+    recordStreamingBodyRender(previous, next, index) {
+      if (this.isStreamingAssistantAppend(previous, next, index)) {
+        this.nextStreamingBodyRenderAt = performance.now() + streamingBodyRenderIntervalMs;
+      }
+    }
+    isStreamingAssistantAppend(previous, next, index) {
+      const state2 = this.options.getState();
+      const previousText = previous.text || "";
+      const nextText = next.text || "";
+      return state2.busy && index === state2.messages.length - 1 && previous.role === "assistant" && next.role === "assistant" && !previous.error && !next.error && previous.variant !== "thinking" && next.variant !== "thinking" && nextText.length > previousText.length && nextText.startsWith(previousText);
     }
     getImagesSignature(message) {
       return getImagesSignature2(message.images);
