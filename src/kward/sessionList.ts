@@ -1,10 +1,11 @@
 import { existsSync } from 'node:fs';
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { SessionListProgressOptions } from '../controller/types';
 import { decorateSessionTree } from '../sessions/sessionTree';
 import type { SessionListItem } from '../sessions/types';
+import { parseJsonlFileRecords } from '../shared/jsonl';
 import { mapWithConcurrency } from '../shared/mapWithConcurrency';
 import { isRecord } from '../shared/typeGuards';
 import { KwardCapabilityResolver } from './capabilities';
@@ -164,24 +165,12 @@ async function readKwardSessionItem(file: string): Promise<SessionListItem | und
 }
 
 async function readKwardSessionItemUncached(file: string, stats: Awaited<ReturnType<typeof stat>>): Promise<SessionListItem | undefined> {
-  const content = await readFile(file, 'utf8');
   let header: Record<string, unknown> | undefined;
   let latestInfo: Record<string, unknown> | undefined;
   let firstMessage = '';
   let messageCount = 0;
 
-  for (const line of content.split('\n')) {
-    if (!line) {
-      continue;
-    }
-
-    let record: unknown;
-    try {
-      record = JSON.parse(line) as unknown;
-    } catch {
-      continue;
-    }
-
+  for await (const record of parseJsonlFileRecords(file)) {
     if (!isRecord(record)) {
       continue;
     }

@@ -201,6 +201,39 @@ suite('Kward session list', () => {
     }
   });
 
+  test('reads local records that cross stream chunk boundaries', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tauren-kward-streamed-session-'));
+    const originalConfigPath = process.env.KWARD_CONFIG_PATH;
+
+    try {
+      const cwd = join(dir, 'workspace');
+      const configPath = join(dir, '.kward', 'config.json');
+      const sessionDir = join(dir, '.kward', 'sessions', safeCwd(cwd));
+      await mkdir(sessionDir, { recursive: true });
+      process.env.KWARD_CONFIG_PATH = configPath;
+
+      const sessionPath = join(sessionDir, 'large.jsonl');
+      await writeFile(sessionPath, [
+        JSON.stringify({ type: 'session', id: 'large', timestamp: '2026-01-01T00:00:00.000Z', cwd }),
+        JSON.stringify({ type: 'message', message: { role: 'user', content: 'x'.repeat(70 * 1024) } }),
+        JSON.stringify({ type: 'session_info', name: 'Latest name' })
+      ].join('\n') + '\n');
+
+      const sessions = await listKwardSessions({ cwd, kwardPath: join(dir, 'missing-kward-rpc') });
+
+      assert.strictEqual(sessions.length, 1);
+      assert.strictEqual(sessions[0].messageCount, 1);
+      assert.strictEqual(sessions[0].name, 'Latest name');
+    } finally {
+      if (originalConfigPath === undefined) {
+        delete process.env.KWARD_CONFIG_PATH;
+      } else {
+        process.env.KWARD_CONFIG_PATH = originalConfigPath;
+      }
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('filters unnamed empty sessions while keeping named or non-empty sessions', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tauren-kward-sessions-'));
     const originalConfigPath = process.env.KWARD_CONFIG_PATH;

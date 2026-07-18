@@ -1,7 +1,7 @@
 import { existsSync } from 'fs';
 import * as path from 'path';
 import { listKwardSessionCandidates } from '../kward/sessionList';
-import { parseSessionJsonlFileRecords } from '../pi/sessionJsonl';
+import { parseJsonlFileRecords } from '../shared/jsonl';
 import { listPiSessionCandidates } from '../sessions/piSessionList';
 import { isRecord } from '../shared/typeGuards';
 
@@ -166,7 +166,7 @@ async function traceOriginInSession(
   const result: TraceOriginScanResult = {};
 
   try {
-    for await (const record of parseSessionJsonlFileRecords(session.path)) {
+    for await (const record of parseJsonlFileRecords(session.path)) {
       if (!isRecord(record)) {
         continue;
       }

@@ -2,7 +2,7 @@ import { execFile } from 'child_process';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { promisify } from 'util';
-import { parseSessionJsonlFileRecords } from '../pi/sessionJsonl';
+import { parseJsonlFileRecords } from '../shared/jsonl';
 import { normalizeDiffLineCount } from './lineCount';
 import type {
   FileMutation,
@@ -196,7 +196,7 @@ async function parseSessionDiffRecordsFromFile(sessionFile: string): Promise<Par
   const parsed = createParsedSessionDiffRecords();
 
   try {
-    for await (const record of parseSessionJsonlFileRecords(sessionFile)) {
+    for await (const record of parseJsonlFileRecords(sessionFile)) {
       collectSessionDiffRecord(record, parsed);
     }
   } catch {

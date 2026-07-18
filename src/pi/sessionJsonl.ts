@@ -1,31 +1,9 @@
-import { closeSync, createReadStream, openSync, readSync } from 'fs';
+import { closeSync, openSync, readSync } from 'fs';
+import { parseJsonlFileRecords } from '../shared/jsonl';
 import { isRecord } from '../shared/typeGuards';
 
-export async function* parseSessionJsonlFileRecords(filePath: string): AsyncGenerator<unknown> {
-  let buffer = '';
-
-  for await (const chunk of createReadStream(filePath, { encoding: 'utf8' })) {
-    buffer += chunk;
-
-    for (;;) {
-      const lineEnd = buffer.indexOf('\n');
-
-      if (lineEnd === -1) {
-        break;
-      }
-
-      yield* yieldParsedSessionLine(buffer.slice(0, lineEnd));
-      buffer = buffer.slice(lineEnd + 1);
-    }
-  }
-
-  if (buffer) {
-    yield* yieldParsedSessionLine(buffer);
-  }
-}
-
 export async function readSessionJsonlHeader(filePath: string): Promise<Record<string, unknown> | undefined> {
-  for await (const entry of parseSessionJsonlFileRecords(filePath)) {
+  for await (const entry of parseJsonlFileRecords(filePath)) {
     if (!isRecord(entry)) {
       continue;
     }
@@ -65,14 +43,6 @@ function readSessionJsonlHeaderSync(filePath: string): Record<string, unknown> |
   }
 }
 
-function* yieldParsedSessionLine(line: string): Generator<unknown> {
-  const parsed = parseSessionJsonlLine(line);
-
-  if (parsed !== undefined) {
-    yield parsed;
-  }
-}
-
 function parseSessionJsonlLine(line: string): unknown | undefined {
   const trimmed = line.trim();
 
@@ -83,7 +53,6 @@ function parseSessionJsonlLine(line: string): unknown | undefined {
   try {
     return JSON.parse(trimmed);
   } catch {
-    // Skip malformed session lines. Pi session readers are intentionally tolerant.
     return undefined;
   }
 }
