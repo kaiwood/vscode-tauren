@@ -4,8 +4,7 @@
   // These files are used by tooling or runtime packaging but are not statically imported.
   "entry": [
     ".vscode-test.js",
-    "index.js",
-    "scripts/piSdkBundleEntry.ts"
+    "index.js"
   ],
   // Build output and vendored/runtime assets are generated or copied into the VSIX.
   "ignorePatterns": [

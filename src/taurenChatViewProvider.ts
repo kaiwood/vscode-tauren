@@ -75,8 +75,6 @@ import { VoiceController } from './voice/voiceController';
 import type { VoiceInputDevice } from './voice/types';
 
 export const taurenChatViewType = 'tauren.chatView';
-export type { AgentClient } from './agent/clientTypes';
-export type { AgentClient as PiClient } from './agent/clientTypes';
 
 const currentSessionFileStorageKey = 'tauren.currentSessionFile';
 const voiceInputDevicesStorageKey = 'tauren.voice.inputDevices';

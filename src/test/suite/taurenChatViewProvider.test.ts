@@ -3,7 +3,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { promises as fs } from 'node:fs';
 import * as vscode from 'vscode';
-import { TaurenChatViewProvider, type PiClient } from '../../taurenChatViewProvider';
+import { TaurenChatViewProvider } from '../../taurenChatViewProvider';
+import type { AgentClient } from '../../agent/clientTypes';
 import { initialWebviewState, parseWebviewStateMessage } from '../../webview/state';
 import type { WebviewFullStateMessage, WebviewStateMessage } from '../../webviewProtocol/types';
 import type {
@@ -714,7 +715,7 @@ class FakeMemento implements vscode.Memento {
   }
 }
 
-class FakePiClient implements PiClient {
+class FakePiClient implements AgentClient {
   public stateCalls = 0;
   public modelsCalls = 0;
   public statsCalls = 0;

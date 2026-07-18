@@ -80,7 +80,7 @@ const supportedKwardProtocolVersion = 1;
 const authLoginPollIntervalMs = 1000;
 const authLoginTimeoutSeconds = 120;
 
-export class StaleKwardSessionRequestError extends Error {
+class StaleKwardSessionRequestError extends Error {
   public constructor(public readonly method: string, public readonly sessionId: string) {
     super('Stale Kward session response ignored.');
     this.name = 'StaleKwardSessionRequestError';

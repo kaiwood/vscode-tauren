@@ -12,8 +12,6 @@ export type VoiceLanguage = 'auto' | 'en' | 'de' | 'fr' | 'es' | 'it' | 'pt' | '
 
 export type VoiceDownloadStatus = 'idle' | 'downloading' | 'downloaded' | 'failed' | 'unavailable';
 
-export type VoiceAssetKind = 'model' | 'binary';
-
 export type VoiceAssetDownloadState = {
   status: VoiceDownloadStatus;
   receivedBytes?: number;

@@ -77,11 +77,6 @@ export type KwardQuestion = {
   options: KwardQuestionOption[];
 };
 
-export type KwardQuestionAnswer = {
-  question: string;
-  answer: string;
-};
-
 export type KwardQuestionRequest = {
   sessionId: string;
   questionRequestId: string;
@@ -104,27 +99,6 @@ export type KwardCapabilities = Record<string, unknown>;
 
 export type KwardToolSource = 'builtin' | 'mcp' | 'web' | 'skill' | 'ui' | 'unknown';
 
-export type KwardToolMetadata = {
-  source?: string;
-  displayName?: string;
-  serverName?: string;
-  remoteName?: string;
-};
-
-export type KwardToolSchema = {
-  type?: string;
-  function?: {
-    name?: string;
-    description?: string;
-    parameters?: unknown;
-  };
-  metadata?: KwardToolMetadata;
-};
-
-export type KwardToolsListResult = {
-  tools?: KwardToolSchema[];
-};
-
 export type KwardToolInfo = {
   name: string;
   description?: string;
@@ -141,10 +115,6 @@ export type KwardMcpServerStatus = {
   status: 'available' | 'unavailable' | 'unknown';
   toolCount?: number;
   error?: string;
-};
-
-export type KwardMcpStatusResult = {
-  servers?: KwardMcpServerStatus[];
 };
 
 export type KwardToolInventory = {

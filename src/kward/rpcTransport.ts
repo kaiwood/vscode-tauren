@@ -2,14 +2,14 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { Buffer } from 'node:buffer';
 import { resolveKwardLaunch } from './launch';
 
-export type KwardJsonRpcRequest = {
+type KwardJsonRpcRequest = {
   jsonrpc: '2.0';
   id: number;
   method: string;
   params?: unknown;
 };
 
-export type KwardJsonRpcResponse = {
+type KwardJsonRpcResponse = {
   jsonrpc?: string;
   id?: number;
   result?: unknown;
