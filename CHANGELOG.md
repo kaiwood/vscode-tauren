@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Restored `@` workspace file suggestions when the Kward backend is selected.
 - Kept unchanged transcript nodes connected while streaming so code highlighting and rendered message content remain stable.
 - Removed per-word streaming fades so new assistant text remains readable and flows naturally.
 - Coalesced transcript follow scrolling and track late content resizing without pulling readers away from their position.

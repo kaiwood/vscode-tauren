@@ -53,7 +53,7 @@ export class SuggestionMenuController {
   private completionSelectionStart = 0;
   private completionSelectionEnd = 0;
   private completionRevision = 0;
-  private completionCapabilities: WebviewComposerCompletionCapabilities = { triggerCharacters: ['@'], generation: 0 };
+  private completionCapabilities: WebviewComposerCompletionCapabilities = { triggerCharacters: [], generation: 0 };
 
   public constructor(private readonly options: SuggestionMenuControllerOptions) {}
 

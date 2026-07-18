@@ -62,6 +62,18 @@ suite('TaurenChatController', () => {
     harness.controller.dispose();
   });
 
+  test('does not advertise composer completions for a client without completion support', async () => {
+    const harness = createControllerHarness([new FakePiClient()], {
+      getTaurenSettingValues: () => ({ 'tauren.backend': 'kward' })
+    });
+
+    assert.deepStrictEqual(await harness.controller.getComposerCompletionCapabilities(), {
+      triggerCharacters: [],
+      generation: 0
+    });
+    harness.controller.dispose();
+  });
+
   test('webview ready uses home cwd when workspace cwd is not available', async () => {
     const sessionFiles: Array<string | undefined> = [];
     const harness = createControllerHarness([new FakePiClient()], {

@@ -626,7 +626,7 @@ export class TaurenChatController {
   }
 
   public async getComposerCompletionCapabilities(): Promise<ComposerCompletionCapabilities> {
-    return await this.getClient().getComposerCompletionCapabilities?.() ?? { triggerCharacters: ['@'], generation: 0 };
+    return await this.getClient().getComposerCompletionCapabilities?.() ?? { triggerCharacters: [], generation: 0 };
   }
 
   public async applyComposerCompletion(application: ComposerCompletionApplication): Promise<ComposerCompletionApplied | undefined> {

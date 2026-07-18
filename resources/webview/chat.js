@@ -2606,7 +2606,7 @@
     completionSelectionStart = 0;
     completionSelectionEnd = 0;
     completionRevision = 0;
-    completionCapabilities = { triggerCharacters: ["@"], generation: 0 };
+    completionCapabilities = { triggerCharacters: [], generation: 0 };
     isOpen() {
       return this.open;
     }
