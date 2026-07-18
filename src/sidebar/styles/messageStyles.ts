@@ -288,36 +288,6 @@ export const messageStyles = /* css */ `    .tauren-transcript-search {
       font-size: 12px;
     }
 
-    .tauren-stream-word {
-      display: inline-block;
-      animation: tauren-stream-word-in 120ms ease-out both;
-      will-change: opacity;
-    }
-
-    @keyframes tauren-stream-word-in {
-      from {
-        opacity: 0;
-      }
-
-      to {
-        opacity: 1;
-      }
-    }
-
-    body.vscode-reduce-motion .tauren-stream-word {
-      display: inline;
-      animation: none;
-      will-change: auto;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .tauren-stream-word {
-        display: inline;
-        animation: none;
-        will-change: auto;
-      }
-    }
-
     .message__body--after-activities {
       margin-top: 8px;
     }

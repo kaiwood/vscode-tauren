@@ -4,8 +4,6 @@ import type { LocalImageResolveResult, MarkdownRenderer } from '../types';
 import { isRecord } from '../../shared/typeGuards';
 
 export type RenderMarkdownOptions = {
-  animateFromText?: string;
-  animationsEnabled?: boolean;
   allowRemoteImages?: boolean;
 };
 
@@ -46,9 +44,6 @@ export function pruneDisconnectedLocalImageRequests(): void {
 export function renderMarkdownInto(element: HTMLElement, text: string, options: RenderMarkdownOptions = {}): void {
   if (!markdownRenderer || !window.DOMPurify) {
     element.textContent = text;
-    if (options.animationsEnabled !== false) {
-      animateNewVisibleText(element, options.animateFromText);
-    }
     return;
   }
 
@@ -62,9 +57,6 @@ export function renderMarkdownInto(element: HTMLElement, text: string, options: 
   linkifyFileReferences(element);
   addCodeBlockActions(element);
   requestCodeHighlightsIn(element);
-  if (options.animationsEnabled !== false) {
-    animateNewVisibleText(element, options.animateFromText);
-  }
 }
 
 export function renderHighlightedCodeInto(element: HTMLElement, code: string, filePath: string): boolean {
@@ -361,118 +353,6 @@ function addCodeBlockActions(root: HTMLElement): void {
     pre.replaceWith(wrapper);
     wrapper.append(actions, pre);
   }
-}
-
-function animateNewVisibleText(root: HTMLElement, previousVisibleText: string | undefined): void {
-  if (previousVisibleText === undefined) {
-    return;
-  }
-
-  const nextVisibleText = root.textContent ?? '';
-  const startOffset = getCommonPrefixLength(previousVisibleText, nextVisibleText);
-
-  if (startOffset >= nextVisibleText.length || (previousVisibleText.length > 0 && startOffset === 0)) {
-    return;
-  }
-
-  wrapVisibleTextRange(root, startOffset, nextVisibleText.length);
-}
-
-function getCommonPrefixLength(left: string, right: string): number {
-  const limit = Math.min(left.length, right.length);
-  let index = 0;
-
-  while (index < limit && left.charCodeAt(index) === right.charCodeAt(index)) {
-    index += 1;
-  }
-
-  return index;
-}
-
-function wrapVisibleTextRange(root: HTMLElement, rangeStart: number, rangeEnd: number): void {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  const ranges: Array<{ node: Text; start: number; end: number }> = [];
-  let visibleOffset = 0;
-  let current = walker.nextNode();
-
-  while (current) {
-    const node = current as Text;
-    const textLength = node.textContent?.length ?? 0;
-    const nodeStart = visibleOffset;
-    const nodeEnd = nodeStart + textLength;
-
-    if (nodeEnd > rangeStart && nodeStart < rangeEnd && !shouldSkipStreamingTextNode(node)) {
-      ranges.push({
-        node,
-        start: Math.max(0, rangeStart - nodeStart),
-        end: Math.min(textLength, rangeEnd - nodeStart)
-      });
-    }
-
-    visibleOffset = nodeEnd;
-    current = walker.nextNode();
-  }
-
-  let wordIndex = 0;
-
-  for (const range of ranges) {
-    wordIndex = wrapTextNodeRange(range.node, range.start, range.end, wordIndex);
-  }
-}
-
-function shouldSkipStreamingTextNode(node: Text): boolean {
-  const parent = node.parentElement;
-
-  return !parent || Boolean(parent.closest('a, code, pre, kbd, samp, svg, math, annotation'));
-}
-
-function wrapTextNodeRange(node: Text, start: number, end: number, initialWordIndex: number): number {
-  const text = node.textContent ?? '';
-
-  if (start >= end) {
-    return initialWordIndex;
-  }
-
-  const fragment = document.createDocumentFragment();
-  let wordIndex = initialWordIndex;
-
-  if (start > 0) {
-    fragment.append(document.createTextNode(text.slice(0, start)));
-  }
-
-  wordIndex = appendAnimatedText(fragment, text.slice(start, end), wordIndex);
-
-  if (end < text.length) {
-    fragment.append(document.createTextNode(text.slice(end)));
-  }
-
-  node.replaceWith(fragment);
-  return wordIndex;
-}
-
-function appendAnimatedText(fragment: DocumentFragment, text: string, initialWordIndex: number): number {
-  const tokens = text.match(/\s+|\S+/g) ?? [];
-  let wordIndex = initialWordIndex;
-
-  for (const token of tokens) {
-    if (/^\s+$/.test(token)) {
-      fragment.append(document.createTextNode(token));
-      continue;
-    }
-
-    const span = document.createElement('span');
-    span.className = 'tauren-stream-word';
-    span.textContent = token;
-
-    if (wordIndex > 0) {
-      span.style.animationDelay = Math.min(wordIndex * 8, 40) + 'ms';
-    }
-
-    fragment.append(span);
-    wordIndex += 1;
-  }
-
-  return wordIndex;
 }
 
 function getPathLanguageHint(filePath: string): string {

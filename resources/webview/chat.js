@@ -1514,9 +1514,6 @@
   function renderMarkdownInto(element, text, options = {}) {
     if (!markdownRenderer || !window.DOMPurify) {
       element.textContent = text;
-      if (options.animationsEnabled !== false) {
-        animateNewVisibleText(element, options.animateFromText);
-      }
       return;
     }
     element.classList.add("message__body--markdown");
@@ -1528,9 +1525,6 @@
     linkifyFileReferences(element);
     addCodeBlockActions(element);
     requestCodeHighlightsIn(element);
-    if (options.animationsEnabled !== false) {
-      animateNewVisibleText(element, options.animateFromText);
-    }
   }
   function renderHighlightedCodeInto(element, code, filePath) {
     const language = getPathLanguageHint(filePath);
@@ -1761,90 +1755,6 @@
       pre.replaceWith(wrapper);
       wrapper.append(actions, pre);
     }
-  }
-  function animateNewVisibleText(root, previousVisibleText) {
-    if (previousVisibleText === void 0) {
-      return;
-    }
-    const nextVisibleText = root.textContent ?? "";
-    const startOffset = getCommonPrefixLength(previousVisibleText, nextVisibleText);
-    if (startOffset >= nextVisibleText.length || previousVisibleText.length > 0 && startOffset === 0) {
-      return;
-    }
-    wrapVisibleTextRange(root, startOffset, nextVisibleText.length);
-  }
-  function getCommonPrefixLength(left, right) {
-    const limit = Math.min(left.length, right.length);
-    let index = 0;
-    while (index < limit && left.charCodeAt(index) === right.charCodeAt(index)) {
-      index += 1;
-    }
-    return index;
-  }
-  function wrapVisibleTextRange(root, rangeStart, rangeEnd) {
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    const ranges = [];
-    let visibleOffset = 0;
-    let current = walker.nextNode();
-    while (current) {
-      const node = current;
-      const textLength = node.textContent?.length ?? 0;
-      const nodeStart = visibleOffset;
-      const nodeEnd = nodeStart + textLength;
-      if (nodeEnd > rangeStart && nodeStart < rangeEnd && !shouldSkipStreamingTextNode(node)) {
-        ranges.push({
-          node,
-          start: Math.max(0, rangeStart - nodeStart),
-          end: Math.min(textLength, rangeEnd - nodeStart)
-        });
-      }
-      visibleOffset = nodeEnd;
-      current = walker.nextNode();
-    }
-    let wordIndex = 0;
-    for (const range of ranges) {
-      wordIndex = wrapTextNodeRange(range.node, range.start, range.end, wordIndex);
-    }
-  }
-  function shouldSkipStreamingTextNode(node) {
-    const parent = node.parentElement;
-    return !parent || Boolean(parent.closest("a, code, pre, kbd, samp, svg, math, annotation"));
-  }
-  function wrapTextNodeRange(node, start, end, initialWordIndex) {
-    const text = node.textContent ?? "";
-    if (start >= end) {
-      return initialWordIndex;
-    }
-    const fragment = document.createDocumentFragment();
-    let wordIndex = initialWordIndex;
-    if (start > 0) {
-      fragment.append(document.createTextNode(text.slice(0, start)));
-    }
-    wordIndex = appendAnimatedText(fragment, text.slice(start, end), wordIndex);
-    if (end < text.length) {
-      fragment.append(document.createTextNode(text.slice(end)));
-    }
-    node.replaceWith(fragment);
-    return wordIndex;
-  }
-  function appendAnimatedText(fragment, text, initialWordIndex) {
-    const tokens = text.match(/\s+|\S+/g) ?? [];
-    let wordIndex = initialWordIndex;
-    for (const token of tokens) {
-      if (/^\s+$/.test(token)) {
-        fragment.append(document.createTextNode(token));
-        continue;
-      }
-      const span = document.createElement("span");
-      span.className = "tauren-stream-word";
-      span.textContent = token;
-      if (wordIndex > 0) {
-        span.style.animationDelay = Math.min(wordIndex * 8, 40) + "ms";
-      }
-      fragment.append(span);
-      wordIndex += 1;
-    }
-    return wordIndex;
   }
   function getPathLanguageHint(filePath) {
     const basename = filePath.replace(/\\/g, "/").split("/").pop()?.toLowerCase() ?? "";
@@ -5469,18 +5379,15 @@ ${after}`;
     renderMessageAtIndex(index, message, showRole) {
       const state2 = this.options.getState();
       const existingView = this.renderedMessageViews[index];
-      if (existingView && existingView.message === message && existingView.showRole === showRole && existingView.allowRemoteImages === state2.allowRemoteImages && existingView.outputColors === state2.outputColors && existingView.animationsEnabled === state2.animationsEnabled) {
+      if (existingView && existingView.message === message && existingView.showRole === showRole && existingView.allowRemoteImages === state2.allowRemoteImages && existingView.outputColors === state2.outputColors) {
         return existingView;
       }
       const imagesSignature = this.getImagesSignature(message);
       const copyable = canCopyAssistantMessage2(message);
       const hasBody = shouldRenderMessageBody(message);
-      const animateFromText = this.getStreamingAnimationStartText(existingView, message, index);
       if (existingView && canReuseMessageElement(existingView, message, showRole, imagesSignature, state2.allowRemoteImages, copyable, hasBody)) {
         const renderOptions = {
-          ...animateFromText === void 0 ? {} : { animateFromText },
           outputColors: state2.outputColors,
-          animationsEnabled: state2.animationsEnabled,
           allowRemoteImages: state2.allowRemoteImages
         };
         if ((existingView.message.text || "") !== (message.text || "") || existingView.imagesSignature !== imagesSignature) {
@@ -5493,7 +5400,6 @@ ${after}`;
         existingView.imagesSignature = imagesSignature;
         existingView.allowRemoteImages = state2.allowRemoteImages;
         existingView.outputColors = state2.outputColors;
-        existingView.animationsEnabled = state2.animationsEnabled;
         existingView.copyable = copyable;
         existingView.hasBody = hasBody;
         return existingView;
@@ -5504,9 +5410,7 @@ ${after}`;
           showRole,
           index,
           {
-            ...animateFromText === void 0 ? {} : { animateFromText },
             outputColors: state2.outputColors,
-            animationsEnabled: state2.animationsEnabled,
             allowRemoteImages: state2.allowRemoteImages
           }
         ),
@@ -5515,7 +5419,6 @@ ${after}`;
         imagesSignature,
         allowRemoteImages: state2.allowRemoteImages,
         outputColors: state2.outputColors,
-        animationsEnabled: state2.animationsEnabled,
         copyable,
         hasBody
       };
@@ -5541,32 +5444,19 @@ ${after}`;
           state2.messages[index],
           showRole,
           index,
-          { outputColors: state2.outputColors, animationsEnabled: state2.animationsEnabled, allowRemoteImages: state2.allowRemoteImages }
+          { outputColors: state2.outputColors, allowRemoteImages: state2.allowRemoteImages }
         ),
         message: state2.messages[index],
         showRole,
         imagesSignature: this.getImagesSignature(state2.messages[index]),
         allowRemoteImages: state2.allowRemoteImages,
         outputColors: state2.outputColors,
-        animationsEnabled: state2.animationsEnabled,
         copyable: canCopyAssistantMessage2(state2.messages[index]),
         hasBody: shouldRenderMessageBody(state2.messages[index])
       };
       existingView.element.replaceWith(nextView.element);
       this.renderedMessageViews[index] = nextView;
       pruneDisconnectedMessageRenderState();
-    }
-    getStreamingAnimationStartText(existingView, message, index) {
-      if (!existingView || !this.shouldAnimateStreamingAppend(existingView.message, message, index)) {
-        return void 0;
-      }
-      return getMessageBodyVisibleText(existingView.element);
-    }
-    shouldAnimateStreamingAppend(previous, next, index) {
-      const state2 = this.options.getState();
-      const previousText = previous.text || "";
-      const nextText = next.text || "";
-      return state2.busy && index === state2.messages.length - 1 && previous.role === "assistant" && next.role === "assistant" && !previous.error && !next.error && previous.variant !== "thinking" && next.variant !== "thinking" && nextText.length > previousText.length && nextText.startsWith(previousText);
     }
     getImagesSignature(message) {
       return getImagesSignature2(message.images);
@@ -5771,14 +5661,6 @@ ${after}`;
   }
   function isExpandableToolActivity(activity) {
     return typeof activity.expandedBody === "string" || activity.kind === "tool_execution" && activity.status === "running" && typeof activity.body === "string" && activity.body.length > 0;
-  }
-  function getMessageBodyVisibleText(article) {
-    for (const child of Array.from(article.children)) {
-      if (child instanceof HTMLElement && child.classList.contains("message__body")) {
-        return child.textContent ?? "";
-      }
-    }
-    return "";
   }
   function canCopyAssistantMessage2(message) {
     return message.role === "assistant" && !message.error && message.variant !== "thinking" && Boolean(message.text);

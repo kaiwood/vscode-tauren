@@ -16,15 +16,13 @@ export const reducedMotionStyles = /* css */ `    body.vscode-reduce-motion *,
     body.vscode-reduce-motion .composer,
     body.vscode-reduce-motion .status__spinner,
     body.vscode-reduce-motion .activity--running .activity__status::before,
-    body.vscode-reduce-motion .tauren-stream-word,
     body.tauren-animations-disabled .tauren-chat-surface,
     body.tauren-animations-disabled .tauren-chat-surface__face,
     body.tauren-animations-disabled .sessions,
     body.tauren-animations-disabled .session-tree,
     body.tauren-animations-disabled .composer,
     body.tauren-animations-disabled .status__spinner,
-    body.tauren-animations-disabled .activity--running .activity__status::before,
-    body.tauren-animations-disabled .tauren-stream-word {
+    body.tauren-animations-disabled .activity--running .activity__status::before {
       will-change: auto;
     }
 
@@ -43,8 +41,7 @@ export const reducedMotionStyles = /* css */ `    body.vscode-reduce-motion *,
       .session-tree,
       .composer,
       .status__spinner,
-      .activity--running .activity__status::before,
-      .tauren-stream-word {
+      .activity--running .activity__status::before {
         will-change: auto;
       }
     }

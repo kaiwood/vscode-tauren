@@ -31,7 +31,6 @@ type RenderedMessageView = {
   imagesSignature: string;
   allowRemoteImages: boolean;
   outputColors: boolean;
-  animationsEnabled: boolean;
   copyable: boolean;
   hasBody: boolean;
 };
@@ -420,21 +419,17 @@ export class MessageListController {
       && existingView.message === message
       && existingView.showRole === showRole
       && existingView.allowRemoteImages === state.allowRemoteImages
-      && existingView.outputColors === state.outputColors
-      && existingView.animationsEnabled === state.animationsEnabled) {
+      && existingView.outputColors === state.outputColors) {
       return existingView;
     }
 
     const imagesSignature = this.getImagesSignature(message);
     const copyable = canCopyAssistantMessage(message);
     const hasBody = shouldRenderMessageBody(message);
-    const animateFromText = this.getStreamingAnimationStartText(existingView, message, index);
 
     if (existingView && canReuseMessageElement(existingView, message, showRole, imagesSignature, state.allowRemoteImages, copyable, hasBody)) {
       const renderOptions = {
-        ...(animateFromText === undefined ? {} : { animateFromText }),
         outputColors: state.outputColors,
-        animationsEnabled: state.animationsEnabled,
         allowRemoteImages: state.allowRemoteImages
       };
 
@@ -449,7 +444,6 @@ export class MessageListController {
       existingView.imagesSignature = imagesSignature;
       existingView.allowRemoteImages = state.allowRemoteImages;
       existingView.outputColors = state.outputColors;
-      existingView.animationsEnabled = state.animationsEnabled;
       existingView.copyable = copyable;
       existingView.hasBody = hasBody;
       return existingView;
@@ -461,9 +455,7 @@ export class MessageListController {
         showRole,
         index,
         {
-          ...(animateFromText === undefined ? {} : { animateFromText }),
           outputColors: state.outputColors,
-          animationsEnabled: state.animationsEnabled,
           allowRemoteImages: state.allowRemoteImages
         }
       ),
@@ -472,7 +464,6 @@ export class MessageListController {
       imagesSignature,
       allowRemoteImages: state.allowRemoteImages,
       outputColors: state.outputColors,
-      animationsEnabled: state.animationsEnabled,
       copyable,
       hasBody
     };
@@ -504,14 +495,13 @@ export class MessageListController {
         state.messages[index],
         showRole,
         index,
-        { outputColors: state.outputColors, animationsEnabled: state.animationsEnabled, allowRemoteImages: state.allowRemoteImages }
+        { outputColors: state.outputColors, allowRemoteImages: state.allowRemoteImages }
       ),
       message: state.messages[index],
       showRole,
       imagesSignature: this.getImagesSignature(state.messages[index]),
       allowRemoteImages: state.allowRemoteImages,
       outputColors: state.outputColors,
-      animationsEnabled: state.animationsEnabled,
       copyable: canCopyAssistantMessage(state.messages[index]),
       hasBody: shouldRenderMessageBody(state.messages[index])
     };
@@ -519,35 +509,6 @@ export class MessageListController {
     existingView.element.replaceWith(nextView.element);
     this.renderedMessageViews[index] = nextView;
     pruneDisconnectedMessageRenderState();
-  }
-
-  private getStreamingAnimationStartText(
-    existingView: RenderedMessageView | undefined,
-    message: ChatMessage,
-    index: number
-  ): string | undefined {
-    if (!existingView || !this.shouldAnimateStreamingAppend(existingView.message, message, index)) {
-      return undefined;
-    }
-
-    return getMessageBodyVisibleText(existingView.element);
-  }
-
-  private shouldAnimateStreamingAppend(previous: ChatMessage, next: ChatMessage, index: number): boolean {
-    const state = this.options.getState();
-    const previousText = previous.text || '';
-    const nextText = next.text || '';
-
-    return state.busy
-      && index === state.messages.length - 1
-      && previous.role === 'assistant'
-      && next.role === 'assistant'
-      && !previous.error
-      && !next.error
-      && previous.variant !== 'thinking'
-      && next.variant !== 'thinking'
-      && nextText.length > previousText.length
-      && nextText.startsWith(previousText);
   }
 
   private getImagesSignature(message: ChatMessage): string {
@@ -835,16 +796,6 @@ function getExpandableToolActivityIds(messages: ChatMessage[]): string[] {
 function isExpandableToolActivity(activity: NonNullable<ChatMessage['activities']>[number]): boolean {
   return typeof activity.expandedBody === 'string'
     || (activity.kind === 'tool_execution' && activity.status === 'running' && typeof activity.body === 'string' && activity.body.length > 0);
-}
-
-function getMessageBodyVisibleText(article: HTMLElement): string {
-  for (const child of Array.from(article.children)) {
-    if (child instanceof HTMLElement && child.classList.contains('message__body')) {
-      return child.textContent ?? '';
-    }
-  }
-
-  return '';
 }
 
 function canCopyAssistantMessage(message: ChatMessage): boolean {
