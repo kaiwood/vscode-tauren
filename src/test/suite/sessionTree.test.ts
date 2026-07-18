@@ -24,6 +24,24 @@ suite('sessionTree', () => {
       { id: 'child', depth: 1, isLast: true, ancestorContinues: [false], current: true }
     ]);
   });
+
+  test('renders self-referential and cyclic sessions as roots', () => {
+    const sessions: RawSessionInfo[] = [
+      createSession('/sessions/first.jsonl', 'first', '2026-01-03T00:00:00.000Z', '/sessions/second.jsonl'),
+      createSession('/sessions/second.jsonl', 'second', '2026-01-02T00:00:00.000Z', '/sessions/third.jsonl'),
+      createSession('/sessions/third.jsonl', 'third', '2026-01-01T00:00:00.000Z', '/sessions/first.jsonl'),
+      createSession('/sessions/self.jsonl', 'self', '2026-01-04T00:00:00.000Z', '/sessions/self.jsonl')
+    ];
+
+    const result = decorateSessionTree(sessions, undefined);
+
+    assert.deepStrictEqual(result.map((session) => ({ id: session.id, depth: session.depth })), [
+      { id: 'self', depth: 0 },
+      { id: 'first', depth: 0 },
+      { id: 'second', depth: 0 },
+      { id: 'third', depth: 0 }
+    ]);
+  });
 });
 
 function createSession(path: string, id: string, modified: string, parentSessionPath?: string): RawSessionInfo {
