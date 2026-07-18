@@ -626,7 +626,7 @@ suite('TaurenSessionManager', () => {
     harness.manager.dispose();
   });
 
-  test('resolves Pi extension prompts through the active Transcript', async () => {
+  test('resolves Pi extension prompts through the active chat', async () => {
     const harness = createManagerHarness([new FakePiClient()]);
 
     await harness.manager.handleWebviewMessage({ type: 'submit', text: 'hello' });
@@ -641,6 +641,16 @@ suite('TaurenSessionManager', () => {
       title: 'Choose a path',
       options: ['Safe migration', 'Fast migration']
     });
+    let selectSettled = false;
+    void Promise.resolve(selectPromise).then(() => { selectSettled = true; });
+    await harness.manager.handleWebviewMessage({
+      type: 'extensionPromptAnswer',
+      id: 'extension-prompt-1',
+      value: 'Unexpected migration'
+    });
+    await flushPromises();
+    assert.strictEqual(selectSettled, false);
+
     await harness.manager.handleWebviewMessage({
       type: 'extensionPromptAnswer',
       id: 'extension-prompt-1',
@@ -697,6 +707,62 @@ suite('TaurenSessionManager', () => {
       id: 'extension-prompt-1'
     });
     harness.manager.dispose();
+  });
+
+  test('keeps one blocking extension interaction active per session', async () => {
+    const harness = createManagerHarness([new FakePiClient()]);
+    harness.manager.setCustomUiViewAttached(true);
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'hello' });
+    const extensionUi = harness.clientOptions[0].extensionUi;
+    assert.ok(extensionUi);
+
+    const firstCustomUiPromise = extensionUi.custom?.<string>(() => ({
+      render: () => ['first custom ui'],
+      invalidate: () => undefined
+    }));
+    assert.ok(firstCustomUiPromise);
+    await flushPromises();
+
+    const promptPromise = extensionUi.select('Choose a path', ['Safe migration']);
+    assert.strictEqual(await firstCustomUiPromise, undefined);
+    assert.ok(harness.customUiMessages.some((message) => message.type === 'customUiHide'));
+    assert.deepStrictEqual(harness.extensionPromptMessages.at(-1), {
+      type: 'extensionPromptShow',
+      id: 'extension-prompt-1',
+      kind: 'select',
+      title: 'Choose a path',
+      options: ['Safe migration']
+    });
+
+    const editorPromise = extensionUi.editor?.('Edit plan', 'initial text');
+    assert.ok(editorPromise);
+    assert.strictEqual(await promptPromise, undefined);
+    assert.deepStrictEqual(harness.extensionPromptMessages.at(-1), {
+      type: 'extensionPromptHide',
+      id: 'extension-prompt-1'
+    });
+    assert.deepStrictEqual(harness.extensionEditorMessages.at(-1), {
+      type: 'extensionEditorShow',
+      id: 'extension-editor-1',
+      title: 'Edit plan',
+      prefill: 'initial text'
+    });
+
+    const secondCustomUiPromise = extensionUi.custom?.<string>(() => ({
+      render: () => ['second custom ui'],
+      invalidate: () => undefined
+    }));
+    assert.ok(secondCustomUiPromise);
+    await flushPromises();
+
+    assert.strictEqual(await editorPromise, undefined);
+    assert.deepStrictEqual(harness.extensionEditorMessages.at(-1), {
+      type: 'extensionEditorHide',
+      id: 'extension-editor-1'
+    });
+    harness.manager.dispose();
+    assert.strictEqual(await secondCustomUiPromise, undefined);
   });
 
   test('rejects concurrent extension editor requests', async () => {

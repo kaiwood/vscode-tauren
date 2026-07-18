@@ -76,6 +76,7 @@ type PendingExtensionPrompt = {
   id: string;
   sessionId: string;
   kind: ExtensionPromptKind;
+  options?: string[];
   resolve(value: string | boolean | undefined): void;
   timeout?: ReturnType<typeof setTimeout>;
   signal?: AbortSignal;
@@ -793,6 +794,7 @@ export class TaurenSessionManager {
     }
 
     this.cancelPendingExtensionEditor();
+    session.customUiHost?.cancelActive();
     this.cancelPendingExtensionPrompt();
     const promptId = `extension-prompt-${++this.extensionPromptSequence}`;
     let resolvePrompt: (value: string | boolean | undefined) => void = () => undefined;
@@ -803,6 +805,7 @@ export class TaurenSessionManager {
       id: promptId,
       sessionId: id,
       kind: request.kind,
+      ...(request.kind === 'select' ? { options: request.options?.slice() } : {}),
       resolve: resolvePrompt
     };
     const posted = extensionPrompt.postMessage({
@@ -849,6 +852,9 @@ export class TaurenSessionManager {
     if (value !== undefined) {
       const expectedType = pending.kind === 'confirm' ? 'boolean' : 'string';
       if (typeof value !== expectedType) {
+        return;
+      }
+      if (pending.kind === 'select' && (typeof value !== 'string' || !pending.options?.includes(value))) {
         return;
       }
     }
@@ -954,6 +960,7 @@ export class TaurenSessionManager {
       return Promise.resolve(undefined);
     }
 
+    session.customUiHost?.cancelActive();
     const editorId = `extension-editor-${++this.extensionEditorSequence}`;
 
     return new Promise((resolve) => {
@@ -1079,6 +1086,15 @@ export class TaurenSessionManager {
 
     if (!session) {
       return;
+    }
+
+    if (active) {
+      if (this.pendingExtensionPrompt?.sessionId === id) {
+        this.cancelPendingExtensionPrompt();
+      }
+      if (this.pendingExtensionEditor?.sessionId === id) {
+        this.cancelPendingExtensionEditor();
+      }
     }
 
     session.customUiOpen = active;

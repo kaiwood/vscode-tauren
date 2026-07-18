@@ -4,7 +4,7 @@
 
 ### Added
 
-- Rendered Pi extension choices, confirmations, and text questions as inline Transcript Entries instead of native VS Code prompts.
+- Rendered Pi extension choices, confirmations, and text questions as inline sidebar prompts instead of native VS Code prompts.
 
 ### Fixed
 
