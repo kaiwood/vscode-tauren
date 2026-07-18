@@ -81,6 +81,7 @@ export const viewLayoutStyles = /* css */ `    .tauren-chat-surface,
       min-width: 0;
       min-height: 0;
       padding: 8px var(--tauren-chat-inline-padding) calc(14px + 4lh);
+      overflow-anchor: none;
       overflow-x: hidden;
       overflow-y: auto;
       pointer-events: auto;

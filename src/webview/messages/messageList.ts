@@ -48,10 +48,14 @@ export class MessageListController {
   private renderedMessageViews: RenderedMessageView[] = [];
   private readonly scrollFollowState: ScrollFollowState = createScrollFollowState();
   private savedChatScroll: { sessionKey: string; scrollTop: number; followOutput: boolean } | undefined;
-  private bottomScrollScheduled = false;
+  private bottomScrollFrame: number | undefined;
+  private readonly messagesResizeObserver: ResizeObserver;
   private collapsedTranscriptElement: HTMLElement | undefined;
 
-  public constructor(private readonly options: MessageListControllerOptions) {}
+  public constructor(private readonly options: MessageListControllerOptions) {
+    this.messagesResizeObserver = new ResizeObserver(() => this.scheduleMessagesToBottom());
+    this.messagesResizeObserver.observe(options.messagesContentElement);
+  }
 
   public renderMessageList(): void {
     const state = this.options.getState();
@@ -173,22 +177,14 @@ export class MessageListController {
   }
 
   public scheduleMessagesToBottom(): void {
-    this.scrollMessagesToBottomIfFollowingChat();
-
-    if (this.bottomScrollScheduled) {
+    if (this.bottomScrollFrame !== undefined) {
       return;
     }
 
-    this.bottomScrollScheduled = true;
-    requestAnimationFrame(() => {
+    this.bottomScrollFrame = requestAnimationFrame(() => {
+      this.bottomScrollFrame = undefined;
       this.scrollMessagesToBottomIfFollowingChat();
-      requestAnimationFrame(() => this.scrollMessagesToBottomIfFollowingChat());
     });
-    setTimeout(() => this.scrollMessagesToBottomIfFollowingChat(), 80);
-    setTimeout(() => {
-      this.scrollMessagesToBottomIfFollowingChat();
-      this.bottomScrollScheduled = false;
-    }, 220);
   }
 
   public rememberChatScrollPosition(): void {

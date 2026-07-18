@@ -5090,12 +5090,15 @@ ${after}`;
   var MessageListController = class {
     constructor(options) {
       this.options = options;
+      this.messagesResizeObserver = new ResizeObserver(() => this.scheduleMessagesToBottom());
+      this.messagesResizeObserver.observe(options.messagesContentElement);
     }
     options;
     renderedMessageViews = [];
     scrollFollowState = createScrollFollowState();
     savedChatScroll;
-    bottomScrollScheduled = false;
+    bottomScrollFrame;
+    messagesResizeObserver;
     collapsedTranscriptElement;
     renderMessageList() {
       const state2 = this.options.getState();
@@ -5192,20 +5195,13 @@ ${after}`;
       recordScrollMetrics(this.scrollFollowState, this.getScrollMetrics());
     }
     scheduleMessagesToBottom() {
-      this.scrollMessagesToBottomIfFollowingChat();
-      if (this.bottomScrollScheduled) {
+      if (this.bottomScrollFrame !== void 0) {
         return;
       }
-      this.bottomScrollScheduled = true;
-      requestAnimationFrame(() => {
+      this.bottomScrollFrame = requestAnimationFrame(() => {
+        this.bottomScrollFrame = void 0;
         this.scrollMessagesToBottomIfFollowingChat();
-        requestAnimationFrame(() => this.scrollMessagesToBottomIfFollowingChat());
       });
-      setTimeout(() => this.scrollMessagesToBottomIfFollowingChat(), 80);
-      setTimeout(() => {
-        this.scrollMessagesToBottomIfFollowingChat();
-        this.bottomScrollScheduled = false;
-      }, 220);
     }
     rememberChatScrollPosition() {
       this.savedChatScroll = {
