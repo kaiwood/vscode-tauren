@@ -52,7 +52,7 @@ Open-session coordination lives in `src/sessions/taurenSessionManager.ts`, with 
 
 ## Pi transport
 
-Tauren uses a backend-neutral `AgentClient` contract for chat orchestration. The Pi SDK adapter maps Pi runtime behavior into that contract, and the experimental Kward adapter maps Kward RPC behavior into the same contract.
+Tauren uses a normalized, currently Pi-compatible `AgentClient` contract for chat orchestration. The Pi SDK adapter maps Pi runtime behavior into that contract, and the experimental Kward adapter maps Kward RPC behavior into the same contract.
 
 Pi SDK loading, event mapping, and bridge code live under `src/sdk/` and `src/pi/`. Kward RPC transport and protocol adaptation live under `src/kward/`. Shared Tauren-facing backend types live under `src/agent/`.
 

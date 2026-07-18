@@ -35,7 +35,7 @@ For Pi SDK docs, prefer local package docs before web links:
 - Keep changes small and scoped. Do not refactor unrelated code.
 - `src/extension.ts` should stay a thin activation shell for commands/views.
 - Tauren runs Pi through the bundled in-process SDK runtime. Do not reintroduce `pi --mode rpc`, `pi -p` / `--print`, or `pi --mode json` for the main chat UI.
-- Keep Pi client code behind the transport-neutral `PiClient` contract.
+- Keep chat orchestration behind the normalized `AgentClient` contract; Pi SDK and Kward adapters implement its current Pi-compatible shape.
 - Pi is the source of truth for runtime state: models, settings, sessions, tools, tree navigation, extensions, skills, prompts, and themes.
 - Prefer the first VS Code workspace folder as Pi runtime `cwd`. If no workspace is available, Tauren may fall back to the user home directory unless workspace mutation rejection requires a workspace.
 - Preserve default Pi tool/session behavior unless the user explicitly asks for safer or ephemeral behavior.
