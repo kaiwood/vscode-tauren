@@ -28,6 +28,27 @@ suite('TaurenSessionManager', () => {
     harness.manager.dispose();
   });
 
+  test('resyncs a retained webview with the full current transcript', async () => {
+    const client = new FakePiClient();
+    const harness = createManagerHarness([client]);
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'Explain the change.' });
+    client.emit({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'It preserves' } });
+    await wait(25);
+    client.emit({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: ' the webview.' } });
+    await wait(25);
+
+    harness.states.length = 0;
+    harness.manager.resyncWebviewState();
+
+    const state = lastState(harness);
+    assert.deepStrictEqual(state.messages?.map(({ role, text }) => ({ role, text })), [
+      { role: 'user', text: 'Explain the change.' },
+      { role: 'assistant', text: 'It preserves the webview.' }
+    ]);
+    harness.manager.dispose();
+  });
+
   test('tracks background session live status and active persistence', async () => {
     const firstClient = new FakePiClient({
       state: {
@@ -824,6 +845,32 @@ suite('TaurenSessionManager', () => {
       { key: 'component', placement: 'aboveEditor', lines: ['replacement'] }
     ]);
     harness.manager.dispose();
+  });
+
+  test('re-renders active custom UI when a retained webview is reattached', async () => {
+    const harness = createManagerHarness([new FakePiClient()]);
+    harness.manager.setCustomUiViewAttached(true);
+
+    await harness.manager.handleWebviewMessage({ type: 'submit', text: 'show custom ui' });
+    const customPromise = harness.clientOptions[0].extensionUi?.custom?.<string>(() => ({
+      render: () => ['retained custom ui'],
+      invalidate: () => undefined
+    }));
+    await flushPromises();
+
+    const initialShow = harness.customUiMessages.find((message): message is { type: 'customUiShow'; id: string } => message.type === 'customUiShow');
+    assert.ok(initialShow);
+    harness.customUiMessages.length = 0;
+
+    harness.manager.setCustomUiViewAttached(false);
+    assert.ok(harness.customUiMessages.some((message) => message.type === 'customUiHide' && message.id === initialShow.id));
+
+    harness.manager.setCustomUiViewAttached(true);
+    assert.ok(harness.customUiMessages.some((message) => message.type === 'customUiShow' && message.id === initialShow.id));
+    assert.ok(harness.customUiMessages.some((message) => message.type === 'customUiRender' && message.id === initialShow.id && message.lines[0] === 'retained custom ui'));
+
+    harness.manager.dispose();
+    assert.strictEqual(await customPromise, undefined);
   });
 
   test('keeps background custom UI hidden until its session is selected', async () => {

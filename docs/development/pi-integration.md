@@ -47,6 +47,8 @@ The bundled SDK build is produced by:
 npm run compile:sdk
 ```
 
+The build also generates small Node-compatible shims for Pi extension peer imports such as `@earendil-works/pi-ai` and `@earendil-works/pi-tui`. Their public export paths are discovered from the installed Pi SDK, so `npm run update:pi-sdk` validates the current peer-import surface as part of its compile step. If Pi changes an unsupported export layout, fix the generator before releasing the SDK update rather than shipping a partial runtime.
+
 ## Startup behavior
 
 Tauren starts Pi in the background when the sidebar opens, the webview becomes ready, the view receives focus, or the view becomes visible. This keeps model and context metadata available before the first prompt.

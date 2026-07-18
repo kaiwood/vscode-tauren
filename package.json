@@ -738,6 +738,7 @@
     "compile:webview": "esbuild src/webview/main.ts --bundle --format=iife --target=es2022 --outfile=resources/webview/chat.js",
     "sync:vendor": "node scripts/sync-vendor-deps.js",
     "update:pi-sdk": "node scripts/update-pi-sdk.js",
+    "verify:pi-sdk": "node scripts/verify-pi-sdk-peer-runtime.js",
     "release": "node scripts/release.js",
     "install:local": "npm run compile && npx --yes @vscode/vsce package --out tauren-local.vsix && code --install-extension tauren-local.vsix --force && node scripts/restart-vscode-extension-host.js",
     "test": "npm run compile -- --pretty false && vscode-test",

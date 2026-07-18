@@ -245,12 +245,12 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
       writeClipboard: (text) => vscode.env.clipboard.writeText(text),
       extensionUi,
       customUi: {
-        isAvailable: () => Boolean(this.webviewReady && this.webviewView),
+        isAvailable: () => Boolean(this.webviewReady && this.webviewView?.visible),
         postMessage: (message) => this.postCustomUiMessage(message),
         getOutputColors: () => getOutputColorsSetting()
       },
       extensionEditor: {
-        isAvailable: () => Boolean(this.webviewReady && this.webviewView),
+        isAvailable: () => Boolean(this.webviewReady && this.webviewView?.visible),
         postMessage: (message) => this.postExtensionEditorMessage(message)
       },
       extensionPrompt: {
@@ -430,12 +430,21 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
       }),
       webviewView.onDidChangeVisibility(() => {
         if (webviewView.visible) {
+          if (!this.webviewReady) {
+            return;
+          }
+
+          this.controller.setCustomUiViewAttached(true);
+          this.controller.resyncWebviewState();
           this.pendingInputFocus = true;
           this.postInputFocusSoon();
+          this.postPendingToasts();
           this.refreshLiveMetadata();
           this.controller.refreshSessionDiffStats();
           this.startContextUsagePolling();
         } else {
+          this.controller.setCustomUiViewAttached(false);
+          this.abortPendingComposerCompletion();
           this.setSidebarFocusContext(false);
           this.stopContextUsagePolling();
         }
@@ -1168,7 +1177,7 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
   }
 
   private postCustomUiMessage(message: CustomUiHostMessage): boolean {
-    if (!this.webviewReady || !this.webviewView) {
+    if (!this.webviewReady || !this.webviewView?.visible) {
       return false;
     }
 
@@ -1177,7 +1186,7 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
   }
 
   private postExtensionEditorMessage(message: ExtensionEditorHostMessage): boolean {
-    if (!this.webviewReady || !this.webviewView) {
+    if (!this.webviewReady || !this.webviewView?.visible) {
       return false;
     }
 
@@ -1279,7 +1288,7 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
   }
 
   private showToast(message: string, kind: 'success' | 'warning' | 'error' = 'success'): void {
-    if (!this.webviewView || !this.webviewReady) {
+    if (!this.webviewView?.visible || !this.webviewReady) {
       this.pendingToastMessages.push({ message, kind });
       return;
     }

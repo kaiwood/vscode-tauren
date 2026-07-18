@@ -100,6 +100,7 @@ async function main() {
 
   run(npmCommand, ['install', '--save-dev', `${packageName}@${latestVersion}`]);
   run(npmCommand, ['run', 'compile']);
+  run(npmCommand, ['run', 'verify:pi-sdk']);
   run('git', ['diff', '--check']);
 }
 

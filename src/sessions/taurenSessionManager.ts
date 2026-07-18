@@ -330,6 +330,11 @@ export class TaurenSessionManager {
     this.postActiveState();
   }
 
+  public resyncWebviewState(): void {
+    this.active().forceFullStatePost = true;
+    this.postState();
+  }
+
   public refreshSessionMeta(options: { startClient?: boolean; force?: boolean } = {}): void {
     void this.active().controller.refreshSessionMeta(options);
   }

@@ -199,6 +199,7 @@ function checkChangelogReady() {
 
 function runPackagePreflight(tempDir) {
   run(npmCommand, ['run', 'compile']);
+  run(npmCommand, ['run', 'verify:pi-sdk']);
   checkCleanWorkingTree();
   run(npxCommand, ['--yes', '@vscode/vsce', 'package', '--out', path.join(tempDir, 'preflight.vsix')]);
   checkCleanWorkingTree();

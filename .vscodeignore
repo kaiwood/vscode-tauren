@@ -13,6 +13,9 @@ tsconfig.json
 AGENTS.md
 TODO.md
 plan/**
+docs/**
+.fallow/**
+.fallowrc.jsonc
 
 # Repository metadata and generated packages
 .git/**
@@ -20,8 +23,16 @@ plan/**
 .vscodeignore
 *.vsix
 
-# Build metadata
+# Build metadata and development-only dependency metadata
 out/**/*.map
+node_modules/**/*.map
+node_modules/**/*.d.ts
+node_modules/**/*.d.mts
+node_modules/**/*.d.cts
 
-# SDK source dependency is bundled into out/sdk/piSdkBundle.mjs
+# SDK source dependency is bundled into out/sdk/piSdkBundle.mjs.
+# Generated peer shims under out/sdk/node_modules are required at runtime.
 node_modules/@earendil-works/pi-coding-agent/**
+
+# Documentation/demo captures are not needed at runtime
+resources/*.gif

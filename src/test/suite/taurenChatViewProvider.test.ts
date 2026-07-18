@@ -353,6 +353,28 @@ suite('TaurenChatViewProvider', () => {
     }
   });
 
+  test('resyncs retained webview state when the sidebar becomes visible', async () => {
+    const provider = new TaurenChatViewProvider(
+      vscode.Uri.file('/extension'),
+      () => new FakePiClient({ state: {} }),
+      undefined,
+      undefined,
+      () => '/workspace'
+    );
+    const view = new FakeWebviewView();
+
+    provider.resolveWebviewView(view.asWebviewView());
+    view.webview.fireMessage({ type: 'ready' });
+    await flushPromises();
+    view.webview.messages.length = 0;
+
+    view.fireVisibilityChange(false);
+    view.fireVisibilityChange(true);
+
+    assert.ok(view.webview.messages.some((message) => isWebviewStateMessage(message) && Array.isArray(message.messages)));
+    provider.dispose();
+  });
+
   test('posts help toggle messages to the webview', async () => {
     const provider = new TaurenChatViewProvider(
       vscode.Uri.file('/extension'),

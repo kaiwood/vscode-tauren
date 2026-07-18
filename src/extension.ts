@@ -15,7 +15,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     provider,
-    vscode.window.registerWebviewViewProvider(taurenChatViewType, provider),
+    vscode.window.registerWebviewViewProvider(taurenChatViewType, provider, { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.commands.registerCommand('tauren.newSession', () => provider.newSession()),
     vscode.commands.registerCommand('tauren.resume', () => provider.resume()),
     vscode.commands.registerCommand('tauren.fork', () => provider.fork()),
