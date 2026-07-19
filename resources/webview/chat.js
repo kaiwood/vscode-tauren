@@ -6138,7 +6138,8 @@ ${after}`;
     { value: "low", label: "Low" },
     { value: "medium", label: "Medium" },
     { value: "high", label: "High" },
-    { value: "xhigh", label: "X High" }
+    { value: "xhigh", label: "X High" },
+    { value: "max", label: "Max" }
   ];
   var deliveryModeOptions = [
     { value: "one-at-a-time", label: "One at a time" },

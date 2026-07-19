@@ -8,9 +8,11 @@ suite('thinkingLevelSteps', () => {
     assert.strictEqual(getSteppedThinkingLevel('low', 'raise'), 'medium');
     assert.strictEqual(getSteppedThinkingLevel('medium', 'raise'), 'high');
     assert.strictEqual(getSteppedThinkingLevel('high', 'raise'), 'xhigh');
+    assert.strictEqual(getSteppedThinkingLevel('xhigh', 'raise'), 'max');
   });
 
   test('lowers through existing thinking picker order', () => {
+    assert.strictEqual(getSteppedThinkingLevel('max', 'lower'), 'xhigh');
     assert.strictEqual(getSteppedThinkingLevel('xhigh', 'lower'), 'high');
     assert.strictEqual(getSteppedThinkingLevel('high', 'lower'), 'medium');
     assert.strictEqual(getSteppedThinkingLevel('medium', 'lower'), 'low');
@@ -19,7 +21,7 @@ suite('thinkingLevelSteps', () => {
   });
 
   test('returns no change at bounds and ignores unknown levels', () => {
-    assert.strictEqual(getSteppedThinkingLevel('xhigh', 'raise'), undefined);
+    assert.strictEqual(getSteppedThinkingLevel('max', 'raise'), undefined);
     assert.strictEqual(getSteppedThinkingLevel('off', 'lower'), undefined);
     assert.strictEqual(getSteppedThinkingLevel('', 'raise'), undefined);
   });

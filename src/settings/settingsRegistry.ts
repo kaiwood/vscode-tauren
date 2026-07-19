@@ -80,7 +80,8 @@ export const thinkingLevelOptions = [
   { value: 'low', label: 'Low' },
   { value: 'medium', label: 'Medium' },
   { value: 'high', label: 'High' },
-  { value: 'xhigh', label: 'X High' }
+  { value: 'xhigh', label: 'X High' },
+  { value: 'max', label: 'Max' }
 ] as const satisfies readonly SettingOption[];
 
 const deliveryModeOptions = [
