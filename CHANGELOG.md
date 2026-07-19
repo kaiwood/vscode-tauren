@@ -5,6 +5,7 @@
 ### Changed
 
 - Made the `/reload` progress message neutral for both Pi and Kward backends.
+- Show all Pi-known models for authenticated providers in Tauren's model controls so newly bundled models appear without Tauren allowlist updates.
 
 ## [1.10.0] - 2026-07-19
 

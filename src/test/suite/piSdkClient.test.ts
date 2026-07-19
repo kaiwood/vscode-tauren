@@ -5,7 +5,7 @@ import { PiSdkClient } from '../../sdk/piSdkClient';
 import { createSdkExtensionUiContext } from '../../sdk/extensionUiBridge';
 import type { ExtensionUi } from '../../extensionUi/types';
 import { loadPiSdk, resetPiSdkLoaderForTests, type PiSdkModule } from '../../sdk/piSdkLoader';
-import type { PiEvent } from '../../pi/types';
+import type { PiEvent, PiModel } from '../../pi/types';
 
 suite('PiSdkClient', () => {
   test('loads the bundled SDK runtime and sets its package dir', async () => {
@@ -299,6 +299,27 @@ suite('PiSdkClient', () => {
 
     await harness.client.setSessionName('   ');
     assert.strictEqual(harness.session.sessionName, '');
+
+    harness.client.dispose();
+  });
+
+  test('exposes known models for configured providers even when Pi does not mark each model available', async () => {
+    const harness = createSdkHarness();
+    const codexModel = { provider: 'openai-codex', id: 'gpt-5.6-sol', name: 'GPT 5.6 Sol', reasoning: true };
+    harness.session.authStorage.set('openai-codex', { type: 'oauth', key: 'codex-token' });
+    harness.session.extraKnownModels.push(
+      codexModel,
+      { provider: 'unauthenticated', id: 'hidden-model', name: 'Hidden Model', reasoning: false }
+    );
+
+    const result = await harness.client.getAvailableModels();
+
+    assert.ok(result.models?.some((model) => model.provider === 'openai-codex' && model.id === 'gpt-5.6-sol'));
+    assert.ok(!result.models?.some((model) => model.provider === 'unauthenticated'));
+
+    const selectedModel = await harness.client.setModel('openai-codex', 'gpt-5.6-sol');
+    assert.strictEqual(selectedModel, codexModel);
+    assert.strictEqual(harness.session.selectedModel, codexModel);
 
     harness.client.dispose();
   });
@@ -692,6 +713,7 @@ class FakeSession {
   public readonly labelChanges: Array<{ entryId: string; label: string | undefined }> = [];
   public readonly messages = [{ role: 'assistant', content: 'last answer' }];
   public readonly availableModels = [this.model];
+  public readonly extraKnownModels: PiModel[] = [];
   public readonly promptCalls: Array<{ message: string; streamingBehavior?: string; source?: string; images?: unknown }> = [];
   public scopedModels: Array<{ model: unknown }> = [];
   public readonly exportToHtmlCalls: Array<string | undefined> = [];
@@ -705,7 +727,7 @@ class FakeSession {
   public readonly modelRegistry = {
     authStorage: this.authStorage,
     getAvailable: () => this.availableModels,
-    getAll: () => this.availableModels,
+    getAll: () => [...this.availableModels, ...this.extraKnownModels],
     getProviderDisplayName: (providerId: string) => this.providerDisplayNames.get(providerId) ?? providerId,
     getProviderAuthStatus: (providerId: string) => (
       this.authStorage.get(providerId) ? { configured: true, source: 'stored' } : { configured: false }

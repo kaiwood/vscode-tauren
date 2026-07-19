@@ -197,7 +197,30 @@ export class PiSdkClient implements PiClient {
 
   public async getAvailableModels(): Promise<PiAvailableModels> {
     const { session } = await this.ensureRuntime();
-    return { models: session.modelRegistry.getAvailable() };
+    return { models: this.getSelectableModels(session) };
+  }
+
+  private getSelectableModels(session: AgentSessionRuntime['session']): ReturnType<AgentSessionRuntime['session']['modelRegistry']['getAll']> {
+    const allModels = session.modelRegistry.getAll();
+    const availableModels = session.modelRegistry.getAvailable();
+    const availableProviders = new Set(availableModels.map((model) => model.provider));
+    const configuredProviders = new Set<string>();
+
+    for (const model of allModels) {
+      if (availableProviders.has(model.provider) || session.modelRegistry.getProviderAuthStatus(model.provider).configured) {
+        configuredProviders.add(model.provider);
+      }
+    }
+
+    const selectableModels = configuredProviders.size > 0
+      ? allModels.filter((model) => configuredProviders.has(model.provider))
+      : availableModels;
+
+    if (!session.model || selectableModels.some((model) => model.provider === session.model?.provider && model.id === session.model?.id)) {
+      return selectableModels;
+    }
+
+    return [...selectableModels, session.model];
   }
 
   public async getCommands(): Promise<PiAvailableCommands> {
@@ -422,7 +445,7 @@ export class PiSdkClient implements PiClient {
 
   public async setModel(provider: string, modelId: string): Promise<PiModel> {
     const { session } = await this.ensureRuntime();
-    const model = session.modelRegistry.getAvailable().find((candidate) => (
+    const model = this.getSelectableModels(session).find((candidate) => (
       candidate.provider === provider && candidate.id === modelId
     ));
 
@@ -452,7 +475,7 @@ export class PiSdkClient implements PiClient {
       }
       case 'defaultModel': {
         const modelRef = this.parseModelReference(this.requireString(value, settingId));
-        const model = session.modelRegistry.getAvailable().find((candidate) => (
+        const model = this.getSelectableModels(session).find((candidate) => (
           candidate.provider === modelRef.provider && candidate.id === modelRef.modelId
         ));
 
@@ -518,14 +541,14 @@ export class PiSdkClient implements PiClient {
         return { applied: 'reload', message: 'Saved. Reload Pi or start a new session to apply.' };
       case 'enabledModels': {
         const enabledModels = this.requireStringArray(value, settingId);
-        const availableModels = session.modelRegistry.getAvailable();
+        const selectableModels = this.getSelectableModels(session);
         const scopedModels = enabledModels.flatMap((fullId) => {
-          const model = availableModels.find((candidate) => `${candidate.provider}/${candidate.id}` === fullId);
+          const model = selectableModels.find((candidate) => `${candidate.provider}/${candidate.id}` === fullId);
           return model ? [{ model }] : [];
         });
         session.setScopedModels(scopedModels);
         this.getSettingsManager().setEnabledModels(
-          enabledModels.length > 0 && scopedModels.length === availableModels.length
+          enabledModels.length > 0 && scopedModels.length === selectableModels.length
             ? undefined
             : scopedModels.map((scoped) => `${scoped.model.provider}/${scoped.model.id}`)
         );
