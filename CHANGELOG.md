@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-07-19
+
 ### Added
 
 - Rendered Pi extension choices, confirmations, and text questions as inline sidebar prompts instead of native VS Code prompts.
