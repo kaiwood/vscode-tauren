@@ -145,6 +145,7 @@ export class TaurenChatController {
       isActiveSession: () => this.options.isActiveSession?.() ?? true,
       refreshSessionDiffStats: () => void this.refreshSessionDiffStats(),
       refreshContextUsage: () => void this.refreshContextUsage({ silent: true }),
+      refreshModelCatalog: () => void this.refreshSessionMeta({ startClient: true, force: true }),
       addToolExecution: (event) => this.sessionDiffController.addToolExecution(event),
       armQueuedReadyScriptRun: () => this.armQueuedReadyScriptRun(),
       runReadyScriptAfterAgentEnd: () => {

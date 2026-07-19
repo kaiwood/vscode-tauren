@@ -14,6 +14,7 @@
 - Bundle Pi OAuth flows so stored Codex credentials can resolve in Tauren.
 - Support Pi's `max` thinking level in Tauren controls.
 - Support Pi's cached WebSocket transport and default transport selection.
+- Refresh Pi dynamic model catalogs in the background and update the model controls when they change.
 
 ## [1.10.0] - 2026-07-19
 

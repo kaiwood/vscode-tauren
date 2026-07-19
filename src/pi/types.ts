@@ -61,6 +61,7 @@ export type ExtensionErrorPiEvent = PiEventBase & {
   error?: string;
 };
 export type PromptHandledPiEvent = PiEventBase & { type: 'prompt_handled' };
+export type ModelCatalogUpdatedPiEvent = PiEventBase & { type: 'model_catalog_updated' };
 
 export type KnownPiEvent =
   | AgentStartPiEvent
@@ -79,7 +80,8 @@ export type KnownPiEvent =
   | AutoRetryStartPiEvent
   | AutoRetryEndPiEvent
   | ExtensionErrorPiEvent
-  | PromptHandledPiEvent;
+  | PromptHandledPiEvent
+  | ModelCatalogUpdatedPiEvent;
 
 export type UnknownPiEvent = PiEventBase;
 

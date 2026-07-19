@@ -61,6 +61,7 @@ export class PiSdkClient implements PiClient {
   private unsubscribeSession: (() => void) | undefined;
   private disposed = false;
   private promptSawAgentStart = false;
+  private modelCatalogRefreshStarted = false;
   private readonly eventListeners = new Set<(event: PiEvent) => void>();
   private readonly errorListeners = new Set<(message: string) => void>();
   private readonly renderer = new PiSdkRenderer(() => this.options.extensionUi?.getToolsExpanded?.() ?? false);
@@ -198,8 +199,10 @@ export class PiSdkClient implements PiClient {
   }
 
   public async getAvailableModels(): Promise<PiAvailableModels> {
-    const { session } = await this.ensureRuntime();
-    return { models: await this.getSelectableModels(session) };
+    const runtime = await this.ensureRuntime();
+    const models = await this.getSelectableModels(runtime.session);
+    this.refreshModelCatalogInBackground(runtime);
+    return { models };
   }
 
   private async getSelectableModels(session: AgentSessionRuntime['session']): Promise<PiSdkRuntimeModel[]> {
@@ -892,6 +895,7 @@ export class PiSdkClient implements PiClient {
   private async bindRuntime(runtime: AgentSessionRuntime): Promise<void> {
     const { session } = runtime;
 
+    this.modelCatalogRefreshStarted = false;
     this.autocompleteRegistry.reset();
     await session.bindExtensions({
       uiContext: createSdkExtensionUiContext(this.options.extensionUi, { autocompleteRegistry: this.autocompleteRegistry }),
@@ -926,6 +930,26 @@ export class PiSdkClient implements PiClient {
 
       this.emitEvent(this.renderer.enrichEvent(runtime, mapSdkSessionEventToAgentEvent(event)));
     });
+  }
+
+  private refreshModelCatalogInBackground(runtime: AgentSessionRuntime): void {
+    if (this.modelCatalogRefreshStarted) {
+      return;
+    }
+
+    this.modelCatalogRefreshStarted = true;
+    void runtime.session.modelRuntime.refresh().then(
+      () => {
+        if (!this.disposed && this.runtime === runtime) {
+          this.emitEvent({ type: 'model_catalog_updated' });
+        }
+      },
+      (error) => {
+        if (!this.disposed && this.runtime === runtime) {
+          this.emitError(`Pi model catalog refresh failed: ${getErrorMessage(error)}`);
+        }
+      }
+    );
   }
 
   private renderCustomMessages(runtime: AgentSessionRuntime, messages: PiMessagesResult['messages']): PiMessagesResult['messages'] {

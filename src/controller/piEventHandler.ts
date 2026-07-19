@@ -26,6 +26,7 @@ export type AgentRuntimeEventHandlerOptions = {
   isActiveSession?: () => boolean;
   refreshSessionDiffStats: () => void;
   refreshContextUsage: () => void;
+  refreshModelCatalog: () => void;
   addToolExecution: (event: AgentRuntimeEvent) => void;
   armQueuedReadyScriptRun: () => void;
   runReadyScriptAfterAgentEnd: () => void;
@@ -189,6 +190,9 @@ export class AgentRuntimeEventHandler {
       case 'prompt_handled':
         this.options.session.completeActivePrompt();
         this.options.postState();
+        break;
+      case 'model_catalog_updated':
+        this.options.refreshModelCatalog();
         break;
       default:
         this.applyPiActivity(event);

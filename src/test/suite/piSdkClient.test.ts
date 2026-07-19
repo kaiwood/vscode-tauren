@@ -262,6 +262,25 @@ suite('PiSdkClient', () => {
     harness.client.dispose();
   });
 
+  test('refreshes model catalogs once in the background and emits an update', async () => {
+    const harness = createSdkHarness();
+    const events: PiEvent[] = [];
+
+    harness.client.onEvent((event) => events.push(event));
+
+    await harness.client.getAvailableModels();
+    await Promise.resolve();
+
+    assert.strictEqual(harness.session.modelRuntime.catalogRefreshCount, 1);
+    assert.deepStrictEqual(events, [{ type: 'model_catalog_updated' }]);
+
+    await harness.client.getAvailableModels();
+    await Promise.resolve();
+
+    assert.strictEqual(harness.session.modelRuntime.catalogRefreshCount, 1);
+    harness.client.dispose();
+  });
+
   test('implements model, command, history metadata, and live tree methods', async () => {
     const harness = createSdkHarness();
 
@@ -741,6 +760,7 @@ class FakeAuthStorage {
 
 class FakeModelRuntime {
   public refreshCount = 0;
+  public catalogRefreshCount = 0;
   public readonly loginCalls: Array<{ providerId: string; type: 'oauth' | 'api_key' }> = [];
 
   public constructor(private readonly session: FakeSession) {}
@@ -751,6 +771,10 @@ class FakeModelRuntime {
 
   public async getAvailable(): Promise<PiModel[]> {
     return this.session.availableModels;
+  }
+
+  public async refresh(): Promise<void> {
+    this.catalogRefreshCount += 1;
   }
 
   public getProviders(): FakeAuthProvider[] {

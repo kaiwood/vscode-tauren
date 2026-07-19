@@ -2850,6 +2850,20 @@ suite('TaurenChatController', () => {
     harness.controller.dispose();
   });
 
+  test('model catalog updates refresh model metadata', async () => {
+    const client = new FakePiClient();
+    const harness = createControllerHarness([client]);
+
+    await harness.controller.handleWebviewMessage({ type: 'refreshMetadata' });
+    const modelCallsBeforeUpdate = client.modelsCalls;
+
+    client.emit({ type: 'model_catalog_updated' });
+    await flushPromises();
+
+    assert.strictEqual(client.modelsCalls, modelCallsBeforeUpdate + 1);
+    harness.controller.dispose();
+  });
+
   test('live tool execution titles use streamed tool call arguments when execution events omit args', async () => {
     const client = new FakePiClient();
     const harness = createControllerHarness([client]);
