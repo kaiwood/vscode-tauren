@@ -751,7 +751,7 @@
     "compile:sdk": "node scripts/build-sdk-bundle.js"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "^0.80.6",
+    "@earendil-works/pi-coding-agent": "^0.80.10",
     "@types/mocha": "^10.0.10",
     "@types/node": "^24.0.0",
     "@types/vscode": "1.106.1",

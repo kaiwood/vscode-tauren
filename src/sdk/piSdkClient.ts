@@ -43,7 +43,9 @@ import { createWorkspaceMutationGuardTools } from './workspaceMutationGuard';
 
 const sdkDisposedMessage = 'Pi SDK client disposed.';
 const sessionDirEnvVar = 'PI_CODING_AGENT_SESSION_DIR';
-const piDualAuthProviderIds = new Set(['anthropic']);
+
+type PiSdkRuntimeModel = ReturnType<AgentSessionRuntime['session']['modelRuntime']['getModels']>[number];
+type PiSdkProviderAuthStatus = ReturnType<AgentSessionRuntime['session']['modelRuntime']['getProviderAuthStatus']>;
 
 export type PiSdkClientOptions = PiClientOptions & {
   extensionUi?: ExtensionUi;
@@ -189,7 +191,7 @@ export class PiSdkClient implements PiClient {
     const stats: PiSessionStats = {
       ...session.getSessionStats(),
       sessionName: session.sessionName,
-      usingSubscription: session.model ? session.modelRegistry.isUsingOAuth(session.model) : false,
+      usingSubscription: session.model ? session.modelRuntime.isUsingOAuth(session.model.provider) : false,
       autoCompactionEnabled: session.autoCompactionEnabled
     };
     return stats;
@@ -197,17 +199,18 @@ export class PiSdkClient implements PiClient {
 
   public async getAvailableModels(): Promise<PiAvailableModels> {
     const { session } = await this.ensureRuntime();
-    return { models: this.getSelectableModels(session) };
+    return { models: await this.getSelectableModels(session) };
   }
 
-  private getSelectableModels(session: AgentSessionRuntime['session']): ReturnType<AgentSessionRuntime['session']['modelRegistry']['getAll']> {
-    const allModels = session.modelRegistry.getAll();
-    const availableModels = session.modelRegistry.getAvailable();
+  private async getSelectableModels(session: AgentSessionRuntime['session']): Promise<PiSdkRuntimeModel[]> {
+    const modelRuntime = session.modelRuntime;
+    const allModels = modelRuntime.getModels();
+    const availableModels = await modelRuntime.getAvailable();
     const availableProviders = new Set(availableModels.map((model) => model.provider));
     const configuredProviders = new Set<string>();
 
     for (const model of allModels) {
-      if (availableProviders.has(model.provider) || session.modelRegistry.getProviderAuthStatus(model.provider).configured) {
+      if (availableProviders.has(model.provider) || modelRuntime.getProviderAuthStatus(model.provider).configured) {
         configuredProviders.add(model.provider);
       }
     }
@@ -217,7 +220,7 @@ export class PiSdkClient implements PiClient {
       : availableModels;
 
     if (!session.model || selectableModels.some((model) => model.provider === session.model?.provider && model.id === session.model?.id)) {
-      return selectableModels;
+      return [...selectableModels];
     }
 
     return [...selectableModels, session.model];
@@ -312,32 +315,33 @@ export class PiSdkClient implements PiClient {
 
   public async getAuthProviders(): Promise<PiAuthProvidersResult> {
     const { session } = await this.ensureRuntime();
-    const { authStorage } = session.modelRegistry;
-    authStorage.reload();
-    session.modelRegistry.refresh();
+    const modelRuntime = session.modelRuntime;
+    const credentialTypes = new Map((await modelRuntime.listCredentials()).map((credential) => [credential.providerId, credential.type]));
+    const providers: PiAuthProvider[] = [];
 
-    const oauthProviders = authStorage.getOAuthProviders();
-    const oauthProviderIds = new Set(oauthProviders.map((provider) => provider.id));
-    const providers: PiAuthProvider[] = oauthProviders.map((provider) => this.createAuthProvider({
-      id: provider.id,
-      name: provider.name,
-      authType: 'oauth',
-      usesCallbackServer: provider.usesCallbackServer
-    }));
+    for (const provider of modelRuntime.getProviders()) {
+      const status = modelRuntime.getProviderAuthStatus(provider.id);
+      const storedCredentialType = credentialTypes.get(provider.id);
 
-    const seenApiKeyProviders = new Set<string>();
-    for (const model of session.modelRegistry.getAll()) {
-      const providerId = typeof model.provider === 'string' ? model.provider : '';
-      if (!providerId || seenApiKeyProviders.has(providerId) || !isPiApiKeyLoginProvider(providerId, oauthProviderIds)) {
-        continue;
+      if (provider.auth.oauth) {
+        providers.push(this.createAuthProvider({
+          id: provider.id,
+          name: provider.auth.oauth.name,
+          authType: 'oauth',
+          status,
+          storedCredentialType
+        }));
       }
 
-      seenApiKeyProviders.add(providerId);
-      providers.push(this.createAuthProvider({
-        id: providerId,
-        name: session.modelRegistry.getProviderDisplayName(providerId),
-        authType: 'api_key'
-      }));
+      if (provider.auth.apiKey?.login) {
+        providers.push(this.createAuthProvider({
+          id: provider.id,
+          name: provider.name,
+          authType: 'api_key',
+          status,
+          storedCredentialType
+        }));
+      }
     }
 
     providers.sort((left, right) => left.name.localeCompare(right.name) || left.authType.localeCompare(right.authType));
@@ -356,50 +360,94 @@ export class PiSdkClient implements PiClient {
       throw new Error('API key cannot be empty.');
     }
 
-    session.modelRegistry.authStorage.set(providerId, { type: 'api_key', key: trimmedKey });
-    session.modelRegistry.refresh();
+    const provider = session.modelRuntime.getProvider(providerId);
+    await session.modelRuntime.login(providerId, 'api_key', {
+      prompt: async (prompt) => {
+        if (prompt.type !== 'text' && prompt.type !== 'secret') {
+          throw new Error(`API-key login requires unsupported ${prompt.type} input.`);
+        }
+        return trimmedKey;
+      },
+      notify: () => undefined
+    });
     return {
       providerId,
-      message: `Saved API key for ${session.modelRegistry.getProviderDisplayName(providerId)}.`
+      message: `Saved API key for ${provider?.name ?? providerId}.`
     };
   }
 
   public async loginWithOAuth(providerId: string, callbacks: PiOAuthLoginCallbacks): Promise<PiAuthActionResult> {
     const { session } = await this.ensureRuntime();
-    const provider = session.modelRegistry.authStorage
-      .getOAuthProviders()
-      .find((candidate) => candidate.id === providerId);
+    const provider = session.modelRuntime.getProvider(providerId);
 
-    if (!provider) {
+    if (!provider?.auth.oauth) {
       throw new Error(`Subscription login is not supported for provider: ${providerId}`);
     }
 
-    await session.modelRegistry.authStorage.login(providerId, callbacks);
-    session.modelRegistry.refresh();
+    await session.modelRuntime.login(providerId, 'oauth', {
+      signal: callbacks.signal,
+      prompt: async (prompt) => {
+        if (prompt.type === 'select') {
+          const selected = await callbacks.onSelect({
+            message: prompt.message,
+            options: [...prompt.options]
+          });
+          if (!selected) {
+            throw new Error('Login cancelled');
+          }
+          return selected;
+        }
+
+        if (prompt.type === 'manual_code' && callbacks.onManualCodeInput) {
+          return await callbacks.onManualCodeInput();
+        }
+
+        return await callbacks.onPrompt({
+          message: prompt.message,
+          ...(prompt.placeholder ? { placeholder: prompt.placeholder } : {})
+        });
+      },
+      notify: (event) => {
+        switch (event.type) {
+          case 'auth_url':
+            callbacks.onAuth({ url: event.url, ...(event.instructions ? { instructions: event.instructions } : {}) });
+            break;
+          case 'device_code':
+            callbacks.onDeviceCode({
+              userCode: event.userCode,
+              verificationUri: event.verificationUri,
+              ...(event.intervalSeconds !== undefined ? { intervalSeconds: event.intervalSeconds } : {}),
+              ...(event.expiresInSeconds !== undefined ? { expiresInSeconds: event.expiresInSeconds } : {})
+            });
+            break;
+          case 'info':
+          case 'progress':
+            callbacks.onProgress?.(event.message);
+            break;
+        }
+      }
+    });
     return {
       providerId,
-      message: `Logged in to ${provider.name}.`
+      message: `Logged in to ${provider.auth.oauth.name}.`
     };
   }
 
   private hasRuntimeApiKeyProvider(session: AgentSessionRuntime['session'], providerId: string): boolean {
-    const oauthProviderIds = new Set(session.modelRegistry.authStorage.getOAuthProviders().map((provider) => provider.id));
-    return session.modelRegistry.getAll().some((model) => (
-      model.provider === providerId && isPiApiKeyLoginProvider(providerId, oauthProviderIds)
-    ));
+    return Boolean(session.modelRuntime.getProvider(providerId)?.auth.apiKey?.login);
   }
 
   public async logoutAuthProvider(providerId: string): Promise<PiAuthActionResult> {
     const { session } = await this.ensureRuntime();
-    const credential = session.modelRegistry.authStorage.get(providerId);
+    const credential = (await session.modelRuntime.listCredentials())
+      .find((candidate) => candidate.providerId === providerId);
 
     if (!credential) {
       throw new Error('No stored credentials to remove. Environment variables and models.json config are unchanged.');
     }
 
-    const providerName = session.modelRegistry.getProviderDisplayName(providerId);
-    session.modelRegistry.authStorage.logout(providerId);
-    session.modelRegistry.refresh();
+    const providerName = session.modelRuntime.getProvider(providerId)?.name ?? providerId;
+    await session.modelRuntime.logout(providerId);
     return {
       providerId,
       message: credential.type === 'oauth'
@@ -412,23 +460,16 @@ export class PiSdkClient implements PiClient {
     id: string;
     name: string;
     authType: 'oauth' | 'api_key';
-    usesCallbackServer?: boolean;
+    status: PiSdkProviderAuthStatus;
+    storedCredentialType: 'oauth' | 'api_key' | undefined;
   }): PiAuthProvider {
-    const runtime = this.runtime;
-    if (!runtime) {
-      throw new Error('Pi SDK runtime is not available.');
-    }
-
-    const { authStorage } = runtime.session.modelRegistry;
-    const status = runtime.session.modelRegistry.getProviderAuthStatus(input.id);
-    const credential = authStorage.get(input.id);
-    const source = isPiAuthSource(status.source) ? status.source : undefined;
-    const storedCredentialMatches = credential?.type === input.authType;
+    const source = isPiAuthSource(input.status.source) ? input.status.source : undefined;
+    const storedCredentialMatches = input.storedCredentialType === input.authType;
     const configured = input.authType === 'oauth'
       ? storedCredentialMatches
-      : credential?.type === 'oauth'
+      : input.storedCredentialType === 'oauth'
         ? false
-        : Boolean(status.configured);
+        : Boolean(input.status.configured);
 
     return {
       id: input.id,
@@ -436,16 +477,15 @@ export class PiSdkClient implements PiClient {
       authType: input.authType,
       configured,
       ...(source && configured ? { source } : {}),
-      ...(typeof status.label === 'string' && configured ? { label: status.label } : {}),
-      ...(storedCredentialMatches ? { storedCredentialType: credential.type } : {}),
-      canLogout: storedCredentialMatches,
-      ...(input.usesCallbackServer !== undefined ? { usesCallbackServer: input.usesCallbackServer } : {})
+      ...(typeof input.status.label === 'string' && configured ? { label: input.status.label } : {}),
+      ...(storedCredentialMatches ? { storedCredentialType: input.storedCredentialType } : {}),
+      canLogout: storedCredentialMatches
     };
   }
 
   public async setModel(provider: string, modelId: string): Promise<PiModel> {
     const { session } = await this.ensureRuntime();
-    const model = this.getSelectableModels(session).find((candidate) => (
+    const model = (await this.getSelectableModels(session)).find((candidate) => (
       candidate.provider === provider && candidate.id === modelId
     ));
 
@@ -475,7 +515,7 @@ export class PiSdkClient implements PiClient {
       }
       case 'defaultModel': {
         const modelRef = this.parseModelReference(this.requireString(value, settingId));
-        const model = this.getSelectableModels(session).find((candidate) => (
+        const model = (await this.getSelectableModels(session)).find((candidate) => (
           candidate.provider === modelRef.provider && candidate.id === modelRef.modelId
         ));
 
@@ -541,7 +581,7 @@ export class PiSdkClient implements PiClient {
         return { applied: 'reload', message: 'Saved. Reload Pi or start a new session to apply.' };
       case 'enabledModels': {
         const enabledModels = this.requireStringArray(value, settingId);
-        const selectableModels = this.getSelectableModels(session);
+        const selectableModels = await this.getSelectableModels(session);
         const scopedModels = enabledModels.flatMap((fullId) => {
           const model = selectableModels.find((candidate) => `${candidate.provider}/${candidate.id}` === fullId);
           return model ? [{ model }] : [];
@@ -1141,10 +1181,6 @@ function callOptionalSettingGetter<T>(settingsManager: SettingsManager, methodNa
   const candidate = settingsManager as unknown as Record<string, unknown>;
   const method = candidate[methodName];
   return typeof method === 'function' ? method.call(settingsManager) as T : undefined;
-}
-
-function isPiApiKeyLoginProvider(providerId: string, oauthProviderIds: ReadonlySet<string>): boolean {
-  return !oauthProviderIds.has(providerId) || piDualAuthProviderIds.has(providerId);
 }
 
 function isPiAuthSource(value: unknown): value is PiAuthSource {

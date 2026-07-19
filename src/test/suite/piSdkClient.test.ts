@@ -335,8 +335,8 @@ suite('PiSdkClient', () => {
       { provider: 'github-copilot', id: 'gpt-copilot', name: 'Copilot', reasoning: false },
       { provider: 'openai-codex', id: 'gpt-codex', name: 'Codex', reasoning: false }
     );
-    harness.session.authStorage.oauthProviders.push(
-      createFakeOAuthProvider({ id: 'anthropic', name: 'Anthropic', usesCallbackServer: true }),
+    harness.session.authProviders.push(
+      createFakeOAuthProvider({ id: 'anthropic', name: 'Anthropic', apiKey: true }),
       createFakeOAuthProvider({ id: 'runtime-oauth', name: 'Runtime OAuth' }),
       createFakeOAuthProvider({ id: 'github-copilot', name: 'GitHub Copilot' }),
       createFakeOAuthProvider({ id: 'openai-codex', name: 'OpenAI Codex' })
@@ -368,8 +368,7 @@ suite('PiSdkClient', () => {
       configured: false,
       canLogout: false
     });
-    assert.strictEqual(harness.session.authStorage.reloadCount, 1);
-    assert.strictEqual(harness.session.modelRegistryRefreshCount, 1);
+    assert.strictEqual(harness.session.modelRuntime.refreshCount, 0);
     harness.client.dispose();
   });
 
@@ -382,8 +381,8 @@ suite('PiSdkClient', () => {
       { provider: 'custom-runtime', id: 'model', name: 'Custom', reasoning: false },
       { provider: 'runtime-oauth', id: 'oauth-model', name: 'OAuth Model', reasoning: false }
     );
-    harness.session.authStorage.oauthProviders.push(
-      createFakeOAuthProvider({ id: 'anthropic', name: 'Anthropic' }),
+    harness.session.authProviders.push(
+      createFakeOAuthProvider({ id: 'anthropic', name: 'Anthropic', apiKey: true }),
       createFakeOAuthProvider({ id: 'runtime-oauth', name: 'Runtime OAuth' })
     );
 
@@ -408,21 +407,37 @@ suite('PiSdkClient', () => {
       /API-key login is not supported for provider: missing-provider/
     );
 
+    const oauthEvents: string[] = [];
     assert.deepStrictEqual(
       await harness.client.loginWithOAuth('runtime-oauth', {
-        onAuth: () => undefined,
-        onDeviceCode: () => undefined,
-        onPrompt: async () => '',
-        onSelect: async () => undefined
+        onAuth: (info) => oauthEvents.push(`url:${info.url}`),
+        onDeviceCode: (info) => oauthEvents.push(`device:${info.userCode}`),
+        onPrompt: async () => 'prompt-response',
+        onProgress: (message) => oauthEvents.push(`progress:${message}`),
+        onManualCodeInput: async () => 'manual-code',
+        onSelect: async () => 'subscription'
       }),
       { providerId: 'runtime-oauth', message: 'Logged in to Runtime OAuth.' }
     );
+    assert.deepStrictEqual(oauthEvents, [
+      'url:https://auth.example.test',
+      'device:DEVICE-CODE',
+      'progress:Waiting for authentication'
+    ]);
     assert.deepStrictEqual(harness.session.authStorage.get('runtime-oauth'), {
       type: 'oauth',
       access: 'access-token',
       refresh: 'refresh-token',
       expires: 1
     });
+    harness.session.model = harness.session.availableModels.find((model) => model.provider === 'runtime-oauth') ?? harness.session.model;
+    assert.strictEqual((await harness.client.getSessionStats()).usingSubscription, true);
+
+    assert.deepStrictEqual(
+      await harness.client.logoutAuthProvider('runtime-oauth'),
+      { providerId: 'runtime-oauth', message: 'Logged out of Runtime OAuth.' }
+    );
+    assert.strictEqual(harness.session.authStorage.get('runtime-oauth'), undefined);
 
     await assert.rejects(
       harness.client.loginWithOAuth('missing-oauth', {
@@ -433,7 +448,12 @@ suite('PiSdkClient', () => {
       }),
       /Subscription login is not supported for provider: missing-oauth/
     );
-    assert.strictEqual(harness.session.modelRegistryRefreshCount, 3);
+    assert.deepStrictEqual(harness.session.modelRuntime.loginCalls, [
+      { providerId: 'custom-runtime', type: 'api_key' },
+      { providerId: 'anthropic', type: 'api_key' },
+      { providerId: 'runtime-oauth', type: 'oauth' }
+    ]);
+    assert.strictEqual(harness.session.modelRuntime.refreshCount, 4);
     harness.client.dispose();
   });
 
@@ -646,29 +666,36 @@ type HarnessOptions = {
   extensionUi?: ExtensionUi;
 };
 
-type FakeOAuthProvider = {
-  id: string;
-  name: string;
-  usesCallbackServer?: boolean;
-  login(callbacks: unknown): Promise<Record<string, unknown>>;
-  refreshToken(credentials: Record<string, unknown>): Promise<Record<string, unknown>>;
-  getApiKey(credentials: Record<string, unknown>): string;
-};
-
 type FakeAuthCredential = { type: 'oauth' | 'api_key'; key?: string; [key: string]: unknown };
 
+type FakeAuthPrompt = {
+  type: 'text' | 'secret' | 'select' | 'manual_code';
+  message: string;
+  placeholder?: string;
+  options?: Array<{ id: string; label: string }>;
+};
+
+type FakeAuthInteraction = {
+  prompt(prompt: FakeAuthPrompt): Promise<string>;
+  notify(event: unknown): void;
+};
+
+type FakeAuthProvider = {
+  id: string;
+  name: string;
+  auth: {
+    apiKey?: {
+      login(interaction: FakeAuthInteraction): Promise<FakeAuthCredential>;
+    };
+    oauth?: {
+      name: string;
+      login(interaction: FakeAuthInteraction): Promise<FakeAuthCredential>;
+    };
+  };
+};
+
 class FakeAuthStorage {
-  public reloadCount = 0;
   public readonly credentials = new Map<string, FakeAuthCredential>();
-  public readonly oauthProviders: FakeOAuthProvider[] = [];
-
-  public reload(): void {
-    this.reloadCount += 1;
-  }
-
-  public getOAuthProviders(): FakeOAuthProvider[] {
-    return this.oauthProviders;
-  }
 
   public get(providerId: string): FakeAuthCredential | undefined {
     return this.credentials.get(providerId);
@@ -681,14 +708,88 @@ class FakeAuthStorage {
   public logout(providerId: string): void {
     this.credentials.delete(providerId);
   }
+}
 
-  public async login(providerId: string, callbacks: unknown): Promise<void> {
-    const provider = this.oauthProviders.find((candidate) => candidate.id === providerId);
-    if (!provider) {
-      throw new Error(`Unknown OAuth provider: ${providerId}`);
+class FakeModelRuntime {
+  public refreshCount = 0;
+  public readonly loginCalls: Array<{ providerId: string; type: 'oauth' | 'api_key' }> = [];
+
+  public constructor(private readonly session: FakeSession) {}
+
+  public getModels(): PiModel[] {
+    return [...this.session.availableModels, ...this.session.extraKnownModels];
+  }
+
+  public async getAvailable(): Promise<PiModel[]> {
+    return this.session.availableModels;
+  }
+
+  public getProviders(): FakeAuthProvider[] {
+    const providers = new Map(this.session.authProviders.map((provider) => [provider.id, provider]));
+
+    for (const model of this.getModels()) {
+      if (!model.provider || providers.has(model.provider)) {
+        continue;
+      }
+
+      providers.set(model.provider, this.createApiKeyProvider(model.provider));
     }
 
-    this.set(providerId, { ...await provider.login(callbacks), type: 'oauth' });
+    return [...providers.values()];
+  }
+
+  public getProvider(providerId: string): FakeAuthProvider | undefined {
+    return this.getProviders().find((provider) => provider.id === providerId);
+  }
+
+  public getProviderAuthStatus(providerId: string): { configured: boolean; source?: 'stored' } {
+    return this.session.authStorage.get(providerId)
+      ? { configured: true, source: 'stored' }
+      : { configured: false };
+  }
+
+  public isUsingOAuth(providerId: string): boolean {
+    return this.session.authStorage.get(providerId)?.type === 'oauth';
+  }
+
+  public async listCredentials(): Promise<Array<{ providerId: string; type: 'oauth' | 'api_key' }>> {
+    return [...this.session.authStorage.credentials.entries()].map(([providerId, credential]) => ({
+      providerId,
+      type: credential.type
+    }));
+  }
+
+  public async login(providerId: string, type: 'oauth' | 'api_key', interaction: FakeAuthInteraction): Promise<FakeAuthCredential> {
+    const auth = this.getProvider(providerId)?.auth[type === 'oauth' ? 'oauth' : 'apiKey'];
+    if (!auth) {
+      throw new Error(`Unsupported ${type} provider: ${providerId}`);
+    }
+
+    this.loginCalls.push({ providerId, type });
+    const credential = await auth.login(interaction);
+    this.session.authStorage.set(providerId, credential);
+    this.refreshCount += 1;
+    return credential;
+  }
+
+  public async logout(providerId: string): Promise<void> {
+    this.session.authStorage.logout(providerId);
+    this.refreshCount += 1;
+  }
+
+  private createApiKeyProvider(providerId: string): FakeAuthProvider {
+    return {
+      id: providerId,
+      name: this.session.providerDisplayNames.get(providerId) ?? providerId,
+      auth: {
+        apiKey: {
+          login: async (interaction) => ({
+            type: 'api_key',
+            key: await interaction.prompt({ type: 'secret', message: 'Enter API key' })
+          })
+        }
+      }
+    };
   }
 }
 
@@ -718,25 +819,13 @@ class FakeSession {
   public scopedModels: Array<{ model: unknown }> = [];
   public readonly exportToHtmlCalls: Array<string | undefined> = [];
   public readonly authStorage = new FakeAuthStorage();
-  public modelRegistryRefreshCount = 0;
+  public readonly authProviders: FakeAuthProvider[] = [];
   public readonly providerDisplayNames = new Map<string, string>([['openai', 'OpenAI']]);
+  public readonly modelRuntime = new FakeModelRuntime(this);
   public promptImplementation: (message: string, options?: PromptOptions) => Promise<void> = async (_message, options) => {
     options?.preflightResult?.(true);
   };
   public abortImplementation: () => Promise<void> = async () => undefined;
-  public readonly modelRegistry = {
-    authStorage: this.authStorage,
-    getAvailable: () => this.availableModels,
-    getAll: () => [...this.availableModels, ...this.extraKnownModels],
-    getProviderDisplayName: (providerId: string) => this.providerDisplayNames.get(providerId) ?? providerId,
-    getProviderAuthStatus: (providerId: string) => (
-      this.authStorage.get(providerId) ? { configured: true, source: 'stored' } : { configured: false }
-    ),
-    refresh: () => {
-      this.modelRegistryRefreshCount += 1;
-    },
-    isUsingOAuth: () => false
-  };
   public readonly extensionRunner = {
     getRegisteredCommands: () => [{
       invocationName: 'fix-tests',
@@ -1139,14 +1228,35 @@ type Deferred<T> = {
   reject(error: unknown): void;
 };
 
-function createFakeOAuthProvider(options: { id: string; name: string; usesCallbackServer?: boolean }): FakeOAuthProvider {
+function createFakeOAuthProvider(options: { id: string; name: string; apiKey?: boolean }): FakeAuthProvider {
   return {
     id: options.id,
     name: options.name,
-    ...(options.usesCallbackServer !== undefined ? { usesCallbackServer: options.usesCallbackServer } : {}),
-    login: async () => ({ access: 'access-token', refresh: 'refresh-token', expires: 1 }),
-    refreshToken: async (credentials) => credentials,
-    getApiKey: () => 'oauth-api-key'
+    auth: {
+      ...(options.apiKey ? {
+        apiKey: {
+          login: async (interaction) => ({
+            type: 'api_key',
+            key: await interaction.prompt({ type: 'secret', message: 'Enter API key' })
+          })
+        }
+      } : {}),
+      oauth: {
+        name: options.name,
+        login: async (interaction) => {
+          interaction.notify({ type: 'auth_url', url: 'https://auth.example.test' });
+          interaction.notify({ type: 'device_code', userCode: 'DEVICE-CODE', verificationUri: 'https://verify.example.test' });
+          interaction.notify({ type: 'progress', message: 'Waiting for authentication' });
+          await interaction.prompt({
+            type: 'select',
+            message: 'Choose subscription',
+            options: [{ id: 'subscription', label: 'Subscription' }]
+          });
+          await interaction.prompt({ type: 'manual_code', message: 'Paste authorization code' });
+          return { type: 'oauth', access: 'access-token', refresh: 'refresh-token', expires: 1 };
+        }
+      }
+    }
   };
 }
 
