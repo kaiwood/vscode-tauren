@@ -13,6 +13,7 @@
 - Show Pi provider errors, including Codex transport failures, in the transcript.
 - Bundle Pi OAuth flows so stored Codex credentials can resolve in Tauren.
 - Support Pi's `max` thinking level in Tauren controls.
+- Support Pi's cached WebSocket transport and default transport selection.
 
 ## [1.10.0] - 2026-07-19
 

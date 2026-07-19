@@ -733,7 +733,7 @@ function getPiSettingsMeta(state: AgentSessionState): PiRuntimeSettingsMeta {
     'retry.enabled': state.autoRetryEnabled ?? true,
     steeringMode: state.steeringMode ?? 'one-at-a-time',
     followUpMode: state.followUpMode ?? 'one-at-a-time',
-    transport: state.transport ?? 'sse',
+    transport: state.transport ?? 'auto',
     'images.blockImages': state.blockImages ?? false,
     'images.autoResize': state.imageAutoResize ?? true,
     enableSkillCommands: state.enableSkillCommands ?? true

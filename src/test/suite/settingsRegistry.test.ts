@@ -49,6 +49,14 @@ suite('Settings registry', () => {
     }
   });
 
+  test('matches Pi transport settings', () => {
+    const transport = settingDefinitions.find((setting) => setting.id === 'transport');
+
+    assert.strictEqual(transport?.defaultValue, 'auto');
+    assert.deepStrictEqual(transport?.options?.map((option) => option.value), ['sse', 'websocket', 'websocket-cached', 'auto']);
+    assert.strictEqual(normalizeSettingValue('transport', 'websocket-cached'), 'websocket-cached');
+  });
+
   test('validates setting values conservatively', () => {
     assert.strictEqual(normalizeSettingValue('tauren.outputColors', true), true);
     assert.strictEqual(normalizeSettingValue('tauren.outputColors', 'true'), undefined);

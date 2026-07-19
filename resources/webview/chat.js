@@ -6148,6 +6148,7 @@ ${after}`;
   var transportOptions = [
     { value: "sse", label: "SSE" },
     { value: "websocket", label: "WebSocket" },
+    { value: "websocket-cached", label: "WebSocket (cached)" },
     { value: "auto", label: "Auto" }
   ];
   var backendOptions = [
@@ -6699,7 +6700,7 @@ ${after}`;
       description: "Preferred provider transport when multiple transports are available.",
       control: "select",
       options: transportOptions,
-      defaultValue: "sse",
+      defaultValue: "auto",
       helper: "Persisted for Pi; takes effect after reload or a new session.",
       liveBehavior: "reload",
       subtle: true
