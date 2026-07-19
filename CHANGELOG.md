@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Made the `/reload` progress message neutral for both Pi and Kward backends.
+
 ## [1.10.0] - 2026-07-19
 
 ### Added

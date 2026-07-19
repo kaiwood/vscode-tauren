@@ -2407,7 +2407,7 @@ suite('TaurenChatController', () => {
     assert.strictEqual(client.statsCalls, 1);
     assert.strictEqual(client.commandsCalls, 1);
     assert.deepStrictEqual(lastState(harness).messages, [
-      { role: 'system', text: 'Reloading Pi engine resources...' },
+      { role: 'system', text: 'Reloading agent resources...' },
       { role: 'system', text: 'Reloaded keybindings, extensions, skills, prompts, and themes.' }
     ]);
     assert.strictEqual(lastState(harness).modelId, 'claude-test');
@@ -2443,7 +2443,7 @@ suite('TaurenChatController', () => {
     assert.strictEqual(oldClient.disposed, true);
     assert.strictEqual(newClient.commandsCalls, 1);
     assert.deepStrictEqual(lastState(harness).messages, [
-      { role: 'system', text: 'Reloading Pi engine resources...' },
+      { role: 'system', text: 'Reloading agent resources...' },
       { role: 'system', text: 'Reloaded Tauren by restarting the Pi engine. Skills, prompts, extensions, and metadata were rediscovered. Current persisted session was reconnected.' }
     ]);
     assert.deepStrictEqual(lastState(harness).slashCommands, [
@@ -2461,7 +2461,7 @@ suite('TaurenChatController', () => {
     assert.strictEqual(client.reloadCalls, 1);
     assert.strictEqual(client.commandsCalls, 0);
     assert.deepStrictEqual(lastState(harness).messages, [
-      { role: 'system', text: 'Reloading Pi engine resources...' },
+      { role: 'system', text: 'Reloading agent resources...' },
       { role: 'system', text: 'reload unavailable', error: true }
     ]);
     harness.controller.dispose();

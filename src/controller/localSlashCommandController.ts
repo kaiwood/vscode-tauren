@@ -533,7 +533,7 @@ export class LocalSlashCommandController {
     const announce = options.announce ?? true;
 
     if (announce) {
-      this.options.session.addSystemMessage('Reloading Pi engine resources...');
+      this.options.session.addSystemMessage('Reloading agent resources...');
       this.options.postState();
     }
 
