@@ -8,6 +8,11 @@
 - Show all Pi-known models for authenticated providers in Tauren's model controls so newly bundled models appear without Tauren allowlist updates.
 - Updated the bundled Pi SDK to 0.80.10 and migrated Tauren's model and authentication bridge to Pi's ModelRuntime API.
 
+### Fixed
+
+- Show Pi provider errors, including Codex transport failures, in the transcript.
+- Bundle Pi OAuth flows so stored Codex credentials can resolve in Tauren.
+
 ## [1.10.0] - 2026-07-19
 
 ### Added

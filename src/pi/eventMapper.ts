@@ -214,13 +214,18 @@ export function mapMessageUpdate(
         status: 'completed',
         summary: formatDoneReason(getRecordString(assistantMessageEvent, 'reason'))
       });
-    case 'error':
+    case 'error': {
+      const error = getRecordValue(assistantMessageEvent, 'error');
+      const providerErrorMessage = isRecord(error) ? getRecordString(error, 'errorMessage') : undefined;
+
       return {
         type: 'assistant_error',
-        message: getRecordString(assistantMessageEvent, 'reason')
+        message: providerErrorMessage
+          ?? getRecordString(assistantMessageEvent, 'reason')
           ?? getRecordString(assistantMessageEvent, 'error')
           ?? 'Pi reported an error while responding.'
       };
+    }
     default:
       if (!fullCommunication) {
         return { type: 'ignore' };

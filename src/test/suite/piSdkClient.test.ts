@@ -1,4 +1,5 @@
 import * as assert from 'assert';
+import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { PiSdkClient } from '../../sdk/piSdkClient';
@@ -26,6 +27,34 @@ suite('PiSdkClient', () => {
         process.env.PI_PACKAGE_DIR = previousPackageDir;
       }
       resetPiSdkLoaderForTests();
+    }
+  });
+
+  test('loads bundled Codex OAuth flows for stored credentials', async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tauren-pi-auth-'));
+    const authPath = path.join(directory, 'auth.json');
+
+    fs.writeFileSync(authPath, JSON.stringify({
+      'openai-codex': {
+        type: 'oauth',
+        access: 'test-oauth-access-token',
+        refresh: 'test-oauth-refresh-token',
+        expires: Date.now() + 60_000,
+        accountId: 'test-account'
+      }
+    }));
+
+    try {
+      const sdk = await loadPiSdk();
+      const modelRuntime = await sdk.ModelRuntime.create({
+        authPath,
+        modelsPath: path.join(directory, 'models.json')
+      });
+      const auth = await modelRuntime.getAuth('openai-codex');
+
+      assert.strictEqual(auth?.auth.apiKey, 'test-oauth-access-token');
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
     }
   });
 

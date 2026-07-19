@@ -97,6 +97,18 @@ suite('Pi event mapper', () => {
     assert.deepStrictEqual(
       mapMessageUpdate({
         type: 'message_update',
+        assistantMessageEvent: {
+          type: 'error',
+          reason: 'error',
+          error: { errorMessage: 'Codex WebSocket closed before completion.' }
+        }
+      }),
+      { type: 'assistant_error', message: 'Codex WebSocket closed before completion.' }
+    );
+
+    assert.deepStrictEqual(
+      mapMessageUpdate({
+        type: 'message_update',
         assistantMessageEvent: { type: 'error', reason: 'reason wins', error: 'fallback' }
       }),
       { type: 'assistant_error', message: 'reason wins' }

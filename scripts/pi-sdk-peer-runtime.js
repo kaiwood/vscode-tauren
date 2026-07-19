@@ -180,9 +180,52 @@ function createPeerRuntimePlan(piPackageDir) {
   return { peers };
 }
 
+function getOAuthFlowPaths(plan) {
+  const piAi = plan.peers.find((peer) => peer.packageName === '@earendil-works/pi-ai');
+  const piAiRoot = piAi?.entries.find((entry) => entry.exportKey === '.');
+
+  if (!piAiRoot?.sourcePath) {
+    throw new Error('Missing @earendil-works/pi-ai root export for OAuth flow bundling.');
+  }
+
+  const oauthDirectory = path.join(path.dirname(piAiRoot.sourcePath), 'auth', 'oauth');
+  const flowPaths = {
+    loader: path.join(oauthDirectory, 'load.js'),
+    anthropic: path.join(oauthDirectory, 'anthropic.js'),
+    openaiCodex: path.join(oauthDirectory, 'openai-codex.js'),
+    githubCopilot: path.join(oauthDirectory, 'github-copilot.js'),
+    xai: path.join(oauthDirectory, 'xai.js'),
+    radius: path.join(oauthDirectory, 'radius.js')
+  };
+
+  for (const [flow, flowPath] of Object.entries(flowPaths)) {
+    if (!fs.existsSync(flowPath)) {
+      throw new Error(`Missing Pi OAuth ${flow} flow module: ${flowPath}`);
+    }
+  }
+
+  return flowPaths;
+}
+
 function writeBundleEntry(outputDir, plan) {
   const entryFile = path.join(outputDir, 'piSdkBundleEntry.mjs');
-  const lines = ["export * from '@earendil-works/pi-coding-agent';"];
+  const oauthFlows = getOAuthFlowPaths(plan);
+  const lines = [
+    `import { registerBundledOAuthFlowLoaders } from ${JSON.stringify(oauthFlows.loader)};`,
+    `import { anthropicOAuth } from ${JSON.stringify(oauthFlows.anthropic)};`,
+    `import { openaiCodexOAuth } from ${JSON.stringify(oauthFlows.openaiCodex)};`,
+    `import { githubCopilotOAuth } from ${JSON.stringify(oauthFlows.githubCopilot)};`,
+    `import { xaiOAuth } from ${JSON.stringify(oauthFlows.xai)};`,
+    `import { createRadiusOAuth } from ${JSON.stringify(oauthFlows.radius)};`,
+    'registerBundledOAuthFlowLoaders({',
+    '  anthropic: () => anthropicOAuth,',
+    '  openaiCodex: () => openaiCodexOAuth,',
+    '  githubCopilot: () => githubCopilotOAuth,',
+    '  xai: () => xaiOAuth,',
+    '  radius: (options) => createRadiusOAuth(options)',
+    '});',
+    "export * from '@earendil-works/pi-coding-agent';"
+  ];
 
   for (const peer of plan.peers) {
     for (const entry of peer.entries) {
