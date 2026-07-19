@@ -8,6 +8,15 @@ This page captures the practical release flow for Tauren contributors.
 2. Run compile and tests.
 3. Package the extension.
 4. Install the VSIX locally and smoke test the sidebar.
+5. Set `OVSX_PAT` to an Open VSX personal access token in the release shell. Keep the token in a secure local secret store or environment configuration; never commit it.
+
+Verify the token can publish to Tauren's Open VSX namespace before the first release and whenever the token changes:
+
+```sh
+npx --yes ovsx verify-pat kaiwood
+```
+
+The release script also performs this check before it changes any release files.
 
 ## Useful commands
 
@@ -29,11 +38,19 @@ Build and install a local VSIX:
 npm run install:local
 ```
 
-Run the release script:
+Publish a release to GitHub, the VS Code Marketplace, and Open VSX:
 
 ```sh
-npm run release
+npm run publish -- <version>
 ```
+
+For example:
+
+```sh
+npm run publish -- 1.10.0
+```
+
+`npm run release -- <version>` remains an alias for this command. Open VSX receives the prebuilt release VSIX, authenticated with `OVSX_PAT`.
 
 ## Manual checks
 

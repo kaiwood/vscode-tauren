@@ -20,7 +20,7 @@ const releaseState = {
 };
 
 function usage() {
-  return 'Usage: npm run release -- <version>\nExample: npm run release -- 1.1.0';
+  return 'Usage: npm run publish -- <version>\nExample: npm run publish -- 1.1.0';
 }
 
 function fail(message) {
@@ -174,6 +174,19 @@ function checkTools() {
   run('gh', ['auth', 'status'], { capture: true });
 }
 
+function checkOpenVsxAccess() {
+  if (!process.env.OVSX_PAT) {
+    fail('OVSX_PAT must be set to an Open VSX personal access token before release.');
+  }
+
+  const publisher = readJson(path.join(root, 'package.json')).publisher;
+  if (typeof publisher !== 'string' || !publisher) {
+    fail('package.json must contain a publisher before publishing to Open VSX.');
+  }
+
+  run(npxCommand, ['--yes', 'ovsx', 'verify-pat', publisher]);
+}
+
 function getUnreleasedSection(changelogText) {
   const headerMatch = /^## \[Unreleased\]\s*$/m.exec(changelogText);
   if (!headerMatch) {
@@ -282,6 +295,10 @@ function publishMarketplace() {
   run(npxCommand, ['@vscode/vsce', 'publish']);
 }
 
+function publishOpenVsx(vsixPath) {
+  run(npxCommand, ['--yes', 'ovsx', 'publish', vsixPath]);
+}
+
 function printCleanupInstructions(tag) {
   const instructions = [];
 
@@ -326,6 +343,7 @@ function main() {
   checkCleanWorkingTree();
   const branchInfo = getBranchInfo();
   checkTools();
+  checkOpenVsxAccess();
   checkBranchSynced(branchInfo);
   checkReleaseDoesNotExist(tag);
   checkChangelogReady();
@@ -337,6 +355,7 @@ function main() {
   pushCommitAndTag(branchInfo, tag);
   createGithubRelease(tag, releaseNotes, vsixPath, tempDir);
   publishMarketplace();
+  publishOpenVsx(vsixPath);
 
   console.log(`\nReleased ${tag}`);
 }
