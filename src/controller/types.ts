@@ -56,6 +56,8 @@ export type TaurenChatControllerOptions = {
   restartOpenSessions?: () => Promise<number>;
   hasBusyOpenSession?: () => boolean;
   showSessionChanges?: (sessionPath: string, displayName: string) => Promise<void>;
+  captureBeforeProposedEditDiff?: (toolExecutionInput: unknown) => Promise<void>;
+  showProposedEditDiff?: (toolExecutionInput: unknown) => Promise<void>;
   loadSessionDiffSnapshot?: (sessionFile: string) => SessionDiffSnapshot | undefined;
   saveSessionDiffSnapshot?: (sessionFile: string, snapshot: SessionDiffSnapshot) => void;
   voiceController?: VoiceController;

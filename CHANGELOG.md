@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- AI edit diff view: when the Pi agent runs a `write` or `edit` tool, Tauren automatically opens a VS Code side-by-side diff showing the before/after changes. Accept (✓) or Reject (✗) buttons appear in the diff editor's title bar to apply or discard the suggestion.
+
 ### Changed
 
 - Made the `/reload` progress message neutral for both Pi and Kward backends.
