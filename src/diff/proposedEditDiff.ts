@@ -1,8 +1,8 @@
 import * as path from 'node:path';
 import { promises as fs } from 'node:fs';
 import * as vscode from 'vscode';
-import { proposedOriginalScheme, proposedEditScheme, ProposedOriginalProvider, ProposedEditProvider } from './proposedEditProvider';
-import { isRecord } from '../shared/typeGuards';
+import { proposedOriginalScheme as originalScheme, proposedEditScheme, ProposedOriginalProvider, ProposedEditProvider } from './proposedEditProvider';
+import { isRecord, getRecordString } from '../shared/typeGuards';
 
 /**
  * Pending diff waiting for an accept/reject decision.
@@ -11,7 +11,7 @@ import { isRecord } from '../shared/typeGuards';
  * Right side (proposedUri) – writable virtual showing the "after" content;
  *                             the user may edit this before accepting.
  */
-type PendingProposedEdit = {
+type PendingEdit = {
   absolutePath: string;
   /** The content that was on disk before the agent ran the tool. */
   originalContent: string;
@@ -29,11 +29,6 @@ type PreExecutionSnapshot = {
   originalContent: string;
   isNewFile: boolean;
 };
-
-function getRecordString(record: Record<string, unknown>, key: string): string | undefined {
-  const value = record[key];
-  return typeof value === 'string' ? value : undefined;
-}
 
 /**
  * Resolves the absolute path for a tool-call file argument, given the session
@@ -131,7 +126,7 @@ type ProposedEditDiffServiceOptions = {
 };
 
 export class ProposedEditDiffService implements vscode.Disposable {
-  private pendingEdits = new Map<string, PendingProposedEdit>();
+  private pendingEdits = new Map<string, PendingEdit>();
   /** Snapshots keyed by absolute path, captured before each tool execution. */
   private preExecutionSnapshots = new Map<string, PreExecutionSnapshot>();
   private nonce = 0;
@@ -430,7 +425,7 @@ export class ProposedEditDiffService implements vscode.Disposable {
 
     // Left side: read-only virtual showing the original content
     const originalUri = vscode.Uri.parse(
-      `${proposedOriginalScheme}:${encodeURIComponent(absolutePath)}?${nonce}`
+      `${originalScheme}:${encodeURIComponent(absolutePath)}?${nonce}`
     );
     this.originalProvider.set(originalUri, originalContent);
 
@@ -440,7 +435,7 @@ export class ProposedEditDiffService implements vscode.Disposable {
     );
     this.proposedProvider.set(proposedUri, proposedContent);
 
-    const pending: PendingProposedEdit = {
+    const pending: PendingEdit = {
       absolutePath,
       originalContent,
       originalUri,
@@ -490,7 +485,7 @@ export class ProposedEditDiffService implements vscode.Disposable {
     }
   }
 
-  private cleanupPending(pending: PendingProposedEdit): void {
+  private cleanupPending(pending: PendingEdit): void {
     this.originalProvider.delete(pending.originalUri);
     this.proposedProvider.delete(pending.proposedUri);
     this.pendingEdits.delete(pending.absolutePath);

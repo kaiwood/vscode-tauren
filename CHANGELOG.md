@@ -3,10 +3,7 @@
 ## [Unreleased]
 
 ### Added
-- AI edit diff view: when the Pi agent runs a `write` or `edit` tool, Tauren automatically opens a native VS Code side-by-side diff showing the before/after changes. Accept (✓) or Reject (✗) buttons appear in the diff editor's title bar to apply or discard the suggestion.
-
-### Fixed
-- AI edit diff view: the file is now restored to its original content immediately after the agent writes it, so the workspace is unchanged until the user explicitly clicks Accept. Clicking Reject leaves the original file in place, closes the diff tab, and notifies the AI that the change was rejected.
+- AI edit diff view: when the Pi agent runs a `write` or `edit` tool, Tauren automatically opens a VS Code side-by-side diff showing the before/after changes. Accept (✓) or Reject (✗) buttons appear in the diff editor's title bar to apply or discard the suggestion.
 
 ### Changed
 
