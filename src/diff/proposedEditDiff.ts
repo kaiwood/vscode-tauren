@@ -103,6 +103,31 @@ function applyEdits(
  */
 type ProposedEditDiffServiceOptions = {
   onReject?: (absolutePath: string) => void;
+  /**
+   * Override for opening the diff editor.  Called with the left (original) and
+   * right (proposed) URIs and the diff title.  Defaults to
+   * `vscode.commands.executeCommand('vscode.diff', ...)`.
+   */
+  openDiffEditor?: (
+    originalUri: vscode.Uri,
+    proposedUri: vscode.Uri,
+    title: string
+  ) => Promise<void>;
+  /**
+   * Override for closing the diff tab whose right-hand URI is `proposedUri`.
+   * Defaults to scanning `vscode.window.tabGroups`.
+   */
+  closeEditorByProposedUri?: (proposedUri: vscode.Uri) => Promise<void>;
+  /**
+   * Override for closing all real-file editor tabs for an absolute path.
+   * Defaults to scanning `vscode.window.tabGroups`.
+   */
+  closeRealFileEditors?: (absolutePath: string) => Promise<void>;
+  /**
+   * Override for reading the live text of a virtual document by URI string.
+   * Defaults to scanning `vscode.workspace.textDocuments`.
+   */
+  getDocumentText?: (uriString: string) => string | undefined;
 };
 
 export class ProposedEditDiffService implements vscode.Disposable {
@@ -111,6 +136,10 @@ export class ProposedEditDiffService implements vscode.Disposable {
   private preExecutionSnapshots = new Map<string, PreExecutionSnapshot>();
   private nonce = 0;
   private readonly onReject: ((absolutePath: string) => void) | undefined;
+  private readonly openDiffEditorFn: NonNullable<ProposedEditDiffServiceOptions['openDiffEditor']>;
+  private readonly closeEditorByProposedUriFn: NonNullable<ProposedEditDiffServiceOptions['closeEditorByProposedUri']>;
+  private readonly closeRealFileEditorsFn: NonNullable<ProposedEditDiffServiceOptions['closeRealFileEditors']>;
+  private readonly getDocumentTextFn: NonNullable<ProposedEditDiffServiceOptions['getDocumentText']>;
 
   public constructor(
     private readonly originalProvider: ProposedOriginalProvider,
@@ -119,6 +148,15 @@ export class ProposedEditDiffService implements vscode.Disposable {
     options: ProposedEditDiffServiceOptions = {}
   ) {
     this.onReject = options.onReject;
+    this.openDiffEditorFn = options.openDiffEditor ?? (async (origUri, propUri, title) => {
+      await vscode.commands.executeCommand('vscode.diff', origUri, propUri, title, { preview: true });
+    });
+    this.closeEditorByProposedUriFn = options.closeEditorByProposedUri ?? ((proposedUri) => this.closeDiffEditor(proposedUri));
+    this.closeRealFileEditorsFn = options.closeRealFileEditors ?? ((absolutePath) => this.closeRealFileEditors(absolutePath));
+    this.getDocumentTextFn = options.getDocumentText ?? ((uriString) => {
+      const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uriString);
+      return doc?.getText();
+    });
   }
 
   public dispose(): void {
@@ -297,10 +335,12 @@ export class ProposedEditDiffService implements vscode.Disposable {
       return;
     }
 
-    // Read the live content from the virtual FS – the user may have edited it
-    const acceptedContent = this.proposedProvider.get(pending.proposedUri);
+    // Prefer the open TextDocument buffer so unsaved user edits are included.
+    // Fall back to the provider's in-memory store if the document is not open.
+    const liveText = this.getDocumentTextFn(pending.proposedUri.toString());
+    const acceptedContent = liveText ?? this.proposedProvider.get(pending.proposedUri);
     await this.writeFileContent(absolutePath, acceptedContent, pending.isNewFile);
-    await this.closeDiffEditor(pending.proposedUri);
+    await this.closeEditorByProposedUriFn(pending.proposedUri);
     this.cleanupPending(pending);
   }
 
@@ -338,7 +378,7 @@ export class ProposedEditDiffService implements vscode.Disposable {
     // Close any dirty VS Code editors for the real file BEFORE reverting,
     // so that VS Code does not auto-save the proposed content back on top of
     // our revert.
-    await this.closeRealFileEditors(absolutePath);
+    await this.closeRealFileEditorsFn(absolutePath);
 
     // Restore the file so the workspace reflects the original state
     if (isNewFile) {
@@ -410,14 +450,7 @@ export class ProposedEditDiffService implements vscode.Disposable {
     this.pendingEdits.set(absolutePath, pending);
 
     const filename = path.basename(absolutePath);
-
-    await vscode.commands.executeCommand(
-      'vscode.diff',
-      originalUri,
-      proposedUri,
-      `${filename} ↔ AI Suggestion`,
-      { preview: true }
-    );
+    await this.openDiffEditorFn(originalUri, proposedUri, `${filename} ↔ AI Suggestion`);
   }
 
   /**
