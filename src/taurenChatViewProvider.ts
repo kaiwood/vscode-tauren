@@ -17,6 +17,7 @@ import type { CustomUiHostMessage } from './extensionUi/customUiHost';
 import type { ExtensionEditorHostMessage, ExtensionPromptHostMessage, ExtensionUi } from './extensionUi/types';
 import { createSessionDiffStatsFileWatcher, readSessionDiffSnapshot, writeSessionDiffSnapshot } from './diff/sessionDiffStorage';
 import { SessionDiffViewer } from './diff/sessionDiffViewer';
+import type { ProposedEditDiffService } from './diff/proposedEditDiff';
 import { ShikiCodeRenderer } from './highlighting/shikiCodeRenderer';
 import { TaurenSessionManager } from './sessions/taurenSessionManager';
 import type { PiPromptImageAttachment } from './taurenChatController';
@@ -170,7 +171,8 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
     private readonly workspaceCwdProvider: () => string | undefined = () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
     private readonly devRenderInstrumentation = false,
     private readonly sessionMetadataStorageUri?: vscode.Uri,
-    private readonly voiceStorageUri?: vscode.Uri
+    private readonly voiceStorageUri?: vscode.Uri,
+    private readonly proposedEditDiffService?: ProposedEditDiffService
   ) {
     this.cachedQuietStartup = this.workspaceState?.get<boolean>(quietStartupStorageKey);
 
@@ -268,6 +270,12 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
         displayName,
         readSessionDiffSnapshot(this.workspaceState, sessionPath)
       ),
+      captureBeforeProposedEditDiff: this.proposedEditDiffService
+        ? (input) => this.proposedEditDiffService!.captureBeforeToolExecution(input)
+        : undefined,
+      showProposedEditDiff: this.proposedEditDiffService
+        ? (input) => this.proposedEditDiffService!.handleToolExecution(input)
+        : undefined,
       voiceController: this.voiceController
     });
 

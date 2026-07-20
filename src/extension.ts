@@ -1,7 +1,20 @@
 import * as vscode from 'vscode';
 import { taurenChatViewType, TaurenChatViewProvider } from './taurenChatViewProvider';
+import { ProposedEditProvider, proposedEditScheme } from './diff/proposedEditProvider';
+import { ProposedEditDiffService } from './diff/proposedEditDiff';
 
 export function activate(context: vscode.ExtensionContext): void {
+  const proposedEditProvider = new ProposedEditProvider();
+  const proposedEditDiffService = new ProposedEditDiffService(
+    proposedEditProvider,
+    () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+  );
+
+  context.subscriptions.push(
+    proposedEditProvider,
+    vscode.workspace.registerTextDocumentContentProvider(proposedEditScheme, proposedEditProvider)
+  );
+
   const provider = new TaurenChatViewProvider(
     context.extensionUri,
     undefined,
@@ -10,7 +23,8 @@ export function activate(context: vscode.ExtensionContext): void {
     undefined,
     context.extensionMode === vscode.ExtensionMode.Development,
     context.storageUri ?? context.globalStorageUri,
-    context.globalStorageUri
+    context.globalStorageUri,
+    proposedEditDiffService
   );
 
   context.subscriptions.push(
@@ -56,7 +70,21 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('tauren.addContext', () => provider.addContext()),
     vscode.commands.registerCommand('tauren.sendSelectionToComposer', () => provider.sendSelectionToComposer()),
     vscode.commands.registerCommand('tauren.traceOrigin', () => provider.traceOrigin()),
-    vscode.commands.registerCommand('tauren.showDiagnostics', () => provider.showDiagnostics())
+    vscode.commands.registerCommand('tauren.showDiagnostics', () => provider.showDiagnostics()),
+    vscode.commands.registerCommand('tauren.acceptProposedEdit', () => {
+      const uri = vscode.window.activeTextEditor?.document.uri;
+      if (uri?.scheme === proposedEditScheme) {
+        const absolutePath = decodeURIComponent(uri.path);
+        void proposedEditDiffService.acceptPendingEdit(absolutePath);
+      }
+    }),
+    vscode.commands.registerCommand('tauren.rejectProposedEdit', () => {
+      const uri = vscode.window.activeTextEditor?.document.uri;
+      if (uri?.scheme === proposedEditScheme) {
+        const absolutePath = decodeURIComponent(uri.path);
+        proposedEditDiffService.rejectPendingEdit(absolutePath);
+      }
+    })
   );
 }
 
