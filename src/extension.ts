@@ -1,18 +1,23 @@
 import * as vscode from 'vscode';
 import { taurenChatViewType, TaurenChatViewProvider } from './taurenChatViewProvider';
-import { ProposedEditProvider, proposedEditScheme } from './diff/proposedEditProvider';
+import { ProposedOriginalProvider, ProposedEditProvider, proposedOriginalScheme, proposedEditScheme } from './diff/proposedEditProvider';
 import { ProposedEditDiffService } from './diff/proposedEditDiff';
 
 export function activate(context: vscode.ExtensionContext): void {
+  const proposedOriginalProvider = new ProposedOriginalProvider();
   const proposedEditProvider = new ProposedEditProvider();
   const proposedEditDiffService = new ProposedEditDiffService(
+    proposedOriginalProvider,
     proposedEditProvider,
-    () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+    () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+    { onReject: (absolutePath) => provider.notifyProposedEditRejected(absolutePath) }
   );
 
   context.subscriptions.push(
+    proposedOriginalProvider,
     proposedEditProvider,
-    vscode.workspace.registerTextDocumentContentProvider(proposedEditScheme, proposedEditProvider)
+    vscode.workspace.registerTextDocumentContentProvider(proposedOriginalScheme, proposedOriginalProvider),
+    vscode.workspace.registerFileSystemProvider(proposedEditScheme, proposedEditProvider, { isCaseSensitive: true })
   );
 
   const provider = new TaurenChatViewProvider(
@@ -82,7 +87,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const uri = vscode.window.activeTextEditor?.document.uri;
       if (uri?.scheme === proposedEditScheme) {
         const absolutePath = decodeURIComponent(uri.path);
-        proposedEditDiffService.rejectPendingEdit(absolutePath);
+        void proposedEditDiffService.rejectPendingEdit(absolutePath);
       }
     })
   );

@@ -1,17 +1,20 @@
 import * as path from 'node:path';
 import { promises as fs } from 'node:fs';
 import * as vscode from 'vscode';
-import { proposedEditScheme, ProposedEditProvider } from './proposedEditProvider';
+import { proposedOriginalScheme, proposedEditScheme, ProposedOriginalProvider, ProposedEditProvider } from './proposedEditProvider';
 import { isRecord } from '../shared/typeGuards';
 
 /**
  * Pending diff waiting for an accept/reject decision.
+ *
+ * Left side  (originalUri) – read-only virtual showing the "before" content.
+ * Right side (proposedUri) – writable virtual showing the "after" content;
+ *                             the user may edit this before accepting.
  */
 type PendingProposedEdit = {
   absolutePath: string;
   /** The content that was on disk before the agent ran the tool. */
   originalContent: string;
-  proposedContent: string;
   originalUri: vscode.Uri;
   proposedUri: vscode.Uri;
   isNewFile: boolean;
@@ -90,23 +93,33 @@ function applyEdits(
  *  2. Call `handleToolExecution` at `tool_execution_end`.  It reads the
  *     agent-written content from disk as the "proposed" side, restores the
  *     original file so the workspace is unchanged, then opens the diff.
- *  3. The user clicks Accept (→ `acceptPendingEdit`) to apply the proposed
- *     content, or Reject (→ `rejectPendingEdit`) to leave the restored
- *     original in place.
- *
- * Bind `acceptPendingEdit` / `rejectPendingEdit` to the Accept / Reject
- * commands registered in package.json.
+ *     - Left side  (tauren-original:) – read-only, shows "before"
+ *     - Right side (tauren-proposed:) – editable virtual file, shows "after"
+ *  3. The user optionally edits the right side, then:
+ *     - Accept (→ `acceptPendingEdit`): reads the current virtual-FS content
+ *       (including any user edits) and writes it to the real file on disk.
+ *     - Reject (→ `rejectPendingEdit`): leaves the original file untouched,
+ *       closes the diff tab, and notifies the AI.
  */
+type ProposedEditDiffServiceOptions = {
+  onReject?: (absolutePath: string) => void;
+};
+
 export class ProposedEditDiffService implements vscode.Disposable {
   private pendingEdits = new Map<string, PendingProposedEdit>();
   /** Snapshots keyed by absolute path, captured before each tool execution. */
   private preExecutionSnapshots = new Map<string, PreExecutionSnapshot>();
   private nonce = 0;
+  private readonly onReject: ((absolutePath: string) => void) | undefined;
 
   public constructor(
-    private readonly provider: ProposedEditProvider,
-    private readonly getCwd: () => string | undefined
-  ) {}
+    private readonly originalProvider: ProposedOriginalProvider,
+    private readonly proposedProvider: ProposedEditProvider,
+    private readonly getCwd: () => string | undefined,
+    options: ProposedEditDiffServiceOptions = {}
+  ) {
+    this.onReject = options.onReject;
+  }
 
   public dispose(): void {
     this.pendingEdits.clear();
@@ -244,9 +257,6 @@ export class ProposedEditDiffService implements vscode.Disposable {
       return;
     }
 
-    // Use the pre-execution snapshot as the original.  If no snapshot was
-    // captured (e.g. tool_execution_start was missed), fall back to reading
-    // the current file and computing proposed from the edits the usual way.
     if (snapshot) {
       const { originalContent, isNewFile } = snapshot;
       const proposedContent = applyEdits(originalContent, edits);
@@ -262,7 +272,8 @@ export class ProposedEditDiffService implements vscode.Disposable {
     }
 
     // Fallback: no pre-execution snapshot available.
-    // Read the already-edited file content and compute original by reversing edits.
+    // Read the already-edited file and show a diff with itself on both sides
+    // (degenerate case — user can still review and accept/reject).
     let currentContent: string;
 
     try {
@@ -271,36 +282,13 @@ export class ProposedEditDiffService implements vscode.Disposable {
       return;
     }
 
-    // We cannot reliably reverse edits, so show the diff with the current
-    // (already-edited) file as "proposed" and skip restoration.
-    const nonce = ++this.nonce;
-    const proposedUri = vscode.Uri.parse(
-      `${proposedEditScheme}:${encodeURIComponent(absolutePath)}?${nonce}`
-    );
-    this.provider.set(proposedUri, currentContent);
-
-    const pending: PendingProposedEdit = {
-      absolutePath,
-      originalContent: currentContent,
-      proposedContent: currentContent,
-      originalUri: vscode.Uri.file(absolutePath),
-      proposedUri,
-      isNewFile: false
-    };
-    this.pendingEdits.set(absolutePath, pending);
-
-    const filename = path.basename(absolutePath);
-    await vscode.commands.executeCommand(
-      'vscode.diff',
-      vscode.Uri.file(absolutePath),
-      proposedUri,
-      `${filename} ↔ AI Suggestion`,
-      { preview: true }
-    );
+    await this.openDiff(absolutePath, currentContent, currentContent, false);
   }
 
   /**
-   * Writes the accepted proposed content to disk and cleans up the diff view.
+   * Reads the current content of the writable virtual file (including any
+   * user edits), writes it to the real file on disk, closes the diff tab,
+   * and cleans up.
    */
   public async acceptPendingEdit(absolutePath: string): Promise<void> {
     const pending = this.pendingEdits.get(absolutePath);
@@ -309,30 +297,37 @@ export class ProposedEditDiffService implements vscode.Disposable {
       return;
     }
 
-    await this.writeFileContent(absolutePath, pending.proposedContent, pending.isNewFile);
+    // Read the live content from the virtual FS – the user may have edited it
+    const acceptedContent = this.proposedProvider.get(pending.proposedUri);
+    await this.writeFileContent(absolutePath, acceptedContent, pending.isNewFile);
+    await this.closeDiffEditor(pending.proposedUri);
     this.cleanupPending(pending);
   }
 
   /**
-   * Leaves the original (already-restored) file in place and cleans up the
-   * diff view.
+   * Leaves the original (already-restored) file in place, closes the diff
+   * editor, notifies the AI that the edit was rejected, and cleans up.
    */
-  public rejectPendingEdit(absolutePath: string): void {
+  public async rejectPendingEdit(absolutePath: string): Promise<void> {
     const pending = this.pendingEdits.get(absolutePath);
 
     if (!pending) {
       return;
     }
 
+    await this.closeDiffEditor(pending.proposedUri);
     this.cleanupPending(pending);
-    vscode.window.showInformationMessage(`Tauren: Proposed edit to ${path.basename(absolutePath)} was rejected.`);
+    this.onReject?.(absolutePath);
   }
 
   // ─── private ────────────────────────────────────────────────────────────────
 
   /**
    * Restores the file to `originalContent` on disk (undoing the agent's write),
-   * then opens the side-by-side diff.
+   * seeds both virtual providers, then opens the side-by-side diff.
+   *
+   * Left  (tauren-original:) – read-only, shows originalContent
+   * Right (tauren-proposed:) – writable virtual file, shows proposedContent
    */
   private async revertFileThenOpenDiff(
     absolutePath: string,
@@ -340,9 +335,13 @@ export class ProposedEditDiffService implements vscode.Disposable {
     proposedContent: string,
     isNewFile: boolean
   ): Promise<void> {
+    // Close any dirty VS Code editors for the real file BEFORE reverting,
+    // so that VS Code does not auto-save the proposed content back on top of
+    // our revert.
+    await this.closeRealFileEditors(absolutePath);
+
     // Restore the file so the workspace reflects the original state
     if (isNewFile) {
-      // Delete the newly created file so the left side of the diff is truly empty
       try {
         await fs.unlink(absolutePath);
       } catch {
@@ -352,29 +351,58 @@ export class ProposedEditDiffService implements vscode.Disposable {
       await this.writeFileContent(absolutePath, originalContent, false);
     }
 
+    await this.openDiff(absolutePath, originalContent, proposedContent, isNewFile);
+  }
+
+  /**
+   * Closes all VS Code editor tabs that have the real file open, saving or
+   * discarding changes as needed so that no dirty document can undo our revert.
+   */
+  private async closeRealFileEditors(absolutePath: string): Promise<void> {
+    const realUri = vscode.Uri.file(absolutePath);
+    const realUriStr = realUri.toString();
+
+    for (const tabGroup of vscode.window.tabGroups.all) {
+      for (const tab of tabGroup.tabs) {
+        const input = tab.input;
+        if (
+          input instanceof vscode.TabInputText &&
+          input.uri.toString() === realUriStr
+        ) {
+          // Close without saving — we are about to overwrite the file
+          await vscode.window.tabGroups.close(tab, true);
+        }
+      }
+    }
+  }
+
+  /**
+   * Seeds both virtual providers and opens the diff editor.
+   * Does NOT touch the real file on disk.
+   */
+  private async openDiff(
+    absolutePath: string,
+    originalContent: string,
+    proposedContent: string,
+    isNewFile: boolean
+  ): Promise<void> {
     const nonce = ++this.nonce;
 
-    // Left side: original file URI (existing file) or empty virtual URI (new file)
-    let originalUri: vscode.Uri;
+    // Left side: read-only virtual showing the original content
+    const originalUri = vscode.Uri.parse(
+      `${proposedOriginalScheme}:${encodeURIComponent(absolutePath)}?${nonce}`
+    );
+    this.originalProvider.set(originalUri, originalContent);
 
-    if (isNewFile) {
-      const emptyUri = vscode.Uri.parse(`${proposedEditScheme}:${encodeURIComponent(absolutePath)}?empty`);
-      this.provider.set(emptyUri, '');
-      originalUri = emptyUri;
-    } else {
-      originalUri = vscode.Uri.file(absolutePath);
-    }
-
-    // Right side: proposed content via virtual URI
+    // Right side: writable virtual showing the proposed content
     const proposedUri = vscode.Uri.parse(
       `${proposedEditScheme}:${encodeURIComponent(absolutePath)}?${nonce}`
     );
-    this.provider.set(proposedUri, proposedContent);
+    this.proposedProvider.set(proposedUri, proposedContent);
 
     const pending: PendingProposedEdit = {
       absolutePath,
       originalContent,
-      proposedContent,
       originalUri,
       proposedUri,
       isNewFile
@@ -394,40 +422,44 @@ export class ProposedEditDiffService implements vscode.Disposable {
 
   /**
    * Writes content to a file, creating parent directories as needed.
+   * Uses raw fs writes so VS Code's workspace/document layer does not
+   * auto-save the file as a side-effect.
    */
   private async writeFileContent(absolutePath: string, content: string, isNewFile: boolean): Promise<void> {
     if (isNewFile && !content) {
-      // Nothing to write for an empty new file
       return;
     }
 
     try {
-      const uri = vscode.Uri.file(absolutePath);
-      // Try via VS Code workspace API first so open editors stay in sync
-      const doc = await vscode.workspace.openTextDocument(uri);
-      const edit = new vscode.WorkspaceEdit();
-      const fullRange = new vscode.Range(0, 0, doc.lineCount, 0);
-      edit.replace(uri, fullRange, content);
-      await vscode.workspace.applyEdit(edit);
-      await doc.save();
+      await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+      await fs.writeFile(absolutePath, content, 'utf8');
     } catch {
-      // Fall back to direct fs write (e.g. file does not exist in workspace)
-      try {
-        await fs.mkdir(path.dirname(absolutePath), { recursive: true });
-        await fs.writeFile(absolutePath, content, 'utf8');
-      } catch {
-        vscode.window.showWarningMessage(`Tauren: Could not write file ${path.basename(absolutePath)}.`);
+      vscode.window.showWarningMessage(`Tauren: Could not write file ${path.basename(absolutePath)}.`);
+    }
+  }
+
+  /**
+   * Closes any visible diff editor tab whose right-hand (proposed) URI matches
+   * `proposedUri`.
+   */
+  private async closeDiffEditor(proposedUri: vscode.Uri): Promise<void> {
+    for (const tabGroup of vscode.window.tabGroups.all) {
+      for (const tab of tabGroup.tabs) {
+        const input = tab.input;
+        if (
+          input instanceof vscode.TabInputTextDiff &&
+          input.modified.toString() === proposedUri.toString()
+        ) {
+          await vscode.window.tabGroups.close(tab, true);
+          return;
+        }
       }
     }
   }
 
   private cleanupPending(pending: PendingProposedEdit): void {
-    this.provider.delete(pending.proposedUri);
-    if (pending.isNewFile) {
-      // Also clean up the empty virtual URI used for the left side
-      const emptyUri = vscode.Uri.parse(`${proposedEditScheme}:${encodeURIComponent(pending.absolutePath)}?empty`);
-      this.provider.delete(emptyUri);
-    }
+    this.originalProvider.delete(pending.originalUri);
+    this.proposedProvider.delete(pending.proposedUri);
     this.pendingEdits.delete(pending.absolutePath);
   }
 }

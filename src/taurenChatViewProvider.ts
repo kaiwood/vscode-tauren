@@ -893,6 +893,14 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
     );
   }
 
+  public notifyProposedEditRejected(absolutePath: string): void {
+    const filename = path.basename(absolutePath);
+    void this.controller.handleWebviewMessage({
+      type: 'submit',
+      text: `The proposed edit to \`${filename}\` was rejected by the user.`
+    });
+  }
+
   public async showDiagnostics(): Promise<void> {
     const document = await vscode.workspace.openTextDocument({
       content: this.perf.formatDiagnostics(),
