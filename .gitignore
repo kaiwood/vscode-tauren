@@ -1,6 +1,7 @@
 node_modules/
 out/
 resources/pi-sdk-runtime/
+resources/webview/chat.js
 docs/.vitepress/cache/
 docs/.vitepress/.temp/
 docs/.vitepress/dist/
