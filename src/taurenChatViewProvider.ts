@@ -89,6 +89,7 @@ type ConfiguredAgentClientDependencies = {
   extensionUi: ExtensionUi;
   showNotification: (message: string, notifyType: string) => void;
   getRejectEditWriteOutsideWorkspace: () => boolean;
+  onExtensionLoadError: (path: string, error: string) => void;
 };
 
 type PendingPerfBoundary = {
@@ -120,7 +121,8 @@ function createConfiguredAgentClient(
     ...options,
     extensionUi: options.extensionUi ?? dependencies.extensionUi,
     showNotification: dependencies.showNotification,
-    rejectEditWriteOutsideWorkspace: dependencies.getRejectEditWriteOutsideWorkspace
+    rejectEditWriteOutsideWorkspace: dependencies.getRejectEditWriteOutsideWorkspace,
+    onExtensionLoadError: dependencies.onExtensionLoadError
   });
 }
 
@@ -150,6 +152,7 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
   private sidebarFocusContext: boolean | undefined;
   private busyContext: boolean | undefined;
   private perfOutputChannel: vscode.OutputChannel | undefined;
+  private extensionLoadOutputChannel: vscode.OutputChannel | undefined;
   private debugPerformanceEnabled = getDebugPerformanceSetting();
   private readonly perf = new TaurenPerfRecorder({
     isEnabled: () => this.debugPerformanceEnabled,
@@ -205,7 +208,8 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
     const configuredCreateClient = createClient ?? ((options: AgentClientOptions) => createConfiguredAgentClient(options, {
       extensionUi,
       showNotification: (message, notifyType) => this.showNotification(message, notifyType),
-      getRejectEditWriteOutsideWorkspace: () => getRejectEditWriteOutsideWorkspaceSetting()
+      getRejectEditWriteOutsideWorkspace: () => getRejectEditWriteOutsideWorkspaceSetting(),
+      onExtensionLoadError: (path, error) => this.writeExtensionLoadError(path, error)
     }));
     const initialSessionFile = this.sanitizeInitialSessionFile(readCurrentSessionFile(this.workspaceState));
 
@@ -390,6 +394,7 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
     this.pendingLaneSwitch = undefined;
     this.pendingSessionSwitch = undefined;
     this.perfOutputChannel?.dispose();
+    this.extensionLoadOutputChannel?.dispose();
     this.codeRenderer.dispose();
     this.sessionDiffViewer.dispose();
     this.voiceController.dispose();
@@ -1302,6 +1307,14 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
     this.perfOutputChannel.appendLine(line);
   }
 
+  private writeExtensionLoadError(path: string, error: string): void {
+    if (!this.extensionLoadOutputChannel) {
+      this.extensionLoadOutputChannel = vscode.window.createOutputChannel('Tauren Extensions');
+    }
+
+    this.extensionLoadOutputChannel.appendLine(`extension ${path} failed: ${error}`);
+  }
+
   private showNotification(message: string, notifyType: string): void {
     if (notifyType === 'error') {
       void vscode.window.showErrorMessage(message);
@@ -1381,7 +1394,8 @@ export class TaurenChatViewProvider implements vscode.WebviewViewProvider, vscod
         input: (title, placeholder) => vscode.window.showInputBox({ title, placeHolder: placeholder })
       },
       showNotification: (message, notifyType) => this.showNotification(message, notifyType),
-      getRejectEditWriteOutsideWorkspace: () => getRejectEditWriteOutsideWorkspaceSetting()
+      getRejectEditWriteOutsideWorkspace: () => getRejectEditWriteOutsideWorkspaceSetting(),
+      onExtensionLoadError: (path, error) => this.writeExtensionLoadError(path, error)
     });
 
     try {
