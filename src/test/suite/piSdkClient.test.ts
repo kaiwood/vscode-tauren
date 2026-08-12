@@ -9,17 +9,20 @@ import { loadPiSdk, resetPiSdkLoaderForTests, type PiSdkModule } from '../../sdk
 import type { PiEvent, PiModel } from '../../pi/types';
 
 suite('PiSdkClient', () => {
-  test('loads the bundled SDK runtime and sets its package dir', async () => {
+  test('loads the bundled SDK runtime without setting PI_PACKAGE_DIR', async () => {
     const previousPackageDir = process.env.PI_PACKAGE_DIR;
-    process.env.PI_PACKAGE_DIR = '/external/pi-package';
+    delete process.env.PI_PACKAGE_DIR;
     resetPiSdkLoaderForTests();
 
     try {
       const sdk = await loadPiSdk();
 
       assert.strictEqual(typeof sdk.createAgentSessionRuntime, 'function');
-      assert.notStrictEqual(process.env.PI_PACKAGE_DIR, '/external/pi-package');
-      assert.match(process.env.PI_PACKAGE_DIR ?? '', /resources[/\\]pi-sdk-runtime$/);
+      // The bundle lives inside the packaged runtime, so Pi resolves its own package
+      // assets by walking up to resources/pi-sdk-runtime/package.json. No process-wide
+      // env var override should leak into child processes (e.g. pi run via bash).
+      assert.strictEqual(process.env.PI_PACKAGE_DIR, undefined);
+      assert.match(sdk.getPackageDir(), /resources[/\\]pi-sdk-runtime$/);
     } finally {
       if (previousPackageDir === undefined) {
         delete process.env.PI_PACKAGE_DIR;

@@ -7,6 +7,7 @@
 - Made the `/reload` progress message neutral for both Pi and Kward backends.
 - Show all Pi-known models for authenticated providers in Tauren's model controls so newly bundled models appear without Tauren allowlist updates.
 - Updated the bundled Pi SDK to 0.80.10 and migrated Tauren's model and authentication bridge to Pi's ModelRuntime API.
+- Bundled the Pi SDK runtime inside `resources/pi-sdk-runtime` so Pi resolves its own package assets without setting `PI_PACKAGE_DIR` in the extension-host process (avoids leaking the override to `pi` spawned via the bash tool).
 
 ### Fixed
 

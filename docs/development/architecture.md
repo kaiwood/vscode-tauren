@@ -66,7 +66,7 @@ Session diff behavior lives under `src/diff/`. Tauren tracks session-specific ch
 
 - Extension host TypeScript compiles to `out/`.
 - Browser webview bundle outputs to `resources/webview/chat.js`.
-- SDK runtime bundle outputs to `out/sdk/piSdkBundle.mjs` and runtime assets under `resources/pi-sdk-runtime/`.
+- SDK runtime bundle outputs to `resources/pi-sdk-runtime/sdk/piSdkBundle.mjs` with peer shims under `resources/pi-sdk-runtime/sdk/node_modules/`.
 - Documentation builds to `docs/.vitepress/dist/`, which is ignored.
 
 ## Design rule

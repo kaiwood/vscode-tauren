@@ -336,9 +336,8 @@ async function writePeerRuntimeShims(outputDir, piPackageDir, plan, bundleFile) 
   return manifest;
 }
 
-async function verifyPeerRuntime(outputDir) {
+async function verifyPeerRuntime(outputDir, bundleFile) {
   const manifest = readJson(path.join(outputDir, 'peer-runtime-manifest.json'));
-  const bundleFile = path.join(outputDir, 'piSdkBundle.mjs');
   const bundle = await import(pathToFileURL(bundleFile).href);
   const verificationFile = path.join(outputDir, '.verify-peer-runtime.mjs');
   const imports = manifest.peers.flatMap((peer) => peer.entries.map((entry) => entry.specifier));
