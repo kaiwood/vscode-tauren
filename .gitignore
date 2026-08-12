@@ -8,4 +8,5 @@ docs/.vitepress/dist/
 *.vsix
 plan/
 TODO.md
+index.js
 .DS_Store
