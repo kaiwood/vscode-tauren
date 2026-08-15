@@ -548,9 +548,10 @@ function createActivityElement(activity: Activity, messageIndex: number | undefi
     const copyBodyText = activity.title === 'Branch summary' && typeof activity.expandedBody === 'string'
       ? activity.expandedBody
       : bodyText;
-    const filePath = getReadActivityPath(activity, bodyText);
-    const bodyWrap = activity.code || bodyToggle || overflowToggle || filePath
-      ? createActivityBodyWrap(body, bodyText, filePath, bodyToggle, overflowToggle, copyBodyText)
+    const filePath = getFileActivityPath(activity);
+    const bashCommand = getBashActivityCommand(activity);
+    const bodyWrap = activity.code || bodyToggle || overflowToggle || filePath || bashCommand
+      ? createActivityBodyWrap(body, bodyText, filePath, bashCommand, bodyToggle, overflowToggle, copyBodyText)
       : body;
 
     details.append(bodyWrap);
@@ -571,6 +572,7 @@ function createActivityBodyWrap(
   body: HTMLElement,
   bodyText: string,
   filePath: string | undefined,
+  command: string | undefined,
   bodyToggle: ActivityBodyToggle | undefined,
   overflowToggle: ActivityBodyToggle | undefined,
   copyText: string = bodyText
@@ -584,6 +586,12 @@ function createActivityBodyWrap(
   const copyOutput = createIconActionButton('activity__body-action', 'Copy output');
   copyOutput.dataset.copyActivityOutput = copyText;
   actions.append(copyOutput);
+
+  if (command) {
+    const copyCommand = createIconActionButton('activity__body-action', 'Copy command');
+    copyCommand.dataset.copyCommand = command;
+    actions.append(copyCommand);
+  }
 
   if (filePath) {
     const openFile = document.createElement('button');
@@ -628,7 +636,7 @@ function renderCodeActivityBody(
   options: { bodyExpanded: boolean; messageIndex: number | undefined; outputColors: boolean; animationsEnabled: boolean }
 ): ActivityBodyToggle | undefined {
   const activityId = typeof activity.id === 'string' ? activity.id : '';
-  const filePath = getReadActivityPath(activity, bodyText);
+  const filePath = getReadActivityPath(activity);
   const hasExpandedToggle = Boolean(options.bodyExpanded && activityId);
   const marker = !options.bodyExpanded && activityId && typeof activity.expandedBody === 'string'
     ? findTruncationMarker(bodyText)
@@ -662,12 +670,33 @@ function renderCodeActivityBody(
   return undefined;
 }
 
-function getReadActivityPath(activity: Activity, bodyText: string): string | undefined {
-  if (activity.kind !== 'tool_execution' || typeof activity.title !== 'string' || containsAnsiEscape(bodyText)) {
+function getFileActivityPath(activity: Activity): string | undefined {
+  if (activity.kind !== 'tool_execution' || typeof activity.title !== 'string') {
     return undefined;
   }
 
-  return parseReadActivityPath(activity.title);
+  return parseFileActivityPath(activity.title);
+}
+
+function getReadActivityPath(activity: Activity): string | undefined {
+  const filePath = getFileActivityPath(activity);
+
+  if (!filePath || typeof activity.title !== 'string' || !activity.title.startsWith('read ')) {
+    return undefined;
+  }
+
+  return filePath;
+}
+
+function getBashActivityCommand(activity: Activity): string | undefined {
+  if (activity.kind !== 'tool_execution'
+    || typeof activity.title !== 'string'
+    || !activity.title.startsWith('$')) {
+    return undefined;
+  }
+
+  const command = typeof activity.command === 'string' ? activity.command.trim() : '';
+  return command || undefined;
 }
 
 function renderHighlightedActivityCodeInto(
@@ -788,8 +817,8 @@ function createActivityBodyToggle({
   return button;
 }
 
-function parseReadActivityPath(title: string): string | undefined {
-  const match = title.match(/^read\s+(.+?)(?::\d+(?:-\d+)?)?$/);
+function parseFileActivityPath(title: string): string | undefined {
+  const match = title.match(/^(?:read|edit|write)\s+(.+?)(?::\d+(?:-\d+)?)?$/);
   return match?.[1];
 }
 

@@ -36,6 +36,7 @@ export type ChatActivity = {
   title: string;
   status: ChatActivityStatus;
   summary?: string;
+  command?: string;
   body?: string;
   expandedBody?: string;
   code?: boolean;
@@ -518,6 +519,10 @@ function mergeActivity(
 
   if ('summary' in activity) {
     next.summary = limitSummary(activity.summary);
+  }
+
+  if ('command' in activity) {
+    next.command = activity.command;
   }
 
   if ('body' in activity) {

@@ -394,7 +394,8 @@ suite('Pi event mapper', () => {
         activity: {
           kind: 'tool_execution',
           title: '$ npm test',
-          status: 'running'
+          status: 'running',
+          command: 'npm test'
         }
       }
     );
@@ -414,6 +415,7 @@ suite('Pi event mapper', () => {
           kind: 'tool_execution',
           title: '$ npm test',
           status: 'running',
+          command: 'npm test',
           body: 'passing',
           code: true
         }
@@ -436,6 +438,7 @@ suite('Pi event mapper', () => {
           kind: 'tool_execution',
           title: '$ npm test',
           status: 'error',
+          command: 'npm test',
           body: 'failed',
           code: true
         }
