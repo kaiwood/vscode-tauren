@@ -6,7 +6,12 @@
       "script": "compile",
       "group": "build",
       "problemMatcher": "$tsc",
-      "label": "npm: compile"
+      "label": "npm: compile",
+      "options": {
+        "env": {
+          "TAUREN_WEBVIEW_SOURCEMAP": "1"
+        }
+      }
     }
   ]
 }
