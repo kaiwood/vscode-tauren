@@ -5,7 +5,8 @@ import {
   mapPiActivity,
   type ActivityAddAction,
   type ActivityRemoveAction,
-  type ActivityUpdateAction
+  type ActivityUpdateAction,
+  type MessageUpdateAction
 } from '../pi/eventMapper';
 import type { AgentRuntimeEvent } from '../agent/types';
 import { isAbortMessage, isMessageUpdateStart } from './errors';
@@ -24,6 +25,7 @@ export type AgentRuntimeEventHandlerOptions = {
   postState: () => void;
   scheduleState: () => void;
   isActiveSession?: () => boolean;
+  isChatVisible?: () => boolean;
   refreshSessionDiffStats: () => void;
   refreshContextUsage: () => void;
   refreshModelCatalog: () => void;
@@ -247,57 +249,59 @@ export class AgentRuntimeEventHandler {
       fullCommunication: false
     });
 
-    if (action.type === 'text_delta') {
-      if (this.options.session.appendAssistantDelta(action.delta)) {
+    if (!this.applyMessageUpdate(action)) {
+      return;
+    }
+
+    const shouldPublish = (this.options.isActiveSession?.() ?? true) && (this.options.isChatVisible?.() ?? true);
+
+    if (!shouldPublish) {
+      return;
+    }
+
+    switch (action.type) {
+      case 'text_delta':
+      case 'thinking_delta':
         this.options.scheduleState();
-      }
-
-      return;
-    }
-
-    if (action.type === 'thinking_start') {
-      if (this.options.session.startThinking(action.sourceId)) {
+        break;
+      case 'activity_update':
+        if (action.bodyMode === 'append') {
+          this.options.scheduleState();
+        } else {
+          this.options.postState();
+        }
+        break;
+      default:
         this.options.postState();
-      }
-
-      return;
+        break;
     }
+  }
 
-    if (action.type === 'thinking_delta') {
-      if (this.options.session.appendThinkingDelta(action.sourceId, action.delta)) {
-        this.options.scheduleState();
-      }
+  private applyMessageUpdate(action: MessageUpdateAction): boolean {
+    switch (action.type) {
+      case 'text_delta':
+        return this.options.session.appendAssistantDelta(action.delta);
+      case 'thinking_start':
+        return this.options.session.startThinking(action.sourceId);
+      case 'thinking_delta':
+        return this.options.session.appendThinkingDelta(action.sourceId, action.delta);
+      case 'thinking_end':
+        return this.options.session.finishThinking(action.sourceId, action.content);
+      case 'assistant_error':
+        if (this.options.isAbortRequested() && isAbortMessage(action.message)) {
+          this.options.appendAbortNoticeIfNeeded();
+        } else {
+          this.options.session.markActiveAssistantError(action.message);
+        }
 
-      return;
-    }
-
-    if (action.type === 'thinking_end') {
-      if (this.options.session.finishThinking(action.sourceId, action.content)) {
-        this.options.postState();
-      }
-
-      return;
-    }
-
-    if (action.type === 'assistant_error') {
-      if (this.options.isAbortRequested() && isAbortMessage(action.message)) {
-        this.options.appendAbortNoticeIfNeeded();
-      } else {
-        this.options.session.markActiveAssistantError(action.message);
-      }
-
-      this.options.postState();
-      return;
-    }
-
-    if (action.type === 'activity_update' || action.type === 'activity_add' || action.type === 'activity_remove') {
-      this.applyActivityAction(action);
-
-      if (action.type === 'activity_update' && action.bodyMode === 'append') {
-        this.options.scheduleState();
-      } else {
-        this.options.postState();
-      }
+        return true;
+      case 'activity_update':
+      case 'activity_add':
+      case 'activity_remove':
+        this.applyActivityAction(action);
+        return true;
+      case 'ignore':
+        return false;
     }
   }
 
