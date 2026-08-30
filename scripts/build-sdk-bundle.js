@@ -28,6 +28,15 @@ function assertPiSdkInstalled() {
   }
 }
 
+function cleanLegacySdkArtifacts() {
+  // The SDK bundle and peer runtime moved to resources/pi-sdk-runtime. Remove
+  // artifacts from the previous out/sdk layout during incremental builds so they
+  // cannot be accidentally included in a packaged extension.
+  fs.rmSync(path.join(outputDir, 'piSdkBundle.mjs'), { force: true });
+  fs.rmSync(path.join(outputDir, 'peer-runtime-manifest.json'), { force: true });
+  fs.rmSync(path.join(outputDir, 'node_modules'), { recursive: true, force: true });
+}
+
 function copyFile(source, target) {
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.copyFileSync(source, target);
@@ -95,6 +104,7 @@ function copySdkRuntimeAssets() {
 
 async function main() {
   assertPiSdkInstalled();
+  cleanLegacySdkArtifacts();
 
   const peerRuntimePlan = createPeerRuntimePlan(piPackageDir);
   // Regenerate the packaged runtime before writing the bundle into it, since
