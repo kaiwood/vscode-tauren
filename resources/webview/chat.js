@@ -4465,6 +4465,38 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
     return state2.messages.length === 0 && !state2.sessionLoading && state2.settings.values.quietStartup === true;
   }
 
+  // src/webview/messages/activityActions.ts
+  function getFileActivityPath(activity) {
+    if (activity.kind !== "tool_execution" || typeof activity.title !== "string") {
+      return void 0;
+    }
+    if (activity.title.startsWith("read ")) {
+      return parseReadActivityPath(activity.title);
+    }
+    for (const prefix of ["edit ", "write "]) {
+      if (activity.title.startsWith(prefix)) {
+        return activity.title.slice(prefix.length) || void 0;
+      }
+    }
+    return void 0;
+  }
+  function getReadActivityPath(activity) {
+    if (typeof activity.title !== "string" || !activity.title.startsWith("read ")) {
+      return void 0;
+    }
+    return getFileActivityPath(activity);
+  }
+  function getBashActivityCommand(activity) {
+    if (activity.kind !== "tool_execution" || typeof activity.title !== "string" || !activity.title.startsWith("$")) {
+      return void 0;
+    }
+    return typeof activity.command === "string" && activity.command.length > 0 ? activity.command : void 0;
+  }
+  function parseReadActivityPath(title) {
+    const match = title.match(/^read (.+?)(?::\d+(?:-\d+)?)?$/);
+    return match?.[1];
+  }
+
   // src/webview/messages/renderMessages.ts
   var maxRememberedActivityIds = 1e3;
   var activityExpansion = /* @__PURE__ */ new Map();
@@ -4777,6 +4809,7 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
       activity.status ?? "",
       activity.title ?? "",
       activity.summary ?? "",
+      activity.command ?? "",
       activity.body ?? "",
       activity.expandedBody ?? "",
       activity.code ? "code" : "",
@@ -4861,8 +4894,9 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
       }
       const overflowToggle = bodyCanVisuallyExpand && !bodyExpanded && !bodyToggle ? { label: "Show full output", activityId, messageIndex, expanded: false } : void 0;
       const copyBodyText = activity.title === "Branch summary" && typeof activity.expandedBody === "string" ? activity.expandedBody : bodyText;
-      const filePath = getReadActivityPath(activity, bodyText);
-      const bodyWrap = activity.code || bodyToggle || overflowToggle || filePath ? createActivityBodyWrap(body, bodyText, filePath, bodyToggle, overflowToggle, copyBodyText) : body;
+      const filePath = getFileActivityPath(activity);
+      const bashCommand = getBashActivityCommand(activity);
+      const bodyWrap = activity.code || bodyToggle || overflowToggle || filePath || bashCommand ? createActivityBodyWrap(body, bodyText, filePath, bashCommand, bodyToggle, overflowToggle, copyBodyText) : body;
       details.append(bodyWrap);
       if (bodyExpanded && shouldScrollExpandedBodyToBottom(activity.body)) {
         scheduleActivityBodyScrollToBottom(body);
@@ -4873,7 +4907,7 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
     }
     return details;
   }
-  function createActivityBodyWrap(body, bodyText, filePath, bodyToggle, overflowToggle, copyText = bodyText) {
+  function createActivityBodyWrap(body, bodyText, filePath, command, bodyToggle, overflowToggle, copyText = bodyText) {
     const wrap = document.createElement("div");
     wrap.className = "activity__body-wrap";
     const actions = document.createElement("div");
@@ -4881,6 +4915,11 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
     const copyOutput = createIconActionButton("activity__body-action", "Copy output");
     copyOutput.dataset.copyActivityOutput = copyText;
     actions.append(copyOutput);
+    if (command) {
+      const copyCommand = createIconActionButton("activity__body-action", "Copy command");
+      copyCommand.dataset.copyCommand = command;
+      actions.append(copyCommand);
+    }
     if (filePath) {
       const openFile = document.createElement("button");
       openFile.className = "activity__body-action activity__body-action--text";
@@ -4907,7 +4946,7 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
   }
   function renderCodeActivityBody(element, activity, bodyText, options) {
     const activityId = typeof activity.id === "string" ? activity.id : "";
-    const filePath = getReadActivityPath(activity, bodyText);
+    const filePath = getReadActivityPath(activity);
     const hasExpandedToggle = Boolean(options.bodyExpanded && activityId);
     const marker = !options.bodyExpanded && activityId && typeof activity.expandedBody === "string" ? findTruncationMarker(bodyText) : void 0;
     const renderedBodyText = marker ? removeTruncationMarker(marker) : bodyText;
@@ -4933,12 +4972,6 @@ ${image.mimeType}, ${formatBytes(image.sizeBytes)}`;
       };
     }
     return void 0;
-  }
-  function getReadActivityPath(activity, bodyText) {
-    if (activity.kind !== "tool_execution" || typeof activity.title !== "string" || containsAnsiEscape(bodyText)) {
-      return void 0;
-    }
-    return parseReadActivityPath(activity.title);
   }
   function renderHighlightedActivityCodeInto(element, bodyText, filePath) {
     if (!renderHighlightedCodeInto(element, bodyText, filePath)) {
@@ -5021,10 +5054,6 @@ ${after}`;
       button.dataset.messageIndex = String(messageIndex);
     }
     return button;
-  }
-  function parseReadActivityPath(title) {
-    const match = title.match(/^read\s+(.+?)(?::\d+(?:-\d+)?)?$/);
-    return match?.[1];
   }
   function shouldKeepActivityOpen(activity) {
     return typeof activity.body === "string" && activity.body.length > 0 || getRenderableImages(activity.images).length > 0;
@@ -5280,6 +5309,15 @@ ${after}`;
         if (text) {
           event.preventDefault();
           this.options.postMessage({ type: "copyText", text, successMessage: "Copied output." });
+        }
+        return;
+      }
+      const commandCopyButton = target?.closest("[data-copy-command]");
+      if (commandCopyButton instanceof HTMLElement) {
+        const text = commandCopyButton.dataset.copyCommand ?? "";
+        if (text) {
+          event.preventDefault();
+          this.options.postMessage({ type: "copyText", text, successMessage: "Copied command." });
         }
         return;
       }

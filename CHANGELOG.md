@@ -15,6 +15,7 @@
 - Support Pi's `max` thinking level in Tauren controls.
 - Support Pi's cached WebSocket transport and default transport selection.
 - Refresh Pi dynamic model catalogs in the background and update the model controls when they change.
+- Preserve Bash command whitespace and numeric filename suffixes in sidebar tool actions.
 
 ### Added
 

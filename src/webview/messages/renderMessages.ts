@@ -1,3 +1,4 @@
+import { getBashActivityCommand, getFileActivityPath, getReadActivityPath } from './activityActions';
 import { containsAnsiEscape, renderAnsiSpinnersInto, renderAnsiTextInto } from './ansi';
 import { createIconActionButton } from './actionButtons';
 import { renderHighlightedCodeInto, renderMarkdownInto, type RenderMarkdownOptions } from './markdown';
@@ -440,6 +441,7 @@ function getActivityRenderSignature(activity: Activity, messageIndex: number | u
     activity.status ?? '',
     activity.title ?? '',
     activity.summary ?? '',
+    activity.command ?? '',
     activity.body ?? '',
     activity.expandedBody ?? '',
     activity.code ? 'code' : '',
@@ -670,35 +672,6 @@ function renderCodeActivityBody(
   return undefined;
 }
 
-function getFileActivityPath(activity: Activity): string | undefined {
-  if (activity.kind !== 'tool_execution' || typeof activity.title !== 'string') {
-    return undefined;
-  }
-
-  return parseFileActivityPath(activity.title);
-}
-
-function getReadActivityPath(activity: Activity): string | undefined {
-  const filePath = getFileActivityPath(activity);
-
-  if (!filePath || typeof activity.title !== 'string' || !activity.title.startsWith('read ')) {
-    return undefined;
-  }
-
-  return filePath;
-}
-
-function getBashActivityCommand(activity: Activity): string | undefined {
-  if (activity.kind !== 'tool_execution'
-    || typeof activity.title !== 'string'
-    || !activity.title.startsWith('$')) {
-    return undefined;
-  }
-
-  const command = typeof activity.command === 'string' ? activity.command.trim() : '';
-  return command || undefined;
-}
-
 function renderHighlightedActivityCodeInto(
   element: HTMLElement,
   bodyText: string,
@@ -815,11 +788,6 @@ function createActivityBodyToggle({
   }
 
   return button;
-}
-
-function parseFileActivityPath(title: string): string | undefined {
-  const match = title.match(/^(?:read|edit|write)\s+(.+?)(?::\d+(?:-\d+)?)?$/);
-  return match?.[1];
 }
 
 function shouldKeepActivityOpen(activity: Activity): boolean {

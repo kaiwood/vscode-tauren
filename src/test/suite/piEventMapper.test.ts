@@ -488,6 +488,7 @@ suite('Pi event mapper', () => {
           kind: 'tool_execution',
           title: '$ npm run compile',
           status: 'running',
+          command: 'npm run compile',
           body: '... (2 earlier lines)\n3\n4\n5\n6\n7\n8\n9\n10',
           code: true
         }
@@ -533,6 +534,7 @@ suite('Pi event mapper', () => {
           kind: 'tool_execution',
           title: '$ npm run compile',
           status: 'completed',
+          command: 'npm run compile',
           body: '... (2 earlier lines)\n3\n4\n5\n6\n7\n8\n9\n10',
           expandedBody: '1\n2\n3\n4\n5\n6\n7\n8\n9\n10',
           code: true
@@ -603,7 +605,8 @@ suite('Pi event mapper', () => {
         activity: {
           kind: 'tool_execution',
           title: '$ npm test (timeout 120s)',
-          status: 'running'
+          status: 'running',
+          command: 'npm test'
         }
       }
     );
@@ -623,6 +626,7 @@ suite('Pi event mapper', () => {
           kind: 'tool_execution',
           title: '$ npm test',
           status: 'running',
+          command: 'npm test',
           body: 'running',
           code: true
         }
@@ -642,7 +646,8 @@ suite('Pi event mapper', () => {
         activity: {
           kind: 'tool_execution',
           title: '$ npm test',
-          status: 'completed'
+          status: 'completed',
+          command: 'npm test'
         }
       }
     );
@@ -663,6 +668,7 @@ suite('Pi event mapper', () => {
           kind: 'tool_execution',
           title: '$ npm test',
           status: 'error',
+          command: 'npm test',
           body: 'failed',
           code: true
         }
