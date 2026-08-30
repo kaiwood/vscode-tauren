@@ -28,6 +28,7 @@ suite('ExtensionCustomUiHost', () => {
 
     const show = messages.find((message): message is { type: 'customUiShow'; id: string } => message.type === 'customUiShow');
     assert.ok(show);
+    assert.deepStrictEqual(show, { type: 'customUiShow', id: show.id });
     assert.deepStrictEqual(messages.find((message) => message.type === 'customUiRender'), {
       type: 'customUiRender',
       id: show.id,
@@ -40,6 +41,33 @@ suite('ExtensionCustomUiHost', () => {
     assert.strictEqual(await resultPromise, 'answered');
     assert.deepStrictEqual(inputs, ['\r']);
     assert.deepStrictEqual(messages[messages.length - 1], { type: 'customUiHide', id: show.id });
+  });
+
+  test('marks explicitly requested custom UI overlays', async () => {
+    const messages: CustomUiHostMessage[] = [];
+    const host = new ExtensionCustomUiHost({
+      isAvailable: () => true,
+      postMessage: (message) => {
+        messages.push(message);
+        return true;
+      },
+      getOutputColors: () => true,
+      notify: () => undefined
+    });
+
+    const resultPromise = host.custom<string>(() => ({
+      render: () => ['overlay'],
+      invalidate: () => undefined
+    }), { overlay: true });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const show = messages.find((message) => message.type === 'customUiShow');
+    assert.ok(show);
+    assert.deepStrictEqual(show, { type: 'customUiShow', id: show.id, overlay: true });
+
+    host.cancel(show.id);
+    assert.strictEqual(await resultPromise, undefined);
   });
 
   test('renders again after input and filters key releases unless requested', async () => {

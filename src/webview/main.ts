@@ -159,12 +159,22 @@ let settingsController: SettingsPaneController;
 let transcriptSearchController: TranscriptSearchController;
 const isMacPlatform = /mac|iphone|ipad|ipod/i.test(navigator.platform);
 
+const messagesController = new MessageListController({
+  getState: () => state,
+  postMessage: (message) => vscode.postMessage(message),
+  messagesElement,
+  messagesContentElement,
+  busyStatusElement,
+  busyStatusTextElement
+});
+
 const customUiController = new CustomUiController({
   vscode,
   customUiElement,
   customUiOutputElement,
   customUiCloseButton,
   form,
+  onShow: () => messagesController.scheduleMessagesToBottom(),
   onClose: handleCustomUiClose
 });
 
@@ -176,15 +186,6 @@ const extensionEditorDialogController = new ExtensionEditorDialogController({
   saveButton: extensionEditorSaveButton,
   cancelButton: extensionEditorCancelButton,
   closeButton: extensionEditorCloseButton
-});
-
-const messagesController = new MessageListController({
-  getState: () => state,
-  postMessage: (message) => vscode.postMessage(message),
-  messagesElement,
-  messagesContentElement,
-  busyStatusElement,
-  busyStatusTextElement
 });
 
 const extensionPromptController = new ExtensionPromptController({

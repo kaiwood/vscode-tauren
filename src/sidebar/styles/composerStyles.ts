@@ -203,6 +203,10 @@ export const composerStyles = /* css */ `    .tauren-view--has-extension-status 
       pointer-events: none;
     }
 
+    .composer--custom-replaced {
+      display: none;
+    }
+
     .composer--has-context {
       grid-template-rows: auto minmax(22px, auto) 36px;
     }

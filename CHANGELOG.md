@@ -13,6 +13,7 @@
 
 ### Fixed
 
+- Dock normal Pi Custom UI Surfaces in place of the Composer so permission prompts no longer cover Transcript Entries, while preserving explicitly requested overlays.
 - Let custom Pi tool entries reveal their complete arguments separately from tool output.
 - Report Pi extension load failures in a dedicated Tauren Extensions output channel.
 - Open file-path Markdown links in the transcript, including line, column, and line-range references.

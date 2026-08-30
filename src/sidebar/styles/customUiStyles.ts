@@ -1,17 +1,10 @@
 export const customUiStyles = /* css */ `    .custom-ui,
     .kward-question {
-      position: absolute;
-      left: var(--tauren-custom-ui-inline-offset);
-      right: var(--tauren-custom-ui-inline-offset);
-      bottom: var(--tauren-custom-ui-bottom-offset);
-      z-index: var(--tauren-z-floating-panel);
       display: grid;
       grid-template-rows: auto minmax(0, 1fr);
       gap: 6px;
       min-height: 96px;
       max-height: min(72vh, calc(100vh - var(--tauren-custom-ui-bottom-offset) - var(--tauren-custom-ui-viewport-bottom-reserve)));
-      max-width: calc(100% - var(--tauren-custom-ui-inline-offset) - var(--tauren-custom-ui-inline-offset));
-      margin: 0;
       padding: 8px 9px 9px;
       overflow: hidden;
       color: var(--vscode-foreground);
@@ -19,6 +12,37 @@ export const customUiStyles = /* css */ `    .custom-ui,
       border: 1px solid var(--vscode-focusBorder, var(--vscode-input-border, transparent));
       border-radius: 14px;
       box-shadow: inset 0 1px 0 color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+    }
+
+    .custom-ui {
+      position: relative;
+      grid-row: 5;
+      grid-column: 1;
+      align-self: end;
+      justify-self: stretch;
+      z-index: var(--tauren-z-raised);
+      max-width: calc(100% - var(--tauren-custom-ui-inline-offset) - var(--tauren-custom-ui-inline-offset));
+      margin: 0 var(--tauren-custom-ui-inline-offset) var(--tauren-composer-bottom-margin);
+    }
+
+    .custom-ui--overlay,
+    .kward-question {
+      position: absolute;
+      left: var(--tauren-custom-ui-inline-offset);
+      right: var(--tauren-custom-ui-inline-offset);
+      bottom: var(--tauren-custom-ui-bottom-offset);
+      z-index: var(--tauren-z-floating-panel);
+      max-width: calc(100% - var(--tauren-custom-ui-inline-offset) - var(--tauren-custom-ui-inline-offset));
+      margin: 0;
+    }
+
+    .tauren-view--has-extension-status .custom-ui:not(.custom-ui--overlay) {
+      margin-bottom: var(--tauren-composer-status-gap);
+    }
+
+    .tauren-view--has-extension-widgets-below .custom-ui:not(.custom-ui--overlay),
+    .tauren-view--has-extension-widgets-below.tauren-view--has-extension-status .custom-ui:not(.custom-ui--overlay) {
+      margin-bottom: 0;
     }
 
     .custom-ui[hidden],

@@ -24,11 +24,12 @@ type ActiveCustomUi<T = unknown> = {
   component: CustomUiComponent;
   resolve: (value: T | undefined) => void;
   renderTimer?: ReturnType<typeof setTimeout>;
+  overlay: boolean;
   finished: boolean;
 };
 
 export type CustomUiHostMessage =
-  | { type: 'customUiShow'; id: string }
+  | { type: 'customUiShow'; id: string; overlay?: boolean }
   | { type: 'customUiRender'; id: string; lines: string[]; blocks?: WebviewExtensionRenderBlock[]; outputColors: boolean }
   | { type: 'customUiHide'; id: string };
 
@@ -100,6 +101,7 @@ export class ExtensionCustomUiHost {
             terminal,
             component: component as CustomUiComponent,
             resolve,
+            overlay: customOptions?.overlay === true,
             finished: false
           };
           this.active = active as ActiveCustomUi;
@@ -107,7 +109,7 @@ export class ExtensionCustomUiHost {
           customOptions?.onHandle?.(createOverlayHandle(() => this.cancel(id)) as never);
           this.options.onActiveChange?.(true);
           if (this.attached) {
-            this.options.postMessage({ type: 'customUiShow', id });
+            this.postShow(active);
             this.render(id);
           }
         })
@@ -138,7 +140,7 @@ export class ExtensionCustomUiHost {
     setComponentFocused(active.component, attached);
 
     if (attached) {
-      this.options.postMessage({ type: 'customUiShow', id: active.id });
+      this.postShow(active);
       this.render(active.id);
     } else {
       this.options.postMessage({ type: 'customUiHide', id: active.id });
@@ -205,6 +207,14 @@ export class ExtensionCustomUiHost {
 
   public dispose(): void {
     this.cancelActive();
+  }
+
+  private postShow(active: Pick<ActiveCustomUi, 'id' | 'overlay'>): void {
+    this.options.postMessage({
+      type: 'customUiShow',
+      id: active.id,
+      ...(active.overlay ? { overlay: true } : {})
+    });
   }
 
   private scheduleRender(id: string): void {

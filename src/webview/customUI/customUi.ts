@@ -5,7 +5,7 @@ import { roundDevicePixelMetric } from '../metrics';
 import type { WebviewApi } from '../types';
 
 type CustomUiHostMessage =
-  | { type: 'customUiShow'; id: string }
+  | { type: 'customUiShow'; id: string; overlay?: boolean }
   | { type: 'customUiRender'; id: string; lines: string[]; blocks?: WebviewExtensionRenderBlock[]; outputColors?: boolean }
   | { type: 'customUiHide'; id: string };
 
@@ -15,6 +15,7 @@ type CustomUiControllerOptions = {
   customUiOutputElement: HTMLElement;
   customUiCloseButton: HTMLButtonElement;
   form: HTMLFormElement;
+  onShow?: () => void;
   onClose?: () => void;
 };
 
@@ -42,6 +43,7 @@ const nonCsiEscapePattern = /\x1b(?:\][^\x07]*(?:\x07|\x1b\\)|_[^\x07]*(?:\x07|\
 
 export class CustomUiController {
   private activeId: string | undefined;
+  private overlay = false;
   private lastDimensionSignature = '';
   private resizeFrame: number | undefined;
   private renderFrame: number | undefined;
@@ -85,7 +87,7 @@ export class CustomUiController {
     }
 
     if (message.type === 'customUiShow') {
-      this.show(message.id);
+      this.show(message.id, message.overlay === true);
       return true;
     }
 
@@ -128,7 +130,7 @@ export class CustomUiController {
     const active = Boolean(this.activeId) && !isSessionLane;
     this.options.customUiElement.hidden = !active;
     this.options.customUiElement.inert = !active;
-    this.options.form.classList.toggle('composer--custom-hidden', Boolean(this.activeId));
+    this.syncPresentation();
 
     if (this.activeId) {
       this.options.form.setAttribute('aria-hidden', 'true');
@@ -158,17 +160,19 @@ export class CustomUiController {
     return true;
   }
 
-  private show(id: string): void {
+  private show(id: string, overlay: boolean): void {
     this.cancelPendingRender();
     this.activeId = id;
+    this.overlay = overlay;
     this.lastDimensionSignature = '';
     this.options.customUiOutputElement.replaceChildren();
     this.options.customUiElement.hidden = false;
     this.options.customUiElement.inert = false;
-    this.options.form.classList.add('composer--custom-hidden');
+    this.syncPresentation();
     this.options.form.setAttribute('aria-hidden', 'true');
     this.options.form.inert = true;
     this.focusInputCapture();
+    this.options.onShow?.();
     this.scheduleDimensionsPost();
   }
 
@@ -215,6 +219,7 @@ export class CustomUiController {
     }
 
     this.activeId = undefined;
+    this.overlay = false;
     this.lastDimensionSignature = '';
     this.cancelPendingRender();
     this.isComposing = false;
@@ -224,7 +229,7 @@ export class CustomUiController {
     this.options.customUiElement.inert = true;
     this.updateCursor(undefined);
     this.options.customUiOutputElement.replaceChildren();
-    this.options.form.classList.remove('composer--custom-hidden');
+    this.syncPresentation();
     this.options.form.removeAttribute('aria-hidden');
     this.options.form.inert = false;
     this.options.onClose?.();
@@ -236,6 +241,13 @@ export class CustomUiController {
     }
 
     this.options.vscode.postMessage({ type: 'customUiCancel', id: this.activeId });
+  }
+
+  private syncPresentation(): void {
+    const active = Boolean(this.activeId);
+    this.options.customUiElement.classList.toggle('custom-ui--overlay', active && this.overlay);
+    this.options.form.classList.toggle('composer--custom-hidden', active && this.overlay);
+    this.options.form.classList.toggle('composer--custom-replaced', active && !this.overlay);
   }
 
   private cancelPendingRender(): void {
@@ -806,7 +818,13 @@ function isCustomUiHostMessage(value: unknown): value is CustomUiHostMessage {
 
   const message = value as Record<string, unknown>;
 
-  if (message.type === 'customUiShow' || message.type === 'customUiHide') {
+  if (message.type === 'customUiShow') {
+    return typeof message.id === 'string'
+      && message.id.length > 0
+      && (message.overlay === undefined || typeof message.overlay === 'boolean');
+  }
+
+  if (message.type === 'customUiHide') {
     return typeof message.id === 'string' && message.id.length > 0;
   }
 

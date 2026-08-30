@@ -39,6 +39,50 @@ suite('Webview custom UI keyboard helpers', () => {
     assert.strictEqual(prepared.cursor, undefined);
   });
 
+  test('docks normal custom UI and only floats explicit overlays', () => {
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+
+    try {
+      (globalThis as unknown as { requestAnimationFrame: typeof requestAnimationFrame }).requestAnimationFrame = (() => 7) as typeof requestAnimationFrame;
+      const form = fakeElement();
+      const customUiElement = fakeElement();
+      let showCount = 0;
+      const controller = new CustomUiController({
+        vscode: { postMessage: () => undefined },
+        customUiElement,
+        customUiOutputElement: fakeElement(),
+        customUiCloseButton: fakeElement() as HTMLButtonElement,
+        form: form as HTMLFormElement,
+        onShow: () => {
+          showCount += 1;
+        }
+      });
+      (controller as unknown as { inputCaptureElement: HTMLTextAreaElement }).inputCaptureElement = {
+        value: '',
+        style: {},
+        focus: () => undefined
+      } as unknown as HTMLTextAreaElement;
+
+      assert.strictEqual(controller.handleHostMessage({ type: 'customUiShow', id: 'custom-1' }), true);
+      assert.strictEqual(customUiElement.classList.contains('custom-ui--overlay'), false);
+      assert.strictEqual(form.classList.contains('composer--custom-replaced'), true);
+      assert.strictEqual(form.classList.contains('composer--custom-hidden'), false);
+
+      assert.strictEqual(controller.handleHostMessage({ type: 'customUiHide', id: 'custom-1' }), true);
+      assert.strictEqual(form.classList.contains('composer--custom-replaced'), false);
+
+      assert.strictEqual(controller.handleHostMessage({ type: 'customUiShow', id: 'custom-2', overlay: true }), true);
+      assert.strictEqual(customUiElement.classList.contains('custom-ui--overlay'), true);
+      assert.strictEqual(form.classList.contains('composer--custom-replaced'), false);
+      assert.strictEqual(form.classList.contains('composer--custom-hidden'), true);
+      assert.strictEqual(showCount, 2);
+
+      assert.strictEqual(controller.handleHostMessage({ type: 'customUiShow', id: 'invalid', overlay: 'yes' }), false);
+    } finally {
+      (globalThis as unknown as { requestAnimationFrame: typeof requestAnimationFrame }).requestAnimationFrame = originalRequestAnimationFrame;
+    }
+  });
+
   test('notifies when active custom UI hides', () => {
     const form = fakeElement();
     const customUiElement = fakeElement();
