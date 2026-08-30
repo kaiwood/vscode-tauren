@@ -22,6 +22,38 @@ suite('Transcript formatting', () => {
     }]);
   });
 
+  test('restores custom tool arguments separately from output', () => {
+    assert.deepStrictEqual(formatAgentMessages([
+      {
+        role: 'assistant',
+        content: [{
+          type: 'toolCall',
+          id: 'call-context-mode',
+          name: 'ctx_execute',
+          arguments: { language: 'shell', code: 'echo hello' }
+        }]
+      },
+      {
+        role: 'toolResult',
+        toolCallId: 'call-context-mode',
+        toolName: 'ctx_execute',
+        content: [{ type: 'text', text: 'DONE' }]
+      }
+    ]), [{
+      role: 'assistant',
+      text: '',
+      activities: [{
+        id: 'restored-tool-1',
+        kind: 'tool_execution',
+        title: 'ctx_execute { "language": "shell", "code": "echo hello" }',
+        status: 'completed',
+        argumentsBody: '{\n  "language": "shell",\n  "code": "echo hello"\n}',
+        body: 'DONE',
+        code: true
+      }]
+    }]);
+  });
+
   test('restores Tauren-rendered custom extension messages as activities', () => {
     assert.deepStrictEqual(formatAgentMessages([
       {

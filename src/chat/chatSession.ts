@@ -37,6 +37,7 @@ export type ChatActivity = {
   status: ChatActivityStatus;
   summary?: string;
   command?: string;
+  argumentsBody?: string;
   body?: string;
   expandedBody?: string;
   code?: boolean;
@@ -525,6 +526,10 @@ function mergeActivity(
     next.command = activity.command;
   }
 
+  if ('argumentsBody' in activity) {
+    next.argumentsBody = limitActivityBody(activity.argumentsBody);
+  }
+
   if ('body' in activity) {
     next.body = bodyMode === 'append'
       ? appendActivityBody(existing.body, activity.body)
@@ -551,6 +556,10 @@ function limitActivityDisplay(activity: ChatActivityInput): ChatActivityInput {
 
   if ('summary' in activity) {
     next.summary = limitSummary(activity.summary);
+  }
+
+  if ('argumentsBody' in activity) {
+    next.argumentsBody = limitActivityBody(activity.argumentsBody);
   }
 
   if ('body' in activity) {

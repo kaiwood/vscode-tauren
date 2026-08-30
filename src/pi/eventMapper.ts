@@ -21,6 +21,14 @@ type ToolTextPreview = {
   expandedBody?: string;
 };
 
+type ToolExecutionDisplay = {
+  toolName: string;
+  title: string;
+  summary?: string;
+  command?: string;
+  showArguments?: boolean;
+};
+
 export type MessageUpdateAction =
   | { type: 'text_delta'; delta: string }
   | { type: 'thinking_start'; sourceId: string }
@@ -82,6 +90,7 @@ export function formatToolExecutionActivity({
   const resultValue = status === 'running' ? partialResult : result;
   const images = extractToolResultImages(resultValue);
   const includeExpandedBody = !(status === 'running' && display.toolName === 'bash');
+  const argumentsBody = display.showArguments && args !== undefined ? formatBodyValue(args) : undefined;
   const fileReference = getToolExecutionFileReference(display.toolName, args, resultValue, status);
   const preview = rendered
     ? { body: rendered.body, ...(rendered.expandedBody ? { expandedBody: rendered.expandedBody } : {}) }
@@ -95,6 +104,7 @@ export function formatToolExecutionActivity({
     status,
     ...(display.summary ? { summary: display.summary } : {}),
     ...(display.command ? { command: display.command } : {}),
+    ...(argumentsBody ? { argumentsBody } : {}),
     ...(preview ? { body: preview.body, ...(preview.expandedBody ? { expandedBody: preview.expandedBody } : {}), code: rendered?.code ?? true } : {}),
     ...(images.length > 0 ? { images } : {}),
     ...(fileReference ? { fileReference } : {})
@@ -566,7 +576,7 @@ function getRenderedTool(event: PiEvent): PiRenderedContent | undefined {
   };
 }
 
-function formatToolExecutionDisplay(input: { toolName?: string; args?: unknown; metadata?: unknown }): { toolName: string; title: string; summary?: string; command?: string } {
+function formatToolExecutionDisplay(input: { toolName?: string; args?: unknown; metadata?: unknown }): ToolExecutionDisplay {
   const toolName = input.toolName || 'tool';
   const args = isRecord(input.args) ? input.args : undefined;
   const metadata = isRecord(input.metadata) ? input.metadata : {};
@@ -578,7 +588,8 @@ function formatToolExecutionDisplay(input: { toolName?: string; args?: unknown; 
     return {
       toolName,
       title: summary ? `MCP · ${metadataDisplayName} ${summary}` : `MCP · ${metadataDisplayName}`,
-      summary: undefined
+      summary: undefined,
+      showArguments: true
     };
   }
 
@@ -631,7 +642,8 @@ function formatToolExecutionDisplay(input: { toolName?: string; args?: unknown; 
   return {
     toolName,
     title: summary ? `${toolName} ${summary}` : toolName,
-    summary: undefined
+    summary: undefined,
+    showArguments: true
   };
 }
 

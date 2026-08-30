@@ -61,6 +61,7 @@ export type Activity = {
   expandedBody?: string;
   summary?: string;
   command?: string;
+  argumentsBody?: string;
   code?: boolean;
   images?: ChatImage[];
 };

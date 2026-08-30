@@ -73,6 +73,56 @@ export const activityStyles = /* css */ `    .activity-list {
       line-height: 1.35;
     }
 
+    .activity__arguments {
+      border-top: 1px solid color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+    }
+
+    .activity__arguments-summary {
+      padding: 5px 8px;
+      color: var(--vscode-textLink-foreground);
+      cursor: pointer;
+      list-style: none;
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 11px;
+    }
+
+    .activity__arguments-summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .activity__arguments-summary::before {
+      display: inline-block;
+      width: 12px;
+      content: '›';
+      transform-origin: center;
+    }
+
+    .activity__arguments[open] > .activity__arguments-summary::before {
+      transform: rotate(90deg);
+    }
+
+    .activity__arguments-summary:hover,
+    .activity__arguments-summary:focus-visible {
+      color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
+      text-decoration: underline;
+      outline: none;
+    }
+
+    .activity__arguments-body {
+      box-sizing: border-box;
+      max-height: min(320px, 45vh);
+      margin: 0;
+      padding: 7px 8px 8px;
+      overflow: auto;
+      color: var(--tauren-code-foreground);
+      background: var(--tauren-code-background);
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 11px;
+      line-height: 16px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
     .activity__body-wrap {
       position: relative;
     }

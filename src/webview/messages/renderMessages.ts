@@ -7,6 +7,7 @@ import type { Activity, ChatImage, ChatMessage } from '../types';
 
 const maxRememberedActivityIds = 1000;
 const activityExpansion = new Map<string, boolean>();
+const activityArgumentsExpansion = new Map<string, boolean>();
 const activityBodyExpansion = new Map<string, boolean>();
 const activityRenderSignatures = new WeakMap<HTMLElement, string>();
 
@@ -28,6 +29,7 @@ export function pruneActivityRenderState(activeActivityIds: Set<string>): void {
   const retainedActivityIds = getRecentActivityIds(activeActivityIds);
 
   pruneStringMap(activityExpansion, retainedActivityIds);
+  pruneStringMap(activityArgumentsExpansion, retainedActivityIds);
   pruneStringMap(activityBodyExpansion, retainedActivityIds);
 }
 
@@ -442,6 +444,7 @@ function getActivityRenderSignature(activity: Activity, messageIndex: number | u
     activity.title ?? '',
     activity.summary ?? '',
     activity.command ?? '',
+    activity.argumentsBody ?? '',
     activity.body ?? '',
     activity.expandedBody ?? '',
     activity.code ? 'code' : '',
@@ -517,6 +520,10 @@ function createActivityElement(activity: Activity, messageIndex: number | undefi
 
   details.append(summary);
 
+  if (typeof activity.argumentsBody === 'string' && activity.argumentsBody.length > 0) {
+    details.append(createActivityArgumentsElement(activity.argumentsBody, activityId));
+  }
+
   const activityImages = getRenderableImages(activity.images);
 
   if (typeof activity.body === 'string' && activity.body.length > 0) {
@@ -567,6 +574,29 @@ function createActivityElement(activity: Activity, messageIndex: number | undefi
     details.append(createImageListElement(activityImages, 'activity__images'));
   }
 
+  return details;
+}
+
+function createActivityArgumentsElement(argumentsBody: string, activityId: string): HTMLDetailsElement {
+  const details = document.createElement('details');
+  details.className = 'activity__arguments';
+  details.open = activityArgumentsExpansion.get(activityId) === true;
+
+  details.addEventListener('toggle', () => {
+    if (activityId) {
+      activityArgumentsExpansion.set(activityId, details.open);
+    }
+  });
+
+  const summary = document.createElement('summary');
+  summary.className = 'activity__arguments-summary';
+  summary.textContent = 'Arguments';
+
+  const body = document.createElement('pre');
+  body.className = 'activity__arguments-body';
+  body.textContent = argumentsBody;
+
+  details.append(summary, body);
   return details;
 }
 

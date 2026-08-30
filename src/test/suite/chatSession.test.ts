@@ -344,8 +344,32 @@ suite('ChatSession', () => {
     });
   });
 
+  test('activity updates preserve existing tool arguments', () => {
+    const session = new ChatSession();
+
+    session.beginSubmit('run custom tool');
+    session.upsertActivity('tool:call-1', {
+      kind: 'tool_execution',
+      title: 'ctx_execute { "language": "shell", ... }',
+      status: 'running',
+      argumentsBody: '{\n  "language": "shell",\n  "code": "echo hello"\n}'
+    });
+    session.upsertActivity('tool:call-1', {
+      kind: 'tool_execution',
+      title: 'ctx_execute { "language": "shell", ... }',
+      status: 'completed',
+      body: 'DONE',
+      code: true
+    });
+
+    const activity = session.snapshot().messages[1].activities![0];
+    assert.strictEqual(activity.argumentsBody, '{\n  "language": "shell",\n  "code": "echo hello"\n}');
+    assert.strictEqual(activity.body, 'DONE');
+  });
+
   test('activity replace bodies are truncated for display', () => {
     const session = new ChatSession();
+    const longArgumentsBody = 'a'.repeat(chatActivityBodyMaxDisplayLength + 1);
     const longBody = 'x'.repeat(chatActivityBodyMaxDisplayLength + 1);
     const longExpandedBody = 'y'.repeat(chatActivityBodyMaxDisplayLength + 1);
 
@@ -354,11 +378,13 @@ suite('ChatSession', () => {
       kind: 'pi',
       title: 'Large Pi event',
       status: 'info',
+      argumentsBody: longArgumentsBody,
       body: longBody,
       expandedBody: longExpandedBody
     });
 
     const activity = session.snapshot().messages[1].activities![0];
+    assert.strictEqual(activity.argumentsBody, truncateForTest(longArgumentsBody));
     assert.strictEqual(activity.body, truncateForTest(longBody));
     assert.strictEqual(activity.expandedBody, truncateForTest(longExpandedBody));
   });

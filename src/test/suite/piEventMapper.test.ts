@@ -466,10 +466,40 @@ suite('Pi event mapper', () => {
         activity: {
           kind: 'tool_execution',
           title: 'MCP · github.search_issues { "query": "bug" }',
-          status: 'running'
+          status: 'running',
+          argumentsBody: '{\n  "query": "bug"\n}'
         }
       }
     );
+  });
+
+  test('mapPiActivity preserves full custom tool arguments behind a concise title', () => {
+    const code = `set -eu\n${'echo long-command\n'.repeat(20)}`;
+
+    const action = mapPiActivity({
+      type: 'tool_execution_start',
+      toolCallId: 'call-context-mode',
+      toolName: 'ctx_execute',
+      args: {
+        language: 'shell',
+        timeout: 240000,
+        code
+      }
+    }, { fullCommunication: false });
+
+    assert.strictEqual(action.type, 'activity_update');
+
+    if (action.type !== 'activity_update') {
+      return;
+    }
+
+    assert.ok(action.activity.title.startsWith('ctx_execute { "language": "shell"'));
+    assert.ok(action.activity.title.endsWith('...'));
+    assert.strictEqual(action.activity.argumentsBody, JSON.stringify({
+      language: 'shell',
+      timeout: 240000,
+      code
+    }, null, 2));
   });
 
   test('mapPiActivity omits expanded body for running bash output previews', () => {
