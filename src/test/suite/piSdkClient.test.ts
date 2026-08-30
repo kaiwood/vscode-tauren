@@ -33,6 +33,24 @@ suite('PiSdkClient', () => {
     }
   });
 
+  test('preserves an inherited PI_PACKAGE_DIR override', async () => {
+    const previousPackageDir = process.env.PI_PACKAGE_DIR;
+    process.env.PI_PACKAGE_DIR = '/external/pi-package';
+    resetPiSdkLoaderForTests();
+
+    try {
+      await loadPiSdk();
+      assert.strictEqual(process.env.PI_PACKAGE_DIR, '/external/pi-package');
+    } finally {
+      if (previousPackageDir === undefined) {
+        delete process.env.PI_PACKAGE_DIR;
+      } else {
+        process.env.PI_PACKAGE_DIR = previousPackageDir;
+      }
+      resetPiSdkLoaderForTests();
+    }
+  });
+
   test('loads bundled Codex OAuth flows for stored credentials', async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tauren-pi-auth-'));
     const authPath = path.join(directory, 'auth.json');

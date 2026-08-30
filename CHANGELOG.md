@@ -8,11 +8,13 @@
 - Show all Pi-known models for authenticated providers in Tauren's model controls so newly bundled models appear without Tauren allowlist updates.
 - Updated the bundled Pi SDK to 0.80.10 and migrated Tauren's model and authentication bridge to Pi's ModelRuntime API.
 - Bundled the Pi SDK runtime inside `resources/pi-sdk-runtime` so Pi resolves its own package assets without setting `PI_PACKAGE_DIR` in the extension-host process (avoids leaking the override to `pi` spawned via the bash tool).
+- Preserve a user-provided `PI_PACKAGE_DIR` for standalone Pi invocations while using the bundled runtime by default.
 
 ### Fixed
 
 - Open file-path Markdown links in the transcript, including line, column, and line-range references.
 - Keep Pi SDK peer-runtime verification aligned with the packaged runtime layout.
+- Remove legacy SDK build artifacts before packaging incremental builds.
 - Show Pi provider errors, including Codex transport failures, in the transcript.
 - Bundle Pi OAuth flows so stored Codex credentials can resolve in Tauren.
 - Support Pi's `max` thinking level in Tauren controls.

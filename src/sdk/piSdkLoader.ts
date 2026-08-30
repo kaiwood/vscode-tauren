@@ -9,6 +9,7 @@ type ESMImport = (specifier: string) => Promise<PiSdkModule>;
 const importEsm = new Function('specifier', 'return import(specifier);') as ESMImport;
 // The bundle lives inside the packaged runtime so Pi's getPackageDir() walk-up finds
 // resources/pi-sdk-runtime/package.json without any PI_PACKAGE_DIR process-wide override.
+// Do not mutate PI_PACKAGE_DIR; standalone Pi invocations retain the host override.
 const bundledSdkPath = path.resolve(__dirname, '..', '..', 'resources', 'pi-sdk-runtime', 'sdk', 'piSdkBundle.mjs');
 let piSdkModulePromise: Promise<PiSdkModule> | undefined;
 
