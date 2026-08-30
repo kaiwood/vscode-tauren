@@ -12,6 +12,7 @@
 ### Fixed
 
 - Open file-path Markdown links in the transcript, including line, column, and line-range references.
+- Keep Pi SDK peer-runtime verification aligned with the packaged runtime layout.
 - Show Pi provider errors, including Codex transport failures, in the transcript.
 - Bundle Pi OAuth flows so stored Codex credentials can resolve in Tauren.
 - Support Pi's `max` thinking level in Tauren controls.
