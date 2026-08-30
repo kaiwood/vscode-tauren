@@ -352,9 +352,28 @@ export class MessageListController {
 
     const externalLink = target?.closest('a[href]');
 
-    if (externalLink instanceof HTMLAnchorElement && isHttpUrl(externalLink.href)) {
-      event.preventDefault();
-      this.options.postMessage({ type: 'openExternal', url: externalLink.href });
+    if (externalLink instanceof HTMLAnchorElement) {
+      if (isHttpUrl(externalLink.href)) {
+        event.preventDefault();
+        this.options.postMessage({ type: 'openExternal', url: externalLink.href });
+      } else {
+        // handle file links
+        // `externalLink.href` will polute with `vcode-webview://`,
+        // thus we're retrieving the raw href attr instead
+        const raw = externalLink.getAttribute('href');
+        if (raw) {
+          const ref = parseFilePathReference(raw);
+          if (ref) {
+            event.preventDefault();
+            this.options.postMessage({
+              type: 'openFile',
+              path: ref.path,
+              ...ref.line !== undefined ? { line: ref.line } : {},
+              ...ref.column !== undefined ? { column: ref.column } : {}
+            });
+          }
+        }
+      }
     }
   }
 
@@ -882,6 +901,56 @@ function parseDatasetPositiveInteger(value: string | undefined, key: 'line' | 'c
   }
 
   return key === 'line' ? { line: numberValue } : { column: numberValue };
+}
+
+function parseFilePathReference(raw: string): { path: string; line?: number; column?: number } | undefined {
+  // path              → { path }
+  // path:line         → { path, line }
+  // path:line:column  → { path, line, column }
+  // path:start-end    → { path, line: start }  (range collapses to leftmost number)
+
+  // Split on ':' and consume trailing line/column segments from the right.
+  const segments = raw.split(':');
+  let line: number | undefined;
+  let column: number | undefined;
+  const tail: number[] = [];
+
+  while (segments.length > 1 && tail.length < 2) {
+    const segment = segments[segments.length - 1];
+    const trimmed = segment.trim();
+
+    // A range like "1-10" — take only the leftmost number as the line, then stop.
+    const rangeMatch = /^(\d+)-\d+$/.exec(trimmed);
+    if (rangeMatch) {
+      tail.push(Number(rangeMatch[1]));
+      segments.pop();
+      break;
+    }
+
+    // A plain positive integer — collect as line or column.
+    if (/^\d+$/.test(trimmed) && Number(trimmed) > 0) {
+      tail.push(Number(trimmed));
+      segments.pop();
+    } else {
+      break;
+    }
+  }
+
+  // Rejoin remaining segments so Windows paths ("C:") and literal colons survive.
+  const path = segments.join(':').trim();
+  if (!path) {
+    return undefined;
+  }
+
+  // Tail is right-to-left: first pop is column (if two), second is line.
+  if (tail.length === 1) {
+    line = tail[0];
+  } else if (tail.length === 2) {
+    column = tail[0];
+    line = tail[1];
+  }
+
+  return { path, line, column };
 }
 
 function parseDatasetInteger(value: string | undefined): number | undefined {
