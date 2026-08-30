@@ -10,6 +10,7 @@
 
 ### Fixed
 
+- Report Pi extension load failures in a dedicated Tauren Extensions output channel.
 - Show Pi provider errors, including Codex transport failures, in the transcript.
 - Bundle Pi OAuth flows so stored Codex credentials can resolve in Tauren.
 - Support Pi's `max` thinking level in Tauren controls.
