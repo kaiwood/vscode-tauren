@@ -13,6 +13,7 @@
       "outFiles": [
         "${workspaceFolder}/out/**/*.js"
       ],
+      "debugWebviews": true,
       "preLaunchTask": "npm: compile"
     }
   ]
