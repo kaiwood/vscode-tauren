@@ -13,10 +13,7 @@ export type { ListPiSessionsOptions, PiSessionCandidate, SessionListItem } from 
 
 const piSessionDirEnvName = 'PI_CODING_AGENT_SESSION_DIR';
 const maxConcurrentSessionFileReads = 8;
-const maxCachedSessionInfos = 5000;
 const sessionListProgressBatchSize = 50;
-
-const sessionInfoCache = new Map<string, { mtimeMs: number; size: number; session: RawSessionInfo }>();
 
 type SessionFileStats = {
   path: string;
@@ -285,21 +282,9 @@ async function buildSessionCandidate(filePath: string): Promise<PiSessionCandida
 async function buildSessionInfo(filePath: string, knownStats?: Stats): Promise<RawSessionInfo | undefined> {
   try {
     const stats = knownStats ?? await stat(filePath);
-    const cached = getCachedSessionInfo(filePath, stats);
-
-    if (cached) {
-      return markSessionMetadataReady(cached);
-    }
-
     const session = await readSessionSummary(filePath, stats);
 
-    if (!session) {
-      return undefined;
-    }
-
-    const readySession = markSessionMetadataReady(session);
-    rememberSessionInfo(filePath, stats, readySession);
-    return readySession;
+    return session ? markSessionMetadataReady(session) : undefined;
   } catch {
     return undefined;
   }
@@ -378,18 +363,6 @@ async function parseSessionInfoFiles(
   await Promise.all(Array.from({ length: workerCount }, worker));
 }
 
-function getCachedSessionInfo(filePath: string, stats: Stats): RawSessionInfo | undefined {
-  const cached = sessionInfoCache.get(filePath);
-
-  if (!cached || cached.mtimeMs !== stats.mtimeMs || cached.size !== stats.size) {
-    return undefined;
-  }
-
-  sessionInfoCache.delete(filePath);
-  sessionInfoCache.set(filePath, cached);
-  return { ...cached.session };
-}
-
 function markSessionMetadataReady(session: RawSessionInfo): RawSessionInfo {
   return { ...session, metadataState: 'ready' };
 }
@@ -401,26 +374,4 @@ function parseDate(value: unknown, fallback: Date): Date {
 
   const time = new Date(value).getTime();
   return Number.isNaN(time) ? fallback : new Date(time);
-}
-
-function rememberSessionInfo(filePath: string, stats: Stats, session: RawSessionInfo): void {
-  if (sessionInfoCache.has(filePath)) {
-    sessionInfoCache.delete(filePath);
-  }
-
-  sessionInfoCache.set(filePath, {
-    mtimeMs: stats.mtimeMs,
-    size: stats.size,
-    session: { ...session }
-  });
-
-  if (sessionInfoCache.size <= maxCachedSessionInfos) {
-    return;
-  }
-
-  const oldestKey = sessionInfoCache.keys().next().value;
-
-  if (typeof oldestKey === 'string') {
-    sessionInfoCache.delete(oldestKey);
-  }
 }

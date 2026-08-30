@@ -30,8 +30,8 @@ node_modules/**/*.d.ts
 node_modules/**/*.d.mts
 node_modules/**/*.d.cts
 
-# SDK source dependency is bundled into out/sdk/piSdkBundle.mjs.
-# Generated peer shims under out/sdk/node_modules are required at runtime.
+# SDK source dependency is bundled into resources/pi-sdk-runtime/sdk/piSdkBundle.mjs.
+# Generated peer shims under resources/pi-sdk-runtime/sdk/node_modules are required at runtime.
 node_modules/@earendil-works/pi-coding-agent/**
 
 # Documentation/demo captures are not needed at runtime

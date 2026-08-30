@@ -64,6 +64,7 @@ async function main() {
     format: 'iife',
     target: 'es2022',
     outfile: 'resources/webview/chat.js',
+    sourcemap: process.env.TAUREN_WEBVIEW_SOURCEMAP === '1' ? 'inline' : false,
     logLevel: 'info'
   });
   await esbuildContext.watch();

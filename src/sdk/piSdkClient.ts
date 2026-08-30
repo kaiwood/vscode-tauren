@@ -52,6 +52,7 @@ export type PiSdkClientOptions = PiClientOptions & {
   loadSdk?: PiSdkLoader;
   showNotification?: (message: string, notifyType: string) => void;
   rejectEditWriteOutsideWorkspace?: boolean | (() => boolean);
+  onExtensionLoadError?: (path: string, error: string) => void;
 };
 
 export class PiSdkClient implements PiClient {
@@ -292,7 +293,11 @@ export class PiSdkClient implements PiClient {
       });
     }
 
-    const extensions = resourceLoader.getExtensions().extensions.map((extension) => ({
+    const extensionResult = resourceLoader.getExtensions();
+    for (const { path, error } of extensionResult.errors) {
+      this.options.onExtensionLoadError?.(path, error);
+    }
+    const extensions = extensionResult.extensions.map((extension) => ({
       path: extension.path,
       sourceInfo: extension.sourceInfo
     }));

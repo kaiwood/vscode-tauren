@@ -69,7 +69,7 @@ For Pi SDK docs, prefer local package docs before web links:
 
 ## Packaging / Dependencies
 
-- `@earendil-works/pi-coding-agent` is a build-time `devDependency`; bundled runtime assets are generated into `resources/pi-sdk-runtime` and `out/sdk/piSdkBundle.mjs`.
+- `@earendil-works/pi-coding-agent` is a build-time `devDependency`; bundled runtime assets are generated into `resources/pi-sdk-runtime`, including the SDK bundle at `resources/pi-sdk-runtime/sdk/piSdkBundle.mjs` and its peer shims under `resources/pi-sdk-runtime/sdk/node_modules`.
 - Shiki and `vscode-shiki-bridge` are runtime dependencies because highlighting runs in the extension host.
 - `.vscodeignore` must not exclude runtime dependencies needed by the packaged VSIX.
 - Browser-only libraries should not become runtime dependencies unless extension-host code imports them.
