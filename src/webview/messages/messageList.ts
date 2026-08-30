@@ -291,6 +291,19 @@ export class MessageListController {
       return;
     }
 
+    const commandCopyButton = target?.closest('[data-copy-command]');
+
+    if (commandCopyButton instanceof HTMLElement) {
+      const text = commandCopyButton.dataset.copyCommand ?? '';
+
+      if (text) {
+        event.preventDefault();
+        this.options.postMessage({ type: 'copyText', text, successMessage: 'Copied command.' });
+      }
+
+      return;
+    }
+
     const pathCopyButton = target?.closest('[data-copy-path]');
 
     if (pathCopyButton instanceof HTMLElement) {

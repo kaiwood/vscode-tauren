@@ -94,6 +94,7 @@ export function formatToolExecutionActivity({
     title: display.title,
     status,
     ...(display.summary ? { summary: display.summary } : {}),
+    ...(display.command ? { command: display.command } : {}),
     ...(preview ? { body: preview.body, ...(preview.expandedBody ? { expandedBody: preview.expandedBody } : {}), code: rendered?.code ?? true } : {}),
     ...(images.length > 0 ? { images } : {}),
     ...(fileReference ? { fileReference } : {})
@@ -565,7 +566,7 @@ function getRenderedTool(event: PiEvent): PiRenderedContent | undefined {
   };
 }
 
-function formatToolExecutionDisplay(input: { toolName?: string; args?: unknown; metadata?: unknown }): { toolName: string; title: string; summary?: string } {
+function formatToolExecutionDisplay(input: { toolName?: string; args?: unknown; metadata?: unknown }): { toolName: string; title: string; summary?: string; command?: string } {
   const toolName = input.toolName || 'tool';
   const args = isRecord(input.args) ? input.args : undefined;
   const metadata = isRecord(input.metadata) ? input.metadata : {};
@@ -589,7 +590,8 @@ function formatToolExecutionDisplay(input: { toolName?: string; args?: unknown; 
     return {
       toolName,
       title: command ? `$ ${compactOneLine(command, 140)}${timeoutLabel}` : '$ bash',
-      summary: command && command.includes('\n') ? compactOneLine(command, 180) : undefined
+      summary: command && command.includes('\n') ? compactOneLine(command, 180) : undefined,
+      ...(command ? { command } : {})
     };
   }
 

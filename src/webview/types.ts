@@ -60,6 +60,7 @@ export type Activity = {
   body?: string;
   expandedBody?: string;
   summary?: string;
+  command?: string;
   code?: boolean;
   images?: ChatImage[];
 };

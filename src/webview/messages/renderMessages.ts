@@ -1,3 +1,4 @@
+import { getBashActivityCommand, getFileActivityPath, getReadActivityPath } from './activityActions';
 import { containsAnsiEscape, renderAnsiSpinnersInto, renderAnsiTextInto } from './ansi';
 import { createIconActionButton } from './actionButtons';
 import { renderHighlightedCodeInto, renderMarkdownInto, type RenderMarkdownOptions } from './markdown';
@@ -440,6 +441,7 @@ function getActivityRenderSignature(activity: Activity, messageIndex: number | u
     activity.status ?? '',
     activity.title ?? '',
     activity.summary ?? '',
+    activity.command ?? '',
     activity.body ?? '',
     activity.expandedBody ?? '',
     activity.code ? 'code' : '',
@@ -548,9 +550,10 @@ function createActivityElement(activity: Activity, messageIndex: number | undefi
     const copyBodyText = activity.title === 'Branch summary' && typeof activity.expandedBody === 'string'
       ? activity.expandedBody
       : bodyText;
-    const filePath = getReadActivityPath(activity, bodyText);
-    const bodyWrap = activity.code || bodyToggle || overflowToggle || filePath
-      ? createActivityBodyWrap(body, bodyText, filePath, bodyToggle, overflowToggle, copyBodyText)
+    const filePath = getFileActivityPath(activity);
+    const bashCommand = getBashActivityCommand(activity);
+    const bodyWrap = activity.code || bodyToggle || overflowToggle || filePath || bashCommand
+      ? createActivityBodyWrap(body, bodyText, filePath, bashCommand, bodyToggle, overflowToggle, copyBodyText)
       : body;
 
     details.append(bodyWrap);
@@ -571,6 +574,7 @@ function createActivityBodyWrap(
   body: HTMLElement,
   bodyText: string,
   filePath: string | undefined,
+  command: string | undefined,
   bodyToggle: ActivityBodyToggle | undefined,
   overflowToggle: ActivityBodyToggle | undefined,
   copyText: string = bodyText
@@ -584,6 +588,12 @@ function createActivityBodyWrap(
   const copyOutput = createIconActionButton('activity__body-action', 'Copy output');
   copyOutput.dataset.copyActivityOutput = copyText;
   actions.append(copyOutput);
+
+  if (command) {
+    const copyCommand = createIconActionButton('activity__body-action', 'Copy command');
+    copyCommand.dataset.copyCommand = command;
+    actions.append(copyCommand);
+  }
 
   if (filePath) {
     const openFile = document.createElement('button');
@@ -628,7 +638,7 @@ function renderCodeActivityBody(
   options: { bodyExpanded: boolean; messageIndex: number | undefined; outputColors: boolean; animationsEnabled: boolean }
 ): ActivityBodyToggle | undefined {
   const activityId = typeof activity.id === 'string' ? activity.id : '';
-  const filePath = getReadActivityPath(activity, bodyText);
+  const filePath = getReadActivityPath(activity);
   const hasExpandedToggle = Boolean(options.bodyExpanded && activityId);
   const marker = !options.bodyExpanded && activityId && typeof activity.expandedBody === 'string'
     ? findTruncationMarker(bodyText)
@@ -660,14 +670,6 @@ function renderCodeActivityBody(
   }
 
   return undefined;
-}
-
-function getReadActivityPath(activity: Activity, bodyText: string): string | undefined {
-  if (activity.kind !== 'tool_execution' || typeof activity.title !== 'string' || containsAnsiEscape(bodyText)) {
-    return undefined;
-  }
-
-  return parseReadActivityPath(activity.title);
 }
 
 function renderHighlightedActivityCodeInto(
@@ -786,11 +788,6 @@ function createActivityBodyToggle({
   }
 
   return button;
-}
-
-function parseReadActivityPath(title: string): string | undefined {
-  const match = title.match(/^read\s+(.+?)(?::\d+(?:-\d+)?)?$/);
-  return match?.[1];
 }
 
 function shouldKeepActivityOpen(activity: Activity): boolean {

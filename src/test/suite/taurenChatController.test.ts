@@ -502,6 +502,7 @@ suite('TaurenChatController', () => {
             kind: 'tool_execution',
             title: '$ echo hidden',
             status: 'completed',
+            command: 'echo hidden',
             body: 'hidden tool output',
             code: true
           }
