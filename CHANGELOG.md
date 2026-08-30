@@ -12,6 +12,7 @@
 
 ### Fixed
 
+- Report Pi extension load failures in a dedicated Tauren Extensions output channel.
 - Open file-path Markdown links in the transcript, including line, column, and line-range references.
 - Keep Pi SDK peer-runtime verification aligned with the packaged runtime layout.
 - Remove legacy SDK build artifacts before packaging incremental builds.
