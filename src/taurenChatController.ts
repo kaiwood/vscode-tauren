@@ -143,6 +143,7 @@ export class TaurenChatController {
       postState: () => this.postState(),
       scheduleState: () => this.statePublisher.schedule(),
       isActiveSession: () => this.options.isActiveSession?.() ?? true,
+      isChatVisible: () => this.navigation.lane === 'chat' && this.navigation.chatFace === 'main',
       refreshSessionDiffStats: () => void this.refreshSessionDiffStats(),
       refreshContextUsage: () => void this.refreshContextUsage({ silent: true }),
       refreshModelCatalog: () => void this.refreshSessionMeta({ startClient: true, force: true }),
