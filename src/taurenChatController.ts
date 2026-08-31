@@ -146,7 +146,13 @@ export class TaurenChatController {
       refreshSessionDiffStats: () => void this.refreshSessionDiffStats(),
       refreshContextUsage: () => void this.refreshContextUsage({ silent: true }),
       refreshModelCatalog: () => void this.refreshSessionMeta({ startClient: true, force: true }),
-      addToolExecution: (event) => this.sessionDiffController.addToolExecution(event),
+      captureBeforeToolExecution: (event) => {
+        void this.options.captureBeforeProposedEditDiff?.(event);
+      },
+      addToolExecution: (event) => {
+        this.sessionDiffController.addToolExecution(event);
+        void this.options.showProposedEditDiff?.(event);
+      },
       armQueuedReadyScriptRun: () => this.armQueuedReadyScriptRun(),
       runReadyScriptAfterAgentEnd: () => {
         if (this.readyScriptState.consumeCurrentRun()) {

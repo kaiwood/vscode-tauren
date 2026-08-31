@@ -27,6 +27,7 @@ export type AgentRuntimeEventHandlerOptions = {
   refreshSessionDiffStats: () => void;
   refreshContextUsage: () => void;
   refreshModelCatalog: () => void;
+  captureBeforeToolExecution?: (event: AgentRuntimeEvent) => void;
   addToolExecution: (event: AgentRuntimeEvent) => void;
   armQueuedReadyScriptRun: () => void;
   runReadyScriptAfterAgentEnd: () => void;
@@ -121,6 +122,7 @@ export class AgentRuntimeEventHandler {
         break;
       case 'tool_execution_start':
         this.applyPiActivity(event);
+        this.options.captureBeforeToolExecution?.(this.enrichLiveToolExecutionEvent(event));
         this.options.postState();
         break;
       case 'tool_execution_update':
