@@ -478,7 +478,7 @@ export class VoiceController implements vscode.Disposable {
       this.lastError = undefined;
       const normalizedTranscript = normalizeHandsFreeTranscript(transcript);
       if (normalizedTranscript) {
-        await this.options.onTranscript(normalizedTranscript, 'insert');
+        await this.options.onTranscript(normalizedTranscript, context.transcriptAction);
       }
     } catch (error) {
       this.lastError = getErrorMessage(error);
