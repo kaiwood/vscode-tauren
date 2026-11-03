@@ -37,6 +37,8 @@ type ActiveRecording = {
   maxDurationTimer?: NodeJS.Timeout;
 };
 
+const whisperInitialPrompt = 'We are discussing software development in German and English. Technical terms include: git commit, commit, commit message, git push, git pull, git rebase, git checkout, git diff, GitHub, pull request, branch, repository, refactor, TypeScript, JavaScript, Ruby, Python, VSCode, Kward, Tauren, Claude, Codex, OpenAI, API, MCP, JSON, CLI, TUI, RPC, debugging, deployment, tokens, embeddings, RAG.';
+
 type TranscriptionContext = {
   modelId: VoiceModelId;
   modelPath: string;
@@ -532,7 +534,7 @@ export class VoiceController implements vscode.Disposable {
       throw new Error(`Voice model ${context.modelId} is no longer available. Download it again before using voice input.`);
     }
 
-    const args = ['-m', context.modelPath, '-f', audioFile, '-nt', '-l', context.language, '-nf', '-sns', '-nth', '0.5'];
+    const args = ['-m', context.modelPath, '-f', audioFile, '-nt', '-l', context.language, '--prompt', whisperInitialPrompt, '-nf', '-sns', '-nth', '0.5'];
 
     return new Promise((resolve, reject) => {
       const child = spawn(executable, args, { stdio: ['ignore', 'pipe', 'pipe'] });

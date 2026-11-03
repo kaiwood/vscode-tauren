@@ -4,6 +4,7 @@
 
 ### Changed
 
+- Provide whisper.cpp with a German-English software-development vocabulary prompt to improve transcription of technical terms such as “git commit.”
 - Made the `/reload` progress message neutral for both Pi and Kward backends.
 - Show all Pi-known models for authenticated providers in Tauren's model controls so newly bundled models appear without Tauren allowlist updates.
 - Updated the bundled Pi SDK to 0.80.10 and migrated Tauren's model and authentication bridge to Pi's ModelRuntime API.
