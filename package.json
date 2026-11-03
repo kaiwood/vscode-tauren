@@ -239,6 +239,18 @@
         "command": "tauren.showDiagnostics",
         "title": "Show Diagnostics",
         "category": "Tauren"
+      },
+      {
+        "command": "tauren.acceptProposedEdit",
+        "title": "Accept AI Suggestion",
+        "category": "Tauren",
+        "icon": "$(check)"
+      },
+      {
+        "command": "tauren.rejectProposedEdit",
+        "title": "Reject AI Suggestion",
+        "category": "Tauren",
+        "icon": "$(close)"
       }
     ],
     "viewsContainers": {
@@ -261,6 +273,18 @@
       ]
     },
     "menus": {
+      "editor/title": [
+        {
+          "command": "tauren.acceptProposedEdit",
+          "when": "resourceScheme == tauren-proposed",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tauren.rejectProposedEdit",
+          "when": "resourceScheme == tauren-proposed",
+          "group": "navigation@2"
+        }
+      ],
       "editor/context": [
         {
           "command": "tauren.addContext",

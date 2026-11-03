@@ -1,7 +1,25 @@
 import * as vscode from 'vscode';
 import { taurenChatViewType, TaurenChatViewProvider } from './taurenChatViewProvider';
+import { ProposedOriginalProvider, ProposedEditProvider, proposedOriginalScheme, proposedEditScheme } from './diff/proposedEditProvider';
+import { ProposedEditDiffService } from './diff/proposedEditDiff';
 
 export function activate(context: vscode.ExtensionContext): void {
+  const proposedOriginalProvider = new ProposedOriginalProvider();
+  const proposedEditProvider = new ProposedEditProvider();
+  const proposedEditDiffService = new ProposedEditDiffService(
+    proposedOriginalProvider,
+    proposedEditProvider,
+    () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+    { onReject: (absolutePath) => provider.notifyProposedEditRejected(absolutePath) }
+  );
+
+  context.subscriptions.push(
+    proposedOriginalProvider,
+    proposedEditProvider,
+    vscode.workspace.registerTextDocumentContentProvider(proposedOriginalScheme, proposedOriginalProvider),
+    vscode.workspace.registerFileSystemProvider(proposedEditScheme, proposedEditProvider, { isCaseSensitive: true })
+  );
+
   const provider = new TaurenChatViewProvider(
     context.extensionUri,
     undefined,
@@ -10,7 +28,8 @@ export function activate(context: vscode.ExtensionContext): void {
     undefined,
     context.extensionMode === vscode.ExtensionMode.Development,
     context.storageUri ?? context.globalStorageUri,
-    context.globalStorageUri
+    context.globalStorageUri,
+    proposedEditDiffService
   );
 
   context.subscriptions.push(
@@ -56,7 +75,21 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('tauren.addContext', () => provider.addContext()),
     vscode.commands.registerCommand('tauren.sendSelectionToComposer', () => provider.sendSelectionToComposer()),
     vscode.commands.registerCommand('tauren.traceOrigin', () => provider.traceOrigin()),
-    vscode.commands.registerCommand('tauren.showDiagnostics', () => provider.showDiagnostics())
+    vscode.commands.registerCommand('tauren.showDiagnostics', () => provider.showDiagnostics()),
+    vscode.commands.registerCommand('tauren.acceptProposedEdit', () => {
+      const uri = vscode.window.activeTextEditor?.document.uri;
+      if (uri?.scheme === proposedEditScheme) {
+        const absolutePath = decodeURIComponent(uri.path);
+        void proposedEditDiffService.acceptPendingEdit(absolutePath);
+      }
+    }),
+    vscode.commands.registerCommand('tauren.rejectProposedEdit', () => {
+      const uri = vscode.window.activeTextEditor?.document.uri;
+      if (uri?.scheme === proposedEditScheme) {
+        const absolutePath = decodeURIComponent(uri.path);
+        void proposedEditDiffService.rejectPendingEdit(absolutePath);
+      }
+    })
   );
 }
 
