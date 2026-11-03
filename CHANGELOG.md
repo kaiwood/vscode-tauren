@@ -13,8 +13,9 @@
 
 ### Fixed
 
+- Reduce hands-free transcription of non-speech noise by tightening whisper.cpp's no-speech decoding behavior.
+- Increase the default hands-free silence wait to 3 seconds and add a 4-second option for longer pauses.
 - Honor the voice transcript action setting in hands-free mode, including submitting transcripts after transcription.
-- Reduce premature hands-free utterance finalization by raising the default silence stop to 2 seconds and adding 2.5- and 3-second options.
 - Dock normal Pi Custom UI Surfaces in place of the Composer so permission prompts no longer cover Transcript Entries, while preserving explicitly requested overlays.
 - Let custom Pi tool entries reveal their complete arguments separately from tool output.
 - Report Pi extension load failures in a dedicated Tauren Extensions output channel.

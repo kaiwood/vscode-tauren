@@ -532,7 +532,7 @@ export class VoiceController implements vscode.Disposable {
       throw new Error(`Voice model ${context.modelId} is no longer available. Download it again before using voice input.`);
     }
 
-    const args = ['-m', context.modelPath, '-f', audioFile, '-nt', '-l', context.language];
+    const args = ['-m', context.modelPath, '-f', audioFile, '-nt', '-l', context.language, '-nf', '-sns', '-nth', '0.5'];
 
     return new Promise((resolve, reject) => {
       const child = spawn(executable, args, { stdio: ['ignore', 'pipe', 'pipe'] });
