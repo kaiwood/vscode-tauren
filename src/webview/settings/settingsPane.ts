@@ -307,6 +307,8 @@ export class SettingsPaneController {
     }
 
     const section = settingsSections.find((item) => item.id === sectionId) ?? settingsSections[0];
+    const previousPanel = this.options.settingsBodyElement.querySelector<HTMLElement>('.settings-surface__panel');
+    const scrollTop = previousPanel?.getAttribute('aria-label') === section.title ? previousPanel.scrollTop : 0;
     const nav = document.createElement('nav');
     nav.className = 'settings-surface__nav';
     nav.setAttribute('aria-label', 'Settings sections');
@@ -356,12 +358,9 @@ export class SettingsPaneController {
 
     panel.append(cards);
     this.options.settingsBodyElement.replaceChildren(nav, panel);
+    panel.scrollTop = scrollTop;
     this.renderedSignature = signature;
     this.syncNavState(sectionId);
-
-    if (state.chatFace === 'settings') {
-      requestAnimationFrame(() => this.focusSectionButton(sectionId));
-    }
   }
 
   private appendVoiceCards(cards: HTMLElement, state: WebviewState): void {

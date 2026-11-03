@@ -14,6 +14,7 @@
 
 ### Fixed
 
+- Keep settings scroll position during background refreshes so voice downloads do not interrupt scrolling.
 - Match Kward reasoning-effort choices to each provider and model, including Codex-specific `none` and `max` levels.
 - Reduce hands-free transcription of non-speech noise by tightening whisper.cpp's no-speech decoding behavior.
 - Increase the default hands-free silence wait to 3 seconds and add a 4-second option for longer pauses.
