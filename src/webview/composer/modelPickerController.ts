@@ -1,5 +1,6 @@
 import { getScopedModelPickerOptions } from '../scopedModels';
 import type { ModelOption, WebviewState } from '../types';
+import { getReasoningEffortOptions } from './reasoningEffortOptions';
 import { createTooltipElement } from './tooltip';
 
 type PostMessage = (message: unknown) => void;
@@ -18,6 +19,7 @@ export type ModelPickerControllerOptions = {
 
 export class ModelPickerController {
   private modelSelectOptionsSignature = '';
+  private thinkingOptionsSignature = '';
 
   public constructor(private readonly options: ModelPickerControllerOptions) {}
 
@@ -196,7 +198,25 @@ export class ModelPickerController {
 
   private syncThinkingSelect(): void {
     const state = this.options.getState();
-    this.options.thinkingSelectElement.value = state.thinkingLevel || 'medium';
+    const options = getReasoningEffortOptions(state.modelProvider, state.modelId);
+    const signature = options.map((option) => [option.value, option.label].join('\u0000')).join('\u0001');
+
+    if (signature !== this.thinkingOptionsSignature) {
+      this.thinkingOptionsSignature = signature;
+      this.options.thinkingSelectElement.replaceChildren();
+
+      for (const option of options) {
+        const element = document.createElement('option');
+        element.value = option.value;
+        element.textContent = option.label;
+        this.options.thinkingSelectElement.append(element);
+      }
+    }
+
+    const selectedLevel = options.some((option) => option.value === state.thinkingLevel)
+      ? state.thinkingLevel
+      : options[0]?.value ?? '';
+    this.options.thinkingSelectElement.value = selectedLevel;
     this.options.thinkingSelectElement.disabled = state.busy || !state.modelReasoning;
     this.options.thinkingSelectElement.title = state.modelReasoning
       ? 'Thinking mode'

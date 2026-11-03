@@ -13,6 +13,7 @@
 
 ### Fixed
 
+- Match Kward reasoning-effort choices to each provider and model, including Codex-specific `none` and `max` levels.
 - Reduce hands-free transcription of non-speech noise by tightening whisper.cpp's no-speech decoding behavior.
 - Increase the default hands-free silence wait to 3 seconds and add a 4-second option for longer pauses.
 - Honor the voice transcript action setting in hands-free mode, including submitting transcripts after transcription.
