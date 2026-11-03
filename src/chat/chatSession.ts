@@ -48,12 +48,18 @@ export type ChatActivity = {
 export type ChatActivityInput = Omit<ChatActivity, 'id'>;
 export type ChatActivityBodyMode = 'replace' | 'append';
 
+export type ChatTurnStats = {
+  elapsedMs?: number;
+  totalTokens?: number;
+};
+
 export type ChatMessage = {
   role: 'user' | 'assistant' | 'system';
   text: string;
   error?: boolean;
   variant?: 'thinking' | 'branchSummary' | 'compactionSummary';
   assistantLabel?: string;
+  turnStats?: ChatTurnStats;
   images?: ChatImage[];
   activities?: ChatActivity[];
 };
@@ -270,6 +276,12 @@ export class ChatSession {
       : trimmedMessage;
     this.touchMessage(this.transcript[index]);
     return true;
+  }
+
+  public setActiveAssistantTurnStats(turnStats: ChatTurnStats): void {
+    const index = this.ensureActiveAssistantMessage();
+    this.transcript[index].turnStats = { ...turnStats };
+    this.touchMessage(this.transcript[index]);
   }
 
   public addActivity(activity: ChatActivityInput): string {

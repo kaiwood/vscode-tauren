@@ -167,6 +167,28 @@ suite('Kward event mapper', () => {
     assert.deepStrictEqual(mapKwardTurnEvent({ type: 'turnFinished', payload: { status: 'completed' } }), { type: 'agent_end' });
   });
 
+  test('maps Kward turn summaries to normalized duration and token usage', () => {
+    assert.deepStrictEqual(mapKwardTurnEvent({
+      type: 'turnSummary',
+      payload: {
+        summary: {
+          status: 'completed',
+          elapsedMs: 1250,
+          usageStatus: 'complete',
+          usage: { total_tokens: 1234, input_tokens: 900, output_tokens: 334, estimated: false }
+        }
+      }
+    }), {
+      type: 'turn_summary',
+      summary: {
+        status: 'completed',
+        elapsedMs: 1250,
+        usageStatus: 'complete',
+        usage: { total_tokens: 1234, input_tokens: 900, output_tokens: 334, estimated: false }
+      }
+    });
+  });
+
   test('maps non-streaming Kward turn metadata events without changing transcript text', () => {
     assert.deepStrictEqual(
       mapKwardTurnEvent({ type: 'assistantMessage', payload: { message: { role: 'assistant', content: 'Final answer' } } }),

@@ -84,11 +84,68 @@ export function createMessageElement(
     article.append(body);
   }
 
-  if (canCopyAssistantMessage(message) && typeof messageIndex === 'number') {
-    article.append(createCopyButtonElement(messageIndex));
-  }
+  updateMessageFooterElement(article, message, messageIndex);
 
   return article;
+}
+
+export function updateMessageFooterElement(article: HTMLElement, message: ChatMessage, messageIndex: number | undefined): void {
+  const canCopy = canCopyAssistantMessage(message) && typeof messageIndex === 'number';
+  const hasStats = message.role === 'assistant' && message.turnStats !== undefined;
+  const existingFooter = article.querySelector<HTMLElement>(':scope > .message__footer');
+
+  if (!canCopy && !hasStats) {
+    existingFooter?.remove();
+    return;
+  }
+
+  const footer = existingFooter ?? document.createElement('div');
+  footer.className = 'message__footer';
+
+  let stats = footer.querySelector<HTMLElement>('.message__turn-stats');
+  if (hasStats) {
+    stats ??= document.createElement('span');
+    stats.className = 'message__turn-stats';
+    stats.textContent = formatTurnStatsLabel(message.turnStats);
+    footer.prepend(stats);
+  } else {
+    stats?.remove();
+  }
+
+  let actions = footer.querySelector<HTMLElement>('.message__actions');
+  if (canCopy) {
+    if (!actions && typeof messageIndex === 'number') {
+      actions = createCopyButtonElement(messageIndex);
+      footer.append(actions);
+    } else {
+      const button = actions?.querySelector<HTMLElement>('.message__copy');
+      if (button && typeof messageIndex === 'number') {
+        button.dataset.copyMessageIndex = String(messageIndex);
+      }
+    }
+  } else {
+    actions?.remove();
+  }
+
+  if (!existingFooter) {
+    article.append(footer);
+  }
+}
+
+function formatTurnStatsLabel(turnStats: ChatMessage['turnStats']): string {
+  if (!turnStats) {
+    return '';
+  }
+
+  const parts: string[] = [];
+  if (typeof turnStats.elapsedMs === 'number' && turnStats.elapsedMs >= 0) {
+    const seconds = turnStats.elapsedMs / 1000;
+    parts.push(seconds < 1 ? `${Math.round(turnStats.elapsedMs)} ms` : `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)} s`);
+  }
+  if (typeof turnStats.totalTokens === 'number' && turnStats.totalTokens >= 0) {
+    parts.push(`${new Intl.NumberFormat('en-US').format(turnStats.totalTokens)} tokens`);
+  }
+  return parts.join(' · ');
 }
 
 export function updateMessageBodyElement(

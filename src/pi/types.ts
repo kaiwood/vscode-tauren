@@ -294,6 +294,7 @@ export type PiAgentMessage = {
   summary?: string;
   tokensBefore?: number;
   estimatedTokensAfter?: number;
+  turnSummary?: unknown;
   display?: unknown;
   details?: unknown;
   toolCallId?: string;

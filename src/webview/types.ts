@@ -74,6 +74,7 @@ export type ChatMessage = {
   error?: boolean;
   variant?: string;
   assistantLabel?: string;
+  turnStats?: { elapsedMs?: number; totalTokens?: number };
   images?: ChatImage[];
   activities?: Activity[];
 };

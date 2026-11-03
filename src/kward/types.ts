@@ -19,6 +19,22 @@ export type KwardTurn = {
   status?: string;
 };
 
+export type KwardTurnSummary = {
+  status?: string;
+  elapsedMs?: number;
+  modelRequests?: number;
+  toolCalls?: number;
+  usageStatus?: string;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+    cache_read_tokens?: number;
+    cache_write_tokens?: number;
+    estimated?: boolean;
+  } | null;
+};
+
 export type KwardTurnEvent = {
   sequence?: number;
   timestamp?: string;

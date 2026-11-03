@@ -7,9 +7,10 @@ import {
   type ActivityRemoveAction,
   type ActivityUpdateAction
 } from '../pi/eventMapper';
-import type { AgentRuntimeEvent } from '../agent/types';
+import type { AgentEvent, AgentRuntimeEvent, AgentTurnSummaryEvent } from '../agent/types';
 import { isAbortMessage, isMessageUpdateStart } from './errors';
 import { getRecordString, isRecord } from './typeGuards';
+import { formatTurnStats } from './transcriptFormatting';
 
 type LiveToolCall = {
   id: string;
@@ -72,7 +73,13 @@ export class AgentRuntimeEventHandler {
     this.clearBashUpdatePostTimer();
   }
 
-  public handleEvent(event: AgentRuntimeEvent): void {
+  public handleEvent(event: AgentEvent): void {
+    if (event.type === 'turn_summary') {
+      this.options.session.setActiveAssistantTurnStats(formatTurnStats((event as AgentTurnSummaryEvent).summary));
+      this.options.postState();
+      return;
+    }
+
     switch (event.type) {
       case 'agent_start':
         this.clearReadyScriptTimer();

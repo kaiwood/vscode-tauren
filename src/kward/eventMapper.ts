@@ -146,6 +146,8 @@ function mapKwardTurnEventToAgentEvent(event: KwardTurnEvent): AgentEvent | unde
           error: getString(payload, 'message') ?? getString(payload, 'error') ?? 'Kward reported an error while responding.'
         }
       };
+    case 'turnSummary':
+      return normalizeTurnSummary(payload.summary);
     case 'turnFinished':
       return { type: 'agent_end', ...(getString(payload, 'status') === 'canceled' ? { aborted: true } : {}) };
     default:
@@ -154,6 +156,32 @@ function mapKwardTurnEventToAgentEvent(event: KwardTurnEvent): AgentEvent | unde
 }
 
 export const mapKwardTurnEvent = mapKwardTurnEventToAgentEvent;
+
+function normalizeTurnSummary(value: unknown): AgentEvent | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const usage = isRecord(value.usage) ? value.usage : undefined;
+  return {
+    type: 'turn_summary',
+    summary: {
+      ...(getString(value, 'status') ? { status: getString(value, 'status') } : {}),
+      ...(getNumber(value, 'elapsedMs') !== undefined ? { elapsedMs: getNumber(value, 'elapsedMs') } : {}),
+      ...(getNumber(value, 'modelRequests') !== undefined ? { modelRequests: getNumber(value, 'modelRequests') } : {}),
+      ...(getNumber(value, 'toolCalls') !== undefined ? { toolCalls: getNumber(value, 'toolCalls') } : {}),
+      ...(getString(value, 'usageStatus') ? { usageStatus: getString(value, 'usageStatus') } : {}),
+      ...(usage ? { usage: {
+        ...(getNumber(usage, 'input_tokens') !== undefined ? { input_tokens: getNumber(usage, 'input_tokens') } : {}),
+        ...(getNumber(usage, 'output_tokens') !== undefined ? { output_tokens: getNumber(usage, 'output_tokens') } : {}),
+        ...(getNumber(usage, 'total_tokens') !== undefined ? { total_tokens: getNumber(usage, 'total_tokens') } : {}),
+        ...(getNumber(usage, 'cache_read_tokens') !== undefined ? { cache_read_tokens: getNumber(usage, 'cache_read_tokens') } : {}),
+        ...(getNumber(usage, 'cache_write_tokens') !== undefined ? { cache_write_tokens: getNumber(usage, 'cache_write_tokens') } : {}),
+        ...(typeof usage.estimated === 'boolean' ? { estimated: usage.estimated } : {})
+      } } : value.usage === null ? { usage: null } : {})
+    }
+  };
+}
 
 function createThinkingEvent(type: 'thinking_start' | 'thinking_delta' | 'thinking_end', contentIndex: number, delta?: string): AgentEvent {
   return {
@@ -265,4 +293,9 @@ function getString(record: Record<string, unknown> | undefined, key: string): st
 function getBoolean(record: Record<string, unknown> | undefined, key: string): boolean | undefined {
   const value = record?.[key];
   return typeof value === 'boolean' ? value : undefined;
+}
+
+function getNumber(record: Record<string, unknown> | undefined, key: string): number | undefined {
+  const value = record?.[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }

@@ -22,8 +22,29 @@ export type AgentQuestionRequestEvent = {
   request: AgentQuestionRequest;
 };
 
+export type AgentTurnSummary = {
+  status?: string;
+  elapsedMs?: number;
+  modelRequests?: number;
+  toolCalls?: number;
+  usageStatus?: string;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+    cache_read_tokens?: number;
+    cache_write_tokens?: number;
+    estimated?: boolean;
+  } | null;
+};
+
+export type AgentTurnSummaryEvent = {
+  type: 'turn_summary';
+  summary: AgentTurnSummary;
+};
+
 export type AgentRuntimeEvent = PiEvent;
-export type AgentEvent = AgentRuntimeEvent | AgentQuestionRequestEvent;
+export type AgentEvent = AgentRuntimeEvent | AgentQuestionRequestEvent | AgentTurnSummaryEvent;
 
 export type {
   PiAgentMessage as AgentMessage,

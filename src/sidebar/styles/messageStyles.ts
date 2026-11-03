@@ -292,10 +292,25 @@ export const messageStyles = /* css */ `    .tauren-transcript-search {
       margin-top: 8px;
     }
 
+    .message__footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .message__turn-stats {
+      min-width: 0;
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
     .message__actions {
       display: flex;
       justify-content: flex-end;
-      margin-top: 6px;
+      margin: 0;
     }
 
     .message__copy,

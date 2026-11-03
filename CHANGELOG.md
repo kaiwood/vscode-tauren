@@ -28,6 +28,7 @@
 
 ### Added
 
+- Display Kward RPC turn duration and token usage in the transcript.
 - Copy command action on bash tool output in the sidebar.
 - Open and Copy path actions on edit and write tool output in the sidebar.
 

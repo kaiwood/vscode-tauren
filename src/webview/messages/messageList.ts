@@ -5,7 +5,7 @@ import { getAgentRuntimeWorkingText } from '../../shared/agentRuntimeLabels';
 import { isHttpUrl } from '../../shared/url';
 import { pruneDisconnectedLocalImageRequests } from './markdown';
 import { shouldRenderQuietEmptyTranscript } from './renderPolicy';
-import { createMessageElement, getActivityBodyExpansion, pruneActivityRenderState, setActivityBodyExpansion, toggleActivityBodyExpansion, updateMessageActivitiesElement, updateMessageBodyElement } from './renderMessages';
+import { createMessageElement, getActivityBodyExpansion, pruneActivityRenderState, setActivityBodyExpansion, toggleActivityBodyExpansion, updateMessageActivitiesElement, updateMessageBodyElement, updateMessageFooterElement } from './renderMessages';
 import {
   createScrollFollowState,
   isScrollAtBottom,
@@ -485,6 +485,7 @@ export class MessageListController {
       }
 
       updateMessageActivitiesElement(existingView.element, message, index, renderOptions);
+      updateMessageFooterElement(existingView.element, message, index);
       pruneDisconnectedMessageRenderState();
       existingView.message = message;
       existingView.showRole = showRole;

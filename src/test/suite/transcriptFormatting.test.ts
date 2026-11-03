@@ -12,6 +12,22 @@ suite('Transcript formatting', () => {
     }]);
   });
 
+  test('restores Kward turn duration and token statistics on the assistant message', () => {
+    assert.deepStrictEqual(formatAgentMessages([{
+      role: 'assistant',
+      content: 'Done.',
+      turnSummary: {
+        elapsedMs: 1250,
+        usageStatus: 'complete',
+        usage: { total_tokens: 1234 }
+      }
+    }]), [{
+      role: 'assistant',
+      text: 'Done.',
+      turnStats: { elapsedMs: 1250, totalTokens: 1234 }
+    }]);
+  });
+
   test('preserves branch summary messages as boxed transcript variant', () => {
     assert.deepStrictEqual(formatAgentMessages([
       { role: 'branchSummary', summary: 'Summary of that exploration:\n\n## Goal\nFix PR #1.' }

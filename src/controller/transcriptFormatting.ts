@@ -1,8 +1,8 @@
-import type { ChatActivityInput, ChatMessage } from '../chat/chatSession';
+import type { ChatActivityInput, ChatMessage, ChatTurnStats } from '../chat/chatSession';
 import { formatToolExecutionActivity } from '../pi/eventMapper';
 import { extractPiMessageImages, extractPiMessageText } from '../pi/messageContent';
 import { formatCompactionSystemMessage } from '../sessions/sessionFormatting';
-import type { AgentMessage } from '../agent/types';
+import type { AgentMessage, AgentTurnSummary } from '../agent/types';
 import { isRecord } from './typeGuards';
 
 type RestoredToolCall = {
@@ -52,11 +52,13 @@ export function formatAgentMessages(messages: AgentMessage[] | undefined): ChatM
       const displayText = text || errorMessage;
 
       if (displayText.trim() || images.length > 0 || toolCalls.length > 0) {
+        const turnSummary = normalizeTurnSummary(message.turnSummary);
         const chatMessage: ChatMessage = {
           role: 'assistant',
           text: displayText,
           ...(errorMessage ? { error: true } : {}),
-          ...(images.length > 0 ? { images } : {})
+          ...(images.length > 0 ? { images } : {}),
+          ...(turnSummary ? { turnStats: formatTurnStats(turnSummary) } : {})
         };
         transcript.push(chatMessage);
         lastAssistant = chatMessage;
@@ -148,6 +150,38 @@ export function formatAgentMessages(messages: AgentMessage[] | undefined): ChatM
   }
 
   return transcript;
+}
+
+export function formatTurnStats(summary: AgentTurnSummary): ChatTurnStats {
+  return {
+    ...(typeof summary.elapsedMs === 'number' && summary.elapsedMs >= 0 ? { elapsedMs: summary.elapsedMs } : {}),
+    ...(typeof summary.usage?.total_tokens === 'number' && summary.usage.total_tokens >= 0
+      ? { totalTokens: summary.usage.total_tokens }
+      : {})
+  };
+}
+
+function normalizeTurnSummary(value: unknown): AgentTurnSummary | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const usage = isRecord(value.usage) ? value.usage : undefined;
+  return {
+    ...(typeof value.status === 'string' ? { status: value.status } : {}),
+    ...(typeof value.elapsedMs === 'number' ? { elapsedMs: value.elapsedMs } : {}),
+    ...(typeof value.modelRequests === 'number' ? { modelRequests: value.modelRequests } : {}),
+    ...(typeof value.toolCalls === 'number' ? { toolCalls: value.toolCalls } : {}),
+    ...(typeof value.usageStatus === 'string' ? { usageStatus: value.usageStatus } : {}),
+    ...(usage ? { usage: {
+      ...(typeof usage.input_tokens === 'number' ? { input_tokens: usage.input_tokens } : {}),
+      ...(typeof usage.output_tokens === 'number' ? { output_tokens: usage.output_tokens } : {}),
+      ...(typeof usage.total_tokens === 'number' ? { total_tokens: usage.total_tokens } : {}),
+      ...(typeof usage.cache_read_tokens === 'number' ? { cache_read_tokens: usage.cache_read_tokens } : {}),
+      ...(typeof usage.cache_write_tokens === 'number' ? { cache_write_tokens: usage.cache_write_tokens } : {}),
+      ...(typeof usage.estimated === 'boolean' ? { estimated: usage.estimated } : {})
+    } } : value.usage === null ? { usage: null } : {})
+  };
 }
 
 function isRenderedContent(value: unknown): value is { body: string; expandedBody?: unknown; code?: unknown } {
