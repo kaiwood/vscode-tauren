@@ -106,9 +106,9 @@ export function getVoiceHandsFreeSensitivitySetting(): VoiceHandsFreeSensitivity
 }
 
 export function getVoiceHandsFreeSilenceSecondsSetting(): number {
-  const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.handsFreeSilenceSeconds', '1.2');
+  const value = vscode.workspace.getConfiguration('tauren').get<string>('voice.handsFreeSilenceSeconds', '2');
   const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1.2;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 2;
 }
 
 export function getVoiceTranscriptActionSetting(): VoiceTranscriptAction {

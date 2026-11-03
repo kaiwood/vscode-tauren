@@ -263,7 +263,7 @@ function parseVoiceState(value: unknown): WebviewState['voice'] {
   const activationMode = value.activationMode === 'hold' ? 'hold' : 'toggle';
   const maxRecordingSeconds = typeof value.maxRecordingSeconds === 'number' ? value.maxRecordingSeconds : 60;
   const handsFreeSensitivity = value.handsFreeSensitivity === 'low' || value.handsFreeSensitivity === 'high' ? value.handsFreeSensitivity : 'normal';
-  const handsFreeSilenceSeconds = typeof value.handsFreeSilenceSeconds === 'number' ? value.handsFreeSilenceSeconds : 1.2;
+  const handsFreeSilenceSeconds = typeof value.handsFreeSilenceSeconds === 'number' ? value.handsFreeSilenceSeconds : 2;
   const audioLevel = typeof value.audioLevel === 'number' ? Math.max(0, Math.min(1, value.audioLevel)) : 0;
   const recordingStatus = value.recordingStatus === 'listening' || value.recordingStatus === 'recording' || value.recordingStatus === 'transcribing' || value.recordingStatus === 'error'
     ? value.recordingStatus

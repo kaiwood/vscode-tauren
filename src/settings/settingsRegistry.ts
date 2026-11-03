@@ -161,7 +161,9 @@ const voiceHandsFreeSilenceSecondsOptions = [
   { value: '0.8', label: '0.8 seconds' },
   { value: '1.2', label: '1.2 seconds' },
   { value: '1.5', label: '1.5 seconds' },
-  { value: '2', label: '2 seconds' }
+  { value: '2', label: '2 seconds' },
+  { value: '2.5', label: '2.5 seconds' },
+  { value: '3', label: '3 seconds' }
 ] as const satisfies readonly SettingOption[];
 
 const voiceTranscriptActionOptions = [
@@ -405,7 +407,7 @@ export const settingDefinitions = [
     description: 'Silence duration after speech before Tauren finalizes and transcribes the utterance.',
     control: 'select',
     options: voiceHandsFreeSilenceSecondsOptions,
-    defaultValue: '1.2',
+    defaultValue: '2',
     liveBehavior: 'immediate'
   },
   {

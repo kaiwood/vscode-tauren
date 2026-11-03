@@ -36,7 +36,7 @@ The **Settings pane** column shows where the same control appears inside Tauren:
 | `tauren.voice.activationMode` | Voice → Microphone action | `toggle` | Choose whether the microphone button starts/stops recording or records only while held. Options: `toggle`, `hold`. |
 | `tauren.voice.maxRecordingSeconds` | Voice → Maximum recording length | `60` | Maximum voice recording length before Tauren stops recording automatically. Options: `0`, `15`, `30`, `60`, `120`. |
 | `tauren.voice.handsFreeSensitivity` | Voice → Hands-free sensitivity | `normal` | How readily hands-free listening treats microphone input as speech. Options: `low`, `normal`, `high`. |
-| `tauren.voice.handsFreeSilenceSeconds` | Voice → Hands-free silence stop | `1.2` | Silence duration after speech before hands-free listening finalizes and transcribes the utterance. Options: `0.8`, `1.2`, `1.5`, `2`. |
+| `tauren.voice.handsFreeSilenceSeconds` | Voice → Hands-free silence stop | `2` | Silence duration after speech before hands-free listening finalizes and transcribes the utterance. Options: `0.8`, `1.2`, `1.5`, `2`, `2.5`, `3`. |
 | `tauren.voice.transcriptAction` | Voice → After transcription | `insert` | Choose whether completed voice transcripts are inserted into the Chat Input or submitted automatically. Options: `insert`, `submit`. |
 
 See [Voice Input](../guide/voice-input.md) for setup and workflows.

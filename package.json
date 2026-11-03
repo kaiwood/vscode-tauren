@@ -631,18 +631,22 @@
         },
         "tauren.voice.handsFreeSilenceSeconds": {
           "type": "string",
-          "default": "1.2",
+          "default": "2",
           "enum": [
             "0.8",
             "1.2",
             "1.5",
-            "2"
+            "2",
+            "2.5",
+            "3"
           ],
           "enumDescriptions": [
             "Stop quickly after 0.8 seconds of silence.",
             "Stop after 1.2 seconds of silence.",
             "Stop after 1.5 seconds of silence.",
-            "Allow longer pauses; stop after 2 seconds of silence."
+            "Allow longer pauses; stop after 2 seconds of silence.",
+            "Allow longer pauses; stop after 2.5 seconds of silence.",
+            "Allow the longest pauses; stop after 3 seconds of silence."
           ],
           "description": "Silence duration after speech before hands-free listening finalizes and transcribes the utterance."
         },
