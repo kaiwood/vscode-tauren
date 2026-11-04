@@ -366,10 +366,7 @@ export class MessageListController {
     const externalLink = target?.closest('a[href]');
 
     if (externalLink instanceof HTMLAnchorElement) {
-      if (isHttpUrl(externalLink.href)) {
-        event.preventDefault();
-        this.options.postMessage({ type: 'openExternal', url: externalLink.href });
-      } else {
+      if (!isHttpUrl(externalLink.href)) {
         // handle file links
         // `externalLink.href` will polute with `vcode-webview://`,
         // thus we're retrieving the raw href attr instead
