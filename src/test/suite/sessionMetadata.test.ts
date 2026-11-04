@@ -120,7 +120,7 @@ suite('SessionMetadataState', () => {
       contextUsage: { tokens: 42704, contextWindow: 272000, percent: 15.7 }
     }), {
       label: '16%',
-      title: '↑83k ↓2.4k\nR468k\n$0.723 (sub)\n15.7%/272k (auto)',
+      title: '↑83k ↓2.4k\nR468k\n$0.723 (sub)\n43k/272k (auto)',
       level: 'low'
     });
 
@@ -138,7 +138,7 @@ suite('SessionMetadataState', () => {
       usingSubscription: false,
       autoCompactionEnabled: false,
       contextUsage: { tokens: 250, contextWindow: 1000 }
-    }), '↑999 ↓1.0k\nR10.0k W10k\n25.0%/1.0k');
+    }), '↑999 ↓1.0k\nR10.0k W10k\n250/1.0k');
   });
 
   test('ignores stale Kward refresh errors without clearing existing context usage', async () => {

@@ -678,14 +678,14 @@ export function formatContextStatusTooltip(stats: AgentSessionStats): string {
 
   const contextUsage = stats.contextUsage;
   if (contextUsage && typeof contextUsage.contextWindow === 'number') {
-    const rawPercent = typeof contextUsage.percent === 'number'
-      ? contextUsage.percent
-      : typeof contextUsage.tokens === 'number' && contextUsage.contextWindow > 0
-        ? (contextUsage.tokens / contextUsage.contextWindow) * 100
+    const usedTokens = typeof contextUsage.tokens === 'number'
+      ? Math.round(contextUsage.tokens)
+      : typeof contextUsage.percent === 'number' && contextUsage.contextWindow > 0
+        ? Math.round((contextUsage.percent / 100) * contextUsage.contextWindow)
         : undefined;
-    const percentDisplay = rawPercent === undefined ? '?' : `${rawPercent.toFixed(1)}%`;
+    const usedDisplay = usedTokens === undefined ? '?' : formatCompactTokens(usedTokens);
     const autoIndicator = stats.autoCompactionEnabled ? ' (auto)' : '';
-    lines.push(`${percentDisplay}/${formatCompactTokens(contextUsage.contextWindow)}${autoIndicator}`);
+    lines.push(`${usedDisplay}/${formatCompactTokens(contextUsage.contextWindow)}${autoIndicator}`);
   }
 
   return lines.join('\n');

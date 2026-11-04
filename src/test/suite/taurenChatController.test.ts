@@ -3129,7 +3129,7 @@ suite('TaurenChatController', () => {
 
     assert.strictEqual(client.statsCalls, 2);
     assert.strictEqual(lastState(harness).busy, true);
-    assert.strictEqual(lastState(harness).contextUsageTitle, '↑83k ↓2.4k\nR468k\n$0.723 (sub)\n15.7%/272k (auto)');
+    assert.strictEqual(lastState(harness).contextUsageTitle, '↑83k ↓2.4k\nR468k\n$0.723 (sub)\n43k/272k (auto)');
     harness.controller.dispose();
   });
 
