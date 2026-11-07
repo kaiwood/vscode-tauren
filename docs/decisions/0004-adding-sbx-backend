@@ -1,0 +1,110 @@
+# 0004 — Add an SBX backend for VM-isolated Pi
+
+## Status
+
+Draft
+
+## Context
+
+Tauren currently hosts Pi through the bundled in-process SDK. That gives the sidebar live session, tree, and extension-UI state, but the agent runs in the VS Code extension host. A host VS Code process has no isolation. A devcontainer provides container isolation, not a VM or a separate network boundary.
+
+[Docker Sandboxes](https://docs.docker.com/ai/sandboxes/) can run Pi in a microVM. The published Pi kit is a sandbox workload whose entrypoint is the Pi TUI, so Tauren cannot embed that runtime in-process. `AgentClient` also cannot be served by Pi's interactive TUI or by `pi -p`.
+
+Tauren already has a second backend shape: Kward owns its runtime and Tauren adapts a small protocol into `AgentClient`.
+
+## Decision
+
+Tauren will gain an SBX backend beside the bundled Pi SDK. The sandbox owns Pi. A small in-sandbox server uses the Pi SDK and speaks framed JSON-RPC on its stdio. The host adapter implements `AgentClient`, following the Kward pattern: proxy the calls and events the adapter needs, including streaming and extension UI, rather than exposing a generic SDK transport.
+
+The server is reached through Docker Sandboxes SSH, not a published port or a Unix-socket bind. `sbx` does not provide a generic host bind mount, and it forwards only SSH-agent sockets. After `sbx login` and `sbx setup ssh`, Tauren connects with `ssh -T <name>.sbx` and runs the server on that raw pipe. SSH is experimental and terminates at the daemon. It does not forward host environment variables.
+
+Tauren supplies a mixin kit from `resources/sbx-kit`, composed onto a pinned Pi sandbox workload with `--kit`. The workload reference pins the Pi release to the version bundled with that Tauren release. A rolling tag such as `latest` is not sufficient: a pinned kit revision can still boot a moving Pi image. The mixin installs the server. It does not replace the Pi workload or listen on a socket for the host to discover. The kit spec version must match the installed `sbx`. New kit authoring currently targets v3.
+
+### Sandbox command
+
+A `Docker Sandbox Command` setting selects a command provider: a host command or script that describes sandbox creation without creating or attaching to a sandbox itself. Tauren invokes it with the workspace as its working directory. The default provider supports the vanilla Pi sandbox kit; a third-party host script can implement the same contract to supply a Pi harness based on additional mixin kits. Tauren does not need harness-specific filesystem conventions, command-line flags, or backend logic.
+
+The provider prints one versioned JSON object to stdout and diagnostics to stderr. Its `argv` is an array of strings describing a base `sbx create` or `sbx run -d` invocation. The response shape is:
+
+```json
+{
+  "version": 1,
+  "argv": ["sbx", "create"]
+}
+```
+
+This example shows the response shape, not a complete launch configuration. The provider supplies the pinned Pi workload and any wrapper-specific options or mixin kits. It must not include credentials in the response; credential injection remains an SBX responsibility.
+
+Tauren validates the response and composes the final argv, adding:
+
+- `--name` with the resolved sandbox name, unless the provider already supplies that same name
+- the project workspace as the primary workspace
+- the resolved session directory as an additional workspace
+- `--kit` with the Tauren server mixin kit path
+- `--env PI_CODING_AGENT_SESSION_DIR=<resolved-session-dir>`
+
+The provider must omit the project workspace operand, session workspace, session-directory environment assignment, and Tauren server kit. Other wrapper-owned workspaces and configuration may remain, including an agent directory and its mount. A conflicting provider-supplied name is an error. Tauren assembles arguments according to the supported SBX subcommand syntax, preserving provider option/value pairs and keeping the project workspace primary; it does not blindly append arguments after positional operands.
+
+The final invocation is executed directly as an executable and argv, not through a shell. There are no `${workspaceDir}`, `${sessionDir}`, `${kitPath}`, or `${sandboxName}` placeholders, shell-command parsing, or insertion delimiters such as `@@@@`. Unsupported response versions, malformed argv, and conflicting Tauren-owned arguments are rejected before execution.
+
+### Sandbox identity and reattachment
+
+The default sandbox name comes from the final directory name of the workspace, normalized to a valid SBX name. For example, `/home/joshua/tauren` becomes `tauren`, rather than an encoding of the full workspace path. An explicit sandbox-name override is available for collisions: two different workspace paths with the same final directory name otherwise select the same sandbox and session store.
+
+Tauren reattaches to the resolved name on later launches and does not rerun the command provider. Before adopting an existing sandbox, Tauren verifies its workspace association and validates the server protocol/runtime compatibility and effective session directory. A name match alone is not sufficient. An incompatible or unprepared terminal-created sandbox produces an actionable error, not automatic removal or silent attachment.
+
+`sbx run` against an existing sandbox ignores new kit, mount, and publish arguments, and environment arguments on reattach do not update the stored environment. Changes to the provider configuration, storage root, or required kit may therefore require removing and recreating the sandbox. Adding the Tauren kit to a new command does not retrofit an existing sandbox.
+
+`sbx run` without `-d` attaches and does not signal readiness by exiting. Readiness is the protocol handshake on the SSH pipe.
+
+### Sessions
+
+A `Docker Sandbox Storage Directory` setting selects the host storage root and defaults to `~/.tauren`. The canonical directory containing session files is:
+
+```text
+<configured-root>/<sandbox-name>/sessions
+```
+
+For a sandbox named `tauren`, the default is `~/.tauren/tauren/sessions`. To share persisted history with a third-party terminal Pi harness, users can select its storage root, provided the harness uses the same directory layout and sandbox name. For example, a root of `~/sandbox-data` selects `~/sandbox-data/tauren/sessions`. Sharing a directory does not authorize concurrent runtimes to write to the same session file.
+
+Tauren expands `~` on the host before creating the directory, mount, or environment variable. Inside the VM, `~` is `/home/agent`, so a tilde must not appear in the resolved mount or environment value. Tauren creates and mounts only the effective session directory, not the entire storage root or other sandboxes' histories.
+
+The session directory is an additional workspace with no explicit target, so it appears at the same absolute path inside the sandbox. The `HOST:HOST` form is unnecessary, and a colon is ambiguous on Linux. The directory must not be inside the primary workspace. The primary workspace cannot be retargeted, and a child of it is already visible through that mount. Tauren throws if the resolved session directory is the workspace or one of its subdirectories.
+
+Tauren owns the session path, mount, and environment assignment. A third-party command provider must omit any harness-default session mount and `PI_CODING_AGENT_SESSION_DIR` assignment rather than adding them alongside Tauren's. This contract does not dictate how the harness launches independently from Tauren.
+
+The in-sandbox server is also launched with `PI_CODING_AGENT_SESSION_DIR` explicitly set to the resolved path. SSH will not forward it, and a direct command does not source `/etc/sandbox-persistent.sh` unless it runs through Bash. Tauren keeps one sandbox identity per workspace; changing the name also selects a different session directory.
+
+This store is separate from sessions created by the in-process SDK under `~/.pi`. It survives `sbx rm` because it is a host directory, not container filesystem. Session files contain prompts and tool output and are readable by the sandbox.
+
+### Credentials
+
+Model credentials stay on the host and are injected by `sbx`. Tauren does not send API keys or OAuth tokens into the sandbox. `loginWithApiKey`, `loginWithOAuth`, and the settings UI that calls them open a popup linking to the Docker Sandboxes credential documentation. The in-sandbox server rejects Pi login and auth-store writes.
+
+A provider can be used only when the Pi kit, or a mixin, declares a credential binding for it. The published Pi kit currently wires Anthropic.
+
+## Consequences
+
+### Positive
+
+- Pi tool execution and network access run inside the sandbox VM.
+- The sidebar keeps an `AgentClient` boundary and does not depend on Pi's TUI.
+- SSH avoids a host-published service and a socket bind `sbx` does not support.
+- Session files remain available to the extension host across sandbox removal without exposing other workspaces' sessions.
+- Users can supply a structured command provider for either vanilla Pi sandboxes or third-party Pi harnesses using mixin kits, without Tauren parsing or rewriting a shell command.
+- A configurable storage root and compatible naming and directory conventions allow third-party terminal Pi harnesses and Tauren to share persisted session history.
+
+### Negative
+
+- The direct workspace mount has no file boundary. It matches today's host SDK, but it is weaker than `--clone`. A command provider may request `--clone` for the Git workspace. That choice does not protect the session store.
+- SSH setup is experimental and requires an active Docker login.
+- Credential entry moves out of Tauren, and undeclared providers do not work.
+- Reattach cannot apply changed creation arguments. Incompatible mounts, environment, or kits require recreation.
+- Basename-derived sandbox names can collide across workspace paths; collisions require an explicit name override.
+- Command providers must implement the versioned JSON argv contract and omit Tauren-owned arguments.
+
+## Notes
+
+The project workspace remains the primary `sbx` workspace. The session directory is an additional workspace, not a kit volume and not a retargeted primary mount.
+
+The protocol covers the `AgentClient` surface Tauren uses. It is not a method-for-method export of the Pi SDK, and it is not a stream of raw terminal characters.
