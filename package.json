@@ -749,6 +749,8 @@
     "release": "npm run publish --",
     "install:local": "npm run compile && npx --yes @vscode/vsce package --out tauren-local.vsix && code --install-extension tauren-local.vsix --force && node scripts/restart-vscode-extension-host.js",
     "test": "npm run compile -- --pretty false && vscode-test",
+    "test:sbx-kit": "node --test scripts/sbx-kit.test.js",
+    "test:sbx-kit:smoke": "node scripts/smoke-sbx-kit.js",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
