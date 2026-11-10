@@ -6,6 +6,13 @@ import { isRecord } from '../shared/typeGuards';
 
 const defaultRenderWidth = 100;
 
+// Tauren supplies transcript padding and does not host Pi's TUI keybindings.
+const rendererHostOptions = {
+  outputPad: 0,
+  keyText: () => '',
+  keyHint: (_keybinding: unknown, description: string) => description
+};
+
 type ToolRenderContext = Parameters<NonNullable<ToolDefinition['renderResult']>>[3];
 type MessageRendererInput = Parameters<MessageRenderer>[0];
 
@@ -73,7 +80,7 @@ export class PiSdkRenderer {
     }
 
     const render = (expanded: boolean): string | undefined => {
-      const component = safeRender(() => renderer(message as unknown as MessageRendererInput, { expanded }, taurenTheme as Theme));
+      const component = safeRender(() => renderer(message as unknown as MessageRendererInput, { expanded, ...rendererHostOptions }, taurenTheme as Theme));
       return component ? renderComponentText(component) : undefined;
     };
     const collapsed = render(false);
@@ -205,8 +212,10 @@ export class PiSdkRenderer {
       isPartial: options.isPartial,
       expanded: options.expanded,
       showImages: false,
-      isError: options.isError
-    } as ToolRenderContext;
+      isError: options.isError,
+      durationMs: undefined,
+      ...rendererHostOptions
+    };
   }
 
   private getToolState(toolCallId: string): ToolRenderState {

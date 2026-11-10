@@ -49,6 +49,19 @@ npm run compile:sdk
 
 The build also generates small Node-compatible shims for Pi extension peer imports such as `@earendil-works/pi-ai` and `@earendil-works/pi-tui`. Their public export paths are discovered from the installed Pi SDK, so `npm run update:pi-sdk` validates the current peer-import surface as part of its compile step. If Pi changes an unsupported export layout, fix the generator before releasing the SDK update rather than shipping a partial runtime.
 
+## Offline SDK integration tests
+
+`src/test/suite/piSdkIntegration.test.ts` drives `PiSdkClient` through the real bundled SDK with a scripted in-process provider. It covers streamed turns, persisted-session reopening, real read/write/edit tools, extension input/UI notifications, and generation cancellation followed by recovery. Workspaces, settings, credentials, and sessions are isolated in temporary directories. No external model service or credentials are needed.
+
+These tests run with `npm test`, or directly after compilation:
+
+```sh
+npm run compile
+npx mocha --ui tdd --timeout 15000 out/test/suite/piSdkIntegration.test.js
+```
+
+The fixture replaces model I/O, not SDK sessions or tools. It does not cover live-provider authentication, browser layout, or the complete extension Custom UI lifecycle; those still need separate checks.
+
 ## Startup behavior
 
 Tauren starts Pi in the background when the sidebar opens, the webview becomes ready, the view receives focus, or the view becomes visible. This keeps model and context metadata available before the first prompt.

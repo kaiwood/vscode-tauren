@@ -60,7 +60,9 @@ suite('PiSdkClient', () => {
         type: 'oauth',
         access: 'test-oauth-access-token',
         refresh: 'test-oauth-refresh-token',
-        expires: Date.now() + 60_000,
+        // Stay beyond the SDK's proactive refresh window; these fake credentials
+        // must resolve locally, never trigger a real OAuth refresh request.
+        expires: Date.now() + 24 * 60 * 60 * 1000,
         accountId: 'test-account'
       }
     }));

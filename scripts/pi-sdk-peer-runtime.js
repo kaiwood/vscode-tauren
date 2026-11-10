@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const { createRequire } = require('module');
 
 const supportedPeerPackages = [
   'typebox',
@@ -137,18 +138,21 @@ function expandWildcardEntry(packageName, packageDir, exportKey, target) {
 }
 
 function createPeerRuntimePlan(piPackageDir) {
-  const sourceNodeModules = path.join(piPackageDir, 'node_modules');
+  const sdkRequire = createRequire(path.join(piPackageDir, 'package.json'));
   const peers = [];
   let namespaceIndex = 0;
 
   for (const packageName of supportedPeerPackages) {
-    const packageDir = getPackagePath(sourceNodeModules, packageName);
-    const packageJsonPath = path.join(packageDir, 'package.json');
-    if (!fs.existsSync(packageJsonPath)) {
+    // npm may nest or hoist dependencies. Search from the SDK, preferring its
+    // nearest copy, without requiring package.json to be a public export.
+    const packageDir = (sdkRequire.resolve.paths(packageName) ?? [])
+      .map((directory) => getPackagePath(directory, packageName))
+      .find((directory) => fs.existsSync(path.join(directory, 'package.json')));
+    if (!packageDir) {
       throw new Error(`Missing bundled SDK extension dependency: ${packageName}`);
     }
 
-    const packageJson = readJson(packageJsonPath);
+    const packageJson = readJson(path.join(packageDir, 'package.json'));
     const entries = getExportEntries(packageName, packageDir, packageJson).map((entry) => {
       if (entry.target.endsWith('.json')) {
         return { ...entry, kind: 'metadata' };
