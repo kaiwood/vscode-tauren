@@ -1,0 +1,60 @@
+# Adapted from the Pi contrib v2 descriptor at revision
+# 1de3c1e3313a4cc8f2ac4d93646ab204f2b3b769:
+# https://github.com/docker/sbx-kits-contrib/blob/1de3c1e3313a4cc8f2ac4d93646ab204f2b3b769/pi/spec.yaml
+# Keep this standalone: SBX v0.51.0 rejects remote extends references.
+schemaVersion: "2"
+kind: sandbox
+name: pi
+displayName: Tauren Pi
+description: Pi sandbox with Tauren's pinned runtime image
+
+sandbox:
+  # Replaced with a quoted image reference when staging spec.yaml.
+  image: {{piImageReference}}
+  entrypoint:
+    - pi
+
+agentInstructions:
+  filename: AGENTS.md
+
+permissions:
+  network:
+    allow:
+      - api.anthropic.com
+      - registry.npmjs.org
+      - platform.claude.com:443
+
+credentials:
+  - service: anthropic
+    apiKey:
+      name: ANTHROPIC_API_KEY
+      proxyManaged: true
+      inject:
+        - domain: api.anthropic.com
+          header: x-api-key
+          format: '%s'
+    oauth:
+      tokenEndpoint:
+        host: platform.claude.com
+        path: /v1/oauth/token
+      resourceHosts:
+        - api.anthropic.com
+      sentinels:
+        accessToken: sk-ant-oat01-proxy-managed
+        refreshToken: sk-ant-ort01-proxy-managed
+      credentialFile:
+        path: ~/.pi/agent/auth.json
+        structure:
+          anthropic:
+            type: oauth
+            access: "{{.AccessToken}}"
+            refresh: "{{.RefreshToken}}"
+            expires: "{{.ExpiresAt}}"
+
+setup:
+  # Pi is baked into the image. Configure npm only; do not install latest Pi.
+  # Guard empty proxy values because npm rejects them as invalid URLs.
+  install:
+    - command: 'if [ -n "${HTTP_PROXY:-}" ]; then npm config set proxy="$HTTP_PROXY" https-proxy="${HTTPS_PROXY:-$HTTP_PROXY}"; fi'
+      user: "1000"
+      description: Configure npm to use the sandbox proxy

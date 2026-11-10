@@ -18,11 +18,18 @@ Tauren will gain an SBX backend beside the bundled Pi SDK. The sandbox owns Pi. 
 
 The server is reached through Docker Sandboxes SSH, not a published port or a Unix-socket bind. `sbx` does not provide a generic host bind mount, and it forwards only SSH-agent sockets. After `sbx login` and `sbx setup ssh`, Tauren connects with `ssh -T <name>.sbx` and runs the server on that raw pipe. SSH is experimental and terminates at the daemon. It does not forward host environment variables.
 
-Tauren supplies a mixin kit from `resources/sbx-kit`, composed onto a pinned Pi sandbox workload with `--kit`. The workload reference pins the Pi release to the version bundled with that Tauren release. A rolling tag such as `latest` is not sufficient: a pinned kit revision can still boot a moving Pi image. The mixin installs the server. It does not replace the Pi workload or listen on a socket for the host to discover. The kit spec version must match the installed `sbx`. New kit authoring currently targets v3.
+Tauren supplies two separate v2 kits:
+
+- A default standalone Pi sandbox kit from `resources/sbx-kit/sandbox.yaml`, declaring `kind: sandbox`. It vendors the contrib Pi configuration from a recorded source revision, including credentials, permissions, entrypoint, and npm proxy setup. Staging interpolates the configured image digest into `sandbox.image`; the image must contain the Pi version resolved for the extension in `package-lock.json`. It does not use `extends`, because SBX v0.51.0 rejects the remote parent reference.
+- A server mixin from `resources/sbx-kit/mixin.yaml`, declaring `kind: mixin`. It installs the server and is composed onto the selected Pi sandbox kit with `--kit`. It does not select an image, start the server, or listen on a socket for the host to discover.
+
+The default invocation uses the sandbox kit as the main sandbox kit and the assembled server mixin through `--kit`; they remain separate descriptors, composed at sandbox creation. A third-party provider may substitute its own compatible Pi sandbox kit while Tauren adds the same server mixin.
+
+The runtime image must be pinned by digest, and the vendored contrib configuration must record its source revision for future review. A dated kit tag or pinned kit revision does not freeze a nested `sandbox.image: ...:latest` reference. Verify the running Pi version against `package-lock.json`; do not infer it from the kit publication date. The kit schema must be supported by the installed `sbx` and consistent across the composition. These initial v2 kits must not be composed with a v3 kit.
 
 ### Server lifecycle
 
-The kit installs the server but does not launch it in its `start` block. Each Tauren client connection launches an SDK server process through `ssh -T <name>.sbx`, with JSON-RPC carried directly over that connection's stdin/stdout. No PTY, persistent daemon, internal socket connector, or host-published port is required.
+The server mixin installs the server but declares no install/startup hooks to launch it. Each Tauren client connection launches an SDK server process through `ssh -T <name>.sbx`, with JSON-RPC carried directly over that connection's stdin/stdout. No PTY, persistent daemon, internal socket connector, or host-published port is required.
 
 Explicit disposal, stdin EOF, or SSH disconnection shuts down the associated server: abort active work, dispose the Pi runtime, reject pending interactions, and terminate owned subprocesses with bounded cleanup. Closing one client must not stop the sandbox or other clients' server processes. Running background sessions retain their connections under the existing Tauren session-manager policy.
 
@@ -30,7 +37,7 @@ Reconnecting starts a new server process and restores persisted Pi session histo
 
 ### Sandbox command
 
-A `Docker Sandbox Command` setting selects a command provider: a host command or script that describes sandbox creation without creating or attaching to a sandbox itself. Tauren invokes it with the workspace as its working directory. The default provider supports the vanilla Pi sandbox kit; a third-party host script can implement the same contract to supply a Pi harness based on additional mixin kits. Tauren does not need harness-specific filesystem conventions, command-line flags, or backend logic.
+A `Docker Sandbox Command` setting selects a command provider: a host command or script that describes sandbox creation without creating or attaching to a sandbox itself. Tauren invokes it with the workspace as its working directory. The default provider selects Tauren's Pi standalone sandbox kit with its pinned image; a third-party host script can implement the same contract to select its own compatible Pi sandbox kit and additional mixin kits. Tauren does not need harness-specific filesystem conventions, command-line flags, or backend logic.
 
 The provider prints one versioned JSON object to stdout and diagnostics to stderr. Its `argv` is an array of strings describing a base `sbx create` or `sbx run -d` invocation. The response shape is:
 
@@ -41,7 +48,7 @@ The provider prints one versioned JSON object to stdout and diagnostics to stder
 }
 ```
 
-This example shows the response shape, not a complete launch configuration. The provider supplies the pinned Pi workload and any wrapper-specific options or mixin kits. It must not include credentials in the response; credential injection remains an SBX responsibility.
+This example shows the response shape, not a complete launch configuration. The provider supplies the main Pi sandbox kit (Tauren's sandbox kit by default) and any wrapper-specific options or mixin kits. A third-party provider is responsible for pinning its runtime image to the required Pi version, not merely pinning its kit reference. It must not include credentials in the response; credential injection remains an SBX responsibility.
 
 Tauren validates the response and composes the final argv, adding:
 
@@ -95,12 +102,15 @@ A provider can be used only when the Pi kit, or a mixin, declares a credential b
 
 Implement the following as small, independently verifiable increments. Intermediate adapters may support only the tested subset, but completion requires parity with the bundled Pi SDK backend's Tauren-facing behavior, subject to the credential restrictions above. Do not introduce a second prompt queue or change the existing SDK and Kward backend behavior.
 
-### 1. Establish the kit source and installation contract
+### ~~1. Establish the kit source and installation contract~~ — Completed
 
-- Add `resources/sbx-kit/spec.yaml` as the only checked-in file in that kit directory. Use the supported SBX kit schema and declare a mixin, not a replacement Pi workload.
-- Establish the server's fixed in-sandbox installation path and required Node/runtime permissions. Verify how a sibling `files/home/` tree is installed, including ownership, executable permissions, and mixin composition.
-- Keep server startup out of the kit's `start` block. Initially use a small generated installation probe rather than waiting for the full server.
-- **Test gate:** an explicitly invoked real-SBX smoke test composes the mixin onto a pinned vanilla Pi workload, verifies the probe at the expected path, and confirms that no server daemon or additional listener starts. Resolve kit-schema or overlay assumptions here before building packaging around them.
+- ~~Add `resources/sbx-kit/mixin.yaml` alongside `sandbox.yaml` in the source-only kit directory. Stage each descriptor as `spec.yaml` in its own temporary kit directory. Declare a v2 server mixin requiring the Pi agent, separate from the base sandbox kit.~~
+- ~~Add `resources/sbx-kit/sandbox.yaml` as a standalone v2 sandbox template, adapted from a recorded contrib Pi revision. Preserve its credentials, permissions, entrypoint, and npm proxy configuration, without remote `extends` or unpinned Pi install commands. Interpolate `piImageReference` from `scripts/sbx-kit-config.json` into `sandbox.image` when staging. Find or build a digest-pinned image matching the extension SDK in `package-lock.json`; do not silently upgrade the SDK or use a rolling image to pass this gate.~~
+- ~~Establish the server's fixed in-sandbox installation path and required Node/runtime permissions. Verify how a sibling `files/home/` tree is installed, including ownership, directory traversal permissions, readable JavaScript, and mixin composition. Launch the server through Node; do not depend on executable bits surviving home-file injection.~~
+- ~~Keep server launch out of mixin lifecycle hooks. Initially use a small generated installation probe rather than waiting for the full server.~~
+- ~~**Test gate:** an explicitly invoked real-SBX smoke test uses Tauren's standalone Pi sandbox kit as the main kit and the generated server mixin through `--kit`. Verify actual in-sandbox `pi --version` against the resolved SDK version in `package-lock.json`, verify the probe at the expected path, and explicitly run it over SSH to a successful exit. Local tests verify the mixin's required declarations and absence of install/startup hooks or service declarations. Resolve standalone configuration, image pinning, schema, and overlay assumptions here before building packaging around them.~~
+
+The [installation contract and smoke-test instructions](../development/sbx-kit.md) use a v2 mixin and the fixed path `/home/agent/.tauren/server`. The installation smoke gate is complete.
 
 ### 2. Create the standalone server project and protocol contract
 
@@ -138,16 +148,16 @@ Implement the following as small, independently verifiable increments. Intermedi
 
 ### 7. Assemble and package the generated kit
 
-- Add root build scripts that build `sandbox-server/` and assemble a clean temporary/staging kit directory containing the copied `spec.yaml` and generated server artifacts under `files/home/`.
-- Package that assembled tree at a stable extension-relative resource path, such as `resources/generated-sbx-kit/`; this installed directory is the path supplied to `--kit`. Keep generated output ignored and leave `resources/sbx-kit/` source-only.
+- Add root build scripts that build `sandbox-server/` and assemble a clean temporary/staging kit directory containing `mixin.yaml` copied as `spec.yaml` and generated server artifacts under `files/home/`. Stage `sandbox.yaml` as `spec.yaml` in a separate standalone sandbox kit directory.
+- Package that assembled tree at a stable extension-relative resource path, such as `resources/generated-sbx-kit/`; this installed directory is the path supplied to `--kit`. Also package the default standalone sandbox descriptor from `resources/sbx-kit/sandbox.yaml`, retaining its source provenance and interpolated runtime image digest. Keep the two kits separate, generated output ignored, and `resources/sbx-kit/` source-only.
 - Bundle or copy all required SDK assets, extension peer-import shims, and runtime dependencies. Do not rely on the host checkout, host `node_modules`, or downloading server code at sandbox startup.
 - Integrate with root compile/clean, Pi SDK update verification, release scripts, and `.vscodeignore`. Exclude standalone project source/tests from the VSIX while retaining runtime artifacts.
-- **Test gate:** build from a clean checkout, inspect the VSIX contents, run the extracted server artifacts without repository dependencies, and repeat the real-SBX installation probe using the packaged kit. Check Pi version alignment and confirm the existing extension build still succeeds.
+- **Test gate:** build from a clean checkout, inspect the VSIX contents for both kits, run the extracted server artifacts without repository dependencies, and repeat the real-SBX installation probe using the packaged standalone sandbox kit and server mixin. Check runtime-image Pi, standalone server SDK, and extension SDK version alignment and confirm the existing extension build still succeeds.
 
 ### 8. Implement pure sandbox configuration and command composition
 
 - Add VS Code-independent helpers under `src/sbx/` for name normalization/override, host tilde expansion, canonical session paths, workspace-containment rejection, command-provider JSON validation, and final argv composition.
-- Implement the default vanilla Pi command provider and the generic third-party provider contract. Specify supported SBX versions/argument forms so options, additional workspaces, and primary workspace ordering can be validated rather than guessed.
+- Implement the default Pi command provider using Tauren's packaged standalone sandbox kit as the main kit, and the generic third-party provider contract. Add the server mixin independently through Tauren's final argv composition for either provider. Specify supported SBX versions/argument forms so options, additional workspaces, and primary workspace ordering can be validated rather than guessed.
 - Define how the configured provider executable and its arguments are represented without requiring shell-string parsing. Apply workspace trust checks before executing workspace-configurable host commands.
 - **Test gate:** unit tests cover basename collisions, overrides, invalid names/roots, conflicting or repeated controlled arguments, provider failures/malformed output, unknown response versions, additional mixin kits/workspaces, and paths with spaces/metacharacters. Assert exact spawn argv and that no shell is used for local execution.
 
@@ -176,7 +186,7 @@ Implement the following as small, independently verifiable increments. Intermedi
 ### 12. Validate the packaged end-to-end flow and document operation
 
 - Add explicitly invoked real-SBX integration tests using an extracted/installed VSIX's kit and server artifacts. Keep these separate from ordinary automated tests because they require host Docker Sandboxes, login, and SSH setup.
-- Test both the default vanilla Pi provider and a generic third-party command-provider fixture that adds another mixin. Use deterministic model fixtures where possible; make live-provider smoke tests optional and credential-dependent.
+- Test both the default provider selecting Tauren's pinned-image standalone sandbox kit and a generic third-party command-provider fixture selecting its own compatible Pi sandbox kit and adding another mixin. Verify that both receive the same Tauren server mixin. Use deterministic model fixtures where possible; make live-provider smoke tests optional and credential-dependent.
 - Cover new creation, stopped/running reattachment, concurrent sessions, collision rejection, missing/incompatible server, session-store sharing, persistence across sandbox removal/recreation, and abrupt SSH loss followed by history restoration. Verify tools actually run in the sandbox and model secrets are not sent by Tauren or logged.
 - Document prerequisites, settings, provider JSON, lifecycle/disconnect limitations, recreation guidance, and test commands. Add the user-facing changelog entry when the backend is exposed.
 - **Release gate:** all standalone protocol/SDK/SSH tests, extension compile and regression tests, package-content checks, and the real-SBX suite pass on a declared supported SBX version. Run `git diff --check`; explicitly record any platform or manual verification not performed. Do not claim parity until the checklist and Extension Host verification are complete.
@@ -201,6 +211,23 @@ Implement the following as small, independently verifiable increments. Intermedi
 - Reattach cannot apply changed creation arguments. Incompatible mounts, environment, or kits require recreation.
 - Basename-derived sandbox names can collide across workspace paths; collisions require an explicit name override.
 - Command providers must implement the versioned JSON argv contract and omit Tauren-owned arguments.
+- Tauren must maintain the vendored Pi sandbox configuration and runtime image digest alongside SDK updates. Third-party providers must supply a compatible pinned runtime image themselves.
+
+## Change Log
+
+### 2026-11-09 21:32:03 MST — Step 1: kit source and installation contract
+
+Real-SBX smoke tests on SBX v0.51.0 reported Pi `1.5.0` and `1.5.1` instead of the extension's locked `0.80.10`, even when selecting dated contrib Pi kit tags. Those descriptors still reference `docker.io/sbx/pi-image:latest`: pinning the kit does not pin its runtime image.
+
+Tauren will supply both a child Pi sandbox kit, inheriting the pinned contrib kit via `extends` and overriding `sandbox.image` with a verified matching digest, and the independent server mixin. The default provider composes both; third-party providers may replace the base sandbox kit while retaining the same mixin. The smoke gate continues to compare the running Pi version with `package-lock.json`. The matching image and child-kit implementation remain pending.
+
+### 2026-11-09 21:59:10 MST — Step 1: standalone sandbox descriptor
+
+SBX v0.51.0 rejected the remote `extends: docker.io/sbx/pi-kit:latest` reference as an invalid agent name. Replace the proposed child kit with a standalone `sandbox.yaml`, vendoring the contrib Pi configuration from a recorded revision and interpolating the configured image digest during staging. Keep `mixin.yaml` independent. This supersedes the inheritance approach above; it adds responsibility for maintaining the copied configuration. The real-SBX installation/version gate remains pending.
+
+### 2026-11-09 23:02:50 MST — Step 1: Node-based installation probe
+
+A user-run SBX v0.51.0 smoke test installed the staged `0755` executable wrapper as `0644`. The JavaScript probe had already passed its ownership and directory/module mode checks. Remove the unnecessary wrapper fixture and invoke the probe and future server through Node, requiring readable JavaScript rather than preserved executable file bits. The complete smoke gate still requires a successful rerun.
 
 ## Notes
 
