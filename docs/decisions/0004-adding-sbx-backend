@@ -131,12 +131,14 @@ The standalone project and [protocol/mapping checklist](../../sandbox-server/doc
 
 The initial server runs as `node sandbox-server/dist/main.js` after `npm run compile:sandbox-server`. Its subprocess test gate uses the real SDK with an ordinary offline provider extension. Explicit shutdown acknowledges SDK disposal, then the host closes stdin; a five-second deadline bounds cleanup and waiting for EOF. Only the handshake-advertised basic runtime methods are implemented; later steps retain their full parity obligations.
 
-### 4. Complete server chat, tools, and runtime controls
+### ~~4. Complete server chat, tools, and runtime controls~~ — Completed
 
-- Add streaming, abort, steering/follow-up, model/settings/resource discovery, completion, and the remaining non-session runtime methods used by Tauren.
-- Exercise actual SDK tools against temporary files. Enforce the sandbox credential policy at the server boundary, including rejecting auth-store writes and login requests.
-- Implement EOF/signal/disposal cleanup, including active tools and pending requests. Do not replay interrupted prompts on restart.
-- **Test gate:** subprocess tests verify event ordering, controlled tool reads/edits/writes, cancellation during generation and tool execution, settings behavior, credential rejection, stderr isolation, and process cleanup on pipe closure. Run the tests against the packaged server entrypoint, not an in-memory dispatcher alone.
+- ~~Add streaming, abort, steering/follow-up, model/settings/resource discovery, completion, and the remaining non-session runtime methods used by Tauren.~~
+- ~~Exercise actual SDK tools against temporary files. Enforce the sandbox credential policy at the server boundary, including rejecting auth-store writes and login requests.~~
+- ~~Implement EOF/signal/disposal cleanup, including active tools and pending requests. Do not replay interrupted prompts on restart.~~
+- ~~**Test gate:** subprocess tests verify event ordering, controlled tool reads/edits/writes, cancellation during generation and tool execution, settings behavior, credential rejection, stderr isolation, and process cleanup on pipe closure. Run the tests against the packaged server entrypoint, not an in-memory dispatcher alone.~~
+
+Step 4's standalone implementation is in `sandbox-server/src/server.ts`, `runtimeControls.ts`, and `completion/`. Its offline real-SDK subprocess gate covers streaming/images, steering/follow-up, actual file tools, generation/tool abort, delayed-preflight cancellation, persisted settings, credential rejection, completions, and descendant-process cleanup on shutdown/EOF/SIGTERM. Tests launch the built production stdio entrypoint; self-contained packaged-artifact verification remains step 7. Extension-provided completion factories and custom renderers remain part of step 5's UI binding, rather than claiming completed UI parity here.
 
 ### 5. Complete server sessions and extension UI
 

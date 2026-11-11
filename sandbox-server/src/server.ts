@@ -5,9 +5,11 @@ import {
   getAgentDir, SessionManager, SettingsManager, VERSION, type AgentSessionRuntime
 } from '@earendil-works/pi-coding-agent';
 import { ErrorCodes, ResponseError, type MessageConnection } from 'vscode-jsonrpc';
+import { registerRuntimeControls } from './runtimeControls.js';
+import { PiAutocompleteRegistry } from './completion/piAutocompleteRegistry.js';
 import {
   assertProtocolVersion, Notifications, PROTOCOL_VERSION, Requests, TaurenErrorCodes,
-  type InitializeResult, type Snapshot, type JsonValue
+  type InitializeResult, type Snapshot, type JsonValue, type PromptParams
 } from './protocol/index.js';
 
 interface ServerConfiguration {
@@ -80,9 +82,33 @@ async function validateInitializeParams(input: unknown): Promise<ServerConfigura
   }
 }
 
+/** Stop SDK work, including process groups owned by the built-in bash tool. */
+async function abortSession(session: AgentSessionRuntime['session']): Promise<void> {
+  session.abortCompaction();
+  session.abortBranchSummary();
+  session.abortBash();
+  await session.abort();
+}
+
+/** Validate wire attachments before Pi's normal image normalization pipeline. */
+function validatePrompt(input: unknown): PromptParams {
+  const params = object(input);
+  if (typeof params.message !== 'string'
+    || (params.streamingBehavior !== undefined && params.streamingBehavior !== 'steer' && params.streamingBehavior !== 'followUp')) {
+    throw new ResponseError(ErrorCodes.InvalidParams, 'Invalid prompt text or streaming behavior');
+  }
+  if (params.images !== undefined && (!Array.isArray(params.images) || params.images.some(image => {
+    if (!image || typeof image !== 'object') return true;
+    return image.type !== 'image' || typeof image.data !== 'string' || typeof image.mimeType !== 'string';
+  }))) throw new ResponseError(ErrorCodes.InvalidParams, 'Invalid prompt images');
+  return { message: params.message,
+    ...(params.streamingBehavior ? { streamingBehavior: params.streamingBehavior } : {}),
+    ...(params.images ? { images: params.images as PromptParams['images'] } : {}) };
+}
+
 export interface ServerLifecycle { dispose(): Promise<void> }
 
-/** Register the step-3 subset, with no extension-host imports or test switches. */
+/** Register the SDK server, with no extension-host imports or test switches. */
 export function registerServer(connection: MessageConnection, serverVersion: string, beginShutdown: () => void): ServerLifecycle {
   let runtime: AgentSessionRuntime | undefined;
   let initializing: Promise<InitializeResult> | undefined;
@@ -91,8 +117,14 @@ export function registerServer(connection: MessageConnection, serverVersion: str
   let cleanup: Promise<void> | undefined;
   let sequence = 0;
   let unsubscribe: (() => void) | undefined;
-  const capabilities = [Requests.initialize, Requests.shutdown, Requests.prompt, Requests.getState,
-    Requests.getSessionStats, Requests.getMessages, Requests.getLastAssistantText].map(method => method.method);
+  const pendingPrompts = new Set<Promise<void>>();
+  const cancelPreflights = new Set<() => void>();
+  const completions = new PiAutocompleteRegistry();
+  const completionControllers = new Set<AbortController>();
+  let reloadWork: Promise<void> | undefined;
+  let reloading = false;
+  const capabilities = [Requests.initialize, Requests.shutdown, Requests.prompt,
+    Requests.getMessages, Requests.getLastAssistantText].map(method => method.method);
 
   const diagnostic = (message: string) => { process.stderr.write(`${message}\n`); };
   const event = (value: unknown) => {
@@ -101,7 +133,7 @@ export function registerServer(connection: MessageConnection, serverVersion: str
       .catch(() => undefined); // Disconnect owns cleanup; never log to protocol stdout.
   };
   function active() {
-    if (stopped || !ready || !runtime) {
+    if (stopped || !ready || !runtime || reloading) {
       throw new ResponseError(TaurenErrorCodes.NotInitialized, stopped ? 'Server is shutting down' : 'Initialize the server first');
     }
     return runtime.session;
@@ -145,55 +177,138 @@ export function registerServer(connection: MessageConnection, serverVersion: str
     if (runtime || initializing || stopped) throw new ResponseError(TaurenErrorCodes.AlreadyInitialized, 'Already initialized or initializing');
     initializing = initialize(input).catch(async error => {
       ready = false;
-      if (runtime) { await runtime.dispose(); runtime = undefined; }
-      throw error;
+      if (runtime) {
+        try { await runtime.dispose(); } catch { diagnostic('Failed to dispose incomplete Pi runtime'); }
+        runtime = undefined;
+      }
+      if (error instanceof ResponseError) throw error;
+      // Provider/extension startup errors may contain credential details.
+      throw new ResponseError(ErrorCodes.InternalError, 'Pi runtime initialization failed');
     }).finally(() => { initializing = undefined; });
     return initializing;
   });
 
-  // runtime.getState reads live SDK state, never a host-side transcript cache.
-  connection.onRequest(Requests.getState, () => {
-    const session = active();
-    return snapshot({ model: session.model, thinkingLevel: session.thinkingLevel,
-      isStreaming: session.isStreaming, isCompacting: session.isCompacting,
-      steeringMode: session.steeringMode, followUpMode: session.followUpMode,
-      sessionFile: session.sessionFile, sessionId: session.sessionId, sessionName: session.sessionName,
-      messageCount: session.messages.length, pendingMessageCount: session.pendingMessageCount,
-      autoCompactionEnabled: session.autoCompactionEnabled, autoRetryEnabled: session.autoRetryEnabled });
-  });
-  // runtime.getSessionStats delegates token/tool accounting to the SDK.
-  connection.onRequest(Requests.getSessionStats, () => snapshot(active().getSessionStats()));
+  // Keep model/settings/resource handlers separate from connection lifecycle.
+  capabilities.push(...registerRuntimeControls(connection, active, diagnostic));
   // session.getMessages returns the SDK's reconstructed active branch, including
   // persisted history after reopen. Custom rendering enrichment belongs to step 5.
   connection.onRequest(Requests.getMessages, () => ({ messages: snapshot({ messages: active().messages }).messages as JsonValue[] }));
   // The SDK extracts assistant text; normalize absent text to JSON null.
   connection.onRequest(Requests.getLastAssistantText, () => ({ text: active().getLastAssistantText() ?? null }));
 
-  // chat.prompt uses the normal SDK command/extension/model pipeline. Acknowledge
-  // successful preflight, then report generation through session events. Preserve
-  // source "rpc", since existing Pi extensions may branch on this literal.
-  connection.onRequest(Requests.prompt, input => {
+  /** chat.prompt runs Pi's input hooks, templates, images and model loop.
+   * Pi owns steering/follow-up queues. An acknowledgement is acceptance, not
+   * completion; generation errors after acknowledgement travel as diagnostics.
+   * Request cancellation applies only until acceptance; chat.abort stops a run.
+   */
+  connection.onRequest(Requests.prompt, (input, token) => {
     const session = active();
-    const params = object(input);
-    if (typeof params.message !== 'string' || params.streamingBehavior !== undefined || params.images !== undefined) {
-      throw new ResponseError(ErrorCodes.InvalidParams, 'This server increment accepts text-only, idle prompts');
+    const params = validatePrompt(input);
+    if (session.isStreaming && !params.streamingBehavior) {
+      throw new ResponseError(ErrorCodes.InvalidParams, 'Specify steering or follow-up while streaming');
     }
-    if (session.isStreaming) throw new ResponseError(ErrorCodes.InvalidParams, 'Session is busy');
-    let sawStart = false;
-    const off = session.subscribe(value => { if (value.type === 'agent_start') sawStart = true; });
     return new Promise<null>((resolve, reject) => {
-      void session.prompt(params.message as string, { source: 'rpc', preflightResult: success => {
-        if (success) resolve(null);
-        else reject(new ResponseError(ErrorCodes.InvalidParams, 'Prompt preflight failed'));
-      } }).then(() => {
-        if (!sawStart && !session.isStreaming) event({ type: 'prompt_handled' });
-        resolve(null);
-      }, error => {
-        diagnostic(`Prompt failed: ${error instanceof Error ? error.message : String(error)}`);
-        reject(new ResponseError(ErrorCodes.InternalError, 'Prompt failed; see server diagnostics'));
-      }).finally(off);
+      let settled = false;
+      let cancelled = false;
+      const finish = (error?: ResponseError<void>) => {
+        if (settled) return;
+        settled = true;
+        subscription?.dispose();
+        cancelPreflights.delete(cancel);
+        if (error) reject(error); else resolve(null);
+      };
+      const cancel = () => {
+        cancelled = true;
+        finish(new ResponseError(TaurenErrorCodes.Cancelled, 'Prompt request cancelled'));
+        void abortSession(session).catch(() => diagnostic('Prompt cancellation failed'));
+      };
+      const subscription = token.onCancellationRequested(cancel);
+      cancelPreflights.add(cancel);
+      if (token.isCancellationRequested) { cancel(); return; }
+      const work = session.prompt(params.message, { ...params, source: 'rpc', preflightResult: disposition => {
+        // Pi input hooks have no cancellation signal. If cancelled while an
+        // async hook ran, abort again once Pi has actually started its run.
+        if (cancelled || stopped) {
+          if (disposition === 'started') queueMicrotask(() => {
+            void abortSession(session).catch(() => diagnostic('Late prompt cancellation failed'));
+          });
+          return;
+        }
+        if (disposition === 'handled') event({ type: 'prompt_handled' });
+        finish();
+      } }).then(() => finish(), () => {
+        if (cancelled || stopped) return;
+        if (settled) {
+          void connection.sendNotification(Notifications.diagnostic,
+            { level: 'error', message: 'Pi prompt failed after acceptance' }).catch(() => undefined);
+        } else finish(new ResponseError(ErrorCodes.InternalError, 'Pi prompt failed'));
+      }).finally(() => { pendingPrompts.delete(work); });
+      pendingPrompts.add(work);
     });
   });
+
+  // Abort all SDK operation categories, including bash process groups. Cancelling
+  // pending preflights also prevents delayed extension hooks escaping this abort.
+  connection.onRequest(Requests.abort, async input => {
+    if (input !== null && input !== undefined) throw new ResponseError(ErrorCodes.InvalidParams, 'abort takes no parameters');
+    const session = active();
+    for (const cancel of cancelPreflights) cancel();
+    await abortSession(session);
+    await Promise.all([...pendingPrompts]);
+    return null;
+  });
+
+  // Reload through Pi, not a second resource scanner. Pi rebinds extensions and
+  // emits session_start/reload; invalidate connection-local completion handles.
+  connection.onRequest(Requests.reload, async input => {
+    if (input !== null && input !== undefined) throw new ResponseError(ErrorCodes.InvalidParams, 'reload takes no parameters');
+    const session = active();
+    if (!session.isIdle || pendingPrompts.size) {
+      throw new ResponseError(ErrorCodes.InvalidParams, 'Wait for Pi to become idle before reloading');
+    }
+    reloading = true;
+    try {
+      completions.reset();
+      await connection.sendNotification(Notifications.clearStatuses, null);
+      await connection.sendNotification(Notifications.clearWidgets, null);
+      reloadWork = session.reload();
+      await reloadWork;
+      return null;
+    } catch {
+      throw new ResponseError(ErrorCodes.InternalError, 'Pi resource reload failed');
+    } finally { reloadWork = undefined; reloading = false; }
+  });
+
+  // The registry owns provider results and executable applyCompletion callbacks;
+  // only opaque, revision-bound item handles cross the connection.
+  connection.onRequest(Requests.getCompletionCapabilities, () => { active(); return completions.getCapabilities(); });
+  connection.onRequest(Requests.getCompletions, async (input, token) => {
+    active();
+    const params = object(input);
+    if (typeof params.id !== 'string' || !Number.isInteger(params.revision) || typeof params.text !== 'string'
+      || !Number.isInteger(params.selectionStart) || !Number.isInteger(params.selectionEnd)) {
+      throw new ResponseError(ErrorCodes.InvalidParams, 'Invalid completion request');
+    }
+    const controller = new AbortController();
+    completionControllers.add(controller);
+    const subscription = token.onCancellationRequested(() => controller.abort());
+    if (token.isCancellationRequested) controller.abort();
+    try {
+      const result = await completions.complete(input, runtime!.cwd, controller.signal);
+      if (controller.signal.aborted) throw new ResponseError(TaurenErrorCodes.Cancelled, 'Completion cancelled');
+      return result;
+    } finally { subscription.dispose(); completionControllers.delete(controller); }
+  });
+  connection.onRequest(Requests.applyCompletion, input => {
+    active();
+    const params = object(input);
+    if (typeof params.id !== 'string' || !Number.isInteger(params.revision) || typeof params.itemId !== 'string') {
+      throw new ResponseError(ErrorCodes.InvalidParams, 'Invalid completion application');
+    }
+    return completions.apply(input) ?? null;
+  });
+  capabilities.push(Requests.abort.method, Requests.reload.method, Requests.getCompletions.method,
+    Requests.getCompletionCapabilities.method, Requests.applyCompletion.method);
 
   /** shutdown/EOF stops delivery, waits for startup, aborts SDK work, and awaits
    * runtime disposal (including pending credential writes). The entrypoint applies
@@ -204,11 +319,13 @@ export function registerServer(connection: MessageConnection, serverVersion: str
     if (!cleanup) cleanup = (async () => {
       await initializing?.catch(() => undefined);
       unsubscribe?.();
+      completions.reset();
+      for (const controller of completionControllers) controller.abort();
+      await reloadWork?.catch(() => undefined);
+      for (const cancel of cancelPreflights) cancel();
       if (runtime) {
-        runtime.session.abortCompaction();
-        runtime.session.abortBranchSummary();
-        runtime.session.abortBash();
-        await runtime.session.abort();
+        await abortSession(runtime.session);
+        await Promise.all([...pendingPrompts]);
         await runtime.dispose();
         runtime = undefined;
       }

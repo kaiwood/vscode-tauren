@@ -1,8 +1,10 @@
 # Tauren sandbox server
 
 Private standalone Node project for the SBX SDK server. The executable supports
-initialization, basic state/history queries, text-only idle prompts, SDK events,
-and bounded shutdown. Other runtime/session/UI methods remain later increments.
+initialization, state/history queries, streaming prompts with images and Pi-owned
+steering/follow-up, abort, model/settings/resource controls, file completions,
+credential-policy enforcement, and bounded shutdown. Session lifecycle and
+extension UI methods remain later increments.
 This package is not independently published and imports no extension-host code.
 
 ```sh
@@ -48,7 +50,23 @@ Subprocess tests launch this same entrypoint with an ordinary fixture provider
 extension discovered through isolated Pi settings. They exercise the real SDK,
 not mocks, without credentials or model network access. They verify streaming,
 `rpc` prompt source, persistence and reopening after process restart, invalid
-configuration, stderr isolation, and cleanup during generation. No special test
-mode or fixture branch exists in production startup.
+configuration, stderr isolation, real read/write/edit/bash tools, cancellation,
+steering/follow-up, runtime settings persistence, file completion handles,
+credential rejection, and descendant-process cleanup during tools/generation.
+No special test mode or fixture branch exists in production startup.
+
+Prompt requests acknowledge SDK preflight acceptance. Cancellation of an
+unacknowledged request cancels that preflight/run; after acknowledgement use
+`chat.abort`. Extension input hooks themselves have no cancellation signal, so
+cleanup also tracks pending prompts and re-applies abort when a delayed hook
+starts its run. The shutdown deadline remains the fallback for uncooperative
+extensions. Pi owns the queues and tool process groups; the server does not
+introduce another scheduler or shell runner.
+
+`auth.getProviders` exposes sanitized readiness only. Login, OAuth, and logout
+requests always fail with `CredentialPolicy`; no credential records or write
+APIs cross the protocol. Model metadata omits configured HTTP headers. Trusted
+Pi extensions and tools retain normal SDK behavior inside the sandbox; this
+wire policy is not a filesystem security boundary against sandbox code.
 
 See [protocol and parity checklist](docs/protocol.md).

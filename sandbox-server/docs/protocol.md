@@ -110,8 +110,10 @@ version consistency. Framing, Unicode byte counting, ID correlation, and generic
 cancellation are the library's responsibilities, not independently re-tested here.
 Subprocess tests additionally verify initialization and configuration guards,
 real SDK prompt/events, persisted-history reopening, stderr isolation, and
-shutdown/EOF/SIGTERM during active generation. Per-request cancellation and tool
-subprocess cleanup require later server tests.
+shutdown/EOF/SIGTERM during active generation, real SDK file tools, bash descendant
+cleanup, steering/follow-up, delayed-preflight cancellation, runtime settings and
+credential rejection. Tests launch the built production stdio entrypoint; fully
+self-contained packaged artifacts are verified in step 7.
 
 ### Errors
 
@@ -173,8 +175,8 @@ TUI editor-replacement API, distinct from Tauren's supported Custom UI Surface.
 
 ## Method-to-SDK parity checklist
 
-Unchecked means **declared, not fully implemented/verified**. Step 3 implements
-the basic runtime subset only; streaming chat controls and UI parity remain open.
+Unchecked means **declared, not fully implemented/verified**. Step 4 implements
+chat and non-session runtime controls; extension UI and session parity remain open.
 Runtime = `AgentSessionRuntime`; session = `runtime.session`; settings = its
 cwd-bound `SettingsManager`. Bind/rebind events and UI after session replacement.
 
@@ -184,20 +186,20 @@ cwd-bound `SettingsManager`. Bind/rebind events and UI after session replacement
 | [ ] | onEvent / agent.event | session.subscribe, mapped extension errors, rendered messages, ordered events |
 | [ ] | onError / server.diagnostic | Async errors distinct from failed requests |
 | [ ] | isRunning | Host connection lifecycle, not session.isStreaming; no wire method |
-| [ ] | prompt / chat.prompt | session.prompt with source rpc, streamingBehavior/images/preflight; prompt_handled |
-| [ ] | abort / chat.abort | abortCompaction, abortBranchSummary, abortBash, session.abort |
+| [x] | prompt / chat.prompt | session.prompt with source rpc, streamingBehavior/images/preflight; prompt_handled |
+| [x] | abort / chat.abort | abortCompaction, abortBranchSummary, abortBash, session.abort |
 | [ ] | reload / runtime.reload | session.reload, clear statuses/widgets, rebind extensions |
-| [ ] | getState / runtime.getState | Session state + settings getters |
-| [ ] | getSessionStats / runtime.getSessionStats | session.getSessionStats + name, auto-compaction, OAuth-use flag |
-| [ ] | getAvailableModels / runtime.getAvailableModels | modelRuntime getModels/getAvailable/auth readiness; current-model inclusion and catalog refresh |
-| [ ] | getCommands / runtime.getCommands | Extension commands + templates + skill commands and provenance |
-| [ ] | getStartupResources / runtime.getStartupResources | Resource loader agents files, skills, extensions/errors, themes, templates |
-| [ ] | setModel / runtime.setModel | Resolve selectable model then session.setModel |
-| [ ] | setThinkingLevel / runtime.setThinkingLevel | session.setThinkingLevel |
-| [ ] | updateRuntimeSetting / runtime.updateSetting | Session/settings setters; flush and drainErrors; live/reload distinction |
+| [x] | getState / runtime.getState | Session state + settings getters |
+| [x] | getSessionStats / runtime.getSessionStats | session.getSessionStats + name, auto-compaction, OAuth-use flag |
+| [x] | getAvailableModels / runtime.getAvailableModels | modelRuntime getModels/getAvailable/auth readiness; current-model inclusion and catalog refresh |
+| [x] | getCommands / runtime.getCommands | Extension commands + templates + skill commands and provenance |
+| [x] | getStartupResources / runtime.getStartupResources | Resource loader agents files, skills, extensions/errors, themes, templates |
+| [x] | setModel / runtime.setModel | Resolve selectable model then session.setModel |
+| [x] | setThinkingLevel / runtime.setThinkingLevel | session.setThinkingLevel |
+| [x] | updateRuntimeSetting / runtime.updateSetting | Session/settings setters; flush and drainErrors; live/reload distinction |
 | [ ] | completion.get/getCapabilities/apply | Server-local PiAutocompleteRegistry equivalent; opaque handles and cancellation |
-| [ ] | getAuthProviders / auth.getProviders | Sanitized readiness, no credential enumeration/material |
-| [ ] | loginWithApiKey/loginWithOAuth/logoutAuthProvider | Intentional CredentialPolicy rejection; host documentation popup |
+| [x] | getAuthProviders / auth.getProviders | Sanitized readiness, no credential enumeration/material |
+| [x] | loginWithApiKey/loginWithOAuth/logoutAuthProvider | Intentional CredentialPolicy rejection; host documentation popup |
 | [ ] | setSessionName / session.setName | session.setSessionName(trimmed name) |
 | [ ] | compact / session.compact | session.compact |
 | [ ] | exportHtml / session.exportHtml | session.exportToHtml; returned path is server-side |
@@ -225,14 +227,26 @@ settings. Persist and report errors, not only in-memory application.
 
 ### Implemented subset and remaining work
 
-The handshake currently advertises `initialize`, `shutdown`, `chat.prompt`,
-`runtime.getState`, `runtime.getSessionStats`, `session.getMessages`, and
-`session.getLastAssistantText`. Prompts currently accept text only while idle;
-images and steering/follow-up are rejected rather than silently ignored. Session
-events are forwarded as SDK JSON snapshots, with sequence numbers. State/stats
-are basic SDK snapshots; settings augmentation, rendered custom-message history,
-UI binding, and sanitized auth readiness are not yet implemented. Unsupported
-methods are not advertised and receive the library's method-not-found error.
+The handshake advertises the implemented chat, runtime, completion and auth
+methods, plus basic session history/text queries. Prompts support images and
+SDK-owned steering/follow-up. Abort cooperates with SDK generation/tools; pending
+preflights are tracked so delayed input hooks cannot escape cancellation. Request
+cancellation applies before prompt acknowledgement; use `chat.abort` afterwards.
+Generation failures after acceptance emit `server.diagnostic`.
+
+Reload uses `session.reload`, invalidates completion handles, and clears host
+statuses/widgets. Full extension UI rebinding awaits step 5. File completion
+supports the existing bounded fuzzy `@` behavior with single-use opaque handles;
+SDK extension autocomplete factories will be bound alongside UI in step 5. Model
+metadata excludes configured HTTP headers, and auth readiness never enumerates
+credentials. State/settings and accounting use SDK getters and flush queued
+settings writes. Auth mutations always fail with `CredentialPolicy`.
+
+Session events currently remain SDK JSON snapshots with sequence numbers;
+custom tool/message rendering, full UI binding and session operations remain
+step 5. Unsupported methods are not advertised and return method-not-found.
+The server boundary does not restrict trusted SDK extensions' filesystem or
+credential access; it prohibits credential mutation through Tauren's wire API.
 
 ### Outside AgentClient
 
