@@ -62,6 +62,17 @@ npx mocha --ui tdd --timeout 15000 out/test/suite/piSdkIntegration.test.js
 
 The fixture replaces model I/O, not SDK sessions or tools. It does not cover live-provider authentication, browser layout, or the complete extension Custom UI lifecycle; those still need separate checks.
 
+## Standalone sandbox protocol project
+
+The private `sandbox-server/` npm project owns the SBX server's shared wire contract and standalone tests. Install its independent lockfile with `npm ci --prefix sandbox-server`, then use:
+
+```sh
+npm run compile:sandbox-server
+npm run test:sandbox-server
+```
+
+See `sandbox-server/docs/protocol.md` for the method-to-SDK mapping and parity checklist. Root `compile:sdk` and `verify:pi-sdk` check SDK release-line compatibility with the standalone project. If an SDK update crosses major/minor versions, update the standalone manifest and lockfile explicitly; patch differences are permitted. Production server packaging is a later implementation step.
+
 ## Startup behavior
 
 Tauren starts Pi in the background when the sidebar opens, the webview becomes ready, the view receives focus, or the view becomes visible. This keeps model and context metadata available before the first prompt.

@@ -1,0 +1,29 @@
+{
+  "name": "@tauren/sandbox-server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Private Tauren sandbox SDK server and shared wire protocol",
+  "type": "module",
+  "engines": { "node": ">=22.19.0" },
+  "exports": {
+    "./protocol": {
+      "types": "./dist/protocol/index.d.ts",
+      "import": "./dist/protocol/index.js",
+      "require": "./dist/protocol/index.js"
+    }
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "check:version": "node ../scripts/verify-sandbox-sdk-version.js",
+    "build": "npm run check:version && npm run clean && tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/test/*.test.js"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "1.5.1",
+    "vscode-jsonrpc": "8.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^6.0.3"
+  }
+}

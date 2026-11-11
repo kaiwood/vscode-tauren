@@ -112,13 +112,15 @@ Implement the following as small, independently verifiable increments. Intermedi
 
 The [installation contract and smoke-test instructions](../development/sbx-kit.md) use a v2 mixin and the fixed path `/home/agent/.tauren/server`. The installation smoke gate is complete.
 
-### 2. Create the standalone server project and protocol contract
+### ~~2. Create the standalone server project and protocol contract~~ — Completed
 
-- Add a top-level `sandbox-server/` npm project, outside extension `src/`, with its own package manifest, lockfile, TypeScript/build configuration, and tests. Root scripts will orchestrate it; it is not an independently published package.
-- Depend on the Pi SDK at the same exact version used by Tauren. Add a version-consistency check so SDK updates cannot silently leave the server behind.
-- Define the versioned JSON-RPC method/event/error contract and framing, informed by `AgentClient` in `src/agent/clientTypes.ts` and `src/pi/clientTypes.ts`. Include bidirectional extension UI interactions, cancellation, initialization, shutdown, and session operations.
-- Keep wire types and codecs VS Code-independent and consumable by both projects without importing extension-host code into the server. Record a method-to-SDK mapping and a parity checklist, including operations outside `AgentClient` such as persisted-session discovery.
-- **Test gate:** standalone build and protocol tests cover fragmented/coalesced frames, Unicode byte lengths, malformed input, request IDs, errors, version rejection, and clean EOF. No VS Code, SSH, SBX, credentials, or model network access is required.
+- ~~Add a top-level `sandbox-server/` npm project, outside extension `src/`, with its own package manifest, lockfile, TypeScript/build configuration, and tests. Root scripts will orchestrate it; it is not an independently published package.~~
+- ~~Pin the standalone Pi SDK dependency to an exact release for reproducible installs. Add a version-consistency check against Tauren's resolved SDK: stable major/minor versions must match, patches may differ, and prereleases must match exactly. SDK updates cannot silently cross release lines.~~
+- ~~Define the versioned JSON-RPC method/event/error contract and framing, informed by `AgentClient` in `src/agent/clientTypes.ts` and `src/pi/clientTypes.ts`. Include bidirectional extension UI interactions, cancellation, initialization, shutdown, and session operations. Use the standalone `vscode-jsonrpc` library for framing and request lifecycle rather than a custom JSON-RPC parser. Typed method descriptors are compile-time contracts, not runtime parameter schemas.~~
+- ~~Keep wire types and codecs VS Code-independent and consumable by both projects without importing extension-host code into the server. Record a method-to-SDK mapping and a parity checklist, including operations outside `AgentClient` such as persisted-session discovery.~~
+- ~~**Test gate:** standalone build and tests cover Tauren's version policy, one bidirectional connection round trip, fail-closed handling of reader errors, and connection disposal/pending-request rejection on EOF. SDK-version tests cover manifest/lockfile consistency and release-line compatibility. Rely on `vscode-jsonrpc` for framing, Unicode byte lengths, request-ID correlation, and cancellation machinery rather than duplicating its tests. Validate cancellation reaching SDK work when the server handlers are implemented. No VS Code, SSH, SBX, credentials, or model network access is required.~~
+
+The standalone project and [protocol/mapping checklist](../../sandbox-server/docs/protocol.md) define this increment's contract. `npm run test:sandbox-server` builds and tests it without VS Code, SSH, SBX, or model calls. No SDK server entrypoint or runtime dispatcher is implemented in this step; runtime validation and method behavior are implemented and tested in subsequent increments.
 
 ### 3. Implement server initialization and deterministic SDK integration
 
