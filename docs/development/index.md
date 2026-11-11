@@ -20,11 +20,42 @@ npm install
 npm run compile
 ```
 
-Run tests with:
+## Running tests
+
+Install the standalone server's dependencies as well as the root dependencies:
 
 ```sh
+npm ci --prefix sandbox-server
 npm test
 ```
+
+Root `npm test` runs the standalone server/version checks, compiles the extension,
+then runs its VS Code Extension Host tests. The server tests need no VS Code,
+SBX, SSH, model service, or credentials and can also run independently:
+
+```sh
+npm run test:sandbox-server
+```
+
+### Headless Linux
+
+The VS Code test process requires a display. On a headless Linux machine, install
+Xvfb and run the suite through a virtual display:
+
+```sh
+# Debian/Ubuntu (one-time prerequisite):
+sudo apt-get install xvfb
+xvfb-run -a npm test
+```
+
+`-a` selects an available display number. Without a graphical session or Xvfb,
+VS Code may exit with `Missing X server or $DISPLAY` before any extension tests
+run. A virtual display does not provide desktop services such as Trash; tests
+should stub those services rather than depend on the host desktop.
+
+The VS Code test runner may download its test installation, so an initial run
+also requires network access. Real-SBX smoke tests remain explicitly invoked
+with `npm run test:sbx-kit:smoke`; they are not part of `npm test`.
 
 For documentation changes:
 

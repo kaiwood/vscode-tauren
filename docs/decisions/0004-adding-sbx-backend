@@ -120,14 +120,16 @@ The [installation contract and smoke-test instructions](../development/sbx-kit.m
 - ~~Keep wire types and codecs VS Code-independent and consumable by both projects without importing extension-host code into the server. Record a method-to-SDK mapping and a parity checklist, including operations outside `AgentClient` such as persisted-session discovery.~~
 - ~~**Test gate:** standalone build and tests cover Tauren's version policy, one bidirectional connection round trip, fail-closed handling of reader errors, and connection disposal/pending-request rejection on EOF. SDK-version tests cover manifest/lockfile consistency and release-line compatibility. Rely on `vscode-jsonrpc` for framing, Unicode byte lengths, request-ID correlation, and cancellation machinery rather than duplicating its tests. Validate cancellation reaching SDK work when the server handlers are implemented. No VS Code, SSH, SBX, credentials, or model network access is required.~~
 
-The standalone project and [protocol/mapping checklist](../../sandbox-server/docs/protocol.md) define this increment's contract. `npm run test:sandbox-server` builds and tests it without VS Code, SSH, SBX, or model calls. No SDK server entrypoint or runtime dispatcher is implemented in this step; runtime validation and method behavior are implemented and tested in subsequent increments.
+The standalone project and [protocol/mapping checklist](../../sandbox-server/docs/protocol.md) define this increment's contract. `npm run test:sandbox-server` builds and tests it without VS Code, SSH, SBX, or model calls. Step 2 establishes the contract; runtime validation and method behavior are implemented and tested in subsequent increments.
 
-### 3. Implement server initialization and deterministic SDK integration
+### ~~3. Implement server initialization and deterministic SDK integration~~ — Completed
 
-- Implement the executable stdio entrypoint, handshake, SDK session creation/opening, state queries, and shutdown. Report protocol/server/Pi versions, workspace, effective session directory, and capabilities.
-- Pass workspace and session configuration explicitly. Keep stdout exclusively for framed protocol messages and diagnostics on stderr. Preserve Pi prompt source `"rpc"` and the existing runtime defaults.
-- Use the real Pi SDK with a deterministic local model fixture and temporary workspaces/session directories. Do not substitute mocks for the SDK in these integration tests.
-- **Test gate:** spawn the built server as a subprocess and communicate only through its public stdio protocol. Verify initialization, an actual SDK prompt/event cycle, session persistence and reopening after process restart, invalid configuration, and bounded shutdown. Require no real Pi CLI or external provider credentials.
+- ~~Implement the executable stdio entrypoint, handshake, SDK session creation/opening, state queries, and shutdown. Report protocol/server/Pi versions, workspace, effective session directory, and capabilities.~~
+- ~~Pass workspace and session configuration explicitly. Keep stdout exclusively for framed protocol messages and diagnostics on stderr. Preserve Pi prompt source `"rpc"` and the existing runtime defaults.~~
+- ~~Use the real Pi SDK with a deterministic local model fixture and temporary workspaces/session directories. Do not substitute mocks for the SDK in these integration tests.~~
+- ~~**Test gate:** spawn the built server as a subprocess and communicate only through its public stdio protocol. Verify initialization, an actual SDK prompt/event cycle, session persistence and reopening after process restart, invalid configuration, and bounded shutdown. Require no real Pi CLI or external provider credentials.~~
+
+The initial server runs as `node sandbox-server/dist/main.js` after `npm run compile:sandbox-server`. Its subprocess test gate uses the real SDK with an ordinary offline provider extension. Explicit shutdown acknowledges SDK disposal, then the host closes stdin; a five-second deadline bounds cleanup and waiting for EOF. Only the handshake-advertised basic runtime methods are implemented; later steps retain their full parity obligations.
 
 ### 4. Complete server chat, tools, and runtime controls
 

@@ -17,7 +17,8 @@ dependency. It owns framing, JSON parsing, correlation, errors, and cancellation
 Tauren does not maintain a second JSON-RPC parser. `RequestType<P,R,E>` describes
 parameters, success result, and optional error data. `NotificationType<P>` has no
 response. **These are not schemas:** dispatch must validate params at runtime
-before calling SDK methods. There is no dispatcher or SDK server in step 2.
+before calling SDK methods. `src/server.ts` validates and dispatches the initial
+runtime subset; the remaining methods are defined for later increments.
 
 Methods returning `Snapshot`/`JsonValue` carry serialized Pi-compatible DTOs (data transfer objects) as
 currently consumed by `src/pi/types.ts`. They must not contain functions, class
@@ -57,11 +58,13 @@ Completion DTOs mirror `src/autocomplete/types.ts` without importing it.
   either direction. Dispatch must cooperate and settle once with `Cancelled`;
   cancelling an RPC is not a substitute for `chat.abort`. Abort signals the SDK's
   generation, bash, compaction, and branch-summary operations.
-- Explicit `shutdown` aborts work, settles UI requests, disposes surfaces and
-  SDK runtime, acknowledges, then closes output with bounded cleanup. EOF or
+- Explicit `shutdown` aborts work and disposes the SDK runtime before acknowledging.
+  The host then closes stdin so the server can close output and exit. A five-second
+  deadline bounds cleanup and waiting for the host's EOF. Full UI/surface cleanup
+  is added with those later capabilities. EOF or
   disconnect rejects pending calls and requests the same cleanup without a reply.
-  Step 2's connection helper disposes the RPC connection on EOF, close, or reader
-  error; step 3+ must attach actual SDK cleanup to disposal. It does not kill a
+  The connection helper disposes RPC on EOF, close, or reader error; the entrypoint
+  connects that disposal to SDK abort and runtime cleanup. It does not kill a
   sandbox or another connection's process.
 - Reconnect creates a new server/runtime and restores persisted history via
   `session.getMessages`. Never replay a prompt or continue interrupted execution.
@@ -79,10 +82,11 @@ it does not leave requests pending until their deadlines.
 
 Disposing an RPC connection is not itself cancellation of work already executing
 inside the other process, nor does it automatically abort local SDK operations.
-The server lifecycle must connect disposal to SDK abort/dispose and pending UI
-cleanup. EOF does not send `$/cancelRequest` messages over the closed pipe. The
-full server cleanup is implemented in subsequent steps; the current connection
-helper supplies RPC disposal and pending-request rejection only.
+The server entrypoint connects disposal to SDK abort/dispose. Pending UI and
+owned-subprocess cleanup are extended as those capabilities are implemented.
+EOF does not send `$/cancelRequest` messages over the closed pipe. The shared
+connection helper itself supplies RPC disposal and pending-request rejection;
+SDK cleanup belongs to the server lifecycle, not that helper.
 
 EOF is also not a delivery acknowledgement: queued messages may never be
 handled, and in-flight handlers are not promised a response. For graceful
@@ -104,7 +108,10 @@ a basic bidirectional round trip through our connection helper, disposal on
 reader errors, and pending-request rejection on EOF. Separate tests check SDK
 version consistency. Framing, Unicode byte counting, ID correlation, and generic
 cancellation are the library's responsibilities, not independently re-tested here.
-Cancellation of actual SDK work and handler behavior require later server tests.
+Subprocess tests additionally verify initialization and configuration guards,
+real SDK prompt/events, persisted-history reopening, stderr isolation, and
+shutdown/EOF/SIGTERM during active generation. Per-request cancellation and tool
+subprocess cleanup require later server tests.
 
 ### Errors
 
@@ -166,13 +173,14 @@ TUI editor-replacement API, distinct from Tauren's supported Custom UI Surface.
 
 ## Method-to-SDK parity checklist
 
-Unchecked means **declared, not implemented**. Step 2 does not claim runtime parity.
+Unchecked means **declared, not fully implemented/verified**. Step 3 implements
+the basic runtime subset only; streaming chat controls and UI parity remain open.
 Runtime = `AgentSessionRuntime`; session = `runtime.session`; settings = its
 cwd-bound `SettingsManager`. Bind/rebind events and UI after session replacement.
 
 | Done | AgentClient / wire method | SDK mapping / obligation |
 |---|---|---|
-| [ ] | initialize | SettingsManager + SessionManager.create/open, createAgentSessionRuntime/services/fromServices; explicit paths |
+| [x] | initialize | SettingsManager + SessionManager.create/open, createAgentSessionRuntime/services/fromServices; explicit paths |
 | [ ] | onEvent / agent.event | session.subscribe, mapped extension errors, rendered messages, ordered events |
 | [ ] | onError / server.diagnostic | Async errors distinct from failed requests |
 | [ ] | isRunning | Host connection lifecycle, not session.isStreaming; no wire method |
@@ -193,7 +201,7 @@ cwd-bound `SettingsManager`. Bind/rebind events and UI after session replacement
 | [ ] | setSessionName / session.setName | session.setSessionName(trimmed name) |
 | [ ] | compact / session.compact | session.compact |
 | [ ] | exportHtml / session.exportHtml | session.exportToHtml; returned path is server-side |
-| [ ] | getLastAssistantText / session.getLastAssistantText | session.getLastAssistantText, null when absent |
+| [x] | getLastAssistantText / session.getLastAssistantText | session.getLastAssistantText, null when absent |
 | [ ] | getMessages / session.getMessages | session.messages, enrich resumed custom renders; persisted truth |
 | [ ] | switchSession / session.switch | runtime.switchSession, cancellation and rebind |
 | [ ] | importFromJsonl / session.importJsonl | runtime.importFromJsonl; server-side input path |
@@ -214,6 +222,17 @@ defaultThinkingLevel -> session thinking setter; hideThinkingBlock/quietStartup 
 settings; compaction/retry/steering/followUp -> session setters; transport/images/
 skill commands -> settings with reload result; enabledModels -> scoped models +
 settings. Persist and report errors, not only in-memory application.
+
+### Implemented subset and remaining work
+
+The handshake currently advertises `initialize`, `shutdown`, `chat.prompt`,
+`runtime.getState`, `runtime.getSessionStats`, `session.getMessages`, and
+`session.getLastAssistantText`. Prompts currently accept text only while idle;
+images and steering/follow-up are rejected rather than silently ignored. Session
+events are forwarded as SDK JSON snapshots, with sequence numbers. State/stats
+are basic SDK snapshots; settings augmentation, rendered custom-message history,
+UI binding, and sanitized auth readiness are not yet implemented. Unsupported
+methods are not advertised and receive the library's method-not-found error.
 
 ### Outside AgentClient
 
