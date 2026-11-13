@@ -16,7 +16,8 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "check:version": "node ../scripts/verify-sandbox-sdk-version.js",
     "build": "npm --prefix ../shared run build && npm run check:version && npm run clean && tsc -p tsconfig.json",
-    "test": "npm run build && node --test dist/test/*.test.js dist/completion/*.test.js",
+    "test": "npm run build && node scripts/run-tests.js",
+    "test:sbx": "npm run build && node --test dist/test/ssh.sbx.test.js",
     "start": "node dist/main.js"
   },
   "dependencies": {

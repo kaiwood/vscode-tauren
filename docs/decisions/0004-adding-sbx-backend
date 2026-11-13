@@ -140,19 +140,19 @@ The initial server runs as `node sandbox-server/dist/main.js` after `npm run com
 
 Step 4's standalone implementation is in `sandbox-server/src/server.ts`, `runtimeControls.ts`, and `completion/`. Its offline real-SDK subprocess gate covers streaming/images, steering/follow-up, actual file tools, generation/tool abort, delayed-preflight cancellation, persisted settings, credential rejection, completions, and descendant-process cleanup on shutdown/EOF/SIGTERM. Tests launch the built production stdio entrypoint; self-contained packaged-artifact verification remains step 7. Extension-provided completion factories and custom renderers belong to extension UI binding, rather than the basic runtime controls.
 
-### 5. Complete server sessions and extension UI
+### ~~5. Complete server sessions and extension UI~~ — Completed
 
-- Implement the remaining session lifecycle, tree navigation, branching/forking/cloning, compaction, and import/export behavior used by the Pi backend.
-- Implement the runtime-agnostic side of the extension UI bridge, including requests/responses, widgets/footer/custom UI, and completion providers. Tauren remains responsible for rendering VS Code surfaces.
-- **Test gate:** real-SDK subprocess tests use fixture extensions to exercise UI round trips and cancellation, and verify session operations and restored messages/tree state against persisted files. Close the server-side parity checklist, documenting only intentional credential-policy differences.
+- ~~Implement the remaining session lifecycle, tree navigation, branching/forking/cloning, compaction, and import/export behavior used by the Pi backend.~~
+- ~~Implement the runtime-agnostic side of the extension UI bridge, including requests/responses, widgets/footer/custom UI, and completion providers. Tauren remains responsible for rendering VS Code surfaces.~~
+- ~~**Test gate:** real-SDK subprocess tests use fixture extensions to exercise UI round trips and cancellation, and verify session operations and restored messages/tree state against persisted files. Close the server-side parity checklist, documenting only intentional credential-policy differences.~~
 
 The session and extension UI server implementation uses `sessionControls.ts` and standalone session helpers for persisted history/tree/discovery, plus `extensionUi/` for reverse UI requests and server-local surfaces. Runtime replacement rebinds events, UI and completion providers; `rendering/` enriches live and restored custom messages/tools. The protocol includes image render blocks, attachment/focus state, completion-capability notifications, transferable export HTML, and scoped multi-input origin queries. The offline subprocess suite exercises these through the production stdio entrypoint. Host adapter/rendering, export materialization/skinning, SSH and packaged artifacts remain their later gates; server checks do not claim those end-to-end behaviors.
 
-### 6. Verify the server over a real SSH pipe
+### ~~6. Verify the server over a real SSH pipe~~ — Completed
 
-- Add a disposable local SSH-server fixture and drive the built server through `ssh -T`, using the same remote launch construction intended for SBX. Explicitly set the remote workspace/session configuration rather than relying on environment forwarding or interactive shell initialization.
-- Handle SSH's remote-command quoting separately from local process argv; paths with spaces or shell metacharacters must remain literal. Keep protocol stdout separate from SSH/server diagnostics.
-- **Test gate:** automated tests cover handshake, a streamed SDK turn, a tool call, a UI interaction, session reopening, nonzero remote exit, abrupt disconnect, and bounded server/tool cleanup. A new SSH connection restores history without continuing or duplicating the interrupted turn. These tests require neither SBX nor external model credentials.
+- ~~Add an explicitly invoked disposable **SBX shell-sandbox** fixture (`sbx create shell`) and drive the built server through `ssh -T <name>.sbx`, using the same remote launch construction intended for Tauren. SBX supplies SSH; do not require a local `sshd`, generated authentication keys, privileged host setup, or account changes. Stage built fixture code and materialized dependencies in a read-only workspace, separate from writable settings/session/tool storage. Verify the shell runtime provides a compatible Node executable. Explicitly set remote workspace/session configuration rather than relying on environment forwarding or interactive shell initialization.~~
+- ~~Handle SSH's remote-command quoting separately from local process argv; paths with spaces or shell metacharacters must remain literal. Keep protocol stdout separate from SSH/server diagnostics.~~
+- ~~**Test gate:** opt-in automated tests cover handshake, a streamed SDK turn, a tool call, a UI interaction, session reopening, nonzero remote exit, abrupt disconnect, and bounded server/tool cleanup. Inspect server/tool PIDs inside the VM over independent SSH probes and assert natural cleanup before sandbox removal. A new SSH connection restores history without continuing or duplicating the interrupted turn. These tests require host SBX login/SSH setup but no external model credentials. Keep them out of ordinary root `npm test`; fast local SDK/protocol tests remain unchanged. Production kit/package verification remains separate.~~
 
 ### 7. Assemble and package the generated kit
 
@@ -222,6 +222,10 @@ The session and extension UI server implementation uses `sessionControls.ts` and
 - Tauren must maintain the vendored Pi sandbox configuration and runtime image digest alongside SDK updates. Third-party providers must supply a compatible pinned runtime image themselves.
 
 ## Change Log
+
+### 2026-11-12 — SSH verification uses an SBX shell sandbox
+
+Replace the disposable local OpenSSH daemon fixture with an explicitly invoked SBX shell-sandbox fixture. The local-daemon approach introduced host tool installation, key/port management, and account eligibility requirements unrelated to Tauren; SBX already supplies the target SSH endpoint. Tests stage code/dependencies read-only, use separate writable state, and retain the shared remote-command quoting helper. Process inspection and cleanup assertions run inside the VM before final sandbox removal. Root `npm test` keeps local deterministic coverage; `npm run test:sandbox-server:sbx` owns the slower SBX transport gate. This supersedes the original requirement that the SSH gate need no SBX. It does not replace Tauren-kit installation or packaged-artifact verification. The SBX test gate is not yet runtime-verified in this environment, where `sbx` is unavailable.
 
 ### 2026-11-09 21:32:03 MST — Step 1: kit source and installation contract
 

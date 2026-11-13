@@ -54,6 +54,39 @@ VS Code may exit with `Missing X server or $DISPLAY` before any extension tests
 run. A virtual display does not provide desktop services such as Trash; tests
 should stub those services rather than depend on the host desktop.
 
+### Opt-in SBX SSH integration
+
+The remote-pipe suite creates a disposable SBX **shell** sandbox and runs the
+built server over `ssh -T`. It is excluded from ordinary `npm test`; no local
+`sshd`, temporary authentication keys, or OS account changes are required.
+Run it on a host with SBX login and SSH setup complete, an SSH client, and a
+version supporting the built-in v3 shell kit. The fixture composes its v3 Node mixin to install
+Node 22.22.1; it does not rely on the shell image's Node version:
+
+```sh
+npm run test:sandbox-server:sbx
+```
+
+### Aggregate local and SBX regression gate
+
+On a host with both the Extension Host and SBX prerequisites, run:
+
+```sh
+npm run test:all
+# Headless Linux:
+xvfb-run -a npm run test:all
+```
+
+This runs `npm test` first, then `test:sandbox-server:sbx`, stopping if either
+fails. It is the combined regression gate for server/transport changes; ordinary
+`npm test` remains usable without SBX. Kit-installation smoke tests and future
+packaged end-to-end gates remain separate, not implicitly included in `test:all`.
+
+The fixture mounts prepared code read-only and uses a separate writable workspace
+for settings, sessions and tool targets. It checks remote process cleanup before
+removing the sandbox. See `sandbox-server/README.md` in the repository for
+runtime/dependency prerequisites and `SBX_PATH`/`SSH_PATH` overrides.
+
 The VS Code test runner may download its test installation, so an initial run
 also requires network access. Real-SBX smoke tests remain explicitly invoked
 with `npm run test:sbx-kit:smoke`; they are not part of `npm test`.

@@ -750,6 +750,8 @@
     "test:shared": "npm --prefix shared test",
     "compile:sandbox-server": "npm --prefix sandbox-server run build",
     "test:sandbox-server": "node --test scripts/verify-sandbox-sdk-version.test.js && npm --prefix sandbox-server test",
+    "test:sandbox-server:sbx": "npm --prefix sandbox-server run test:sbx",
+    "test:all": "npm test && npm run test:sandbox-server:sbx",
     "publish": "node scripts/release.js",
     "release": "npm run publish --",
     "install:local": "npm run compile && npx --yes @vscode/vsce package --out tauren-local.vsix && code --install-extension tauren-local.vsix --force && node scripts/restart-vscode-extension-host.js",

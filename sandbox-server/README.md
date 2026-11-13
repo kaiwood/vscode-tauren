@@ -96,4 +96,52 @@ Real-SDK subprocess tests cover UI round trips, server-local completion values,
 provider registration, custom renderers, persisted branches, compaction, and
 session replacement. They do not verify VS Code rendering or SSH/SBX behavior.
 
+## SBX shell-sandbox SSH tests
+
+```sh
+npm run test:sandbox-server:sbx  # repository root
+# or: npm run test:sbx inside sandbox-server
+```
+
+This slower gate is **not included in root `npm test`**. Run it on a host with
+Docker Sandboxes, `sbx login`, `sbx setup ssh`, and an SSH client already available.
+It creates a unique disposable sandbox using SBX's built-in v3 `shell` kit and
+automatically composes the v3 `test-resources/node-shell-mixin`. It starts the sandbox with detached `sbx run`
+and removes it in cleanup. No local SSH daemon,
+key generation, privileged setup, or OS account changes are needed: SBX supplies
+the SSH endpoint. `SBX_PATH` and `SSH_PATH` optionally select the executables.
+
+`src/test/sbxShellFixture.ts` stages the built server/dependencies/fixture extensions
+in a separate read-only additional workspace (`PATH:ro`). Its writable primary
+workspace holds isolated settings, session files, tool targets and PID markers.
+The code payload is not nested under a writable mount. Dependencies are
+materialized, including the local shared package, rather than linking back into
+the checkout. This is test payload assembly, not production kit installation.
+
+The test-only Node mixin installs pinned Node 22.22.1 during sandbox creation;
+the fixture verifies and uses `/opt/tauren-test-node/bin/node`, never the base
+image's Node or the host's executable. Creation requires access to nodejs.org.
+The shell base must provide curl, tar/gzip, sha256sum, and glibc Linux. The mixin
+uses v3 lifecycle and install-only network-policy capabilities; no custom shell
+kit setting is needed. See `test-resources/node-shell-mixin/README.md`.
+
+Dependencies must be Linux/architecture-compatible; use a compatible installation
+when staging from a non-Linux host. Read-only enforcement is checked remotely.
+The test Node mixin is separate from Tauren's Pi-specific production mixin.
+
+Every protocol connection uses `ssh -T <name>.sbx`, no connection sharing or local
+shell. Remote launch commands use `@tauren/shared/ssh/serverLaunch`; POSIX remote
+quoting is distinct from local argv. The tests explicitly isolate the remote
+environment and supply workspace/session paths, not SSH environment forwarding
+or interactive profile initialization.
+
+SSH tests run the built production entrypoint with ordinary offline provider/UI
+extensions, test literal metacharacter paths, and observe recorded server/tool
+PIDs during disconnect. Fixture cleanup is only a safety net, not the proof of
+server cleanup. Reconnection reopens history without replaying interrupted tools.
+PID checks/signals execute inside the VM over separate SSH probes, never against
+host PIDs. Sandbox removal is final cleanup, not proof of disconnect behavior.
+This exercises the actual SBX SSH boundary; Tauren kit installation, production
+packaging, sandbox adoption, and full host integration remain separate gates.
+
 See [protocol and parity checklist](docs/protocol.md).
