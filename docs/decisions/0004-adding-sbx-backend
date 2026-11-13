@@ -138,13 +138,15 @@ The initial server runs as `node sandbox-server/dist/main.js` after `npm run com
 - ~~Implement EOF/signal/disposal cleanup, including active tools and pending requests. Do not replay interrupted prompts on restart.~~
 - ~~**Test gate:** subprocess tests verify event ordering, controlled tool reads/edits/writes, cancellation during generation and tool execution, settings behavior, credential rejection, stderr isolation, and process cleanup on pipe closure. Run the tests against the packaged server entrypoint, not an in-memory dispatcher alone.~~
 
-Step 4's standalone implementation is in `sandbox-server/src/server.ts`, `runtimeControls.ts`, and `completion/`. Its offline real-SDK subprocess gate covers streaming/images, steering/follow-up, actual file tools, generation/tool abort, delayed-preflight cancellation, persisted settings, credential rejection, completions, and descendant-process cleanup on shutdown/EOF/SIGTERM. Tests launch the built production stdio entrypoint; self-contained packaged-artifact verification remains step 7. Extension-provided completion factories and custom renderers remain part of step 5's UI binding, rather than claiming completed UI parity here.
+Step 4's standalone implementation is in `sandbox-server/src/server.ts`, `runtimeControls.ts`, and `completion/`. Its offline real-SDK subprocess gate covers streaming/images, steering/follow-up, actual file tools, generation/tool abort, delayed-preflight cancellation, persisted settings, credential rejection, completions, and descendant-process cleanup on shutdown/EOF/SIGTERM. Tests launch the built production stdio entrypoint; self-contained packaged-artifact verification remains step 7. Extension-provided completion factories and custom renderers belong to extension UI binding, rather than the basic runtime controls.
 
 ### 5. Complete server sessions and extension UI
 
 - Implement the remaining session lifecycle, tree navigation, branching/forking/cloning, compaction, and import/export behavior used by the Pi backend.
 - Implement the runtime-agnostic side of the extension UI bridge, including requests/responses, widgets/footer/custom UI, and completion providers. Tauren remains responsible for rendering VS Code surfaces.
 - **Test gate:** real-SDK subprocess tests use fixture extensions to exercise UI round trips and cancellation, and verify session operations and restored messages/tree state against persisted files. Close the server-side parity checklist, documenting only intentional credential-policy differences.
+
+The session and extension UI server implementation uses `sessionControls.ts` and standalone session helpers for persisted history/tree/discovery, plus `extensionUi/` for reverse UI requests and server-local surfaces. Runtime replacement rebinds events, UI and completion providers; `rendering/` enriches live and restored custom messages/tools. The protocol includes image render blocks, attachment/focus state, completion-capability notifications, transferable export HTML, and scoped multi-input origin queries. The offline subprocess suite exercises these through the production stdio entrypoint. Host adapter/rendering, export materialization/skinning, SSH and packaged artifacts remain their later gates; server checks do not claim those end-to-end behaviors.
 
 ### 6. Verify the server over a real SSH pipe
 

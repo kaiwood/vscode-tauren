@@ -1,8 +1,12 @@
 import type { AgentToolResult, MessageRenderer, Theme, ToolDefinition } from '@earendil-works/pi-coding-agent';
-import { renderComponentContent } from '../extensionUi/renderContent';
-import { taurenTheme } from '../extensionUi/customUiHost';
-import type { PiEvent, PiRenderedContent } from '../pi/types';
-import { isRecord } from '../shared/typeGuards';
+// Shared snapshot renderer; extension-owned components stay local to the runtime.
+import { renderComponentContent } from './renderContent.js';
+import { taurenTheme } from './theme.js';
+import { isRecord } from './typeGuards.js';
+
+/** Same JSON DTO as the extension; components never cross the wire. */
+export type PiRenderedContent = { body: string; expandedBody?: string; code?: boolean };
+export type PiEvent = { type: string; [key: string]: unknown };
 
 const defaultRenderWidth = 100;
 
@@ -16,7 +20,7 @@ const rendererHostOptions = {
 type ToolRenderContext = Parameters<NonNullable<ToolDefinition['renderResult']>>[3];
 type MessageRendererInput = Parameters<MessageRenderer>[0];
 
-type RenderableRuntime = {
+export type RenderableRuntime = {
   cwd: string;
   session: {
     extensionRunner: {
@@ -36,7 +40,16 @@ type ToolRenderState = {
 export class PiSdkRenderer {
   private readonly toolStates = new Map<string, ToolRenderState>();
 
-  public constructor(private readonly getToolsExpanded: () => boolean) {}
+  public constructor(private readonly getToolsExpanded: () => boolean = () => false) {}
+
+  /** Drop per-call references when a runtime reloads, switches session, or closes. */
+  public reset(): void {
+    this.toolStates.clear();
+  }
+
+  public dispose(): void {
+    this.reset();
+  }
 
   public enrichEvent(runtime: RenderableRuntime, event: PiEvent): PiEvent {
     if (isToolExecutionEvent(event)) {
@@ -276,7 +289,10 @@ function renderedContent(collapsed: string | undefined, expanded: string | undef
 }
 
 function renderComponentText(component: unknown): string | undefined {
-  const lines = trimBlankLines(renderComponentContent(component, defaultRenderWidth).lines);
+  // Both the renderer callback and component.render() are extension-owned.
+  const content = safeRender(() => renderComponentContent(component, defaultRenderWidth));
+  if (!content) return undefined;
+  const lines = trimBlankLines(content.lines);
   const text = stripAnsiBackgroundStyles(lines.join('\n'));
   return text.trim() ? text : undefined;
 }
@@ -297,7 +313,7 @@ function stripAnsiBackgroundParameters(parameters: string): number[] {
   const next: number[] = [];
 
   for (let index = 0; index < codes.length; index += 1) {
-    const code = codes[index];
+    const code = codes[index]!;
 
     if (code === 7 || code === 27 || code === 49 || isBasicAnsiBackground(code) || isBrightAnsiBackground(code)) {
       continue;

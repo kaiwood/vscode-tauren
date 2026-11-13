@@ -3,11 +3,13 @@
 Private standalone Node project for the SBX SDK server. The executable supports
 initialization, state/history queries, streaming prompts with images and Pi-owned
 steering/follow-up, abort, model/settings/resource controls, file completions,
-credential-policy enforcement, and bounded shutdown. Session lifecycle and
-extension UI methods remain later increments.
+credential-policy enforcement, session/tree/import/export operations, remote
+extension UI, and bounded shutdown. SSH transport, packaging, and the Tauren host
+adapter remain later increments.
 This package is not independently published and imports no extension-host code.
 
 ```sh
+npm ci --prefix shared
 npm ci --prefix sandbox-server
 npm run compile:sandbox-server
 npm run test:sandbox-server
@@ -68,5 +70,30 @@ requests always fail with `CredentialPolicy`; no credential records or write
 APIs cross the protocol. Model metadata omits configured HTTP headers. Trusted
 Pi extensions and tools retain normal SDK behavior inside the sandbox; this
 wire policy is not a filesystem security boundary against sandbox code.
+
+## Sessions and extension UI
+
+`sessionControls.ts` delegates session replacement to `AgentSessionRuntime`,
+rebinds event/UI callbacks, and reconstructs history from Pi session files.
+Switches remain in the initialized store/workspace; imports copy normalized JSONL
+into that store. Discovery/origin scans do not fall back to `~/.pi`. Export returns
+both the server-side path and HTML content; the future host adapter must materialize
+that content and apply host-side export presentation.
+
+`extensionUi/` keeps component factories, callbacks, terminal handlers and custom
+`done(T)` values beside the SDK. The wire carries dialogs, opaque surface handles,
+rendered text/image blocks, input and UI intent. Reverse requests are cancelled
+on timeout, abort, reset or disconnect; late factory results are disposed rather
+than remounted. The in-process Tauren bridge's documented terminal-only no-ops
+are preserved, including the empty composer-text getter and unsupported theme
+switching/editor replacement. This is not a new terminal implementation.
+
+Server modules import helper subpaths directly from the local `@tauren/shared`
+package under `shared/`. Both consumers use one maintained helper implementation;
+its ESM/CJS outputs avoid importing extension-host code or staging source copies.
+The server build builds that dependency first. See `shared/README.md`.
+Real-SDK subprocess tests cover UI round trips, server-local completion values,
+provider registration, custom renderers, persisted branches, compaction, and
+session replacement. They do not verify VS Code rendering or SSH/SBX behavior.
 
 See [protocol and parity checklist](docs/protocol.md).

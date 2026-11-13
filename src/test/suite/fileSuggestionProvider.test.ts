@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
-import { getAtFileSuggestions } from '../../fileSuggestions/fileSuggestionProvider';
+import { getAtFileSuggestions } from '@tauren/shared/completion/fileSuggestions/fileSuggestionProvider';
 
 suite('@ file suggestion provider', () => {
   test('returns fuzzy file and directory suggestions', async () => {

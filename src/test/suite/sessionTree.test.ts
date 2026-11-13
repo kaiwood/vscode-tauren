@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { decorateSessionTree } from '../../sessions/sessionTree';
+import { decorateSessionTree } from '@tauren/shared/sessions/sessionTree';
 import type { RawSessionInfo } from '../../sessions/types';
 
 suite('sessionTree', () => {

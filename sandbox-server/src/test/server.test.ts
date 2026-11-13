@@ -205,9 +205,7 @@ test('real SDK handshake, preinitialize guard, duplicate initialize, and acknowl
       Requests.getAuthProviders]) {
       assert.ok(result.capabilities.includes(request.method), `Missing step 4 capability: ${request.method}`);
     }
-    // Session mutation belongs to a later step, not the step 4 runtime surface.
-    assert.ok(!result.capabilities.includes(Requests.setSessionName.method));
-    await rejectsCode(s.request(s.client.sendRequest(Requests.setSessionName, { name: 'later' })), -32601);
+    assert.ok(result.capabilities.includes(Requests.setSessionName.method));
     assert.deepEqual(await s.request(s.client.sendRequest(Requests.getMessages, null)), { messages: [] });
     assert.deepEqual(await s.request(s.client.sendRequest(Requests.getLastAssistantText, null)), { text: null });
     const state = await s.request(s.client.sendRequest(Requests.getState, null));

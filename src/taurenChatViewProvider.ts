@@ -45,8 +45,8 @@ import {
   resolveWorkspaceFileUri,
   resolveWorkspaceImageUri
 } from './workspace/workspaceUris';
-import { getAtFileSuggestions } from './fileSuggestions/fileSuggestionProvider';
-import type { ComposerCompletionApplication, ComposerCompletionRequest } from './autocomplete/types';
+import { getAtFileSuggestions } from '@tauren/shared/completion/fileSuggestions/fileSuggestionProvider';
+import type { ComposerCompletionApplication, ComposerCompletionRequest } from '@tauren/shared/completion/types';
 import { buildTaurenHotkeysMarkdown } from './hotkeys/vscodeKeybindings';
 import { TaurenPerfRecorder, type TaurenPerfTimer } from './perf/taurenPerf';
 import {

@@ -65,7 +65,10 @@ export interface EntryParams { entryId: string }
 export interface LabelParams extends EntryParams { label: string | null }
 export interface NavigateParams extends EntryParams { summarize?: boolean; customInstructions?: string }
 export interface ListSessionsParams { workspace?: string }
-export interface TraceOriginParams { sessionFile: string; path: string; content?: string }
+export interface TraceOriginInput { kind: 'file' | 'selection'; path: string; absolutePath?: string; text?: string }
+/** Omit sessionFile to scan this connection's initialized store. Legacy path/content
+ * describes one input; inputs preserves file/selection precedence across sessions. */
+export interface TraceOriginParams { sessionFile?: string; path?: string; content?: string; inputs?: TraceOriginInput[] }
 
 /** Reject incompatible protocol versions before constructing an SDK runtime. */
 export function assertProtocolVersion(version: number): void {
@@ -130,7 +133,10 @@ export interface CustomParams extends SurfaceParams { options: Snapshot }
 export interface RenderParams extends SurfaceParams {
   width: number; height: number; cellWidth?: number; cellHeight?: number;
 }
-export interface RenderResult { lines: string[]; cursor?: { row: number; column: number } }
+/** Image/text blocks preserve Tauren's component rendering without serializing components. */
+export type RenderBlock = import('@tauren/shared/rendering/renderContent').ExtensionRenderContent['blocks'][number];
+export interface RenderResult { lines: string[]; blocks?: RenderBlock[]; cursor?: { row: number; column: number } }
+export interface SurfaceStateParams extends SurfaceParams { attached: boolean; focused: boolean }
 export interface SurfaceInputParams extends SurfaceParams { input: string }
 export interface TerminalInputParams { input: string }
 export interface TerminalInputResult { consume: boolean; input?: string }
@@ -145,6 +151,7 @@ export const UiRequests = {
   editor: new RequestType<EditorParams, string | null, void>('ui.editor'),
   custom: new RequestType<CustomParams, null, void>('ui.custom'),
   render: new RequestType<RenderParams, RenderResult, void>('ui.render'),
+  setSurfaceState: new RequestType<SurfaceStateParams, null, void>('ui.setSurfaceState'),
   surfaceInput: new RequestType<SurfaceInputParams, null, void>('ui.surfaceInput'),
   dispose: new RequestType<SurfaceParams, null, void>('ui.dispose'),
   terminalInput: new RequestType<TerminalInputParams, TerminalInputResult, void>('ui.terminalInput')
@@ -169,6 +176,7 @@ export interface SubscriptionParams { enabled: boolean }
  */
 export const Notifications = {
   event: new NotificationType<EventParams>('agent.event'),
+  completionCapabilities: new NotificationType<CompletionCapabilities>('completion.capabilities'),
   diagnostic: new NotificationType<DiagnosticParams>('server.diagnostic'),
   notify: new NotificationType<NotifyParams>('ui.notify'),
   status: new NotificationType<StatusParams>('ui.status'),

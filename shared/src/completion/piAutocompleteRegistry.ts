@@ -1,8 +1,6 @@
-/** Adapted from src/autocomplete/piAutocompleteRegistry.ts. Keeps Tauren completion
- * handles and Pi provider composition server-local; SDK UI factory binding is a later step. */
 import type { AutocompleteProviderFactory } from '@earendil-works/pi-coding-agent';
 import { createTaurenBaseAutocompleteProvider, type PiAutocompleteItem, type PiAutocompleteProvider } from './baseProvider.js';
-import type { CompletionApplication, CompletionApplied, CompletionCapabilities, CompletionParams, CompletionResult } from '../protocol/contract.js';
+import type { CompletionApplication, CompletionApplied, CompletionCapabilities, CompletionParams, CompletionResult } from './types.js';
 
 const maxTextLength = 100_000;
 const maxItems = 50;
@@ -25,7 +23,7 @@ export class PiAutocompleteRegistry {
 
   public constructor(private readonly options: { onCapabilitiesChange?: (capabilities: CompletionCapabilities) => void; onDiagnostic?: (message: string) => void } = {}) {}
 
-  /** Register a Pi provider wrapper; SDK extension UI binding calls this in a later step. */
+  /** Register a Pi provider wrapper. */
   public add(factory: AutocompleteProviderFactory): void {
     this.factories.push(factory);
     this.refreshTriggerCharacters();
@@ -42,7 +40,7 @@ export class PiAutocompleteRegistry {
     this.publishCapabilities();
   }
 
-  /** Return a detached capability snapshot for the wire protocol. */
+  /** Return a detached capability snapshot for consumers. */
   public getCapabilities(): CompletionCapabilities {
     return { triggerCharacters: this.triggerCharacters.slice(), generation: this.generation };
   }

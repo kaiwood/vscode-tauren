@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import type { MessageRenderOptions, MessageRenderer, ToolDefinition } from '@earendil-works/pi-coding-agent';
-import { PiSdkRenderer } from '../../sdk/piSdkRendering';
+import { PiSdkRenderer } from '@tauren/shared/rendering/piSdkRendering';
 
 suite('PiSdkRenderer', () => {
   test('renders completed extension tool results with collapsed and expanded bodies', () => {

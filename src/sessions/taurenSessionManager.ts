@@ -18,7 +18,7 @@ import type { SettingValue, TaurenSettingId } from '../settings/settingsRegistry
 import { getErrorMessage } from '../controller/errors';
 import { resolveWebviewStateMessageMessages } from '../webviewProtocol/messagePatch';
 import type { WebviewMessage, WebviewSessionItem, WebviewStateMessage } from '../webviewProtocol/types';
-import type { ComposerCompletionApplication, ComposerCompletionApplied, ComposerCompletionCapabilities, ComposerCompletionRequest, ComposerCompletionResult } from '../autocomplete/types';
+import type { ComposerCompletionApplication, ComposerCompletionApplied, ComposerCompletionCapabilities, ComposerCompletionRequest, ComposerCompletionResult } from '@tauren/shared/completion/types';
 
 export type TaurenSessionManagerOptions = TaurenChatControllerOptions & {
   customUi?: {

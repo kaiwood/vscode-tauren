@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import type { CompletionParams } from '../protocol/contract.js';
-import type { PiAutocompleteSuggestions } from './baseProvider.js';
-import { PiAutocompleteRegistry } from './piAutocompleteRegistry.js';
+import type { PiAutocompleteSuggestions } from '@tauren/shared/completion/baseProvider';
+import { PiAutocompleteRegistry } from '@tauren/shared/completion/piAutocompleteRegistry';
 
 /** Real filesystem fixture, isolated from both the user's workspace and the Pi CLI. */
 async function fixture() {

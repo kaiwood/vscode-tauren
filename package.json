@@ -740,25 +740,27 @@
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('out', { recursive: true, force: true })\"",
     "vscode:prepublish": "npm run compile",
-    "compile": "npm run clean && npm run compile:webview && npm run compile:sdk && tsc -p ./",
+    "compile": "npm run clean && npm run compile:shared && npm run compile:webview && npm run compile:sdk && tsc -p ./",
     "compile:webview": "node scripts/build-webview.js",
     "sync:vendor": "node scripts/sync-vendor-deps.js",
     "update:pi-sdk": "node scripts/update-pi-sdk.js",
     "verify:pi-sdk": "node scripts/verify-sandbox-sdk-version.js && node scripts/verify-pi-sdk-peer-runtime.js",
     "verify:sandbox-sdk": "node scripts/verify-sandbox-sdk-version.js",
+    "compile:shared": "npm --prefix shared run build",
+    "test:shared": "npm --prefix shared test",
     "compile:sandbox-server": "npm --prefix sandbox-server run build",
     "test:sandbox-server": "node --test scripts/verify-sandbox-sdk-version.test.js && npm --prefix sandbox-server test",
     "publish": "node scripts/release.js",
     "release": "npm run publish --",
     "install:local": "npm run compile && npx --yes @vscode/vsce package --out tauren-local.vsix && code --install-extension tauren-local.vsix --force && node scripts/restart-vscode-extension-host.js",
-    "test": "npm run test:sandbox-server && npm run compile -- --pretty false && vscode-test",
+    "test": "npm run test:shared && npm run test:sandbox-server && npm run compile -- --pretty false && vscode-test",
     "test:sbx-kit": "node --test scripts/sbx-kit.test.js",
     "test:sbx-kit:smoke": "node scripts/smoke-sbx-kit.js",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "analyze": "fallow --format compact",
-    "watch": "npm run compile:sdk && node scripts/watch.js",
+    "watch": "npm run compile:shared && npm run compile:sdk && node scripts/watch.js",
     "compile:sdk": "node scripts/verify-sandbox-sdk-version.js && node scripts/build-sdk-bundle.js"
   },
   "devDependencies": {
@@ -777,6 +779,7 @@
     "vitepress": "^1.6.4"
   },
   "dependencies": {
+    "@tauren/shared": "file:shared",
     "shiki": "^3.23.0",
     "vscode-shiki-bridge": "^0.5.2"
   }

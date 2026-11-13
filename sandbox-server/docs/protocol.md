@@ -143,9 +143,11 @@ records, secret values, or credential source paths.
 - Server -> host requests: `ui.select`, `ui.confirm`, `ui.input`, `ui.editor`, and
   `ui.custom`. Cancellation/timeout uses normal request correlation and removes
   the host interaction. Dismissed dialogs return `null`.
-- Host -> server: `ui.render`, `ui.surfaceInput`, `ui.dispose`, `ui.terminalInput`.
+- Host -> server: `ui.render`, `ui.setSurfaceState`, `ui.surfaceInput`, `ui.dispose`, `ui.terminalInput`.
   Render dimensions include optional cell-pixel dimensions. Lines retain ANSI
-  data for existing Tauren rendering. Surface IDs are opaque and connection-local.
+  data, and optional text/image blocks preserve embedded component images.
+  `ui.setSurfaceState` updates attached/focused state without disposing a surface.
+  Surface IDs are opaque and connection-local.
 - Factory callbacks, TUI/theme/keybinding facades, components, footer data
   providers, terminal handlers, and autocomplete providers remain beside the SDK.
   Never serialize executable JavaScript. Function-valued widgets/footer/custom UI
@@ -158,7 +160,12 @@ records, secret values, or credential source paths.
   notification; preserve ordering. Subscription and tools-expanded state travel
   explicitly. Status/widget/footer/composer updates are notifications.
 - Completion request/revision/generation and opaque item IDs preserve the current
-  autocomplete registry semantics. Cancellation tokens never become JSON values.
+  autocomplete registry semantics. `completion.capabilities` publishes provider
+  trigger/generation changes. Cancellation tokens never become JSON values.
+- `sessions.traceOrigin` accepts either legacy `path`/`content` or an `inputs`
+  array of file/selection queries. Omitting `sessionFile` scans only associated
+  files in the initialized store, preserving path-match precedence over
+  content-only matches. No global session-store fallback is permitted.
 ### UI parity scope
 
 The target is parity with Tauren's existing bundled Pi backend, not every API
@@ -175,20 +182,20 @@ TUI editor-replacement API, distinct from Tauren's supported Custom UI Surface.
 
 ## Method-to-SDK parity checklist
 
-Unchecked means **declared, not fully implemented/verified**. Step 4 implements
-chat and non-session runtime controls; extension UI and session parity remain open.
+Checks describe the **server-side contract**, not a completed SSH/host adapter or
+Extension Host verification. Unchecked host integration rows remain later steps.
 Runtime = `AgentSessionRuntime`; session = `runtime.session`; settings = its
 cwd-bound `SettingsManager`. Bind/rebind events and UI after session replacement.
 
 | Done | AgentClient / wire method | SDK mapping / obligation |
 |---|---|---|
 | [x] | initialize | SettingsManager + SessionManager.create/open, createAgentSessionRuntime/services/fromServices; explicit paths |
-| [ ] | onEvent / agent.event | session.subscribe, mapped extension errors, rendered messages, ordered events |
-| [ ] | onError / server.diagnostic | Async errors distinct from failed requests |
+| [x] | onEvent / agent.event | session.subscribe, mapped extension errors, rendered messages, ordered events |
+| [x] | onError / server.diagnostic | Async errors distinct from failed requests |
 | [ ] | isRunning | Host connection lifecycle, not session.isStreaming; no wire method |
 | [x] | prompt / chat.prompt | session.prompt with source rpc, streamingBehavior/images/preflight; prompt_handled |
 | [x] | abort / chat.abort | abortCompaction, abortBranchSummary, abortBash, session.abort |
-| [ ] | reload / runtime.reload | session.reload, clear statuses/widgets, rebind extensions |
+| [x] | reload / runtime.reload | session.reload, clear statuses/widgets, rebind extensions |
 | [x] | getState / runtime.getState | Session state + settings getters |
 | [x] | getSessionStats / runtime.getSessionStats | session.getSessionStats + name, auto-compaction, OAuth-use flag |
 | [x] | getAvailableModels / runtime.getAvailableModels | modelRuntime getModels/getAvailable/auth readiness; current-model inclusion and catalog refresh |
@@ -197,27 +204,27 @@ cwd-bound `SettingsManager`. Bind/rebind events and UI after session replacement
 | [x] | setModel / runtime.setModel | Resolve selectable model then session.setModel |
 | [x] | setThinkingLevel / runtime.setThinkingLevel | session.setThinkingLevel |
 | [x] | updateRuntimeSetting / runtime.updateSetting | Session/settings setters; flush and drainErrors; live/reload distinction |
-| [ ] | completion.get/getCapabilities/apply | Server-local PiAutocompleteRegistry equivalent; opaque handles and cancellation |
+| [x] | completion.get/getCapabilities/apply | Server-local PiAutocompleteRegistry equivalent; opaque handles and cancellation |
 | [x] | getAuthProviders / auth.getProviders | Sanitized readiness, no credential enumeration/material |
 | [x] | loginWithApiKey/loginWithOAuth/logoutAuthProvider | Intentional CredentialPolicy rejection; host documentation popup |
-| [ ] | setSessionName / session.setName | session.setSessionName(trimmed name) |
-| [ ] | compact / session.compact | session.compact |
-| [ ] | exportHtml / session.exportHtml | session.exportToHtml; returned path is server-side |
+| [x] | setSessionName / session.setName | session.setSessionName(trimmed name) |
+| [x] | compact / session.compact | session.compact |
+| [x] | exportHtml / session.exportHtml | session.exportToHtml; returns server path plus transferable HTML |
 | [x] | getLastAssistantText / session.getLastAssistantText | session.getLastAssistantText, null when absent |
-| [ ] | getMessages / session.getMessages | session.messages, enrich resumed custom renders; persisted truth |
-| [ ] | switchSession / session.switch | runtime.switchSession, cancellation and rebind |
-| [ ] | importFromJsonl / session.importJsonl | runtime.importFromJsonl; server-side input path |
-| [ ] | getSessionTree / session.getTree | sessionManager.getTree/getLeafId, flatten DTO |
-| [ ] | setTreeEntryLabel / session.setTreeEntryLabel | sessionManager.appendLabelChange, null removes label |
-| [ ] | navigateTree / session.navigateTree | session.navigateTree, preserve cancelled/aborted/editor text |
-| [ ] | getForkMessages / session.getForkMessages | session.getUserMessagesForForking |
-| [ ] | fork / session.fork | runtime.fork, selectedText -> text |
-| [ ] | clone / session.clone | runtime.fork(currentLeaf, position at), not shallow message copy |
-| [ ] | dispose / shutdown | Await SDK disposal, reject interactions, bounded cleanup |
-| [ ] | select/confirm/input/editor | Reverse requests into Tauren ExtensionUi |
-| [ ] | custom/widget/footer | Server-local component factories, remote render/input/invalidation/disposal |
-| [ ] | status/notify/composer/toolsExpanded | Bidirectional intent/state mapping |
-| [ ] | terminal input | Ordered interception with consume/transform response |
+| [x] | getMessages / session.getMessages | session.messages, enrich resumed custom renders; persisted truth |
+| [x] | switchSession / session.switch | runtime.switchSession, cancellation and rebind |
+| [x] | importFromJsonl / session.importJsonl | runtime.importFromJsonl; server-side input path |
+| [x] | getSessionTree / session.getTree | sessionManager.getTree/getLeafId, flatten DTO |
+| [x] | setTreeEntryLabel / session.setTreeEntryLabel | sessionManager.appendLabelChange, null removes label |
+| [x] | navigateTree / session.navigateTree | session.navigateTree, preserve cancelled/aborted/editor text |
+| [x] | getForkMessages / session.getForkMessages | session.getUserMessagesForForking |
+| [x] | fork / session.fork | runtime.fork, selectedText -> text |
+| [x] | clone / session.clone | runtime.fork(currentLeaf, position at), not shallow message copy |
+| [x] | dispose / shutdown | Await SDK disposal, reject interactions, bounded cleanup |
+| [x] | select/confirm/input/editor | Reverse requests into Tauren ExtensionUi |
+| [x] | custom/widget/footer | Server-local component factories, remote render/input/invalidation/disposal |
+| [x] | status/notify/composer/toolsExpanded | Bidirectional intent/state mapping |
+| [x] | terminal input | Ordered interception with consume/transform response |
 
 Runtime setting mapping: defaultProvider -> settings; defaultModel -> setModel;
 defaultThinkingLevel -> session thinking setter; hideThinkingBlock/quietStartup ->
@@ -235,32 +242,37 @@ cancellation applies before prompt acknowledgement; use `chat.abort` afterwards.
 Generation failures after acceptance emit `server.diagnostic`.
 
 Reload uses `session.reload`, invalidates completion handles, and clears host
-statuses/widgets. Full extension UI rebinding awaits step 5. File completion
+statuses/widgets and extension surfaces. Session replacement rebinds UI and events. File completion
 supports the existing bounded fuzzy `@` behavior with single-use opaque handles;
-SDK extension autocomplete factories will be bound alongside UI in step 5. Model
+SDK extension autocomplete factories wrap the base provider beside Pi. Model
 metadata excludes configured HTTP headers, and auth readiness never enumerates
 credentials. State/settings and accounting use SDK getters and flush queued
 settings writes. Auth mutations always fail with `CredentialPolicy`.
 
-Session events currently remain SDK JSON snapshots with sequence numbers;
-custom tool/message rendering, full UI binding and session operations remain
-step 5. Unsupported methods are not advertised and return method-not-found.
+Session events carry sequence numbers and safe tool/custom renderer enrichment.
+Restored messages are reconstructed by Pi and enriched afresh. Session mutations
+use an idle, non-queuing guard; SDK vetoes are preserved. Cancellation aborts
+compaction/branch summaries; a committed replacement is not rolled back or reported
+as if it had never happened. Switch/import retain initialized workspace/store
+association, and imported headers are normalized to that workspace.
+Unsupported methods return method-not-found.
 The server boundary does not restrict trusted SDK extensions' filesystem or
 credential access; it prohibits credential mutation through Tauren's wire API.
 
 ### Outside AgentClient
 
-- [ ] `sessions.list`: persisted Session List Lane discovery in the initialized
+- [x] `sessions.list`: persisted Session List Lane discovery in the initialized
   session directory. Match current metadata/header/name/count/first-message and
   parent-tree expectations from `src/sessions/piSessionList.ts`; SDK list/listAll
   can be used only after parity is checked.
-- [ ] `sessions.traceOrigin`: scans persisted edit/write records across sessions,
+- [x] `sessions.traceOrigin`: scans persisted edit/write records across sessions,
   matching `src/origin/sessionOriginTracer.ts`; no direct SDK trace API exists.
-- [ ] Origin candidate lookup and path/cwd association must not fall back to host
+- [x] Origin candidate lookup and path/cwd association must not fall back to host
   `~/.pi`. Scope discovery to the effective initialized store.
 - [ ] Export skin postprocessing and artifact accessibility: current host code
   reads returned HTML locally. Remote paths require a mount or explicit transfer;
-  returning a server-only path is not completed export parity.
+  the server returns `{ path, html }` for transfer. Host materialization and skinning
+  remain step 10/11; this does not claim completed end-to-end export parity.
 - [ ] File reads/highlighting and session diff baselines retain their existing
   ownership. Do not replace Session Changes with git diff.
 

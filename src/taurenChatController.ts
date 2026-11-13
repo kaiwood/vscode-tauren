@@ -12,7 +12,7 @@ import { createWebviewMessageSyncPlan, type PostedWebviewChatSync, type WebviewM
 import { StatePublisher } from './controller/statePublisher';
 import type { KwardMemoryAction } from './kward/memoryActions';
 import type { AgentClient } from './agent/clientTypes';
-import type { ComposerCompletionApplication, ComposerCompletionApplied, ComposerCompletionCapabilities, ComposerCompletionRequest, ComposerCompletionResult } from './autocomplete/types';
+import type { ComposerCompletionApplication, ComposerCompletionApplied, ComposerCompletionCapabilities, ComposerCompletionRequest, ComposerCompletionResult } from '@tauren/shared/completion/types';
 import type { TaurenChatControllerOptions } from './controller/types';
 import type {
   PiImageContent,

@@ -1,8 +1,8 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { ExtensionUi } from '../extensionUi/types';
-import type { ComposerCompletionApplication, ComposerCompletionApplied, ComposerCompletionCapabilities, ComposerCompletionRequest, ComposerCompletionResult } from '../autocomplete/types';
-import { PiAutocompleteRegistry } from '../autocomplete/piAutocompleteRegistry';
+import type { ComposerCompletionApplication, ComposerCompletionApplied, ComposerCompletionCapabilities, ComposerCompletionRequest, ComposerCompletionResult } from '@tauren/shared/completion/types';
+import { PiAutocompleteRegistry } from '@tauren/shared/completion/piAutocompleteRegistry';
 import type { PiClient } from '../pi/clientTypes';
 import type {
   PiAuthActionResult,
@@ -34,9 +34,9 @@ import type {
 import type { AgentSessionRuntime, SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent';
 import type { PiSettingId, SettingValue } from '../settings/settingsRegistry';
 import { createSdkExtensionUiContext } from './extensionUiBridge';
-import { PiSdkRenderer } from './piSdkRendering';
+import { PiSdkRenderer } from '@tauren/shared/rendering/piSdkRendering';
 import { mapSdkExtensionErrorToAgentEvent, mapSdkSessionEventToAgentEvent } from './piSdkEventMapper';
-import { flattenPiSessionTree, type FlattenableSessionTreeNode } from '../sessions/piSessionTree';
+import { flattenPiSessionTree, type FlattenableSessionTreeNode } from '@tauren/shared/sessions/piSessionTree';
 import { loadPiSdk, type PiSdkLoader, type PiSdkModule } from './piSdkLoader';
 import { assertPiStartupCwd } from '../workspace/cwdSafety';
 import { createWorkspaceMutationGuardTools } from './workspaceMutationGuard';

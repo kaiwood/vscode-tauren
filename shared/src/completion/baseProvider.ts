@@ -1,13 +1,7 @@
-import { getAtFileSuggestions } from '../fileSuggestions/fileSuggestionProvider';
+import { getAtFileSuggestions } from './fileSuggestions/fileSuggestionProvider.js';
 
-export type PiAutocompleteItem = { value: string; label: string; description?: string };
-export type PiAutocompleteSuggestions = { items: PiAutocompleteItem[]; prefix: string };
-export type PiAutocompleteProvider = {
-  triggerCharacters?: string[];
-  getSuggestions(lines: string[], cursorLine: number, cursorCol: number, options: { signal: AbortSignal; force?: boolean }): Promise<PiAutocompleteSuggestions | null>;
-  applyCompletion(lines: string[], cursorLine: number, cursorCol: number, item: PiAutocompleteItem, prefix: string): { lines: string[]; cursorLine: number; cursorCol: number };
-  shouldTriggerFileCompletion?(lines: string[], cursorLine: number, cursorCol: number): boolean;
-};
+import type { PiAutocompleteProvider } from './types.js';
+export type { PiAutocompleteItem, PiAutocompleteSuggestions, PiAutocompleteProvider } from './types.js';
 
 export function createTaurenBaseAutocompleteProvider(cwd: string | undefined | (() => string | undefined)): PiAutocompleteProvider {
   return {
@@ -48,9 +42,9 @@ function getAtPrefix(line: string, cursorCol: number): { prefix: string } | unde
   const beforeCursor = line.slice(0, cursorCol);
   const quoted = beforeCursor.match(/(?:^|[\s='\"])@(\"[^\"]*)$/);
   if (quoted) {
-    return { prefix: quoted[0].trimStart() };
+    return { prefix: quoted[0]!.trimStart() };
   }
 
   const token = beforeCursor.match(/(?:^|[\s='\"])(@[^\s='\"]*)$/);
-  return token ? { prefix: token[1] } : undefined;
+  return token?.[1] !== undefined ? { prefix: token[1] } : undefined;
 }

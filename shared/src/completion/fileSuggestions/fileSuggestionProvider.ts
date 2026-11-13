@@ -1,13 +1,8 @@
-/** Adapted from src/fileSuggestions/fileSuggestionProvider.ts. Preserve the baseline
- * bounded, cached breadth-first walk, scoped paths and filename-first fuzzy ranking.
- * This is path suggestion logic, not a filesystem security boundary. */
 import { readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import type { PiAutocompleteItem } from '../baseProvider.js';
-
-/** Directory metadata is local; only the registry projects items onto protocol DTOs. */
-export type FileSuggestion = PiAutocompleteItem & { directory: boolean };
+import type { FileSuggestion } from '../types.js';
+export type { FileSuggestion } from '../types.js';
 
 const maxWalkEntries = 3000;
 const maxSuggestions = 20;

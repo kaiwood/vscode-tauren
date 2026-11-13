@@ -1,6 +1,15 @@
-import type { WebviewExtensionRenderBlock } from '../webviewProtocol/types';
-import { isRecord } from '../shared/typeGuards';
-import { clampPositiveNumber } from './dimensions';
+// Structural render blocks keep this module independent of host/webview protocols.
+import { isRecord } from './typeGuards.js';
+
+type WebviewExtensionRenderBlock =
+  | { type: 'text'; lines: string[] }
+  | { type: 'image'; data: string; mimeType: string; columns: number; rows: number;
+      widthPx?: number; heightPx?: number; cellWidthPx?: number; cellHeightPx?: number;
+      alt?: string; indentColumns?: number };
+
+function clampPositiveNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+}
 
 export type ExtensionRenderContent = {
   lines: string[];
@@ -196,8 +205,20 @@ function linesForBlocks(blocks: WebviewExtensionRenderBlock[]): string[] {
   return lines;
 }
 
+/** Some extension components return SDK text/image content arrays rather than
+ * terminal strings. Keep embedded text, but never stringify images/objects or
+ * leak base64 into the transcript. Images remain in the original SDK message;
+ * the rendered DTO intentionally only carries body/expandedBody/code.
+ */
 function normalizeLines(lines: unknown): string[] {
-  return Array.isArray(lines) ? lines.map((line) => String(line)) : [];
+  if (!Array.isArray(lines)) return [];
+  return lines.flatMap((line): string[] => {
+    if (typeof line === 'string') return [line];
+    if (isRecord(line)) {
+      return line.type === 'text' && typeof line.text === 'string' ? line.text.split('\n') : [];
+    }
+    return typeof line === 'number' || typeof line === 'boolean' ? [String(line)] : [];
+  });
 }
 
 function isImageLike(value: Record<string, unknown>): value is Record<string, unknown> & ImageLike {

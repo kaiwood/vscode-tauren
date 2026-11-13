@@ -15,11 +15,12 @@
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "check:version": "node ../scripts/verify-sandbox-sdk-version.js",
-    "build": "npm run check:version && npm run clean && tsc -p tsconfig.json",
+    "build": "npm --prefix ../shared run build && npm run check:version && npm run clean && tsc -p tsconfig.json",
     "test": "npm run build && node --test dist/test/*.test.js dist/completion/*.test.js",
     "start": "node dist/main.js"
   },
   "dependencies": {
+    "@tauren/shared": "file:../shared",
     "@earendil-works/pi-coding-agent": "1.5.1",
     "vscode-jsonrpc": "8.2.1"
   },

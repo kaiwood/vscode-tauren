@@ -17,6 +17,7 @@ For major architectural choices, read the [decision records](../decisions/0001-s
 
 ```sh
 npm install
+npm ci --prefix shared
 npm run compile
 ```
 
@@ -29,7 +30,7 @@ npm ci --prefix sandbox-server
 npm test
 ```
 
-Root `npm test` runs the standalone server/version checks, compiles the extension,
+Root `npm test` runs the shared-package and standalone server/version checks, compiles the extension,
 then runs its VS Code Extension Host tests. The server tests need no VS Code,
 SBX, SSH, model service, or credentials and can also run independently:
 

@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { renderComponentContent } from '../../extensionUi/renderContent';
+import { renderComponentContent } from '@tauren/shared/rendering/renderContent';
 
 suite('Extension render content', () => {
   test('serializes pi-tui Image-like components as typed image blocks', () => {

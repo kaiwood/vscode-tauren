@@ -1,5 +1,5 @@
 import type { PiSettingId, SettingValue } from '../settings/settingsRegistry';
-import type { ComposerCompletionApplication, ComposerCompletionApplied, ComposerCompletionCapabilities, ComposerCompletionRequest, ComposerCompletionResult } from '../autocomplete/types';
+import type { ComposerCompletionApplication, ComposerCompletionApplied, ComposerCompletionCapabilities, ComposerCompletionRequest, ComposerCompletionResult } from '@tauren/shared/completion/types';
 import type { WebviewTreeItem } from '../webviewProtocol/types';
 import type {
   PiAuthActionResult,

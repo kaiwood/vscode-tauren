@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import type { RawSessionInfo, SessionListItem } from './types';
+import type { RawSessionInfo, SessionListItem } from './types.js';
 
 type SessionTreeLayout = Pick<SessionListItem, 'depth' | 'isLast' | 'ancestorContinues' | 'current'>;
 

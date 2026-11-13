@@ -7,6 +7,15 @@ out/webview/**
 .vscode-test/**
 .vscode-test.js
 scripts/**
+# The local @tauren/shared runtime dependency is shipped through node_modules.
+# Do not include its source project or nested development dependencies as well.
+shared/**
+node_modules/@tauren/shared/src/**
+node_modules/@tauren/shared/test/**
+node_modules/@tauren/shared/scripts/**
+node_modules/@tauren/shared/tsconfig*.json
+node_modules/@tauren/shared/package-lock.json
+.npmrc
 tsconfig.json
 
 # Project-only docs/assets not needed at runtime

@@ -69,6 +69,12 @@ async function main() {
   });
   await esbuildContext.watch();
 
+  // Shared helpers compile independently for the extension (CJS) and server
+  // (ESM); watch both outputs without copying source into either consumer.
+  for (const config of ['shared/tsconfig.json', 'shared/tsconfig.esm.json']) {
+    spawnNodeScript(`Shared helpers (${config})`, require.resolve('typescript/bin/tsc'), ['-watch', '-p', config]);
+  }
+
   spawnNodeScript(
     'TypeScript compiler',
     require.resolve('typescript/bin/tsc'),

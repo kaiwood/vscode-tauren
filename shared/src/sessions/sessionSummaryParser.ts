@@ -1,7 +1,11 @@
 import { createReadStream, type Stats } from 'fs';
-import { extractPiMessageText } from '../pi/messageContent';
-import type { RawSessionInfo } from './types';
-import { isRecord } from '../shared/typeGuards';
+import { extractPiMessageText } from './messageContent.js';
+import type { RawSessionInfo } from './types.js';
+// Preserve Tauren's metadata-counting semantics: array-valued message records
+// count as entries too, though they have no conversational role/text.
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
 
 const maxSessionFirstMessageLength = 500;
 const truncationMarker = '…';
@@ -373,7 +377,7 @@ function readNumberAfterColon(text: string, index: number): number | undefined {
   const start = skipWhitespace(text, index + 1);
   let end = start;
 
-  while (end < text.length && /[0-9.+\-eE]/.test(text[end])) {
+  while (end < text.length && /[0-9.+\-eE]/.test(text[end]!)) {
     end += 1;
   }
 
@@ -591,7 +595,7 @@ function skipJsonPrimitive(text: string, index: number): number | undefined {
 }
 
 function skipTrailingPrimitiveWhitespace(text: string, start: number, end: number): number | undefined {
-  while (end > start && /\s/.test(text[end - 1])) {
+  while (end > start && /\s/.test(text[end - 1]!)) {
     end -= 1;
   }
 
@@ -608,7 +612,7 @@ function getDateStringTime(value: string | undefined): number | undefined {
 }
 
 function skipWhitespace(text: string, index: number): number {
-  while (index < text.length && /\s/.test(text[index])) {
+  while (index < text.length && /\s/.test(text[index]!)) {
     index += 1;
   }
 

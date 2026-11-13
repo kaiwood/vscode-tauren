@@ -1,7 +1,7 @@
-import { extractPiMessageText } from '../pi/messageContent';
-import type { PiSessionTreeItem, RawEntry } from './types';
-import { isRecord } from '../shared/typeGuards';
-export type { PiSessionTreeItem } from './types';
+import { extractPiMessageText } from './messageContent.js';
+import type { PiSessionTreeItem, RawEntry } from './types.js';
+import { isRecord } from './records.js';
+export type { PiSessionTreeItem } from './types.js';
 
 export type FlattenableSessionTreeNode = {
   entry: RawEntry;

@@ -6,7 +6,7 @@ import {
   type CustomUiComponent,
   type CustomUiTerminal
 } from './customUiHost';
-import { defaultCellDimensions } from './renderContent';
+import { defaultCellDimensions } from '@tauren/shared/rendering/renderContent';
 import type { ExtensionFooterFactory } from './types';
 import { clampInteger, clampPositiveNumber } from './dimensions';
 
