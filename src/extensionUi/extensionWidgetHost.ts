@@ -8,7 +8,7 @@ import {
   type CustomUiComponent,
   type CustomUiTerminal
 } from './customUiHost';
-import { defaultCellDimensions, renderComponentContent, renderTextContent, type ExtensionCellDimensions } from './renderContent';
+import { defaultCellDimensions, renderComponentContent, renderTextContent, type ExtensionCellDimensions } from '@tauren/shared/rendering/renderContent';
 import { clampInteger, clampPositiveNumber } from './dimensions';
 
 type ExtensionTerminalDimensions = CustomUiTerminal & ExtensionCellDimensions;

@@ -1,0 +1,9 @@
+schemaVersion: "2"
+kind: mixin
+name: tauren
+
+requires:
+  agent: pi
+
+# SBX v2 copies the generated sibling files/home/ tree to /home/agent/.
+# No install/startup hooks: each client will explicitly launch its own server.

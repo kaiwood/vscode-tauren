@@ -3,7 +3,7 @@ import { readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { SessionListProgressOptions } from '../controller/types';
-import { decorateSessionTree } from '../sessions/sessionTree';
+import { decorateSessionTree } from '@tauren/shared/sessions/sessionTree';
 import type { SessionListItem } from '../sessions/types';
 import { parseJsonlFileRecords } from '../shared/jsonl';
 import { mapWithConcurrency } from '../shared/mapWithConcurrency';

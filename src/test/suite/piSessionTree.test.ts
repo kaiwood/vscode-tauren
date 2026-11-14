@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { flattenPiSessionTree } from '../../sessions/piSessionTree';
+import { flattenPiSessionTree } from '@tauren/shared/sessions/piSessionTree';
 
 suite('Pi session tree', () => {
   test('keeps single-child chains visually flat', () => {

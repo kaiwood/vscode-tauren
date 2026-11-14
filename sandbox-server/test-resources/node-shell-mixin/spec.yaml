@@ -1,0 +1,44 @@
+# syntax=docker/sandbox-kit:3
+# Test-only declaration mixin composed with SBX's built-in v3 shell workload.
+# https://github.com/docker/sandbox-kit-spec/blob/main/docs/spec/SPEC-v3.md
+schemaVersion: "3"
+kind: mixin
+displayName: Tauren test Node runtime
+
+capabilities:
+  - type: com.docker.sandbox/network-policy@1
+    config:
+      install:
+        allow:
+          - nodejs.org
+
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      install:
+        - description: Install pinned Node.js for the server integration fixture
+          user: "0"
+          command: |
+            set -eu
+            version=22.22.1
+            case "$(uname -m)" in
+              x86_64) arch=x64 ;;
+              aarch64|arm64) arch=arm64 ;;
+              *) echo 'Unsupported architecture for the Node test runtime' >&2; exit 1 ;;
+            esac
+            # The minimal shell image lacks xz; use the gzip release archive.
+            archive="node-v${version}-linux-${arch}.tar.gz"
+            temporary="$(mktemp -d)"
+            trap 'rm -rf "$temporary"' EXIT
+            cd "$temporary"
+            curl --fail --silent --show-error --location \
+              "https://nodejs.org/dist/v${version}/${archive}" -o "$archive"
+            curl --fail --silent --show-error --location \
+              "https://nodejs.org/dist/v${version}/SHASUMS256.txt" -o SHASUMS256.txt
+            # Check against the release's published checksums before extracting.
+            # This is TLS/upstream integrity verification, not a vendored digest pin.
+            grep "  ${archive}$" SHASUMS256.txt > selected.sha256
+            test "$(wc -l < selected.sha256)" -eq 1
+            sha256sum --check selected.sha256
+            mkdir -p /opt/tauren-test-node
+            tar -xzf "$archive" --strip-components=1 -C /opt/tauren-test-node
+            test "$(/opt/tauren-test-node/bin/node --version)" = "v${version}"

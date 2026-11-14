@@ -1,6 +1,10 @@
 node_modules/
 out/
+sandbox-server/dist/
+shared/dist/
 resources/pi-sdk-runtime/
+resources/generated-sbx-kit/
+resources/generated-sbx-sandbox/
 resources/index.js
 resources/webview/chat.js
 docs/.vitepress/cache/

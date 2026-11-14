@@ -3,7 +3,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import type { AutocompleteProviderFactory } from '@earendil-works/pi-coding-agent';
-import { PiAutocompleteRegistry } from '../../autocomplete/piAutocompleteRegistry';
+import { PiAutocompleteRegistry } from '@tauren/shared/completion/piAutocompleteRegistry';
 import { createSdkExtensionUiContext } from '../../sdk/extensionUiBridge';
 
 suite('Pi autocomplete registry', () => {

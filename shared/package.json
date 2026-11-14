@@ -1,0 +1,25 @@
+{
+  "name": "@tauren/shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Transport-independent Tauren completion, rendering and session helpers",
+  "type": "commonjs",
+  "files": ["dist"],
+  "exports": {
+    "./*": {
+      "import": { "types": "./dist/esm/*.d.ts", "default": "./dist/esm/*.js" },
+      "require": { "types": "./dist/cjs/*.d.ts", "default": "./dist/cjs/*.js" }
+    }
+  },
+  "typesVersions": { "*": { "*": ["dist/cjs/*"] } },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc -p tsconfig.json && tsc -p tsconfig.esm.json && node scripts/mark-esm.js",
+    "test": "npm run build && node --test test/*.test.cjs"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.5.1",
+    "@types/node": "^24.0.0",
+    "typescript": "^6.0.3"
+  }
+}

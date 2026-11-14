@@ -513,8 +513,9 @@ suite('TaurenChatViewProvider', () => {
   });
 
   test('deletes sessions without confirmation when configured', async () => {
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tauren-delete-session-'));
-    const sessionFile = path.join(tempDir, 'session.jsonl');
+    const sessionFile = path.join(os.tmpdir(), 'tauren-delete-session', 'session.jsonl');
+    const originalDelete = vscode.workspace.fs.delete;
+    const deleteCalls: { uri: vscode.Uri; options: { recursive?: boolean; useTrash?: boolean } | undefined }[] = [];
     const configuration = vscode.workspace.getConfiguration('tauren');
     const previousValue = configuration.inspect<boolean>('confirmSessionDeletion')?.globalValue;
     const provider = new TaurenChatViewProvider(vscode.Uri.file('/extension'), () => {
@@ -522,17 +523,23 @@ suite('TaurenChatViewProvider', () => {
     });
 
     try {
-      await fs.writeFile(sessionFile, JSON.stringify({ type: 'session', id: 'session' }) + '\n', 'utf8');
+      // Test confirmation policy and the Trash request, not the host desktop's
+      // Trash implementation (which may be unavailable in headless environments).
+      vscode.workspace.fs.delete = async (uri, options) => {
+        deleteCalls.push({ uri, options });
+      };
       await configuration.update('confirmSessionDeletion', false, vscode.ConfigurationTarget.Global);
 
       const deleted = await (provider as unknown as ProviderWithDeleteSession).deleteSession(sessionFile, 'Session');
 
       assert.strictEqual(deleted, true);
-      await assert.rejects(fs.stat(sessionFile));
+      assert.strictEqual(deleteCalls.length, 1);
+      assert.strictEqual(deleteCalls[0].uri.fsPath, sessionFile);
+      assert.deepStrictEqual(deleteCalls[0].options, { useTrash: true });
     } finally {
+      vscode.workspace.fs.delete = originalDelete;
       provider.dispose();
       await configuration.update('confirmSessionDeletion', previousValue, vscode.ConfigurationTarget.Global);
-      await fs.rm(tempDir, { recursive: true, force: true });
     }
   });
 
