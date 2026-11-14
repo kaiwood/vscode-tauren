@@ -1,5 +1,6 @@
 # Source, tests, and local tooling
 src/**
+sandbox-server/**
 test/**
 out/test/**
 out/webview/**
@@ -45,3 +46,5 @@ node_modules/@earendil-works/pi-coding-agent/**
 
 # Documentation/demo captures are not needed at runtime
 resources/*.gif
+# Source descriptors are staged as separate generated kits during compile.
+resources/sbx-kit/**

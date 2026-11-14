@@ -4,8 +4,8 @@ Private standalone Node project for the SBX SDK server. The executable supports
 initialization, state/history queries, streaming prompts with images and Pi-owned
 steering/follow-up, abort, model/settings/resource controls, file completions,
 credential-policy enforcement, session/tree/import/export operations, remote
-extension UI, and bounded shutdown. SSH transport, packaging, and the Tauren host
-adapter remain later increments.
+extension UI, and bounded shutdown. Generated-kit packaging and standalone SSH
+tests are implemented; Tauren's SSH transport and host adapter remain later increments.
 This package is not independently published and imports no extension-host code.
 
 ```sh
@@ -31,7 +31,45 @@ this guard, so SDK updates cannot silently cross a release line.
 and connection helper. A future host adapter can consume this package subpath
 without importing extension code into the server. Its ESM output can be imported
 from Node 22 or dynamically from the CommonJS extension. The build emits `.d.ts`
-files. Production bundling and VSIX inclusion are step 7, not part of this increment.
+files. Root `npm run compile` also bundles the server adapter into the generated
+server mixin and stages the default sandbox descriptor as a separate kit. The
+pinned SDK remains the dependency for standalone development and tests; the
+packaged server instead loads the sandbox's existing Pi installation.
+
+## Generated production kits
+
+`npm run compile:sbx-kit` builds this project and generates two separate resources:
+
+- `resources/generated-sbx-kit/`: server mixin `spec.yaml`, build manifest and
+  server entrypoint at `files/home/.tauren/server/dist/main.js` and installed-Pi
+  resolver at `files/home/.tauren/server/dist/sandboxPi.js`.
+- `resources/generated-sbx-sandbox/`: standalone Pi `spec.yaml`, with the configured
+  runtime image digest interpolated and source provenance retained.
+
+Only server code, shared helpers and JSON-RPC are bundled; there is no second Pi
+SDK runtime, copied SDK assets, Jiti runtime, or generated extension peer shims.
+The resolver selects the first executable `pi` on the sandbox's `PATH`, follows
+its symlink with `realpath`, and walks parent directories to the package named
+`@earendil-works/pi-coding-agent`. It loads that package's public root SDK export
+(`exports['.'].import`, or a string root export), never a private SDK path or CLI
+subprocess. An unusable first Pi fails rather than selecting another installation.
+
+The server's `package.json` records `sandboxPiSdkVersion` as the compatibility
+baseline: stable major/minor must match, patches may differ, and prereleases must
+match exactly. The loaded SDK's `VERSION` must match its package metadata; the
+handshake reports that actual loaded version, not the build-time baseline. Assets,
+Jiti and extension peers retain the existing Pi package's unchanged layout and
+module identity. No sandbox-side npm install or checkout dependency is required.
+Root clean removes generated kit/server output. Source descriptors remain under
+`resources/sbx-kit`; production Pi kits remain v2, distinct from the v3 shell-test kits.
+
+`npm run test:sandbox-package` extracts a real VSIX and exercises the server
+outside the checkout with an independently provisioned installed Pi tree. An
+isolated test `PATH` exposes a `pi` symlink to that tree's correct CLI entrypoint.
+The passing gate verifies missing/incompatible Pi rejection, the loaded handshake
+version, offline tools/UI, persistence and HTML export, without borrowing checkout
+dependencies in the server process. This is not a real-SBX installation test;
+packaged end-to-end SBX verification remains a later gate.
 
 ## Running the stdio server
 

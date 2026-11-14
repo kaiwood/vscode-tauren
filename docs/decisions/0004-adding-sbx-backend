@@ -14,7 +14,11 @@ Tauren already has a second backend shape: Kward owns its runtime and Tauren ada
 
 ## Decision
 
-Tauren will gain an SBX backend beside the bundled Pi SDK. The sandbox owns Pi. A small in-sandbox server uses the Pi SDK and speaks framed JSON-RPC on its stdio. The host adapter implements `AgentClient`, following the Kward pattern: proxy the calls and events the adapter needs, including streaming and extension UI, rather than exposing a generic SDK transport.
+Tauren will gain an SBX backend beside the bundled in-process Pi SDK backend. The sandbox owns Pi: the server must use the sandbox's existing installed Pi, not ship a second bundled SDK runtime. A small in-sandbox server loads that installation's public SDK and speaks framed JSON-RPC on its stdio. The host adapter implements `AgentClient`, following the Kward pattern: proxy the calls and events the adapter needs, including streaming and extension UI, rather than exposing a generic SDK transport.
+
+The packaged `dist/sandboxPi.js` resolver selects the first executable `pi` on `PATH`, follows its symlink with `realpath`, and walks parent directories to the package named `@earendil-works/pi-coding-agent`. It imports the public root SDK export (`exports['.'].import`, or a string root export). A missing or unusable first Pi fails explicitly, without invoking the CLI or falling back to a server-owned runtime. Server `package.json` metadata `sandboxPiSdkVersion` supplies the compatibility baseline: stable major/minor must match, patches may differ, and prereleases must match exactly. The loaded SDK's `VERSION` must match its package metadata, and the handshake reports that actual loaded version rather than the build-time expectation.
+
+Only server/shared/JSON-RPC code is bundled into the mixin. Assets, Jiti and extension peers come from the existing Pi package with its layout and module identity unchanged. Standalone development and tests retain the pinned SDK dependency. This supersedes the earlier step-7 requirement to bundle SDK assets and peer shims; the extension-host SDK bundle is unchanged.
 
 The server is reached through Docker Sandboxes SSH, not a published port or a Unix-socket bind. `sbx` does not provide a generic host bind mount, and it forwards only SSH-agent sockets. After `sbx login` and `sbx setup ssh`, Tauren connects with `ssh -T <name>.sbx` and runs the server on that raw pipe. SSH is experimental and terminates at the daemon. It does not forward host environment variables.
 
@@ -154,13 +158,19 @@ The session and extension UI server implementation uses `sessionControls.ts` and
 - ~~Handle SSH's remote-command quoting separately from local process argv; paths with spaces or shell metacharacters must remain literal. Keep protocol stdout separate from SSH/server diagnostics.~~
 - ~~**Test gate:** opt-in automated tests cover handshake, a streamed SDK turn, a tool call, a UI interaction, session reopening, nonzero remote exit, abrupt disconnect, and bounded server/tool cleanup. Inspect server/tool PIDs inside the VM over independent SSH probes and assert natural cleanup before sandbox removal. A new SSH connection restores history without continuing or duplicating the interrupted turn. These tests require host SBX login/SSH setup but no external model credentials. Keep them out of ordinary root `npm test`; fast local SDK/protocol tests remain unchanged. Production kit/package verification remains separate.~~
 
-### 7. Assemble and package the generated kit
+### ~~7. Assemble and package the generated kit~~ — Completed
 
-- Add root build scripts that build `sandbox-server/` and assemble a clean temporary/staging kit directory containing `mixin.yaml` copied as `spec.yaml` and generated server artifacts under `files/home/`. Stage `sandbox.yaml` as `spec.yaml` in a separate standalone sandbox kit directory.
-- Package that assembled tree at a stable extension-relative resource path, such as `resources/generated-sbx-kit/`; this installed directory is the path supplied to `--kit`. Also package the default standalone sandbox descriptor from `resources/sbx-kit/sandbox.yaml`, retaining its source provenance and interpolated runtime image digest. Keep the two kits separate, generated output ignored, and `resources/sbx-kit/` source-only.
-- Bundle or copy all required SDK assets, extension peer-import shims, and runtime dependencies. Do not rely on the host checkout, host `node_modules`, or downloading server code at sandbox startup.
-- Integrate with root compile/clean, Pi SDK update verification, release scripts, and `.vscodeignore`. Exclude standalone project source/tests from the VSIX while retaining runtime artifacts.
-- **Test gate:** build from a clean checkout, inspect the VSIX contents for both kits, run the extracted server artifacts without repository dependencies, and repeat the real-SBX installation probe using the packaged standalone sandbox kit and server mixin. Check runtime-image Pi, standalone server SDK, and extension SDK version alignment and confirm the existing extension build still succeeds.
+- ~~Add root build scripts that build `sandbox-server/` and assemble a clean temporary/staging kit directory containing `mixin.yaml` copied as `spec.yaml` and generated server artifacts under `files/home/`. Stage `sandbox.yaml` as `spec.yaml` in a separate standalone sandbox kit directory.~~
+- ~~Package that assembled tree at a stable extension-relative resource path, such as `resources/generated-sbx-kit/`; this installed directory is the path supplied to `--kit`. Also package the default standalone sandbox descriptor from `resources/sbx-kit/sandbox.yaml`, retaining its source provenance and interpolated runtime image digest. Keep the two kits separate, generated output ignored, and `resources/sbx-kit/` source-only.~~
+- ~~Bundle only server/shared/JSON-RPC code and include the installed-harness resolver at `dist/sandboxPi.js`. Resolve the existing sandbox Pi public SDK, enforce the server's `sandboxPiSdkVersion` compatibility policy, and report the actual loaded SDK `VERSION`. Preserve the existing Pi package's assets, Jiti and extension peer imports unchanged; add asset extras only if verification demonstrates they are necessary. Do not rely on the host checkout, host `node_modules`, or downloading server code at sandbox startup.~~
+- ~~Integrate with root compile/clean, Pi SDK update verification, release scripts, and `.vscodeignore`. Exclude standalone project source/tests from the VSIX while retaining runtime artifacts.~~
+- ~~**Test gate:** inspect a real VSIX for both generated kits and absence of a second sandbox SDK runtime/assets/peer shims. Run the extracted server outside the checkout against an independently provisioned installed Pi tree, with an isolated `PATH` exposing a `pi` symlink to the correct CLI. Verify missing/incompatible Pi rejection, actual loaded SDK version in the handshake, offline tools/UI, persistence and export without repository dependencies in the server process. Retain SDK release-line checks and the existing extension build.~~
+
+The generated mixin is `resources/generated-sbx-kit/`; the default sandbox descriptor is staged separately under `resources/generated-sbx-sandbox/`. Root compilation builds the server adapter and bundles server/shared/JSON-RPC code, including `dist/sandboxPi.js`, while recording `sandboxPiSdkVersion` in server metadata. It does not bundle a second Pi SDK, copy SDK export/theme assets, generate extension peer shims, or include Jiti runtime files. Verification uses those resources directly from the independently installed Pi package; no extra assets are currently necessary.
+
+The extracted-VSIX gate (`npm run test:sandbox-package`) passes with the independent installed-Pi fixture described above, and release preflight applies it to the preflight VSIX. Standalone development tests continue using their pinned SDK normally. `scripts/sandbox-sdk-runtime.js`, `scripts/smoke-packaged-sbx-kit.js`, and `test:sandbox-package:sbx` are removed. Real-SBX packaged end-to-end verification remains step 12; a separate clean-checkout build and real-SBX packaged installation are not established by this local artifact gate. The source-kit installation probe and shell-sandbox SSH tests remain separate. Production Pi kits stay v2 and shell-test kits stay v3.
+
+This completed step's revised scope supersedes its earlier bundled-SDK/peer-shim requirement and packaged real-SBX smoke command; those are not outstanding step-7 requirements.
 
 ### 8. Implement pure sandbox configuration and command composition
 
@@ -220,8 +230,15 @@ The session and extension UI server implementation uses `sessionControls.ts` and
 - Basename-derived sandbox names can collide across workspace paths; collisions require an explicit name override.
 - Command providers must implement the versioned JSON argv contract and omit Tauren-owned arguments.
 - Tauren must maintain the vendored Pi sandbox configuration and runtime image digest alongside SDK updates. Third-party providers must supply a compatible pinned runtime image themselves.
+- The sandbox must expose its installed Pi CLI on the server's `PATH` with a resolvable owning package and compatible public SDK export. Missing, wrapped, or incompatible installations fail explicitly rather than using a bundled fallback.
 
 ## Change Log
+
+### 2026-11-13 — Reuse the sandbox's existing Pi installation
+
+Use the existing sandbox Pi public SDK rather than installing a second server-owned SDK runtime. The generated mixin bundles only server/shared/JSON-RPC code and the `dist/sandboxPi.js` harness resolver; the separate base descriptor is retained. Resolve the first `pi` on `PATH` through its real package, validate it against `sandboxPiSdkVersion`, and report the loaded SDK's actual `VERSION`. Keep assets, Jiti and extension peers in their original Pi installation; verification currently requires no extra assets. Standalone pinned-SDK development tests remain unchanged.
+
+The passing extracted-VSIX test provisions an independent installed Pi tree outside the checkout, exposes the correct CLI through a test `PATH` symlink, and covers missing/incompatible installations as well as real SDK tools/UI, persistence and export. Remove `scripts/sandbox-sdk-runtime.js`, `scripts/smoke-packaged-sbx-kit.js`, and `test:sandbox-package:sbx`. This supersedes the earlier step-7 bundling and peer-shim requirement and its packaged-SBX smoke command, not the extension-host SDK bundle or the later real-SBX end-to-end gate. Production Pi kits remain v2; shell-test kits remain v3. Earlier entries below remain historical decisions.
 
 ### 2026-11-12 — SSH verification uses an SBX shell sandbox
 

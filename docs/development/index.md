@@ -38,6 +38,22 @@ SBX, SSH, model service, or credentials and can also run independently:
 npm run test:sandbox-server
 ```
 
+### Extracted-VSIX sandbox server
+
+```sh
+npm run test:sandbox-package
+```
+
+This passing gate builds/extracts a real VSIX and runs its server outside the
+checkout against an independently provisioned installed Pi tree. An isolated
+`PATH` provides a `pi` symlink to that installation's correct CLI. It checks
+missing/incompatible Pi rejection, the actual loaded SDK handshake version,
+offline tools/UI, persistence and HTML export. The generated mixin bundles only
+server/shared/JSON-RPC code plus the installed-Pi resolver; SDK assets, Jiti and
+extension peers come unchanged from the existing Pi package, not a second bundled
+runtime. Standalone development tests retain their normal pinned SDK dependency.
+See [Release Process](./release.md) for artifact reuse and release preflight.
+
 ### Headless Linux
 
 The VS Code test process requires a display. On a headless Linux machine, install
@@ -77,10 +93,12 @@ npm run test:all
 xvfb-run -a npm run test:all
 ```
 
-This runs `npm test` first, then `test:sandbox-server:sbx`, stopping if either
-fails. It is the combined regression gate for server/transport changes; ordinary
-`npm test` remains usable without SBX. Kit-installation smoke tests and future
-packaged end-to-end gates remain separate, not implicitly included in `test:all`.
+This runs `npm test`, the extracted-VSIX `test:sandbox-package` gate, then
+`test:sandbox-server:sbx`, stopping on failure. It is the combined regression gate for server/transport changes; ordinary
+`npm test` remains usable without SBX. The source-kit installation probe
+(`test:sbx-kit:smoke`) and future packaged end-to-end gates remain separate, not
+implicitly included in `test:all`. There is no `test:sandbox-package:sbx` command.
+Production Pi kits remain v2; the shell-test base and Node mixin remain v3.
 
 The fixture mounts prepared code read-only and uses a separate writable workspace
 for settings, sessions and tool targets. It checks remote process cleanup before

@@ -36,6 +36,7 @@ function run(command, args, options = {}) {
   console.log(`\n$ ${commandText(command, args)}`);
   const result = childProcess.spawnSync(command, args, {
     cwd: root,
+    env: options.env ?? process.env,
     encoding: 'utf-8',
     stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit'
   });
@@ -214,7 +215,13 @@ function runPackagePreflight(tempDir) {
   run(npmCommand, ['run', 'compile']);
   run(npmCommand, ['run', 'verify:pi-sdk']);
   checkCleanWorkingTree();
-  run(npxCommand, ['--yes', '@vscode/vsce', 'package', '--out', path.join(tempDir, 'preflight.vsix')]);
+  const vsix = path.join(tempDir, 'preflight.vsix');
+  run(npxCommand, ['--yes', '@vscode/vsce', 'package', '--out', vsix]);
+  // Verify installed server assets/peers and real SDK behavior from this archive,
+  // not only the development build. SBX installation remains an explicit gate.
+  run(process.execPath, ['--test', 'scripts/sandbox-package.test.js'], {
+    env: { ...process.env, TAUREN_TEST_VSIX: vsix }
+  });
   checkCleanWorkingTree();
 }
 

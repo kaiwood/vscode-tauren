@@ -113,7 +113,9 @@ real SDK prompt/events, persisted-history reopening, stderr isolation, and
 shutdown/EOF/SIGTERM during active generation, real SDK file tools, bash descendant
 cleanup, steering/follow-up, delayed-preflight cancellation, runtime settings and
 credential rejection. Tests launch the built production stdio entrypoint; fully
-self-contained packaged artifacts are verified in step 7.
+packaged adapter artifacts are verified separately with an independently installed
+Pi harness. The packaged server resolves that installation's public SDK and checks
+its version; it does not ship another SDK runtime.
 
 ### Errors
 
